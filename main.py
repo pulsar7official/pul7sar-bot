@@ -1,4 +1,3 @@
-
 import os
 import json
 import re
@@ -174,18 +173,9 @@ try:
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
-    logo_box = img.crop((45, 35, 285, 115))
-    dominant_color = logo_box.resize((1, 1)).getpixel(0)
-    r, g, b = dominant_color[:3]
-    
-    use_blue = (r > (g + 40) and r > (b + 40) and r > 90)
-    
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
-    
-    target_logo_path = blue_path if (use_blue and os.path.exists(blue_path)) else red_path
-    if not os.path.exists(target_logo_path):
-        target_logo_path = red_path if os.path.exists(red_path) else blue_path
+    target_logo_path = red_path if os.path.exists(red_path) else blue_path
 
     if os.path.exists(target_logo_path):
         logo = Image.open(target_logo_path).convert("RGBA")
