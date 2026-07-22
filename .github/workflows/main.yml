@@ -1,0 +1,60 @@
+name: PUL7SAR Telegram Auto Post
+
+on:
+  workflow_dispatch: # يتيح لك التشغيل اليدوي بنقرة زر في أي وقت
+  schedule:
+    - cron: '0 */6 * * *' # تشغيل تلقائي كل 6 ساعات (يمكن تغييره لاحقاً)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Packages
+        run: |
+          pip install google-generativeai requests
+
+      - name: Generate Content & Post to Telegram
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python - << 'EOF'
+          import os
+          import requests
+          import google.generativeai as genai
+
+          # 1. تهيئة الذكاء الاصطناعي Gemini
+          genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+          model = genai.GenerativeModel('gemini-1.5-flash')
+
+          # 2. توليد المحتوى الرياضي لمنصة PUL7SAR
+          prompt = "اكتب منشوراً رياضياً مشوقاً وقصيراً لمنصة PUL7SAR يغطي أبرز أخبار وتحديثات كرة القدم العالمية اليوم، مع استخدام التنسيق الجذاب والإيموجيات المناسبة للتليجرام."
+          response = model.generate_content(prompt)
+          content = response.text
+
+          # 3. إرسال المنشور مباشرة إلى قناة التليجرام
+          bot_token = os.environ["TELEGRAM_BOT_TOKEN"]
+          chat_id = os.environ["TELEGRAM_CHAT_ID"]
+          
+          url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+          data = {
+              "chat_id": chat_id,
+              "text": content
+          }
+          
+          res = requests.post(url, json=data)
+          if res.status_code == 200:
+              print("✅ تم النشر بنجاح على قناة التليجرام!")
+          else:
+              print(f"❌ حدث خطأ أثناء الإرسال: {res.text}")
+          EOF
