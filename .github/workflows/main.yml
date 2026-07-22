@@ -44,6 +44,7 @@ jobs:
           bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
           chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
+          # سجل منع التكرار
           history_file = "posted_history.json"
           history_data = {"links": [], "titles": []}
           if os.path.exists(history_file):
@@ -68,10 +69,12 @@ jobs:
                       return True
               return False
 
+          # شبكة المصادر الشاملة (شبكات رياضية عالمية وصحفيي الانتقالات)[cite: 1]
           rss_urls = [
               "https://www.skysports.com/rss/12040",
               "http://feeds.bbci.co.uk/sport/football/rss.xml",
-              "https://www.goal.com/feeds/en/news"
+              "https://www.goal.com/feeds/en/news",
+              "https://theathletic.com/feed/"
           ]
 
           current_hour = datetime.utcnow().hour
@@ -123,10 +126,10 @@ jobs:
               else:
                   exit(0)
 
-          # لون البراند الثابت (الأحمر الناري)
+          # لون البراند الثابت (الأحمر الناري المعتمد #FF1E38)
           BRAND_RED = "#FF1E38"
 
-          def get_team_color(text):
+          def get_stripe_color(text):
               t = text.lower()
               if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'barcelona', 'barca']):
                   return "#E50914"
@@ -164,7 +167,7 @@ jobs:
               - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
               """
               image_url = selected_article['image']
-              stripe_color = get_team_color(selected_article['title'] + " " + selected_article['summary'])
+              stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
 
           payload = {
               "model": "llama-3.3-70b-versatile",
@@ -178,7 +181,7 @@ jobs:
           raw_text = res.json()['choices'][0]['message']['content']
           clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff]+', '', raw_text)
 
-          # معالجة الصورة واحترافية الشعار
+          # معالجة الصورة والشعار النظيف المعتمد
           final_image_path = "processed_image.jpg"
           try:
               img_res = requests.get(image_url, timeout=10)
@@ -198,16 +201,12 @@ jobs:
               # شريط التصميم السفلي
               draw.rectangle([(0, 710), (1280, 720)], fill=stripe_color)
 
-              # صندوق خلفية الشعار العلوي (للضمان البصري وعدم تداخل الحروف مع السماء أو الصور الفاتحة)
-              logo_bg = Image.new('RGBA', (190, 60), (0, 0, 0, 140)) # خلفية سوداء شفافة أنيقة
-              img.paste(logo_bg, (40, 25), logo_bg)
-
-              # رسم الشعار بلون البراند الثابت (الأحمر الناري) للرقم 7 والنبض
+              # رسم الشعار النظيف مباشرة بأعلى اليسار باللون الأحمر الناري والأبيض (بدون مربعات خلفية)
               draw.text((55, 40), "PUL", fill="white")
               draw.text((105, 40), "7", fill=BRAND_RED)
               draw.text((120, 40), "SAR", fill="white")
               
-              # رسم نبض القلب باللون الأحمر الناري
+              # رسم نبض القلب باللون الأحمر الناري فوق أو بجانب الـ 7
               draw.line([(100, 35), (107, 25), (113, 45), (120, 35)], fill=BRAND_RED, width=3)
 
               img.save(final_image_path)
@@ -227,7 +226,7 @@ jobs:
               tele_res = requests.post(tele_url, json=tele_payload)
 
           if tele_res.status_code == 200:
-              print("🚀 تم النشر بنجاح وبشعار واضح ولون براند ثابت!")
+              print("🚀 تم النشر بنجاح بالشعار النظيف واللون الأحمر الناري المعتمد!")
               history_data["links"] = list(posted_links)[-100:]
               history_data["titles"] = posted_titles[-100:]
               with open(history_file, "w", encoding="utf-8") as f:
@@ -241,5 +240,5 @@ jobs:
           git config --global user.name "PUL7SAR Bot"
           git config --global user.email "bot@pul7sar.internal"
           git add posted_history.json || true
-          git commit -m "Update history and fix logo visibility [skip ci]" || true
+          git commit -m "Update history and clean logo branding [skip ci]" || true
           git push || true
