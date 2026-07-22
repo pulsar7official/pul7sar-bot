@@ -20,7 +20,7 @@ jobs:
 
       - name: Install Dependencies
         run: |
-          pip install requests feedparser beautifulsoup4 pillow
+          pip install requests feedparser beautifulsoup4 pillow google-generativeai
 
       - name: Run Main Script
         env:
