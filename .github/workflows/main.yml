@@ -44,7 +44,6 @@ jobs:
           bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
           chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
-          # 1. تحميل سجل التاريخ لمنع تكرار الروابط والمواضيع
           history_file = "posted_history.json"
           history_data = {"links": [], "titles": []}
           if os.path.exists(history_file):
@@ -54,24 +53,21 @@ jobs:
                       if isinstance(content, list):
                           history_data["links"] = content
                       elif isinstance(content, dict):
-                        history_data = content
+                          history_data = content
               except:
                   pass
 
           posted_links = set(history_data.get("links", []))
           posted_titles = [t.lower() for t in history_data.get("titles", [])]
 
-          # دالة للتحقق من تشابه العنوان مع أخبار سابقة لمنع تكرار الموضوع تماماً
           def is_topic_repeated(new_title):
               nt = new_title.lower()
               for pt in posted_titles:
-                  # إذا تشابهت الكلمات الرئيسية بنسبة عالية نعتبره نفس الخبر
                   common_words = set(nt.split()).intersection(set(pt.split()))
                   if len(common_words) >= 3:
                       return True
               return False
 
-          # 2. مصادر الأخبار
           rss_urls = [
               "https://www.skysports.com/rss/12040",
               "http://feeds.bbci.co.uk/sport/football/rss.xml",
@@ -79,14 +75,13 @@ jobs:
           ]
 
           current_hour = datetime.utcnow().hour
-          is_what_if_time = (current_hour == 18) # ساعة فقرة ماذا لو؟
+          is_what_if_time = (current_hour == 18)
 
           selected_article = None
           is_what_if_post = False
 
           if is_what_if_time:
               is_what_if_post = True
-              print("🌙 وقت فقرة التاريخ البديل (ماذا لو؟) المسائية.")
           else:
               articles = []
               for url in rss_urls:
@@ -97,7 +92,7 @@ jobs:
                           title = entry.get('title', '')
                           
                           if link in posted_links or is_topic_repeated(title):
-                              continue  # تجاوز الخبر لتجنب التكرار
+                              continue
 
                           summary = entry.get('summary', title)
                           soup_clean = BeautifulSoup(summary, "html.parser")
@@ -119,51 +114,44 @@ jobs:
                               'image': image_url
                           })
                   except Exception as e:
-                      print(f"⚠️ خطأ في قراءة المصدر {url}: {e}")
+                      print(f"⚠️ خطأ في المصدر {url}: {e}")
 
               if articles:
                   selected_article = random.choice(articles)
                   posted_links.add(selected_article['link'])
                   posted_titles.append(selected_article['title'])
-                  print(f"📰 الخبر المختار: {selected_article['title']}")
               else:
-                  print("⚠️ لا توجد أخبار جديدة غير منشورة حالياً.")
                   exit(0)
 
-          # 3. تحديد الألوان
-          def get_design_color(text):
-              t = text.lower()
-              if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'benfica', 'spain', 'morocco', 'portugal', 'man utd', 'manchester united']):
-                  return "#E50914"
-              elif any(k in t for k in ['real madrid', 'tottenham', 'spurs', 'germany', 'england']):
-                  return "#FEA326"
-              elif any(k in t for k in ['chelsea', 'inter', 'france', 'italy', 'psg', 'paris']):
-                  return "#0055A5"
-              elif any(k in t for k in ['man city', 'manchester city', 'napoli', 'argentina']):
-                  return "#6CABDD"
-              elif 'barcelona' in t or 'barca' in t:
-                  return "#A50044"
-              elif any(k in t for k in ['dortmund', 'al nassr', 'brazil']):
-                  return "#FDE100"
-              return "#FF1E38" # الأحمر الناري الأساسي لـ PUL7SAR
+          # لون البراند الثابت (الأحمر الناري)
+          BRAND_RED = "#FF1E38"
 
-          # 4. صياغة النص مع منع الحروف الأجنبية والصينية تماماً
+          def get_team_color(text):
+              t = text.lower()
+              if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'barcelona', 'barca']):
+                  return "#E50914"
+              elif any(k in t for k in ['real madrid', 'tottenham', 'spurs']):
+                  return "#FEA326"
+              elif any(k in t for k in ['chelsea', 'inter', 'psg']):
+                  return "#0055A5"
+              return BRAND_RED
+
           groq_url = "https://api.groq.com/openai/v1/chat/completions"
           headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
 
           if is_what_if_post:
               prompt = """
-              أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم (فرصة ضائعة بنهائي، إصابة أثرت على مسيرة أسطورة مثل رونالدو أو نادال).
-              - اكتب حصراً باللغة العربية الفصحى السليمة. ممنوع نهائياً استخدام أي حروف صينية أو يابانية أو غير عربية.
+              أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم.
+              - اكتب حصراً باللغة العربية الفصحى السليمة. ممنوع استخدام أي حروف صينية أو أجنبية.
               - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
-              - اختم بسؤال تفاعلي للمتابعين، ووضع هاشتاقات عربية واضحة مع #PUL7SAR.
+              - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
               """
               image_url = "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=1280&auto=format&fit=crop"
-              team_color = "#FF1E38"
+              stripe_color = BRAND_RED
           else:
               prompt = f"""
               أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
-              تنبيه صارم جداً: اكتب حصراً بلغة عربية فصحى سليمة ودقيقة 100%. ممنوع منعاً باتاً كتابة أي حروف صينية أو يابانية أو روسية أو كلمات مكسورة أو حروف غريبة. استخدم مصطلحات صحيحة مثل (المدرب) أو (المدير الفني).
+              تنبيه صارم: اكتب حصراً بلغة عربية فصحى سليمة ودقيقة 100%. ممنوع منعاً باتاً كتابة أي حروف صينية أو يابانية أو روسية أو كلمات مكسورة. استخدم مصطلحات صحيحة مثل (المدرب) أو (المدير الفني).
               
               الخبر الرياضي الخام:
               العنوان: {selected_article['title']}
@@ -173,10 +161,10 @@ jobs:
               - ابدأ بعنوان رئيسي جذاب ومثير.
               - اشرح تفاصيل الخبر بأسلوب ممتع ومختصر.
               - استخدم الإيموجيات الرياضية المناسبة.
-              - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR وتجنب أي هاشتاقات أجنبية غريبة.
+              - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
               """
               image_url = selected_article['image']
-              team_color = get_design_color(selected_article['title'] + " " + selected_article['summary'])
+              stripe_color = get_team_color(selected_article['title'] + " " + selected_article['summary'])
 
           payload = {
               "model": "llama-3.3-70b-versatile",
@@ -188,11 +176,9 @@ jobs:
               raise Exception(f"❌ خطأ من Groq: {res.text}")
 
           raw_text = res.json()['choices'][0]['message']['content']
-
-          # فلتر برامجي نهائي لحذف أي حروف صينية (CJK) أو يابانية أو سيريلية قد تسربت من الذكاء الاصطناعي
           clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff]+', '', raw_text)
 
-          # 5. معالجة الصورة والهوية البصرية
+          # معالجة الصورة واحترافية الشعار
           final_image_path = "processed_image.jpg"
           try:
               img_res = requests.get(image_url, timeout=10)
@@ -201,6 +187,7 @@ jobs:
               img = img.resize((1280, 720))
               draw = ImageDraw.Draw(img)
 
+              # تدرج سفلي للنص
               gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
               g_draw = ImageDraw.Draw(gradient)
               for y in range(200):
@@ -208,20 +195,27 @@ jobs:
                   g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
               img.paste(gradient, (0, 520), gradient)
 
-              draw.rectangle([(0, 710), (1280, 720)], fill=team_color)
+              # شريط التصميم السفلي
+              draw.rectangle([(0, 710), (1280, 720)], fill=stripe_color)
 
-              draw.text((50, 40), "PUL", fill="white")
-              draw.text((105, 40), "7", fill=team_color)
+              # صندوق خلفية الشعار العلوي (للضمان البصري وعدم تداخل الحروف مع السماء أو الصور الفاتحة)
+              logo_bg = Image.new('RGBA', (190, 60), (0, 0, 0, 140)) # خلفية سوداء شفافة أنيقة
+              img.paste(logo_bg, (40, 25), logo_bg)
+
+              # رسم الشعار بلون البراند الثابت (الأحمر الناري) للرقم 7 والنبض
+              draw.text((55, 40), "PUL", fill="white")
+              draw.text((105, 40), "7", fill=BRAND_RED)
               draw.text((120, 40), "SAR", fill="white")
               
-              draw.line([(100, 35), (108, 25), (114, 45), (122, 35)], fill=team_color, width=3)
+              # رسم نبض القلب باللون الأحمر الناري
+              draw.line([(100, 35), (107, 25), (113, 45), (120, 35)], fill=BRAND_RED, width=3)
 
               img.save(final_image_path)
           except Exception as e:
               print(f"⚠️ خطأ في معالجة الصورة: {e}")
               final_image_path = None
 
-          # 6. النشر على تليجرام
+          # النشر على تليجرام
           if final_image_path and os.path.exists(final_image_path):
               tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
               with open(final_image_path, 'rb') as photo_file:
@@ -233,8 +227,7 @@ jobs:
               tele_res = requests.post(tele_url, json=tele_payload)
 
           if tele_res.status_code == 200:
-              print("🚀 تم النشر بنجاح وبدون تكرار أو حروف غريبة!")
-              # حفظ السجل المحدث (آخر 100 رابط وعنوان)
+              print("🚀 تم النشر بنجاح وبشعار واضح ولون براند ثابت!")
               history_data["links"] = list(posted_links)[-100:]
               history_data["titles"] = posted_titles[-100:]
               with open(history_file, "w", encoding="utf-8") as f:
@@ -248,5 +241,5 @@ jobs:
           git config --global user.name "PUL7SAR Bot"
           git config --global user.email "bot@pul7sar.internal"
           git add posted_history.json || true
-          git commit -m "Update deduplication history [skip ci]" || true
+          git commit -m "Update history and fix logo visibility [skip ci]" || true
           git push || true
