@@ -24,48 +24,46 @@ jobs:
 
       - name: Generate Content & Post to Telegram
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: |
           python - << 'EOF'
           import os
           import requests
-          import json
 
-          api_key = os.environ.get("GEMINI_API_KEY", "").strip()
+          groq_key = os.environ.get("GROQ_API_KEY", "").strip()
           bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
           chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
-          if not api_key:
-              raise Exception("❌ GEMINI_API_KEY غير موجود في GitHub Secrets!")
+          if not groq_key:
+              raise Exception("❌ GROQ_API_KEY غير موجود في GitHub Secrets!")
 
-          # 1. طلب توليد النص من Google Gemini عبر API المباشر
-          gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-          
-          headers = {'Content-Type': 'json'}
+          # 1. طلب توليد النص الرياضي من Groq API
+          groq_url = "https://api.groq.com/openai/v1/chat/completions"
+          headers = {
+              "Authorization": f"Bearer {groq_key}",
+              "Content-Type": "application/json"
+          }
           payload = {
-              "contents": [{
-                  "parts": [{"text": "اكتب منشوراً رياضياً مشوقاً وقصيراً لمنصة PUL7SAR يغطي أبرز أخبار كرة القدم العالمية اليوم مع إيموجيات مناسبة للتليجرام."}]
+              "model": "llama-3.3-70b-versatile",
+              "messages": [{
+                  "role": "user",
+                  "content": "اكتب منشوراً رياضياً مشوقاً وقصيراً لمنصة PUL7SAR يغطي أبرز أخبار وتحديثات كرة القدم العالمية اليوم، مع استخدام التنسيق الجذاب والإيموجيات المناسبة للتليجرام."
               }]
           }
 
-          print("🔄 جاري الاتصال بـ Google Gemini API...")
-          response = requests.post(gemini_url, json=payload)
+          print("🔄 جاري الاتصال بـ Groq API...")
+          res = requests.post(groq_url, json=payload, headers=headers)
 
-          if response.status_code != 200:
-              print(f"❌ خطأ من Google API ({response.status_code}): {response.text}")
-              raise Exception(f"فشل الاتصال بـ Gemini API: {response.text}")
+          if res.status_code != 200:
+              print(f"❌ خطأ من Groq API ({res.status_code}): {res.text}")
+              raise Exception(res.text)
 
-          data = response.json()
-          try:
-              generated_text = data['candidates'][0]['content']['parts'][0]['text']
-              print("✅ تم توليد النص بنجاح!")
-          except Exception as e:
-              print(f"❌ تعذر استخراج النص من الاستجابة: {data}")
-              raise e
+          generated_text = res.json()['choices'][0]['message']['content']
+          print("✅ تم توليد النص بنجاح!")
 
-          # 2. إرسال النص إلى تليجرام
+          # 2. الإرسال إلى التليجرام
           telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
           tele_payload = {
               "chat_id": chat_id,
@@ -76,6 +74,6 @@ jobs:
           if tele_res.status_code == 200:
               print("🚀 تم النشر بنجاح على قناة التليجرام!")
           else:
-              print(f"❌ خطأ أثناء الإرسال للتليجرام: {tele_res.text}")
+              print(f"❌ خطأ أجهزة التليجرام: {tele_res.text}")
               raise Exception(tele_res.text)
           EOF
