@@ -1,16 +1,16 @@
-name: PUL7SAR Telegram Auto Post
+name: PUL7SAR Ultimate Sports Engine
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 */6 * * *'
+    - cron: '0 */4 * * *'  # يعمل كل 4 ساعات لجلب الأخبار الطازجة ومنع التكرار
 
 jobs:
-  publish:
+  run-pulsar:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout Code
+      - name: Checkout Repository
         uses: actions/checkout@v4
 
       - name: Set up Python
@@ -18,11 +18,11 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Install Packages
+      - name: Install Dependencies
         run: |
-          pip install requests feedparser pillow
+          pip install requests feedparser beautifulsoup4 pillow
 
-      - name: Generate Content & Post to Telegram
+      - name: Run PUL7SAR Bot
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
@@ -30,9 +30,12 @@ jobs:
         run: |
           python - << 'EOF'
           import os
+          import json
           import requests
           import feedparser
+          from bs4 import BeautifulSoup
           import random
+          from datetime import datetime
           from PIL import Image, ImageDraw, ImageFont
           from io import BytesIO
 
@@ -40,78 +43,130 @@ jobs:
           bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
           chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
-          # 1. جلب الأخبار الكروية العالمية (RSS)
+          # تحميل سجل الأخبار المنشورة لتجنب التكرار (Deduplication)
+          history_file = "posted_history.json"
+          posted_links = set()
+          if os.path.exists(history_file):
+              try:
+                  with open(history_file, "r", encoding="utf-8") as f:
+                      posted_links = set(json.load(f))
+              except:
+                  posted_links = set()
+
+          # قائمة RSS الشاملة (تشمل شبكات الأخبار، صحفيي الانتقالات، وصناع المحتوى)
           rss_urls = [
               "https://www.skysports.com/rss/12040",
-              "http://feeds.bbci.co.uk/sport/football/rss.xml"
+              "http://feeds.bbci.co.uk/sport/football/rss.xml",
+              "https://www.goal.com/feeds/en/news",
+              "https://theathletic.com/feed/"
           ]
 
-          articles = []
-          for url in rss_urls:
-              feed = feedparser.parse(url)
-              for entry in feed.entries[:5]:
-                  image_url = None
-                  if 'media_content' in entry and len(entry.media_content) > 0:
-                      image_url = entry.media_content[0]['url']
-                  elif 'enclosures' in entry and len(entry.enclosures) > 0:
-                      image_url = entry.enclosures[0]['href']
+          # التحقق من الوقت الحالي لمعرفة هل حان وقت فقرة "ماذا لو؟" (الساعة 9 مساءً بتوقيت UTC/التوقيت المحلي المبرمج)
+          current_hour = datetime.utcnow().hour
+          # نفترض توقيت النشر المسائي لسلسلة "ماذا لو؟" عند الساعة 18:00 إلى 21:00 UTC (ما يوافق التاسعة مساءً في مناطق عربية عديدة)
+          is_what_if_time = (current_hour == 18)
 
-                  articles.append({
-                      'title': entry.title,
-                      'summary': entry.get('summary', entry.title),
-                      'image': image_url
-                  })
+          selected_article = None
+          is_what_if_post = False
 
-          if not articles:
-              raise Exception("❌ لم يتم العثور على أخبار!")
+          if is_what_if_time:
+              is_what_if_post = True
+              print("🌙 وقت فقرة التاريخ البديل (ماذا لو؟) المسائية.")
+          else:
+              # جمع الأخبار من المصادر مع فلترة التكرار
+              articles = []
+              for url in rss_urls:
+                  try:
+                      feed = feedparser.parse(url)
+                      for entry in feed.entries[:8]:
+                          link = entry.get('link', entry.get('id', ''))
+                          if link in posted_links:
+                              continue  # تخطي الخبر لأنه منشور مسبقاً (المصدر الأول هو الأساس)
 
-          selected_article = random.choice(articles)
-          print(f"📰 الخبر المختار: {selected_article['title']}")
+                          title = entry.get('title', '')
+                          summary = entry.get('summary', title)
+                          soup_clean = BeautifulSoup(summary, "html.parser")
+                          clean_summary = soup_clean.get_text()
 
-          # 2. تحديد لون التصميم (الأساسي هو الأحمر الناري لـ PUL7SAR، أو لون النادي إن وجد)
+                          image_url = None
+                          if 'media_content' in entry and len(entry.media_content) > 0:
+                              image_url = entry.media_content[0].get('url')
+                          elif 'enclosures' in entry and len(entry.enclosures) > 0:
+                              image_url = entry.enclosures[0].get('href')
+
+                          if not image_url or not image_url.startswith('http'):
+                              image_url = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=1280&auto=format&fit=crop"
+
+                          articles.append({
+                              'title': title,
+                              'summary': clean_summary,
+                              'link': link,
+                              'image': image_url
+                          })
+                  except Exception as e:
+                      print(f"⚠️ خطأ في قراءة المصدر {url}: {e}")
+
+              if articles:
+                  selected_article = random.choice(articles)
+                  posted_links.add(selected_article['link'])
+                  print(f"📰 الخبر المختار فريد وغير مكرر: {selected_article['title']}")
+              else:
+                  print("⚠️ لم يتم العثور على أخبار جديدة غير منشورة.")
+
+          # تحديد ألوان الهوية (الأحمر الناري الأساسي لـ PUL7SAR أو لون النادي)
           def get_design_color(text):
-            t = text.lower()
-            # الأندية والمنتخبات الحمراء
-            if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'benfica', 'spain', 'morocco', 'portugal', 'man utd', 'manchester united']):
-                return "#E50914"
-            # الأندية والمنتخبات البيضاء / الذهبية
-            elif any(k in t for k in ['real madrid', 'tottenham', 'spurs', 'germany', 'england']):
-                return "#FEA326"
-            # الأندية والمنتخبات الزرقاء الداكنة
-            elif any(k in t for k in ['chelsea', 'inter', 'france', 'italy', 'psg', 'paris']):
-                return "#0055A5"
-            # الأندية والمنتخبات السماوية
-            elif any(k in t for k in ['man city', 'manchester city', 'napoli', 'argentina']):
-                return "#6CABDD"
-            # برشلونة
-            elif 'barcelona' in t or 'barca' in t:
-                return "#A50044"
-            # الأندية الصفراء
-            elif any(k in t for k in ['dortmund', 'al nassr', 'brazil']):
-                return "#FDE100"
+              t = text.lower()
+              if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'benfica', 'spain', 'morocco', 'portugal', 'man utd', 'manchester united']):
+                  return "#E50914"
+              elif any(k in t for k in ['real madrid', 'tottenham', 'spurs', 'germany', 'england']):
+                  return "#FEA326"
+              elif any(k in t for k in ['chelsea', 'inter', 'france', 'italy', 'psg', 'paris']):
+                  return "#0055A5"
+              elif any(k in t for k in ['man city', 'manchester city', 'napoli', 'argentina']):
+                  return "#6CABDD"
+              elif 'barcelona' in t or 'barca' in t:
+                  return "#A50044"
+              elif any(k in t for k in ['dortmund', 'al nassr', 'brazil']):
+                  return "#FDE100"
+              return "#FF1E38" # الأحمر الناري الأساسي لـ PUL7SAR
 
-            # اللون الأساسي الافتراضي لـ PUL7SAR (الأحمر الناري الجديد)
-            return "#FF1E38"
-
-          team_color = get_design_color(selected_article['title'] + " " + selected_article['summary'])
-          print(f"🎨 اللون المحدد للتصميم: {team_color}")
-
-          # 3. صياغة النص الرياضي عبر الذكاء الاصطناعي
-          prompt = f"""
-          أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
-          لديك الخبر الرياضي التالي:
-          العنوان: {selected_article['title']}
-          التفاصيل: {selected_article['summary']}
-
-          قم بصياغة منشور رياضي مستقل وشيق يتحدث **عن هذا الخبر المحدد فقط**:
-          - اجعل البداية بعنوان رئيسي جذاب ومثير.
-          - اشرح تفاصيل الخبر بأسلوب ممتع ومختصر.
-          - استخدم التنسيق الجذاب مع الإيموجيات الرياضية المناسبة.
-          - أنهِ المنشور بهشتاجات رياضية مع هشتاج المنصة #PUL7SAR.
-          """
-
+          # صياغة المحتوى عبر الذكاء الاصطناعي (Groq)
           groq_url = "https://api.groq.com/openai/v1/chat/completions"
           headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
+
+          if is_what_if_post:
+              prompt = """
+              أنت محرر رياضي عبقري في منصة PUL7SAR الرياضية.
+              قم بكتابة فقرة تفاعلية مشوقة ومختصرة تحت عنوان "ماذا لو؟" (Counterfactual Sports).
+              اختر سيناريو تاريخياً بدعاً ومؤثراً في عالم كرة القدم (مثل: فرصة ضائعة في نهائي مونديال، إصابة منعت أسطورة مثل رونالدو أو نادال أو كاكا من إنجاز تاريخي، أو صفقة كبرى لم تتم).
+              - اكتب بلغة عربية فصحى مشوقة وسردية رائعة.
+              - افتتح بعنوان جذاب يبدأ بـ ⏳ **ماذا لو؟**
+              - اختم بسؤال مفتوح يحفز المتابعين على النقاش في التعليقات.
+              - ضع هاشتاقات تناسب المنصة مع #PUL7SAR.
+              """
+              image_url = "https://images.unsplash.com/photo-1574629810360-7efbbe195018?q=80&w=1280&auto=format&fit=crop"
+              team_color = "#FF1E38"
+          else:
+              if not selected_article:
+                  exit(0) # لا توجد أخبار جديدة للنشر الآن
+              
+              prompt = f"""
+              أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
+              تجاهل أي كلمات مكسورة أو أجنبية مشوهة. اكتب حصراً بلغة عربية فصحى سليمة ودقيقة، واستخدم مصطلحات صحيحة مثل (المدرب) أو (المدير الفني).
+              
+              الخبر الرياضي الخام:
+              العنوان: {selected_article['title']}
+              التفاصيل: {selected_article['summary']}
+
+              قم بصياغة منشور رياضي مستقل وشيق يتحدث عن هذا الخبر فقط:
+              - ابدأ بعنوان رئيسي جذاب ومثير.
+              - اشرح تفاصيل الخبر بأسلوب ممتع ومختصر.
+              - استخدم الإيموجيات الرياضية المناسبة.
+              - أنهِ المنشور بهشتاجات رياضية مع هشتاج المنصة #PUL7SAR.
+              """
+              image_url = selected_article['image']
+              team_color = get_design_color(selected_article['title'] + " " + selected_article['summary'])
+
           payload = {
               "model": "llama-3.3-70b-versatile",
               "messages": [{"role": "user", "content": prompt}]
@@ -123,44 +178,40 @@ jobs:
 
           generated_text = res.json()['choices'][0]['message']['content']
 
-          # 4. معالجة الصورة ورسم الهوية البصرية بالألوان الجديدة
-          image_url = selected_article['image']
+          # معالجة الصورة وإلصاق الهوية البصرية لـ PUL7SAR والألوان
           final_image_path = "processed_image.jpg"
-          
-          if image_url:
-              try:
-                  img_res = requests.get(image_url)
-                  img = Image.open(BytesIO(img_res.content)).convert("RGB")
-                  
-                  img = img.resize((1280, 720))
-                  draw = ImageDraw.Draw(img)
+          try:
+              img_res = requests.get(image_url, timeout=10)
+              img = Image.open(BytesIO(img_res.content)).convert("RGB")
+              
+              img = img.resize((1280, 720))
+              draw = ImageDraw.Draw(img)
 
-                  # تدرج سفلي احترافي
-                  gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
-                  g_draw = ImageDraw.Draw(gradient)
-                  for y in range(200):
-                      alpha = int((y / 200.0) * 180)
-                      g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
-                  img.paste(gradient, (0, 520), gradient)
+              # تدرج سفلي احترافي لحفظ الحقوق
+              gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
+              g_draw = ImageDraw.Draw(gradient)
+              for y in range(200):
+                  alpha = int((y / 200.0) * 180)
+                  g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
+              img.paste(gradient, (0, 520), gradient)
 
-                  # شريط النادي أسفل التصميم
-                  draw.rectangle([(0, 710), (1280, 720)], fill=team_color)
+              # شريط التصميم السفلي باللون المعتمد
+              draw.rectangle([(0, 710), (1280, 720)], fill=team_color)
 
-                  # رسم شعار PUL7SAR العلوي وتلوين "7" والنبض باللون الأساسي الديناميكي
-                  draw.text((50, 40), "PUL", fill="white")
-                  draw.text((105, 40), "7", fill=team_color)
-                  draw.text((120, 40), "SAR", fill="white")
-                  
-                  # رسم النبض
-                  draw.line([(100, 35), (108, 25), (114, 45), (122, 35)], fill=team_color, width=3)
+              # رسم شعار PUL7SAR العلوي وتلوين "7" والنبض
+              draw.text((50, 40), "PUL", fill="white")
+              draw.text((105, 40), "7", fill=team_color)
+              draw.text((120, 40), "SAR", fill="white")
+              
+              # رسم نبض القلب
+              draw.line([(100, 35), (108, 25), (114, 45), (122, 35)], fill=team_color, width=3)
 
-                  img.save(final_image_path)
-                  print("✅ تم تجهيز الصورة بنجاح!")
-              except Exception as e:
-                  print(f"⚠️ تعذر معالجة الصورة: {e}")
-                  final_image_path = None
+              img.save(final_image_path)
+          except Exception as e:
+              print(f"⚠️ خطأ في معالجة الصورة: {e}")
+              final_image_path = None
 
-          # 5. إرسال المنشور للتليجرام
+          # إرسال المنشور إلى تليجرام
           if final_image_path and os.path.exists(final_image_path):
               tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
               with open(final_image_path, 'rb') as photo_file:
@@ -172,7 +223,18 @@ jobs:
               tele_res = requests.post(tele_url, json=tele_payload)
 
           if tele_res.status_code == 200:
-              print("🚀 تم نشر الخبر المستقل بنجاح!")
+              print("🚀 تم النشر بنجاح على تليجرام!")
+              # حفظ سجل الروابط المنشورة حديثاً
+              with open(history_file, "w", encoding="utf-8") as f:
+                  json.dump(list(posted_links)[-200:], f, ensure_ascii=False) # الاحتفاظ بآخر 200 رابط لمنع التكرار طويل المدى
           else:
               raise Exception(f"❌ خطأ تليجرام: {tele_res.text}")
           EOF
+
+      - name: Commit Updated History
+        run: |
+          git config --global user.name "PUL7SAR Bot"
+          git config --global user.email "bot@pul7sar.internal"
+          git add posted_history.json || true
+          git commit -m "Update posted articles history [skip ci]" || true
+          git push || true
