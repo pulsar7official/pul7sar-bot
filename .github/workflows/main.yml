@@ -20,7 +20,7 @@ jobs:
 
       - name: Install Packages
         run: |
-          pip install requests
+          pip install requests feedparser pillow
 
       - name: Generate Content & Post to Telegram
         env:
@@ -31,49 +31,148 @@ jobs:
           python - << 'EOF'
           import os
           import requests
+          import feedparser
+          import random
+          from PIL import Image, ImageDraw, ImageFont
+          from io import BytesIO
 
           groq_key = os.environ.get("GROQ_API_KEY", "").strip()
           bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
           chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
-          if not groq_key:
-              raise Exception("❌ GROQ_API_KEY غير موجود في GitHub Secrets!")
+          # 1. جلب الأخبار الكروية العالمية (RSS)
+          rss_urls = [
+              "https://www.skysports.com/rss/12040",
+              "http://feeds.bbci.co.uk/sport/football/rss.xml"
+          ]
 
-          # 1. طلب توليد النص الرياضي من Groq API
+          articles = []
+          for url in rss_urls:
+              feed = feedparser.parse(url)
+              for entry in feed.entries[:5]:
+                  image_url = None
+                  if 'media_content' in entry and len(entry.media_content) > 0:
+                      image_url = entry.media_content[0]['url']
+                  elif 'enclosures' in entry and len(entry.enclosures) > 0:
+                      image_url = entry.enclosures[0]['href']
+
+                  articles.append({
+                      'title': entry.title,
+                      'summary': entry.get('summary', entry.title),
+                      'image': image_url
+                  })
+
+          if not articles:
+              raise Exception("❌ لم يتم العثور على أخبار!")
+
+          selected_article = random.choice(articles)
+          print(f"📰 الخبر المختار: {selected_article['title']}")
+
+          # 2. تحديد لون التصميم (الأساسي هو الأحمر الناري لـ PUL7SAR، أو لون النادي إن وجد)
+          def get_design_color(text):
+            t = text.lower()
+            # الأندية والمنتخبات الحمراء
+            if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'benfica', 'spain', 'morocco', 'portugal', 'man utd', 'manchester united']):
+                return "#E50914"
+            # الأندية والمنتخبات البيضاء / الذهبية
+            elif any(k in t for k in ['real madrid', 'tottenham', 'spurs', 'germany', 'england']):
+                return "#FEA326"
+            # الأندية والمنتخبات الزرقاء الداكنة
+            elif any(k in t for k in ['chelsea', 'inter', 'france', 'italy', 'psg', 'paris']):
+                return "#0055A5"
+            # الأندية والمنتخبات السماوية
+            elif any(k in t for k in ['man city', 'manchester city', 'napoli', 'argentina']):
+                return "#6CABDD"
+            # برشلونة
+            elif 'barcelona' in t or 'barca' in t:
+                return "#A50044"
+            # الأندية الصفراء
+            elif any(k in t for k in ['dortmund', 'al nassr', 'brazil']):
+                return "#FDE100"
+
+            # اللون الأساسي الافتراضي لـ PUL7SAR (الأحمر الناري الجديد)
+            return "#FF1E38"
+
+          team_color = get_design_color(selected_article['title'] + " " + selected_article['summary'])
+          print(f"🎨 اللون المحدد للتصميم: {team_color}")
+
+          # 3. صياغة النص الرياضي عبر الذكاء الاصطناعي
+          prompt = f"""
+          أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
+          لديك الخبر الرياضي التالي:
+          العنوان: {selected_article['title']}
+          التفاصيل: {selected_article['summary']}
+
+          قم بصياغة منشور رياضي مستقل وشيق يتحدث **عن هذا الخبر المحدد فقط**:
+          - اجعل البداية بعنوان رئيسي جذاب ومثير.
+          - اشرح تفاصيل الخبر بأسلوب ممتع ومختصر.
+          - استخدم التنسيق الجذاب مع الإيموجيات الرياضية المناسبة.
+          - أنهِ المنشور بهشتاجات رياضية مع هشتاج المنصة #PUL7SAR.
+          """
+
           groq_url = "https://api.groq.com/openai/v1/chat/completions"
-          headers = {
-              "Authorization": f"Bearer {groq_key}",
-              "Content-Type": "application/json"
-          }
+          headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
           payload = {
               "model": "llama-3.3-70b-versatile",
-              "messages": [{
-                  "role": "user",
-                  "content": "اكتب منشوراً رياضياً مشوقاً وقصيراً لمنصة PUL7SAR يغطي أبرز أخبار وتحديثات كرة القدم العالمية اليوم، مع استخدام التنسيق الجذاب والإيموجيات المناسبة للتليجرام."
-              }]
+              "messages": [{"role": "user", "content": prompt}]
           }
 
-          print("🔄 جاري الاتصال بـ Groq API...")
           res = requests.post(groq_url, json=payload, headers=headers)
-
           if res.status_code != 200:
-              print(f"❌ خطأ من Groq API ({res.status_code}): {res.text}")
-              raise Exception(res.text)
+              raise Exception(f"❌ خطأ من Groq: {res.text}")
 
           generated_text = res.json()['choices'][0]['message']['content']
-          print("✅ تم توليد النص بنجاح!")
 
-          # 2. الإرسال إلى التليجرام
-          telegram_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-          tele_payload = {
-              "chat_id": chat_id,
-              "text": generated_text
-          }
+          # 4. معالجة الصورة ورسم الهوية البصرية بالألوان الجديدة
+          image_url = selected_article['image']
+          final_image_path = "processed_image.jpg"
+          
+          if image_url:
+              try:
+                  img_res = requests.get(image_url)
+                  img = Image.open(BytesIO(img_res.content)).convert("RGB")
+                  
+                  img = img.resize((1280, 720))
+                  draw = ImageDraw.Draw(img)
 
-          tele_res = requests.post(telegram_url, json=tele_payload)
-          if tele_res.status_code == 200:
-              print("🚀 تم النشر بنجاح على قناة التليجرام!")
+                  # تدرج سفلي احترافي
+                  gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
+                  g_draw = ImageDraw.Draw(gradient)
+                  for y in range(200):
+                      alpha = int((y / 200.0) * 180)
+                      g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
+                  img.paste(gradient, (0, 520), gradient)
+
+                  # شريط النادي أسفل التصميم
+                  draw.rectangle([(0, 710), (1280, 720)], fill=team_color)
+
+                  # رسم شعار PUL7SAR العلوي وتلوين "7" والنبض باللون الأساسي الديناميكي
+                  draw.text((50, 40), "PUL", fill="white")
+                  draw.text((105, 40), "7", fill=team_color)
+                  draw.text((120, 40), "SAR", fill="white")
+                  
+                  # رسم النبض
+                  draw.line([(100, 35), (108, 25), (114, 45), (122, 35)], fill=team_color, width=3)
+
+                  img.save(final_image_path)
+                  print("✅ تم تجهيز الصورة بنجاح!")
+              except Exception as e:
+                  print(f"⚠️ تعذر معالجة الصورة: {e}")
+                  final_image_path = None
+
+          # 5. إرسال المنشور للتليجرام
+          if final_image_path and os.path.exists(final_image_path):
+              tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+              with open(final_image_path, 'rb') as photo_file:
+                  tele_payload = {"chat_id": chat_id, "caption": generated_text}
+                  tele_res = requests.post(tele_url, data=tele_payload, files={'photo': photo_file})
           else:
-              print(f"❌ خطأ أجهزة التليجرام: {tele_res.text}")
-              raise Exception(tele_res.text)
+              tele_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+              tele_payload = {"chat_id": chat_id, "text": generated_text}
+              tele_res = requests.post(tele_url, json=tele_payload)
+
+          if tele_res.status_code == 200:
+              print("🚀 تم نشر الخبر المستقل بنجاح!")
+          else:
+              raise Exception(f"❌ خطأ تليجرام: {tele_res.text}")
           EOF
