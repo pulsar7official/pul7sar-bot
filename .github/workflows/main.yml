@@ -35,7 +35,7 @@ jobs:
 
           # 1. تهيئة الذكاء الاصطناعي Gemini
           genai.configure(api_key=os.environ["GEMINI_API_KEY"])
-          model = genai.GenerativeModel('gemini-1.5-flash')
+          model = genai.GenerativeModel('gemini-2.5-flash')
 
           # 2. توليد المحتوى الرياضي لمنصة PUL7SAR
           prompt = "اكتب منشوراً رياضياً مشوقاً وقصيراً لمنصة PUL7SAR يغطي أبرز أخبار وتحديثات كرة القدم العالمية اليوم، مع استخدام التنسيق الجذاب والإيموجيات المناسبة للتليجرام."
