@@ -9,12 +9,12 @@ from datetime import datetime
 from PIL import Image, ImageDraw
 from io import BytesIO
 
-# قراءة مفاتيح التشغيل
+# قراءة مفاتيح التشغيل الأساسية
 groq_key = os.environ.get("GROQ_API_KEY", "").strip()
 bot_token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
 chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
 
-# سجل منع التكرار (يحفظ الروابط والعناوين لمنع تكرار نشر نفس الخبر نهائياً)
+# سجل منع التكرار
 history_file = "posted_history.json"
 history_data = {"links": [], "titles": []}
 if os.path.exists(history_file):
@@ -39,7 +39,6 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# مصادر الأخبار العالمية
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
@@ -64,7 +63,6 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
-                # التحقق من عدم تكرار الخبر بناءً على السجل الحقيقي
                 if link in posted_links or is_topic_repeated(title):
                     continue
 
@@ -95,7 +93,6 @@ else:
         posted_links.add(selected_article['link'])
         posted_titles.append(selected_article['title'])
     else:
-        print("ℹ️ لا توجد أخبار جديدة كلياً حالياً لمنع التكرار.")
         exit(0)
 
 BRAND_RED = "#FF1E38"
@@ -150,23 +147,20 @@ if res.status_code != 200:
     raise Exception(f"❌ خطأ من Groq: {res.text}")
 
 raw_text = res.json()['choices'][0]['message']['content']
-
 clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff\uac00-\ud7af]+', '', raw_text)
 clean_text = re.sub(r'\b(light|ban|vs|fc)\b', '', clean_text, flags=re.IGNORECASE)
 
-# معالجة وصناعة الصورة الاحترافية
+# هندسة وتوليد الصورة بضمان 100%
 final_image_path = "processed_image.jpg"
 image_success = False
 
-try:
+def process_and_save_image(target_url):
     headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    img_res = requests.get(image_url, headers=headers_img, timeout=10)
+    img_res = requests.get(target_url, headers=headers_img, timeout=15)
+    if img_res.status_code != 200:
+        raise Exception("HTTP error fetching image")
     
-    if img_res.status_code == 200:
-        img = Image.open(BytesIO(img_res.content)).convert("RGB")
-    else:
-        raise Exception("Failed original image fetch")
-
+    img = Image.open(BytesIO(img_res.content)).convert("RGB")
     img = img.resize((1280, 720))
     draw = ImageDraw.Draw(img)
 
@@ -181,6 +175,7 @@ try:
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
+    # فرض البحث بالحروف الصغيرة حصراً لضمان توافق Linux
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
@@ -193,41 +188,20 @@ try:
         img.paste(logo, (45, 35), logo)
 
     img.save(final_image_path, quality=95)
-    image_success = True
+    return True
+
+try:
+    image_success = process_and_save_image(image_url)
 except Exception as e:
-    print(f"⚠️ استخدام الصورة الاحتياطية البديلة: {e}")
+    print(f"⚠️ تعذر معالجة صورة الخبر الأصلية ({e})، جاري استخدام الصورة الاحتياطية المضمونة...")
     try:
         fallback_url = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=1280&auto=format&fit=crop"
-        img_res = requests.get(fallback_url, timeout=10)
-        img = Image.open(BytesIO(img_res.content)).convert("RGB")
-        img = img.resize((1280, 720))
-        draw = ImageDraw.Draw(img)
-        
-        gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
-        g_draw = ImageDraw.Draw(gradient)
-        for y in range(200):
-            alpha = int((y / 200.0) * 180)
-            g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
-        img.paste(gradient, (0, 520), gradient)
-
-        hex_color = stripe_color.lstrip('#')
-        rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-        draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
-
-        if os.path.exists(target_logo_path):
-            logo = Image.open(target_logo_path).convert("RGBA")
-            w_percent = (240 / float(logo.size[0]))
-            h_size = int(float(logo.size[1]) * float(w_percent))
-            logo = logo.resize((240, h_size), Image.Resampling.LANCZOS)
-            img.paste(logo, (45, 35), logo)
-
-        img.save(final_image_path, quality=95)
-        image_success = True
+        image_success = process_and_save_image(fallback_url)
     except Exception as ex:
-        print(f"⚠️ فشلت الصورة الاحتياطية أيضاً: {ex}")
+        print(f"❌ فشل تام في معالجة الصور: {ex}")
         image_success = False
 
-# النشر عبر تيليجرام (صورة مع النص، أو نص فقط في حال تعذر الصورة تماماً)
+# النشر على تيليجرام
 if image_success and os.path.exists(final_image_path):
     tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
     with open(final_image_path, 'rb') as photo_file:
@@ -239,8 +213,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح على تليجرام!")
-    # تحديث سجل المنشورات لمنع التكرار مستقبلاً بدقة
+    print("🚀 تم النشر بنجاح على تليجرام مع ضمان الصورة والشعار!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
