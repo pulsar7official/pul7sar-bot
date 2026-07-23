@@ -6,7 +6,7 @@ import feedparser
 from bs4 import BeautifulSoup
 import random
 from datetime import datetime
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 from io import BytesIO
 
 # قراءة مفاتيح التشغيل الأساسية
@@ -150,7 +150,6 @@ raw_text = res.json()['choices'][0]['message']['content']
 clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff\uac00-\ud7af]+', '', raw_text)
 clean_text = re.sub(r'\b(light|ban|vs|fc)\b', '', clean_text, flags=re.IGNORECASE)
 
-# هندسة وتوليد الصورة بضمان 100% (مع خط دفاع محلي بحت)
 final_image_path = "processed_image.jpg"
 image_success = False
 
@@ -158,27 +157,29 @@ def build_final_image(base_img):
     img = base_img.resize((1280, 720))
     draw = ImageDraw.Draw(img)
 
-    gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
+    # شريط تدرج أسفل الصورة لإبراز الشعار والهوية
+    gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
-    for y in range(200):
-        alpha = int((y / 200.0) * 180)
-        g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
-    img.paste(gradient, (0, 520), gradient)
+    for y in range(220):
+        alpha = int((y / 220.0) * 200)
+        g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
+    img.paste(gradient, (0, 500), gradient)
 
+    # الشريط الملون السفلي الخاص بالفريق/العلامة
     hex_color = stripe_color.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
-    # اختيار الشعار مع طباعة اسمه في السجلات لنراه بوضوح
+    # اختيار الشعار بدقة مع رسالة توضيحية في السجلات
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     
     if os.path.exists(red_path):
         target_logo_path = red_path
-        print("🎨 تم العثور على الشعار الأساسي واستخدامه بنجاح.")
+        print("🎨 تم العثور على الشعار الأساسي (الأحمر) واستخدامه بنجاح.")
     else:
         target_logo_path = blue_path
-        print("⚠️ تنبيه: لم يتم العثور على logo_red.png، تم استخدام الشعار البديل.")
+        print("⚠️ تنبيه: ملف logo_red.png غير موجود في المجلد الرئيسي، تأكد من رفعها أو تسميتها بحروف صغيرة. تم استخدام الشعار البديل.")
 
     if os.path.exists(target_logo_path):
         logo = Image.open(target_logo_path).convert("RGBA")
@@ -190,7 +191,7 @@ def build_final_image(base_img):
     img.save(final_image_path, quality=95)
     return True
 
-# المحاولة الأولى: صورة الخبر الأصلية
+# محاولة جلب الصورة مع عدة خطوط دفاع لضمان عدم ظهورها سوداء أبداً
 try:
     headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     img_res = requests.get(image_url, headers=headers_img, timeout=10)
@@ -198,27 +199,26 @@ try:
         base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
         image_success = build_final_image(base_img)
     else:
-        raise Exception("Original image HTTP non-200")
+        raise Exception("Original non-200")
 except Exception as e:
-    print(f"⚠️ تعذر تحميل صورة الخبر الأصلية ({e})، جاري تجربة الصورة الاحتياطية...")
-    # المحاولة الثانية: صورة Unsplash الاحتياطية
+    print(f"⚠️ تعذر تحميل صورة الخبر ({e})، جاري استخدام بديل بصري احترافي...")
     try:
-        fallback_url = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=1280&auto=format&fit=crop"
+        fallback_url = "https://images.unsplash.com/photo-1518091043644-c1d4457512c6?q=80&w=1280&auto=format&fit=crop"
         img_res = requests.get(fallback_url, timeout=10)
         if img_res.status_code == 200:
             base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
             image_success = build_final_image(base_img)
         else:
-            raise Exception("Fallback image HTTP non-200")
+            raise Exception("Fallback non-200")
     except Exception as ex:
-        print(f"⚠️ فشل الإنترنت بالكامل، جاري توليد خلفية محلية عبر بايثون مباشرة: {ex}")
-        # المحاولة الثالثة: خط دفاع محلي (خلفية داكنة تُولد بالكود مباشرة بدون إنترنت)
-        try:
-            base_img = Image.new("RGB", (1280, 720), color=(15, 23, 42)) # خلفية زرقاء داكنة احترافية
-            image_success = build_final_image(base_img)
-        except Exception as local_ex:
-            print(f"❌ خطأ حرج محلي: {local_ex}")
-            image_success = False
+        print(f"⚠️ توليد خلفية رياضية محلية بديلة لضمان عدم سوداوية الصورة: {ex}")
+        # خلفية رياضية احترافية ملونة وليست سوداء صلبة
+        base_img = Image.new("RGB", (1280, 720), color=(20, 30, 55))
+        draw_bg = ImageDraw.Draw(base_img)
+        # رسم خطوط رياضية جمالية تفاعلية
+        for i in range(0, 1280, 80):
+            draw_bg.line([(i, 0), (i + 200, 720)], fill=(30, 45, 80), width=3)
+        image_success = build_final_image(base_img)
 
 # النشر على تيليجرام
 if image_success and os.path.exists(final_image_path):
