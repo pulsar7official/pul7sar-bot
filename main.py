@@ -150,18 +150,12 @@ raw_text = res.json()['choices'][0]['message']['content']
 clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff\uac00-\ud7af]+', '', raw_text)
 clean_text = re.sub(r'\b(light|ban|vs|fc)\b', '', clean_text, flags=re.IGNORECASE)
 
-# هندسة وتوليد الصورة بضمان 100%
+# هندسة وتوليد الصورة بضمان 100% (مع خط دفاع محلي بحت)
 final_image_path = "processed_image.jpg"
 image_success = False
 
-def process_and_save_image(target_url):
-    headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-    img_res = requests.get(target_url, headers=headers_img, timeout=15)
-    if img_res.status_code != 200:
-        raise Exception("HTTP error fetching image")
-    
-    img = Image.open(BytesIO(img_res.content)).convert("RGB")
-    img = img.resize((1280, 720))
+def build_final_image(base_img):
+    img = base_img.resize((1280, 720))
     draw = ImageDraw.Draw(img)
 
     gradient = Image.new('RGBA', (1280, 200), (0,0,0,0))
@@ -175,10 +169,16 @@ def process_and_save_image(target_url):
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
-    # فرض البحث بالحروف الصغيرة حصراً لضمان توافق Linux
+    # اختيار الشعار مع طباعة اسمه في السجلات لنراه بوضوح
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
-    target_logo_path = red_path if os.path.exists(red_path) else blue_path
+    
+    if os.path.exists(red_path):
+        target_logo_path = red_path
+        print("🎨 تم العثور على الشعار الأساسي واستخدامه بنجاح.")
+    else:
+        target_logo_path = blue_path
+        print("⚠️ تنبيه: لم يتم العثور على logo_red.png، تم استخدام الشعار البديل.")
 
     if os.path.exists(target_logo_path):
         logo = Image.open(target_logo_path).convert("RGBA")
@@ -190,16 +190,35 @@ def process_and_save_image(target_url):
     img.save(final_image_path, quality=95)
     return True
 
+# المحاولة الأولى: صورة الخبر الأصلية
 try:
-    image_success = process_and_save_image(image_url)
+    headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    img_res = requests.get(image_url, headers=headers_img, timeout=10)
+    if img_res.status_code == 200:
+        base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
+        image_success = build_final_image(base_img)
+    else:
+        raise Exception("Original image HTTP non-200")
 except Exception as e:
-    print(f"⚠️ تعذر معالجة صورة الخبر الأصلية ({e})، جاري استخدام الصورة الاحتياطية المضمونة...")
+    print(f"⚠️ تعذر تحميل صورة الخبر الأصلية ({e})، جاري تجربة الصورة الاحتياطية...")
+    # المحاولة الثانية: صورة Unsplash الاحتياطية
     try:
         fallback_url = "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?q=80&w=1280&auto=format&fit=crop"
-        image_success = process_and_save_image(fallback_url)
+        img_res = requests.get(fallback_url, timeout=10)
+        if img_res.status_code == 200:
+            base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
+            image_success = build_final_image(base_img)
+        else:
+            raise Exception("Fallback image HTTP non-200")
     except Exception as ex:
-        print(f"❌ فشل تام في معالجة الصور: {ex}")
-        image_success = False
+        print(f"⚠️ فشل الإنترنت بالكامل، جاري توليد خلفية محلية عبر بايثون مباشرة: {ex}")
+        # المحاولة الثالثة: خط دفاع محلي (خلفية داكنة تُولد بالكود مباشرة بدون إنترنت)
+        try:
+            base_img = Image.new("RGB", (1280, 720), color=(15, 23, 42)) # خلفية زرقاء داكنة احترافية
+            image_success = build_final_image(base_img)
+        except Exception as local_ex:
+            print(f"❌ خطأ حرج محلي: {local_ex}")
+            image_success = False
 
 # النشر على تيليجرام
 if image_success and os.path.exists(final_image_path):
@@ -213,7 +232,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح على تليجرام مع ضمان الصورة والشعار!")
+    print("🚀 تم النشر بنجاح على تليجرام مع الصورة والشعار!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
