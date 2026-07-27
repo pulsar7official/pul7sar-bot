@@ -175,12 +175,10 @@ else:
     img_query = "football player match"
     clean_text = full_ai_response.strip()
 
-# تنظيف شامل وحازم لأي رموز ماركداون أو أحرف أجنبية غير مرغوبة في النص النهائي
 def sanitize_news_text(text):
-    text = re.sub(r'\*\*', '', text)  # إزالة النجوم المزدوجة نهائياً
-    text = re.sub(r'\*', '', text)    # إزالة النجوم الفردية
-    text = re.sub(r'[_#~`]', ' ', text) # إزالة الرموز المعترضة
-    # تنظيف أي كلمات إنجليزية مختلطة أو حروف غريبة متبقية في العناوين
+    text = re.sub(r'\*\*', '', text)
+    text = re.sub(r'\*', '', text)
+    text = re.sub(r'[_#~`]', ' ', text)
     return text.strip()
 
 clean_text = sanitize_news_text(clean_text)
@@ -189,7 +187,6 @@ final_image_path = "processed_image.jpg"
 image_success = False
 
 def build_final_image(base_img):
-    # رفع دقة الصورة وزيادة الحِدة (Sharpness) لضمان جودة فائقة النقاء
     enhancer = ImageEnhance.Sharpness(base_img)
     base_img = enhancer.enhance(1.4)
 
@@ -225,7 +222,6 @@ def build_final_image(base_img):
 
 base_img = None
 
-# 1. محاولة جلب الصورة الأصلية من الخبر مباشرة بجودة عالية
 if article_image_url and article_image_url.startswith('http'):
     try:
         print(f"📥 جاري محاولة جلب الصورة الأصلية عالية الدقة...")
@@ -233,14 +229,12 @@ if article_image_url and article_image_url.startswith('http'):
         img_res = requests.get(article_image_url, headers=headers_img, timeout=15)
         if img_res.status_code == 200:
             temp_img = Image.open(BytesIO(img_res.content)).convert("RGB")
-            # التحقق من أن الصورة ذات دقة جيدة وليست مصغرة تالفة
             if temp_img.size[0] >= 600 and temp_img.size[1] >= 400:
                 base_img = temp_img
                 print("✅ تم اعتماد الصورة الأصلية بجودة عالية.")
     except Exception as e:
         print(f"⚠️ تعذر تحميل صورة المصدر ({e})...")
 
-# 2. البحث المتقدم في Wikimedia Commons لضمان صور حقيقية عالية الدقة (HD)
 if base_img is None:
     try:
         print(f"🔍 جاري البحث عن صورة حقيقية فائقة الجودة عبر Wikimedia Commons...")
@@ -266,7 +260,6 @@ if base_img is None:
                 if imageinfo and "url" in imageinfo[0]:
                     img_url = imageinfo[0]["url"]
                     img_width = imageinfo[0].get("width", 0)
-                    # اشتراط دقة عالية جداً للصور المستخرجة
                     if img_width >= 1000 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
                         img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
                         if img_fetch.status_code == 200:
@@ -277,13 +270,12 @@ if base_img is None:
     except Exception as e:
         print(f"⚠️ تعذر جلب الصورة من ويكيميديا ({e})...")
 
-# 3. خلفية ديناميكية فريدة وعالية الجودة في حال تعذر أي صورة خارجية
 if base_img is None:
     print(f"⚠️ توليد خلفية هندسية احترافية فريدة خاصة بالخبر...")
     title_hash = int(hashlib.md5(selected_article['title'].encode('utf-8')).hexdigest(), 16)
     bg_r = (title_hash & 0xFF0000) >> 16
-    bg_g = (title_hash & 00FF00) >> 8
-    bg_b = (title_hash & 0000FF)
+    bg_g = (title_hash & 0x00FF00) >> 8
+    bg_b = (title_hash & 0x0000FF)
     bg_color = (max(15, bg_r // 5), max(20, bg_g // 5), max(40, bg_b // 3))
     line_color = (min(255, bg_r // 2), min(255, bg_g // 2), min(255, bg_b // 2))
     
@@ -294,7 +286,6 @@ if base_img is None:
 
 image_success = build_final_image(base_img)
 
-# النشر على تيليجرام
 if image_success and os.path.exists(final_image_path):
     tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
     with open(final_image_path, 'rb') as photo_file:
