@@ -40,11 +40,14 @@ def is_topic_repeated(new_title):
             return True
     return False
 
+# قائمة مصادر موسعة تشمل شبكات رياضية عالمية ومواقع نقل وميركاتو
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.goal.com/feeds/en/news",
-    "https://theathletic.com/feed/"
+    "https://theathletic.com/feed/",
+    "https://www.espn.com/espn/rss/soccer/news",
+    "https://www.calciomercato.com/en/rss"
 ]
 
 current_hour = datetime.utcnow().hour
@@ -108,8 +111,8 @@ if is_what_if_post:
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً قصيراً واحترافياً لتوليد صورة سينمائية معبرة عن هذا السيناريو بهذا الشكل الدقيق:
-    [IMG_PROMPT: cinematic football stadium dramatic lighting historical match]
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً احترافياً وواقعياً للغاية لتوليد صورة فوتوغرافية سينمائية لهذا السيناريو بهذا الشكل الدقيق:
+    [IMG_PROMPT: hyper-realistic sports photography, historical football match moment, stadium lights, professional camera quality, 8k]
     """
     stripe_color = BRAND_RED
 else:
@@ -127,8 +130,8 @@ else:
     - استخدم الإيموجيات الرياضية المناسبة.
     - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً قصيراً ودقيقاً جداً لتوليد صورة سينمائية احترافية تناسب هذا الخبر تماماً (مثل لقطة لاعب، ملعب، حماهير، إلخ) بهذا الشكل الدقيق:
-    [IMG_PROMPT: professional football player in action stadium lights cinematic 8k]
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً دقيقاً وواقعياً للغاية (Photorealistic) لتوليد صورة فوتوغرافية احترافية تناسب هذا الخبر (لاعبين، إثارة، ملعب حقيقي) بهذا الشكل الدقيق:
+    [IMG_PROMPT: professional sports photography, realistic football player action on pitch, stadium background, sharp focus, 8k resolution]
     """
     stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
 
@@ -143,16 +146,14 @@ if res.status_code != 200:
 
 full_ai_response = res.json()['choices'][0]['message']['content']
 
-# استخراج وصف الصورة الإنجليزي والنص العربي للبوت بشكل منفصل
 image_prompt_match = re.search(r'\[IMG_PROMPT:\s*([\s\S]*?)\]', full_ai_response)
 if image_prompt_match:
     img_desc = image_prompt_match.group(1).strip()
     clean_text = full_ai_response.replace(image_prompt_match.group(0), "").strip()
 else:
-    img_desc = "professional football match stadium cinematic lighting"
+    img_desc = "professional sports photography, realistic football match, 8k"
     clean_text = full_ai_response.strip()
 
-# تنظيف النص العربي من أي شوائب أجنبية
 clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff\uac00-\ud7af]+', '', clean_text)
 clean_text = re.sub(r'\b(light|ban|vs|fc)\b', '', clean_text, flags=re.IGNORECASE)
 
@@ -163,7 +164,6 @@ def build_final_image(base_img):
     img = base_img.resize((1280, 720))
     draw = ImageDraw.Draw(img)
 
-    # تدرج داكن أسفل الصورة لزيادة وضوح التصميم
     gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
     for y in range(220):
@@ -171,12 +171,10 @@ def build_final_image(base_img):
         g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
     img.paste(gradient, (0, 500), gradient)
 
-    # الشريط الملون الخاص بالفريق أسفل الصورة
     hex_color = stripe_color.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
-    # دمج شعار المنصة الخاص بك (بدون أي علامات ذكاء اصطناعي)
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
@@ -187,27 +185,26 @@ def build_final_image(base_img):
         h_size = int(float(logo.size[1]) * float(w_percent))
         logo = logo.resize((240, h_size), Image.Resampling.LANCZOS)
         img.paste(logo, (45, 35), logo)
-        print("🎨 تم دمج شعار المنصة بنجاح.")
     except Exception as e:
-        print(f"⚠️ تنبيه حول ملف الشعار: {e}")
+        print(f"⚠️ تنبيه حول الشعار: {e}")
 
     img.save(final_image_path, quality=95)
     return True
 
-# توليد الصورة بالذكاء الاصطناعي بنقاء تامة وبدون أي علامات مائية (nologo=true)
+# استخدام نموذج FLUX للحصول على واقعية فائقة وجودة تصوير فوتوغرافي حقيقي مع إلغاء أي علامات
 try:
     encoded_prompt = quote(img_desc)
-    ai_image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=1280&height=720&nologo=true&private=true"
+    ai_image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1280&height=720&nologo=true&private=true"
     
-    print(f"🤖 جاري توليد الصورة بالذكاء الاصطناعي بناءً على وصف الخبر...")
-    img_res = requests.get(ai_image_url, timeout=25)
+    print(f"🤖 جاري توليد صورة واقعية فائقة الجودة عبر نموذج Flux...")
+    img_res = requests.get(ai_image_url, timeout=30)
     if img_res.status_code == 200:
         base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
         image_success = build_final_image(base_img)
     else:
         raise Exception(f"AI image HTTP status {img_res.status_code}")
 except Exception as e:
-    print(f"⚠️ حدث خطأ أثناء توليد صورة الذكاء الاصطناعي ({e})، جاري استخدام خلفية رياضية بديلة...")
+    print(f"⚠️ خطأ أثناء التوليد الواقعي ({e})، استخدام البديل...")
     base_img = Image.new("RGB", (1280, 720), color=(20, 30, 55))
     draw_bg = ImageDraw.Draw(base_img)
     for i in range(0, 1280, 80):
@@ -226,7 +223,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح على تليجرام بصورة ذكاء اصطناعي نظيفة وخالية من أي علامات!")
+    print("🚀 تم النشر بنجاح بصورة واقعية عالية الجودة ومصادر موسعة!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
