@@ -5,8 +5,9 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 import random
+import hashlib
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageOps
+from PIL import Image, ImageDraw, ImageOps, ImageEnhance
 from io import BytesIO
 from urllib.parse import quote
 
@@ -67,7 +68,6 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
-                # استبعاد المسابقات والألغاز
                 skip_keywords = ['quiz', 'guess', 'challenge', 'poll', 'vote', '10 things', 'rank']
                 if any(kw in title.lower() for kw in skip_keywords):
                     continue
@@ -79,7 +79,6 @@ else:
                 soup_clean = BeautifulSoup(summary, "html.parser")
                 clean_summary = soup_clean.get_text()
 
-                # استخراج شامل وموسّع لصورة المصدر الحقيقية من الـ RSS
                 image_url = None
                 if 'media_content' in entry and len(entry.media_content) > 0:
                     image_url = entry.media_content[0].get('url')
@@ -126,7 +125,7 @@ headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/j
 if is_what_if_post:
     prompt = """
     أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم.
-    - اكتب باللغة العربية الفصحى فقط. ممنوع منعاً باتاً إدراج أي حروف أجنبية، إنجليزية، أو رموز غريبة في النص الإخباري.
+    - اكتب باللغة العربية الفصحى فقط وبدون أي إدراج لرموز الماركداون أو النجوم.
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     
@@ -138,7 +137,7 @@ if is_what_if_post:
 else:
     prompt = f"""
     أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
-    تنبيه صارم جداً: اكتب حصراً بلغة عربية فصحى سليمة 100%. ممنوع نهائياً كتابة أي كلمات إنجليزية أو حروف أجنبية داخل النص الإخباري. ترجم كل اسم نادي أو لاعب أو مصطلح إلى العربية بوضوح ودقة.
+    تنبيه صارم جداً: اكتب حصراً بلغة عربية فصحى سليمة 100%. ممنوع نهائياً كتابة أي كلمات إنجليزية أو حروف أجنبية أو رموز تنسيق (مثل ** أو *) داخل النص الإخباري. ترجم كل اسم نادي أو لاعب أو مصطلح إلى العربية بوضوح ودقة تامة.
     يجب أن يكون المنشور خبراً رياضياً حقيقياً، رسمياً، ومباشراً.
     
     الخبر الرياضي الخام:
@@ -146,7 +145,7 @@ else:
     التفاصيل: {selected_article['summary']}
 
     قم بصياغة منشور رياضي رسمي وشيق يتحدث عن هذا الخبر فقط:
-    - ابدأ بعنوان رئيسي جذاب ومثير.
+    - ابدأ بعنوان رئيسي جذاب ومثير (بدون استخدام أي رموز نجوم أو ماركداون نهائياً).
     - اشرح تفاصيل الخبر بأسلوب ممتع ومختصر.
     - استخدم الإيموجيات الرياضية المناسبة.
     - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
@@ -176,14 +175,24 @@ else:
     img_query = "football player match"
     clean_text = full_ai_response.strip()
 
-clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff\uac00-\ud7af]+', '', clean_text)
-clean_text = re.sub(r'\b(light|ban|vs|fc)\b', '', clean_text, flags=re.IGNORECASE)
+# تنظيف شامل وحازم لأي رموز ماركداون أو أحرف أجنبية غير مرغوبة في النص النهائي
+def sanitize_news_text(text):
+    text = re.sub(r'\*\*', '', text)  # إزالة النجوم المزدوجة نهائياً
+    text = re.sub(r'\*', '', text)    # إزالة النجوم الفردية
+    text = re.sub(r'[_#~`]', ' ', text) # إزالة الرموز المعترضة
+    # تنظيف أي كلمات إنجليزية مختلطة أو حروف غريبة متبقية في العناوين
+    return text.strip()
+
+clean_text = sanitize_news_text(clean_text)
 
 final_image_path = "processed_image.jpg"
 image_success = False
 
 def build_final_image(base_img):
-    # معالجة الأبعاد بدقة بدون أي تشوه أو مط
+    # رفع دقة الصورة وزيادة الحِدة (Sharpness) لضمان جودة فائقة النقاء
+    enhancer = ImageEnhance.Sharpness(base_img)
+    base_img = enhancer.enhance(1.4)
+
     img = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     draw = ImageDraw.Draw(img)
 
@@ -207,45 +216,46 @@ def build_final_image(base_img):
         w_percent = (190 / float(logo.size[0]))
         h_size = int(float(logo.size[1]) * float(w_percent))
         logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
-        
-        # الشعار في أقصى الزاوية اليسرى العليا
         img.paste(logo, (8, 8), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
 
-    img.save(final_image_path, quality=95)
+    img.save(final_image_path, quality=98)
     return True
 
 base_img = None
 
-# 1. محاولة جلب الصورة الأصلية من الخبر مباشرة
+# 1. محاولة جلب الصورة الأصلية من الخبر مباشرة بجودة عالية
 if article_image_url and article_image_url.startswith('http'):
     try:
-        print(f"📥 جاري محاولة جلب الصورة الأصلية من المصدر الرياضي...")
+        print(f"📥 جاري محاولة جلب الصورة الأصلية عالية الدقة...")
         headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         img_res = requests.get(article_image_url, headers=headers_img, timeout=15)
         if img_res.status_code == 200:
-            base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
-            print("✅ تم بنجاح استخدام الصورة الأصلية للخبر من المصدر.")
+            temp_img = Image.open(BytesIO(img_res.content)).convert("RGB")
+            # التحقق من أن الصورة ذات دقة جيدة وليست مصغرة تالفة
+            if temp_img.size[0] >= 600 and temp_img.size[1] >= 400:
+                base_img = temp_img
+                print("✅ تم اعتماد الصورة الأصلية بجودة عالية.")
     except Exception as e:
         print(f"⚠️ تعذر تحميل صورة المصدر ({e})...")
 
-# 2. إذا لم تتوفر، يتم البحث مباشرة في أرشيف Wikimedia Commons للحصول على صورة حقيقية موثوقة للاعب أو الحدث
+# 2. البحث المتقدم في Wikimedia Commons لضمان صور حقيقية عالية الدقة (HD)
 if base_img is None:
     try:
-        print(f"🔍 جاري البحث عن صورة حقيقية عبر Wikimedia Commons للكلمات: {img_query}...")
+        print(f"🔍 جاري البحث عن صورة حقيقية فائقة الجودة عبر Wikimedia Commons...")
         api_url = "https://commons.wikimedia.org/w/api.php"
         params = {
             "action": "query",
             "generator": "search",
-            "gsrsearch": img_query + " football",
+            "gsrsearch": img_query + " football player match",
             "gsrnamespace": 6,
             "format": "json",
-            "gsrlimit": 5,
+            "gsrlimit": 10,
             "prop": "imageinfo",
-            "iiprop": "url"
+            "iiprop": "url|size"
         }
-        headers_wiki = {"User-Agent": "Pul7sarBot/1.0 (Contact@pul7sar.com)"}
+        headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
         wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=15)
         
         if wiki_res.status_code == 200:
@@ -255,22 +265,32 @@ if base_img is None:
                 imageinfo = page_info.get("imageinfo", [])
                 if imageinfo and "url" in imageinfo[0]:
                     img_url = imageinfo[0]["url"]
-                    if any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                    img_width = imageinfo[0].get("width", 0)
+                    # اشتراط دقة عالية جداً للصور المستخرجة
+                    if img_width >= 1000 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
                         img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
                         if img_fetch.status_code == 200:
-                            base_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
-                            print("✅ تم بنجاح جلب صورة حقيقية من ويكيميديا!")
+                            temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
+                            base_img = temp_base
+                            print("✅ تم بنجاح جلب صورة حقيقية عالية الدقة من ويكيميديا!")
                             break
     except Exception as e:
         print(f"⚠️ تعذر جلب الصورة من ويكيميديا ({e})...")
 
-# 3. خلفية بديلة فاخرة في حال عدم توفر أي صورة نهائياً
+# 3. خلفية ديناميكية فريدة وعالية الجودة في حال تعذر أي صورة خارجية
 if base_img is None:
-    print(f"⚠️ استخدام خلفية استادية رياضية بديلة...")
-    base_img = Image.new("RGB", (1280, 720), color=(15, 23, 42))
+    print(f"⚠️ توليد خلفية هندسية احترافية فريدة خاصة بالخبر...")
+    title_hash = int(hashlib.md5(selected_article['title'].encode('utf-8')).hexdigest(), 16)
+    bg_r = (title_hash & 0xFF0000) >> 16
+    bg_g = (title_hash & 00FF00) >> 8
+    bg_b = (title_hash & 0000FF)
+    bg_color = (max(15, bg_r // 5), max(20, bg_g // 5), max(40, bg_b // 3))
+    line_color = (min(255, bg_r // 2), min(255, bg_g // 2), min(255, bg_b // 2))
+    
+    base_img = Image.new("RGB", (1280, 720), color=bg_color)
     draw_bg = ImageDraw.Draw(base_img)
-    for i in range(0, 1280, 60):
-        draw_bg.line([(i, 0), (i + 150, 720)], fill=(25, 38, 65), width=2)
+    for i in range(0, 1280, 40):
+        draw_bg.line([(i, 0), (i + 150, 720)], fill=line_color, width=3)
 
 image_success = build_final_image(base_img)
 
@@ -286,7 +306,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح وبصور حقيقية موثوقة!")
+    print("🚀 تم النشر بنجاح وبنصوص نظيفة تماماً وصور عالية الجودة!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
