@@ -79,10 +79,12 @@ else:
                 soup_clean = BeautifulSoup(summary, "html.parser")
                 clean_summary = soup_clean.get_text()
 
-                # استخراج صورة المصدر الأصلية إن وجدت
+                # استخراج شامل وموسّع لصورة المصدر الحقيقية من الـ RSS
                 image_url = None
                 if 'media_content' in entry and len(entry.media_content) > 0:
                     image_url = entry.media_content[0].get('url')
+                elif 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
+                    image_url = entry.media_thumbnail[0].get('url')
                 elif 'enclosures' in entry and len(entry.enclosures) > 0:
                     image_url = entry.enclosures[0].get('href')
                 else:
@@ -128,8 +130,8 @@ if is_what_if_post:
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية دقيقة للعثور على صورة حقيقية مناسبة بهذا الشكل:
-    [IMG_SEARCH: historical football match stadium professional photo]
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية دقيقة للعثور على صورة حقيقية بهذا الشكل:
+    [IMG_SEARCH: historical football stadium match]
     """
     stripe_color = BRAND_RED
     article_image_url = None
@@ -149,8 +151,8 @@ else:
     - استخدم الإيموجيات الرياضية المناسبة.
     - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم قم باستخراج كلمات بحث إنجليزية دقيقة ومحددة للغاية (تتضمن اسم اللاعب أو النادي أو الحدث الرئيسي المذكور في الخبر) لنتمكن من البحث عن صورة حقيقية واقعية لها في الإنترنت بهذا الشكل حصراً:
-    [IMG_SEARCH: exact player name or club and event keywords for photo search]
+    في نهاية ردك، اترك خطاً جديداً ثم قم باستخراج اسم اللاعب الأساسي أو النادي أو الكلمات المفتاحية باللغة الإنجليزية للبحث عن صورة حقيقية له في أرشيف الويب بهذا الشكل حصراً:
+    [IMG_SEARCH: exact player or club name keywords]
     """
     stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
     article_image_url = selected_article.get('image')
@@ -171,7 +173,7 @@ if image_search_match:
     img_query = image_search_match.group(1).strip()
     clean_text = full_ai_response.replace(image_search_match.group(0), "").strip()
 else:
-    img_query = "professional football match player stadium"
+    img_query = "football player match"
     clean_text = full_ai_response.strip()
 
 clean_text = re.sub(r'[\u4e00-\u9fff\u3040-\u30ff\u0400-\u04ff\uac00-\ud7af]+', '', clean_text)
@@ -181,7 +183,7 @@ final_image_path = "processed_image.jpg"
 image_success = False
 
 def build_final_image(base_img):
-    # قص وتعديل الأبعاد باحترافية تامة بدون أي مط أو تشوه
+    # معالجة الأبعاد بدقة بدون أي تشوه أو مط
     img = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     draw = ImageDraw.Draw(img)
 
@@ -206,7 +208,7 @@ def build_final_image(base_img):
         h_size = int(float(logo.size[1]) * float(w_percent))
         logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
         
-        # الشعار في أقصى الزاوية اليسرى العليا بدقة
+        # الشعار في أقصى الزاوية اليسرى العليا
         img.paste(logo, (8, 8), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
@@ -216,7 +218,7 @@ def build_final_image(base_img):
 
 base_img = None
 
-# 1. محاولة جلب صورة المصدر الأصلية أولاً
+# 1. محاولة جلب الصورة الأصلية من الخبر مباشرة
 if article_image_url and article_image_url.startswith('http'):
     try:
         print(f"📥 جاري محاولة جلب الصورة الأصلية من المصدر الرياضي...")
@@ -228,30 +230,41 @@ if article_image_url and article_image_url.startswith('http'):
     except Exception as e:
         print(f"⚠️ تعذر تحميل صورة المصدر ({e})...")
 
-# 2. إذا لم تتوفر صورة المصدر، نقوم بالبحث في الإنترنت عن صورة حقيقية باستخدام كلمات البحث المستخرجة
+# 2. إذا لم تتوفر، يتم البحث مباشرة في أرشيف Wikimedia Commons للحصول على صورة حقيقية موثوقة للاعب أو الحدث
 if base_img is None:
     try:
-        print(f"🔍 جاري البحث في الإنترنت عن صورة حقيقية للكلمات: {img_query}...")
-        search_url = f"https://html.duckduckgo.com/html/?q={quote(img_query + ' football soccer photo')}"
-        headers_search = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        search_res = requests.get(search_url, headers=headers_search, timeout=15)
+        print(f"🔍 جاري البحث عن صورة حقيقية عبر Wikimedia Commons للكلمات: {img_query}...")
+        api_url = "https://commons.wikimedia.org/w/api.php"
+        params = {
+            "action": "query",
+            "generator": "search",
+            "gsrsearch": img_query + " football",
+            "gsrnamespace": 6,
+            "format": "json",
+            "gsrlimit": 5,
+            "prop": "imageinfo",
+            "iiprop": "url"
+        }
+        headers_wiki = {"User-Agent": "Pul7sarBot/1.0 (Contact@pul7sar.com)"}
+        wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=15)
         
-        if search_res.status_code == 200:
-            soup = BeautifulSoup(search_res.text, 'html.parser')
-            # البحث عن أول رابط صوري أو صورة حقيقية في نتائج البحث
-            img_candidates = soup.find_all('img')
-            for candidate in img_candidates:
-                src = candidate.get('src', '')
-                if src.startswith('http') and not any(x in src.lower() for x in ['logo', 'icon', 'ad', 'banner']):
-                    img_fetch = requests.get(src, headers=headers_search, timeout=10)
-                    if img_fetch.status_code == 200:
-                        base_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
-                        print("✅ تم بنجاح جلب صورة حقيقية من الإنترنت مرتبطة بالخبر!")
-                        break
+        if wiki_res.status_code == 200:
+            data = wiki_res.json()
+            pages = data.get("query", {}).get("pages", {})
+            for page_id, page_info in pages.items():
+                imageinfo = page_info.get("imageinfo", [])
+                if imageinfo and "url" in imageinfo[0]:
+                    img_url = imageinfo[0]["url"]
+                    if any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                        img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
+                        if img_fetch.status_code == 200:
+                            base_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
+                            print("✅ تم بنجاح جلب صورة حقيقية من ويكيميديا!")
+                            break
     except Exception as e:
-        print(f"⚠️ تعذر جلب الصورة من الويب ({e})...")
+        print(f"⚠️ تعذر جلب الصورة من ويكيميديا ({e})...")
 
-# 3. خطة احتياطية أخيرة في حال تعذر جلب أي صورة (توليد خلفية استادية رياضية احترافية داكنة)
+# 3. خلفية بديلة فاخرة في حال عدم توفر أي صورة نهائياً
 if base_img is None:
     print(f"⚠️ استخدام خلفية استادية رياضية بديلة...")
     base_img = Image.new("RGB", (1280, 720), color=(15, 23, 42))
@@ -273,7 +286,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح بالاعتماد على الصور الحقيقية!")
+    print("🚀 تم النشر بنجاح وبصور حقيقية موثوقة!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
