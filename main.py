@@ -6,7 +6,7 @@ import feedparser
 from bs4 import BeautifulSoup
 import random
 from datetime import datetime
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageOps
 from io import BytesIO
 from urllib.parse import quote
 
@@ -175,7 +175,8 @@ final_image_path = "processed_image.jpg"
 image_success = False
 
 def build_final_image(base_img):
-    img = base_img.resize((1280, 720))
+    # استخدام ImageOps.fit لضبط الأبعاد على 1280x720 بدقة تامة ومنع أي مط أو تشوه أفقي
+    img = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     draw = ImageDraw.Draw(img)
 
     gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
@@ -195,12 +196,12 @@ def build_final_image(base_img):
 
     try:
         logo = Image.open(target_logo_path).convert("RGBA")
-        w_percent = (240 / float(logo.size[0]))
+        w_percent = (220 / float(logo.size[0]))
         h_size = int(float(logo.size[1]) * float(w_percent))
-        logo = logo.resize((240, h_size), Image.Resampling.LANCZOS)
+        logo = logo.resize((220, h_size), Image.Resampling.LANCZOS)
         
-        # مكان الشعار المعدل (للأعلى قليلاً ولليسار قليلاً)
-        img.paste(logo, (25, 20), logo)
+        # تم ضبط الشعار ليصبح أقرب بكثير للزاوية اليسرى العليا (12, 12)
+        img.paste(logo, (12, 12), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
 
@@ -209,7 +210,7 @@ def build_final_image(base_img):
 
 base_img = None
 
-# محاولة جلب صورة المصدر الحقيقية أولاً وبكل قوة
+# محاولة جلب صورة المصدر الحقيقية أولاً
 if article_image_url and article_image_url.startswith('http'):
     try:
         print(f"📥 جاري محاولة جلب الصورة الأصلية من المصدر الرياضي...")
@@ -221,13 +222,13 @@ if article_image_url and article_image_url.startswith('http'):
     except Exception as e:
         print(f"⚠️ تعذر تحميل صورة المصدر ({e})، الانتقال لتوليد الذكاء الاصطناعي...")
 
-# إذا لم تتوفر، يتم توليدها بنموذج Flux مع الوصف المحسّن صارماً
+# إذا لم تتوفر، يتم توليدها بنموذج Flux مع الوصف المحسّن
 if base_img is None:
     try:
         encoded_prompt = quote(img_desc)
         ai_image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1280&height=720&nologo=true&private=true"
         
-        print(f"🤖 جاري توليد صورة واقعية مخصصة عبر نموذج Flux بقوة عالية...")
+        print(f"🤖 جاري توليد صورة واقعية مخصصة عبر نموذج Flux بدقة عالية...")
         img_res = requests.get(ai_image_url, timeout=30)
         if img_res.status_code == 200:
             base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
@@ -254,7 +255,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح مع الصور والمصادر المعززة!")
+    print("🚀 تم النشر بنجاح وبدون أي تشوه في الصور!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
