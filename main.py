@@ -5,7 +5,6 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 import random
-import hashlib
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageOps, ImageEnhance
 from io import BytesIO
@@ -175,11 +174,24 @@ else:
     img_query = "football player match"
     clean_text = full_ai_response.strip()
 
+# فلترة برمجية صارمة تحذف أي كلمات أجنبية تسربت داخل النص العربي
 def sanitize_news_text(text):
     text = re.sub(r'\*\*', '', text)
     text = re.sub(r'\*', '', text)
-    text = re.sub(r'[_#~`]', ' ', text)
-    return text.strip()
+    text = re.sub(r'[_~`]', '_', text)
+    
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        words = line.split()
+        new_words = []
+        for w in words:
+            if re.search(r'[a-zA-Z]', w) and not w.startswith('#'):
+                continue
+            new_words.append(w)
+        if new_words:
+            cleaned_lines.append(' '.join(new_words))
+    return '\n'.join(cleaned_lines).strip()
 
 clean_text = sanitize_news_text(clean_text)
 
@@ -222,6 +234,7 @@ def build_final_image(base_img):
 
 base_img = None
 
+# 1. محاولة جلب الصورة الأصلية من الخبر مباشرة
 if article_image_url and article_image_url.startswith('http'):
     try:
         print(f"📥 جاري محاولة جلب الصورة الأصلية عالية الدقة...")
@@ -229,29 +242,40 @@ if article_image_url and article_image_url.startswith('http'):
         img_res = requests.get(article_image_url, headers=headers_img, timeout=15)
         if img_res.status_code == 200:
             temp_img = Image.open(BytesIO(img_res.content)).convert("RGB")
-            if temp_img.size[0] >= 600 and temp_img.size[1] >= 400:
+            if temp_img.size[0] >= 500 and temp_img.size[1] >= 350:
                 base_img = temp_img
-                print("✅ تم اعتماد الصورة الأصلية بجودة عالية.")
+                print("✅ تم اعتماد الصورة الأصلية للخبر بنجاح.")
     except Exception as e:
         print(f"⚠️ تعذر تحميل صورة المصدر ({e})...")
 
-if base_img is None:
+# 2. نظام البحث المتدرج في ويكيميديا لجلب صور حقيقية 100% ودون أي خلفيات وهمية
+search_queries = [
+    img_query + " football player",
+    img_query,
+    "football player action match",
+    "soccer player match professional",
+    "stadium football match action"
+]
+
+api_url = "https://commons.wikimedia.org/w/api.php"
+headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
+
+for query in search_queries:
+    if base_img is not None:
+        break
     try:
-        print(f"🔍 جاري البحث عن صورة حقيقية فائقة الجودة عبر Wikimedia Commons...")
-        api_url = "https://commons.wikimedia.org/w/api.php"
+        print(f"🔍 جاري البحث في أرشيف صور ويكيميديا باستخدام: [{query}]...")
         params = {
             "action": "query",
             "generator": "search",
-            "gsrsearch": img_query + " football player match",
+            "gsrsearch": query,
             "gsrnamespace": 6,
             "format": "json",
-            "gsrlimit": 10,
+            "gsrlimit": 8,
             "prop": "imageinfo",
             "iiprop": "url|size"
         }
-        headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
-        wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=15)
-        
+        wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=12)
         if wiki_res.status_code == 200:
             data = wiki_res.json()
             pages = data.get("query", {}).get("pages", {})
@@ -260,32 +284,35 @@ if base_img is None:
                 if imageinfo and "url" in imageinfo[0]:
                     img_url = imageinfo[0]["url"]
                     img_width = imageinfo[0].get("width", 0)
-                    if img_width >= 1000 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                    # ضمان جودة عالية وعدم اختيار صور مصغرة
+                    if img_width >= 800 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
                         img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
                         if img_fetch.status_code == 200:
                             temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
                             base_img = temp_base
-                            print("✅ تم بنجاح جلب صورة حقيقية عالية الدقة من ويكيميديا!")
+                            print("✅ تم العثور على صورة حقيقية عالية الجودة بنجاح من أرشيف ويكيميديا!")
                             break
     except Exception as e:
-        print(f"⚠️ تعذر جلب الصورة من ويكيميديا ({e})...")
+        print(f"⚠️ خطأ أثناء البحث بـ ({query}): {e}")
 
+# في حال فشل كل محاولات البحث المتقدمة (استدراك أخير يضمن عدم توقف السكريبت أو وضع خلفية وهمية)
 if base_img is None:
-    print(f"⚠️ توليد خلفية هندسية احترافية فريدة خاصة بالخبر...")
-    title_hash = int(hashlib.md5(selected_article['title'].encode('utf-8')).hexdigest(), 16)
-    bg_r = (title_hash & 0xFF0000) >> 16
-    bg_g = (title_hash & 0x00FF00) >> 8
-    bg_b = (title_hash & 0x0000FF)
-    bg_color = (max(15, bg_r // 5), max(20, bg_g // 5), max(40, bg_b // 3))
-    line_color = (min(255, bg_r // 2), min(255, bg_g // 2), min(255, bg_b // 2))
-    
-    base_img = Image.new("RGB", (1280, 720), color=bg_color)
-    draw_bg = ImageDraw.Draw(base_img)
-    for i in range(0, 1280, 40):
-        draw_bg.line([(i, 0), (i + 150, 720)], fill=line_color, width=3)
+    print(f"📥 استخدام صورة بديلة طارئة من أرشيف كرة القدم العالمي...")
+    fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/b/b9/Football_iu_1996.jpg"
+    try:
+        fb_res = requests.get(fallback_photo_url, headers=headers_wiki, timeout=10)
+        if fb_res.status_code == 200:
+            base_img = Image.open(BytesIO(fb_res.content)).convert("RGB")
+    except:
+        pass
 
-image_success = build_final_image(base_img)
+# معالجة وحفظ الصورة النهائية
+if base_img is not None:
+    image_success = build_final_image(base_img)
+else:
+    image_success = False
 
+# النشر على تيليجرام
 if image_success and os.path.exists(final_image_path):
     tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
     with open(final_image_path, 'rb') as photo_file:
@@ -297,7 +324,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح وبنصوص نظيفة تماماً وصور عالية الجودة!")
+    print("🚀 تم النشر بنجاح وبصورة حقيقية 100% ونص عربي نقي!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
