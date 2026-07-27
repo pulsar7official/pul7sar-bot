@@ -40,7 +40,7 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# مصادر الأخبار الموسعة
+# مصادر الأخبار الموسعة والشاملة لأكبر الشبكات العالمية
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
@@ -74,7 +74,7 @@ else:
                 soup_clean = BeautifulSoup(summary, "html.parser")
                 clean_summary = soup_clean.get_text()
 
-                # محاولة استخراج صورة المصدر إن وجدت
+                # استخراج ذكي ومتعدد الطبقات لصورة المصدر الحقيقية
                 image_url = None
                 if 'media_content' in entry and len(entry.media_content) > 0:
                     image_url = entry.media_content[0].get('url')
@@ -123,7 +123,7 @@ if is_what_if_post:
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً دقيقاً وواقعياً للغاية لتوليد صورة فوتوغرافية لهذا السيناريو بهذا الشكل:
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً دقيقاً وواقعياً لتوليد صورة فوتوغرافية لهذا السيناريو بهذا الشكل:
     [IMG_PROMPT: hyper-realistic sports photography, historical football match moment, stadium lights, professional camera quality, 8k]
     """
     stripe_color = BRAND_RED
@@ -143,8 +143,8 @@ else:
     - استخدم الإيموجيات الرياضية المناسبة.
     - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً وصفاً إنجليزياً دقيقاً وواقعياً للغاية يتطابق حصراً مع نوع الرياضة والموضوع المذكور في الخبر (تجنب الخلط نهائياً بين الرياضات كالجولف و التنس ومحددات الأدوات الرياضية بدقة تامة) لتوليد صورة فوتوغرافية احترافية بهذا الشكل:
-    [IMG_PROMPT: professional sports photography, realistic athlete action on pitch matching the exact sport in the article, stadium background, sharp focus, 8k resolution]
+    في نهاية ردك، اترك خطاً جديداً ثم قم بصياغة وصف إنجليزي عالي الدقة والذكاء (Prompt) لتوليد صورة فوتوغرافية مطابقة تماماً لنوع الرياضة المذكورة في الخبر مع تحديد المعدات والأداة الرياضية الصحيحة بدقة مجهرية لمنع أي هلوسة بصرية بهذا الشكل الدقيق حصراً:
+    [IMG_PROMPT: professional sports photojournalism, realistic athlete using exact equipment matching the sport in the article, professional stadium pitch, sharp focus, 8k]
     """
     stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
     article_image_url = selected_article.get('image')
@@ -199,7 +199,7 @@ def build_final_image(base_img):
         h_size = int(float(logo.size[1]) * float(w_percent))
         logo = logo.resize((240, h_size), Image.Resampling.LANCZOS)
         
-        # تم تعديل موقع الشعار هنا للأعلى قليلاً ولليسار قليلاً (25, 20)
+        # مكان الشعار المعدل (للأعلى قليلاً ولليسار قليلاً)
         img.paste(logo, (25, 20), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
@@ -207,34 +207,34 @@ def build_final_image(base_img):
     img.save(final_image_path, quality=95)
     return True
 
-# النظام الهجين: محاولة جلب صورة المصدر أولاً، وإن فشلت يتم توليدها بالذكاء الاصطناعي (Flux)
 base_img = None
 
+# محاولة جلب صورة المصدر الحقيقية أولاً وبكل قوة
 if article_image_url and article_image_url.startswith('http'):
     try:
-        print(f"📥 جاري محاولة جلب الصورة الأصلية من المصدر...")
+        print(f"📥 جاري محاولة جلب الصورة الأصلية من المصدر الرياضي...")
         headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
         img_res = requests.get(article_image_url, headers=headers_img, timeout=15)
         if img_res.status_code == 200:
             base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
-            print("✅ تم بنجاح استخدام الصورة الأصلية للخبر.")
+            print("✅ تم بنجاح استخدام الصورة الأصلية للخبر من المصدر.")
     except Exception as e:
-        print(f"⚠️ تعذر تحميل صورة المصدر ({e})، الانتقال للذكاء الاصطناعي...")
+        print(f"⚠️ تعذر تحميل صورة المصدر ({e})، الانتقال لتوليد الذكاء الاصطناعي...")
 
-# إذا لم تتوافر صورة المصدر أو فشل تحميلها، يتم توليدها بالذكاء الاصطناعي الواقعي
+# إذا لم تتوفر، يتم توليدها بنموذج Flux مع الوصف المحسّن صارماً
 if base_img is None:
     try:
         encoded_prompt = quote(img_desc)
         ai_image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1280&height=720&nologo=true&private=true"
         
-        print(f"🤖 جاري توليد صورة واقعية عبر نموذج Flux...")
+        print(f"🤖 جاري توليد صورة واقعية مخصصة عبر نموذج Flux بقوة عالية...")
         img_res = requests.get(ai_image_url, timeout=30)
         if img_res.status_code == 200:
             base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
         else:
             raise Exception(f"AI image HTTP status {img_res.status_code}")
     except Exception as e:
-        print(f"⚠️ خطأ أثناء التوليد بالذكاء الاصطناعي ({e})، استخدام الخلفية البديلة...")
+        print(f"⚠️ خطأ أثناء التوليد ({e})، استخدام الخلفية البديلة...")
         base_img = Image.new("RGB", (1280, 720), color=(20, 30, 55))
         draw_bg = ImageDraw.Draw(base_img)
         for i in range(0, 1280, 80):
@@ -254,7 +254,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح!")
+    print("🚀 تم النشر بنجاح مع الصور والمصادر المعززة!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
