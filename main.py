@@ -40,7 +40,7 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# مصادر الأخبار الموسعة والشاملة لأكبر الشبكات العالمية
+# مصادر الأخبار الرياضية الكبرى
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
@@ -67,6 +67,11 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
+                # استبعاد المقالات التي تحتوي على ألغاز أو مسابقات أو استطلاعات رأي
+                skip_keywords = ['quiz', 'guess', 'challenge', 'poll', 'vote', '10 things', 'rank']
+                if any(kw in title.lower() for kw in skip_keywords):
+                    continue
+
                 if link in posted_links or is_topic_repeated(title):
                     continue
 
@@ -74,7 +79,7 @@ else:
                 soup_clean = BeautifulSoup(summary, "html.parser")
                 clean_summary = soup_clean.get_text()
 
-                # استخراج ذكي ومتعدد الطبقات لصورة المصدر الحقيقية
+                # استخراج صورة المصدر الحقيقية
                 image_url = None
                 if 'media_content' in entry and len(entry.media_content) > 0:
                     image_url = entry.media_content[0].get('url')
@@ -132,19 +137,20 @@ else:
     prompt = f"""
     أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
     تنبيه صارم جداً: اكتب حصراً بلغة عربية فصحى سليمة 100%. ممنوع نهائياً كتابة أي كلمات إنجليزية أو حروف أجنبية داخل النص الإخباري. ترجم كل اسم نادي أو لاعب أو مصطلح إلى العربية بوضوح ودقة.
+    يجب أن يكون المنشور خبراً رياضياً حقيقياً، رسمياً، ومباشراً (تجنب تماماً أي ألغاز أو مسابقات).
     
     الخبر الرياضي الخام:
     العنوان: {selected_article['title']}
     التفاصيل: {selected_article['summary']}
 
-    قم بصياغة منشور رياضي مستقل وشيق يتحدث عن هذا الخبر فقط:
+    قم بصياغة منشور رياضي رسمي وشيق يتحدث عن هذا الخبر فقط:
     - ابدأ بعنوان رئيسي جذاب ومثير.
     - اشرح تفاصيل الخبر بأسلوب ممتع ومختصر.
     - استخدم الإيموجيات الرياضية المناسبة.
     - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم قم بصياغة وصف إنجليزي عالي الدقة والذكاء (Prompt) لتوليد صورة فوتوغرافية مطابقة تماماً لنوع الرياضة المذكورة في الخبر مع تحديد المعدات والأداة الرياضية الصحيحة بدقة مجهرية لمنع أي هلوسة بصرية بهذا الشكل الدقيق حصراً:
-    [IMG_PROMPT: professional sports photojournalism, realistic athlete using exact equipment matching the sport in the article, professional stadium pitch, sharp focus, 8k]
+    في نهاية ردك، اترك خطاً جديداً ثم قم بصياغة وصف إنجليزي صارم جداً ومخصص حصرياً لكرة القدم الواقعية (لاعب كرة قدم حقيقي بملابس رياضية رسمية واضحة في ملعب كرة قدم حقيقي، تجنب أي أشكال خيالية أو غريبة) بهذا الشكل الدقيق حصراً:
+    [IMG_PROMPT: professional sports photojournalism, real professional football player in official team kit playing on a realistic stadium pitch, sharp focus, 8k resolution]
     """
     stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
     article_image_url = selected_article.get('image')
@@ -175,7 +181,7 @@ final_image_path = "processed_image.jpg"
 image_success = False
 
 def build_final_image(base_img):
-    # استخدام ImageOps.fit لضبط الأبعاد على 1280x720 بدقة تامة ومنع أي مط أو تشوه أفقي
+    # قص وتعديل الأبعاد باحترافية تامة بدون أي تشوه
     img = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     draw = ImageDraw.Draw(img)
 
@@ -196,12 +202,12 @@ def build_final_image(base_img):
 
     try:
         logo = Image.open(target_logo_path).convert("RGBA")
-        w_percent = (220 / float(logo.size[0]))
+        w_percent = (200 / float(logo.size[0]))
         h_size = int(float(logo.size[1]) * float(w_percent))
-        logo = logo.resize((220, h_size), Image.Resampling.LANCZOS)
+        logo = logo.resize((200, h_size), Image.Resampling.LANCZOS)
         
-        # تم ضبط الشعار ليصبح أقرب بكثير للزاوية اليسرى العليا (12, 12)
-        img.paste(logo, (12, 12), logo)
+        # موقع الشعار الدقيق في أقصى الزاوية اليسرى العليا
+        img.paste(logo, (10, 10), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
 
@@ -222,13 +228,13 @@ if article_image_url and article_image_url.startswith('http'):
     except Exception as e:
         print(f"⚠️ تعذر تحميل صورة المصدر ({e})، الانتقال لتوليد الذكاء الاصطناعي...")
 
-# إذا لم تتوفر، يتم توليدها بنموذج Flux مع الوصف المحسّن
+# إذا لم تتوفر صورة المصدر، يتم توليدها بالذكاء الاصطناعي مع وصف شديد الصرامة والواقعية
 if base_img is None:
     try:
         encoded_prompt = quote(img_desc)
         ai_image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?model=flux&width=1280&height=720&nologo=true&private=true"
         
-        print(f"🤖 جاري توليد صورة واقعية مخصصة عبر نموذج Flux بدقة عالية...")
+        print(f"🤖 جاري توليد صورة واقعية عبر نموذج Flux...")
         img_res = requests.get(ai_image_url, timeout=30)
         if img_res.status_code == 200:
             base_img = Image.open(BytesIO(img_res.content)).convert("RGB")
@@ -255,7 +261,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح وبدون أي تشوه في الصور!")
+    print("🚀 تم النشر بنجاح وبدون أي ألغاز أو صور مشوهة!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
