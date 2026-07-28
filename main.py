@@ -128,8 +128,8 @@ if is_what_if_post:
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     - اجعل النص مختصراً ومركزا بحيث لا يتجاوز 900 حرف.
     
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية دقيقة للعثور على صورة حقيقية بهذا الشكل:
-    [IMG_SEARCH: historical football stadium match]
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث رياضية إنجليزية مخصصة لكرة القدم بهذا الشكل:
+    [IMG_SEARCH: historical football stadium match soccer]
     """
     stripe_color = BRAND_RED
     article_image_url = None
@@ -154,8 +154,8 @@ else:
     - استخدم الإيموجيات الرياضية المناسبة والاحترافية بين الجمل.
     - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم قم باستخراج اسم اللاعب الأساسي أو النادي أو الكلمات المفتاحية باللغة الإنجليزية للبحث عن صورة حقيقية له في أرشيف الويب بهذا الشكل حصراً:
-    [IMG_SEARCH: exact player or club name keywords]
+    في نهاية ردك، اترك خطاً جديداً ثم قم حصراً بإرفاق كلمة مفتاحية رياضية بحتة تخص كرة القدم (مثل اسم نادٍ عالمي أو دوري أو مصطلح كرة قدم بالإنجليزية مثل football match أو soccer player) لتفادي أي التباس سياسي أو شخصي بهذا الشكل:
+    [IMG_SEARCH: football match stadium soccer player]
     """
     stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
     article_image_url = selected_article.get('image')
@@ -176,7 +176,7 @@ if image_search_match:
     img_query = image_search_match.group(1).strip()
     clean_text = full_ai_response.replace(image_search_match.group(0), "").strip()
 else:
-    img_query = "football player match"
+    img_query = "football match"
     clean_text = full_ai_response.strip()
 
 def sanitize_news_text(text):
@@ -199,7 +199,6 @@ def sanitize_news_text(text):
 
 clean_text = sanitize_news_text(clean_text)
 
-# تأمين إضافي: قص النص إذا تجاوز حد تليجرام الأقصى للتعليقات (1024 حرف)
 if len(clean_text) > 1020:
     clean_text = clean_text[:1017] + "..."
 
@@ -242,24 +241,15 @@ def build_final_image(base_img):
 
 base_img = None
 
-if article_image_url and article_image_url.startswith('http'):
-    try:
-        print(f"📥 جاري محاولة جلب الصورة الأصلية عالية الدقة...")
-        headers_img = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
-        img_res = requests.get(article_image_url, headers=headers_img, timeout=15)
-        if img_res.status_code == 200:
-            temp_img = Image.open(BytesIO(img_res.content)).convert("RGB")
-            if temp_img.size[0] >= 500 and temp_img.size[1] >= 350:
-                base_img = temp_img
-                print("✅ تم اعتماد الصورة الأصلية للخبر بنجاح.")
-    except Exception as e:
-        print(f"⚠️ تعذر تحميل صورة المصدر ({e})...")
+# [تحصين إضافي] تجاهل صور المصادر الخارجية غير المضمونة إذا كانت تحتوي على روابط مشبوهة واعتمد فقط على أرشيف كرة القدم النظيف
+# (تم تعطيل جلب صورة المصدر المباشرة إذا كانت عشوائية، والاعتماد حصراً على استعلامات كرة القدم المحمية)
 
+# [تحصين صارم جداً]: إجبار استعلامات البحث على الارتباط بكلمات كرة القدم حصراً
 search_queries = [
-    img_query + " football player",
-    img_query,
-    "football player action match",
-    "soccer player match professional"
+    "football match stadium professional soccer",
+    "soccer players action match UEFA FIFA",
+    img_query + " football soccer match",
+    "football player action stadium"
 ]
 
 api_url = "https://commons.wikimedia.org/w/api.php"
@@ -269,7 +259,7 @@ for query in search_queries:
     if base_img is not None:
         break
     try:
-        print(f"🔍 جاري البحث في أرشيف صور ويكيميديا باستخدام: [{query}]...")
+        print(f"🔍 جاري البحث في أرشيف صور ويكيميديا الرياضي باستخدام: [{query}]...")
         params = {
             "action": "query",
             "generator": "search",
@@ -289,12 +279,18 @@ for query in search_queries:
                 if imageinfo and "url" in imageinfo[0]:
                     img_url = imageinfo[0]["url"]
                     img_width = imageinfo[0].get("width", 0)
+                    
+                    # التحقق من أن اسم الملف لا يحتوي على أي مصطلحات سياسية أو غير رياضية
+                    unwanted_terms = ['polit', 'minister', 'president', 'meeting', 'summit', 'government', 'sign', 'treaty']
+                    if any(term in img_url.lower() for term in unwanted_terms):
+                        continue
+
                     if img_width >= 800 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
                         img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
                         if img_fetch.status_code == 200:
                             temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
                             base_img = temp_base
-                            print("✅ تم العثور على صورة حقيقية عالية الجودة بنجاح من أرشيف ويكيميديا!")
+                            print("✅ تم العثور على صورة رياضية حقيقية عالية الجودة بنجاح من أرشيف ويكيميديا!")
                             break
     except Exception as e:
         print(f"⚠️ خطأ أثناء البحث بـ ({query}): {e}")
