@@ -2,3 +2,4 @@ feedparser
 google-generativeai
 Pillow
 requests
+duckduckgo-search
