@@ -39,14 +39,15 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# شبكة المصادر الشاملة لمختلف الرياضات
+# [توسيع شامل للمصادر]: شبكة المصادر تشمل الرياضات العالمية، منصات السوشيال، والمواقع المخصصة
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.espn.com/espn/rss/soccer/news",
-    "https://news.google.com/rss/search?q=formula+1+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
-    "https://news.google.com/rss/search?q=womens+football+africa+caf&hl=ar&gl=AE&ceid=AE:ar",
-    "https://news.google.com/rss/search?q=bein+sports+football&hl=ar&gl=AE&ceid=AE:ar"
+    "https://news.google.com/rss/search?q=football+transfer+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
+    "https://news.google.com/rss/search?q=champions+league+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
+    "https://news.google.com/rss/search?q=real+madrid+barcelona+milan+arabic&hl=ar&gl=AE&ceid=AE:ar"
+    # يمكنك هنا إضافة روابط RSS الخاصة بصفحات السوشيال ميديا أو المواقع الإضافية مباشرة
 ]
 
 current_hour = datetime.utcnow().hour
@@ -62,7 +63,7 @@ else:
     for url in rss_urls:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:10]:
+            for entry in feed.entries[:12]:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
@@ -130,18 +131,18 @@ if is_what_if_post:
     - حجم النص ألا يتجاوز 900 حرف.
     
     في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية رياضية بهذا الشكل:
-    [IMG_SEARCH: historical football stadium match soccer]
+    [IMG_SEARCH: modern professional football stadium match soccer goal celebration]
     """
     stripe_color = BRAND_RED
     article_image_url = None
 else:
-    gender_tag = "women's football match" if is_women_topic else "football match soccer"
+    gender_tag = "womens football match professional action" if is_women_topic else "modern professional football match action stadium"
     prompt = f"""
     أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
     
-    تعليمات صارمة جداً بشأن اللغة والصياغة (تجنب الأخطاء السابقة نهائياً):
-    1. اكتب حصراً بلغة عربية فصحى سليمة، رصينة، ومصقولة احترافياً 100%. ممنوع منعاً باتاً استخدام أي كلمات ركيكة، عامية مفبركة، أو كلمات غير مفهومة (مثل طربوق أو نحوها). استخدم مصطلحات صحيحة ودقيقة (مثل: طفرة، مفاجأة، انطلاقة، هيمنة، إلخ).
-    2. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية (سواء روسية، صينية، أو أحرف لاتينية عشوائية) داخل النص الإخباري. الأسماء الأجنبية تُكتب بحروف عربية معربة فقط.
+    تعليمات صارمة جداً بشأن اللغة والصياغة:
+    1. اكتب حصراً بلغة عربية فصحى سليمة، رصينة، ومصقولة احترافياً 100%. ممنوع منعاً باتاً استخدام أي كلمات ركيكة، عامية مفبركة، أو كلمات غير مفهومة (مثل طربوق أو نحوها). استخدم مصطلحات صحيحة ودقيقة.
+    2. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية داخل النص الإخباري. الأسماء الأجنبية تُكتب بحروف عربية معربة فقط.
     3. الأسلوب: خبري، رسمي، ومشوق. الحجم: لا يتجاوز 900 حرف.
     4. التنسيق: ممنوع استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~).
     
@@ -154,7 +155,7 @@ else:
     - اشرح الخبر بفقرات واضحة مع إيموجيات رياضية مناسبة.
     - أنهِ المنشور لهاشتاقات عربية مناسبة مع #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم حدد بدقة نوع الرياضة بالإنجليزية لتستخدم في البحث عن صورة صحيحة بهذا الشكل حصراً:
+    في نهاية ردك، اترك خطاً جديداً ثم حدد بدقة نوع الرياضة بالإنجليزية لتستخدم في البحث عن صورة صحيحة حديثة بهذا الشكل حصراً:
     [IMG_SEARCH: {gender_tag}]
     """
     stripe_color = get_stripe_color(article_text_sample)
@@ -176,10 +177,9 @@ if image_search_match:
     img_query = image_search_match.group(1).strip()
     clean_text = full_ai_response.replace(image_search_match.group(0), "").strip()
 else:
-    img_query = "women's football match" if is_women_topic else "football match"
+    img_query = "womens football match" if is_women_topic else "modern football match stadium"
     clean_text = full_ai_response.strip()
 
-# [فلتر لغوي حديدي] لحذف أي كلمات أجنبية غير عربية تسربت
 def sanitize_news_text(text):
     text = re.sub(r'[\*\*_~`]', '', text)
     lines = text.split('\n')
@@ -207,33 +207,32 @@ if len(clean_text) > 1020:
 final_image_path = "processed_image.jpg"
 image_success = False
 
-# [تعديل هندسي كبير]: نظام معالجة الصور بمنهجية Letterbox لمنع قص الرؤوس نهائياً
+# [تعديل جذرى لتصميم الصورة]: معالجة متطورة لملء اللوحة ومنع الأشرطة الضيقة أو الصور القديمة
 def build_final_image(base_img):
-    # إنشاء لوحة أساسية بحجم 1280×720
     canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
     
-    # صنع خلفية ضبابية متناسقة من نفس الصورة لتغطية الفراغات باحترافية
+    # خلفية ضبابية متناسقة تملأ كامل المساحة
     bg = base_img.copy()
     bg = ImageOps.fit(bg, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    bg = bg.filter(ImageFilter.GaussianBlur(15))
+    bg = bg.filter(ImageFilter.GaussianBlur(20))
     enhancer = ImageEnhance.Brightness(bg)
-    bg = enhancer.enhance(0.4)
+    bg = enhancer.enhance(0.35)
     canvas.paste(bg, (0, 0))
     
-    # الحفاظ على الصورة الأصلية كاملة تماماً دون أي قص (مع الحفاظ على الأبعاد والراس والتفاصيل)
-    base_img.thumbnail((1160, 480), Image.Resampling.LANCZOS)
+    # معالجة الصورة الرئيسية لتملأ العرض أو الارتفاع بشكل متوازن دون أي قص أو انكماش مبالغ فيه
+    base_img.thumbnail((1200, 520), Image.Resampling.LANCZOS)
     img_w, img_h = base_img.size
     x_offset = (1280 - img_w) // 2
-    y_offset = 65 + (490 - img_h) // 2
+    y_offset = 60 + (500 - img_h) // 2
     canvas.paste(base_img, (x_offset, y_offset))
     
     draw = ImageDraw.Draw(canvas)
     
-    # تدرج لوني سفلي احترافي للنص والشعار
+    # تدرج لوني سفلي احترافي
     gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
     for y in range(220):
-        alpha = int((y / 220.0) * 200)
+        alpha = int((y / 220.0) * 210)
         g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
     canvas.paste(gradient, (0, 500), gradient)
 
@@ -261,67 +260,79 @@ def build_final_image(base_img):
 
 base_img = None
 
+# التحقق من الصورة القادمة من المقال إن وجدت وبجودة عالية
+if selected_article and selected_article.get('image'):
+    try:
+        res_art_img = requests.get(selected_article['image'], timeout=8)
+        if res_art_img.status_code == 200:
+            temp_img = Image.open(BytesIO(res_art_img.content)).convert("RGB")
+            if temp_img.size[0] >= 700:
+                base_img = temp_img
+    except:
+        pass
+
 search_queries = [
     img_query,
-    "womens football match action" if is_women_topic else "sports action match professional stadium"
+    "modern football stadium match action 2026" if not is_women_topic else "womens football match action stadium"
 ]
 
 api_url = "https://commons.wikimedia.org/w/api.php"
 headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
 
-for query in search_queries:
-    if base_img is not None:
-        break
-    try:
-        print(f"🔍 جاري البحث في أرشيف ويكيميديا باستخدام: [{query}]...")
-        params = {
-            "action": "query",
-            "generator": "search",
-            "gsrsearch": query,
-            "gsrnamespace": 6,
-            "format": "json",
-            "gsrlimit": 8,
-            "prop": "imageinfo",
-            "iiprop": "url|size"
-        }
-        wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=12)
-        if wiki_res.status_code == 200:
-            data = wiki_res.json()
-            pages = data.get("query", {}).get("pages", {})
-            for page_id, page_info in pages.items():
-                imageinfo = page_info.get("imageinfo", [])
-                if imageinfo and "url" in imageinfo[0]:
-                    img_url = imageinfo[0]["url"]
-                    img_width = imageinfo[0].get("width", 0)
-                    
-                    unwanted_terms = ['polit', 'minister', 'president', 'summit', 'government', 'sign', 'treaty']
-                    if any(term in img_url.lower() for term in unwanted_terms):
-                        continue
-
-                    if img_width >= 800 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
-                        img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
-                        if img_fetch.status_code == 200:
-                            temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
-                            base_img = temp_base
-                            print("✅ تم العثور على صورة رياضية مطابقة للحدث تماماً!")
-                            break
-    except Exception as e:
-        print(f"⚠️ خطأ أثناء البحث بـ ({query}): {e}")
-
-# مكتبة صور بديلة متوافقة بدقة مع نوع الجنس (سيدات/رجال) والرياضة لمنع أي خطأ
 if base_img is None:
-    print(f"📥 استخدام صورة بديلة طارئة متوافقة حصراً مع طبيعة الخبر...")
-    if is_women_topic:
-        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/4/4f/Womens_football_match_in_2019.jpg"
-    else:
-        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/b/b9/Football_iu_1996.jpg"
-        
-    try:
-        fb_res = requests.get(fallback_photo_url, headers=headers_wiki, timeout=10)
-        if fb_res.status_code == 200:
-            base_img = Image.open(BytesIO(fb_res.content)).convert("RGB")
-    except:
-        pass
+    for query in search_queries:
+        if base_img is not None:
+            break
+        try:
+            params = {
+                "action": "query",
+                "generator": "search",
+                "gsrsearch": query,
+                "gsrnamespace": 6,
+                "format": "json",
+                "gsrlimit": 10,
+                "prop": "imageinfo",
+                "iiprop": "url|size"
+            }
+            wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=12)
+            if wiki_res.status_code == 200:
+                data = wiki_res.json()
+                pages = data.get("query", {}).get("pages", {})
+                for page_id, page_info in pages.items():
+                    imageinfo = page_info.get("imageinfo", [])
+                    if imageinfo and "url" in imageinfo[0]:
+                        img_url = imageinfo[0]["url"]
+                        img_width = imageinfo[0].get("width", 0)
+                        
+                        # فلتر صارم لمنع الصور القديمة، التاريخية، أو غير الرياضية
+                        unwanted_terms = ['polit', 'minister', 'president', 'summit', 'government', 'sign', 'treaty', '19', '18', 'historic', 'vintage', 'bw', 'black_and_white']
+                        if any(term in img_url.lower() for term in unwanted_terms):
+                            continue
+
+                        if img_width >= 900 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                            img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
+                            if img_fetch.status_code == 200:
+                                temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
+                                base_img = temp_base
+                                break
+        except Exception as e:
+            print(f"⚠️ خطأ أثناء البحث في ويكيميديا: {e}")
+
+# [صور بديلة حديثة وملونة 100% حصراً] بدلاً من الصورة القديمة الملغاة
+if base_img is None:
+    fallback_modern_urls = [
+        "https://upload.wikimedia.org/wikipedia/commons/e/e6/2018_FIFA_World_Cup_Final_France-Croatia_%28cropped%29.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/7/72/Match_de_gala_OM-Toulon_%288%29_%28cropped%29.jpg",
+        "https://upload.wikimedia.org/wikipedia/commons/1/1d/FC_Barcelona_at_Camp_Nou_%28cropped%29.jpg"
+    ]
+    for fb_url in fallback_modern_urls:
+        try:
+            fb_res = requests.get(fb_url, headers=headers_wiki, timeout=10)
+            if fb_res.status_code == 200:
+                base_img = Image.open(BytesIO(fb_res.content)).convert("RGB")
+                break
+        except:
+            continue
 
 if base_img is not None:
     image_success = build_final_image(base_img)
@@ -339,7 +350,6 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح تام ودقة مذهلة دون أي أخطاء!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
