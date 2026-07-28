@@ -40,7 +40,7 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# [تحديث المصادر مع قيد زمني صارم &tbs=qdr:d لجلب أخبار الـ 24 ساعة الأخيرة فقط]
+# مصادر الأخبار مع قيد زمني صارم للـ 24 ساعة الأخيرة
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
@@ -67,7 +67,6 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
-                # فحص زمني دقيق: استبعاد أي خبر مضى عليه أكثر من 48 ساعة
                 if hasattr(entry, 'published_parsed') and entry.published_parsed:
                     pub_timestamp = time.mktime(entry.published_parsed)
                     if time.time() - pub_timestamp > 48 * 3600:
@@ -152,7 +151,7 @@ else:
     3. الأسلوب: خبري، رسمي، ومشوق. الحجم: لا يتجاوز 900 حرف.
     4. التنسيق: ممنوع استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~).
     
-    الخبر الرياضي الخام المستخرج من المصادر (الحديثة حصراً):
+    الخبر الرياضي الخام المستخرج من المصادر:
     العنوان: {selected_article['title']}
     التفاصيل: {selected_article['summary']}
 
@@ -197,7 +196,7 @@ def sanitize_news_text(text):
             if w.startswith('#') or w.isdigit() or not any(char.isalnum() for char in w):
                 new_words.append(w)
                 continue
-            if re.search(r'[a-zA-Z\u0400-\u04FF\u4E00-\u9FFF]', w):
+            if re.search(r'[a-zA-Z\u3040-\u30FF\u4E00-\u9FFF\u0400-\u04FF]', w):
                 continue
             if re.search(r'[\u0600-\u06FF]', w):
                 new_words.append(w)
@@ -212,32 +211,33 @@ if len(clean_text) > 1020:
 
 final_image_path = "processed_image.jpg"
 
-def build_final_image(base_img):
+# دالة بناء الصورة الرسمية للمقالات
+def build_final_image(base_img, stripe_hex):
     canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
     
     bg = base_img.copy()
     bg = ImageOps.fit(bg, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    bg = bg.filter(ImageFilter.GaussianBlur(20))
+    bg = bg.filter(ImageFilter.GaussianBlur(25))
     enhancer = ImageEnhance.Brightness(bg)
-    bg = enhancer.enhance(0.35)
+    bg = enhancer.enhance(0.32)
     canvas.paste(bg, (0, 0))
     
-    base_img.thumbnail((1200, 520), Image.Resampling.LANCZOS)
+    base_img.thumbnail((1160, 500), Image.Resampling.LANCZOS)
     img_w, img_h = base_img.size
     x_offset = (1280 - img_w) // 2
-    y_offset = 60 + (500 - img_h) // 2
+    y_offset = 55 + (490 - img_h) // 2
     canvas.paste(base_img, (x_offset, y_offset))
     
     draw = ImageDraw.Draw(canvas)
     
-    gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
+    gradient = Image.new('RGBA', (1280, 240), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
-    for y in range(220):
-        alpha = int((y / 220.0) * 210)
+    for y in range(240):
+        alpha = int((y / 240.0) * 210)
         g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
-    canvas.paste(gradient, (0, 500), gradient)
+    canvas.paste(gradient, (0, 480), gradient)
 
-    hex_color = stripe_color.lstrip('#')
+    hex_color = stripe_hex.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
@@ -250,9 +250,44 @@ def build_final_image(base_img):
         w_percent = (190 / float(logo.size[0]))
         h_size = int(float(logo.size[1]) * float(w_percent))
         logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
-        canvas.paste(logo, (8, 8), logo)
+        canvas.paste(logo, (15, 15), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
+
+    canvas.save(final_image_path, quality=98)
+    return True
+
+# [إصلاح جذري]: دالة مستقلة تماماً لبناء بطاقة هوياتية فاخرة دون أخطاء تصغير أو إطارات مشوهة
+def create_fallback_image(stripe_hex):
+    canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
+    draw = ImageDraw.Draw(canvas)
+    
+    for i in range(720):
+        c = int(15 + (i / 720) * 28)
+        draw.line([(0, i), (1280, i)], fill=(c, c + 6, c + 18))
+        
+    draw.rectangle([(50, 50), (1230, 670)], outline=(40, 53, 75), width=2)
+    
+    # شعار نصي احترافي في المنتصف في حال غياب الصور الخارجية
+    draw.text((640, 310), "PUL7SAR SPORTS", fill=(255, 255, 255), anchor="mm")
+    draw.text((640, 370), "النشرة الإخبارية الرياضية الحصرية", fill=(148, 163, 184), anchor="mm")
+
+    hex_color = stripe_hex.lstrip('#')
+    rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+    draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
+
+    red_path = "logo_red.png"
+    blue_path = "logo_blue.png"
+    target_logo_path = red_path if os.path.exists(red_path) else blue_path
+
+    try:
+        logo = Image.open(target_logo_path).convert("RGBA")
+        w_percent = (190 / float(logo.size[0]))
+        h_size = int(float(logo.size[1]) * float(w_percent))
+        logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
+        canvas.paste(logo, (15, 15), logo)
+    except:
+        pass
 
     canvas.save(final_image_path, quality=98)
     return True
@@ -300,28 +335,17 @@ if base_img is None:
     except:
         pass
 
-if base_img is None:
-    fallback_canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
-    draw_fb = ImageDraw.Draw(fallback_canvas)
-    for i in range(720):
-        c = int(15 + (i / 720) * 30)
-        draw_fb.line([(0, i), (1280, i)], fill=(c, c + 8, c + 20))
-    draw_fb.rectangle([(100, 100), (1180, 620)], outline=(255, 30, 56), width=3)
-    draw_fb.text((640, 320), "PUL7SAR SPORTS", fill=(255, 255, 255), anchor="mm")
-    base_img = fallback_canvas
-
-image_success = build_final_image(base_img)
-
-if image_success and os.path.exists(final_image_path):
-    tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
-    with open(final_image_path, 'rb') as photo_file:
-        tele_payload = {"chat_id": chat_id, "caption": clean_text}
-        tele_res = requests.post(tele_url, data=tele_payload, files={'photo': photo_file})
+# التنفيذ النهائي لتوليد الصورة بدقة مطلقة
+if base_img is not None:
+    image_success = build_final_image(base_img, stripe_color)
 else:
-    tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
-    with open(final_image_path, 'rb') as photo_file:
-        tele_payload = {"chat_id": chat_id, "caption": clean_text}
-        tele_res = requests.post(tele_url, data=tele_payload, files={'photo': photo_file})
+    image_success = create_fallback_image(stripe_color)
+
+# الإرسال عبر تليجرام مع الصورة والكابشن
+tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+with open(final_image_path, 'rb') as photo_file:
+    tele_payload = {"chat_id": chat_id, "caption": clean_text}
+    tele_res = requests.post(tele_url, data=tele_payload, files={'photo': photo_file})
 
 if tele_res.status_code == 200:
     history_data["links"] = list(posted_links)[-100:]
