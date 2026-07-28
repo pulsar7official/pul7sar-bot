@@ -7,7 +7,7 @@ from bs4 import BeautifulSoup
 import random
 import time
 from datetime import datetime, timedelta
-from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFilter
+from PIL import Image, ImageDraw, ImageOps, ImageEnhance
 from io import BytesIO
 
 # قراءة مفاتيح التشغيل الأساسية
@@ -56,6 +56,7 @@ is_what_if_time = (current_hour == 18)
 selected_article = None
 is_what_if_post = False
 
+# تهيئة المصادر والأخبار
 if is_what_if_time:
     is_what_if_post = True
 else:
@@ -63,10 +64,11 @@ else:
     for url in rss_urls:
         try:
             feed = feedparser.parse(url)
-            for entry in feed.entries[:12]:
+            for entry in feed.entries[:15]:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
+                # استبعاد أي خبر مضى عليه أكثر من 48 ساعة
                 if hasattr(entry, 'published_parsed') and entry.published_parsed:
                     pub_timestamp = time.mktime(entry.published_parsed)
                     if time.time() - pub_timestamp > 48 * 3600:
@@ -107,6 +109,7 @@ else:
         posted_links.add(selected_article['link'])
         posted_titles.append(selected_article['title'])
     else:
+        print("⚠️ لا توجد أخبار جديدة مناسبة للنشر هذا الوقت.")
         exit(0)
 
 BRAND_RED = "#FF1E38"
@@ -127,6 +130,7 @@ headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/j
 article_text_sample = (selected_article['title'] + " " + selected_article['summary']) if not is_what_if_post else ""
 is_women_topic = any(k in article_text_sample.lower() for k in ['سيدات', 'نسائية', 'women', 'female', 'girls'])
 
+# توليد النص الاحترافي
 if is_what_if_post:
     prompt = """
     أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم.
@@ -136,7 +140,7 @@ if is_what_if_post:
     - حجم النص ألا يتجاوز 900 حرف.
     
     في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية رياضية بهذا الشكل:
-    [IMG_SEARCH: modern professional football stadium match soccer goal celebration]
+    [IMG_SEARCH: historical classic football stadium match soccer]
     """
     stripe_color = BRAND_RED
     article_image_url = None
@@ -211,36 +215,26 @@ if len(clean_text) > 1020:
 
 final_image_path = "processed_image.jpg"
 
-# دالة بناء الصورة الرسمية للمقالات
+# [تعديل هنا]: معالجة الصورة بشكل نظيف ومباشر ليملأ الإطار بالكامل دون أي خلفيات ضبابية أو تشويه
 def build_final_image(base_img, stripe_hex):
-    canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
-    
-    bg = base_img.copy()
-    bg = ImageOps.fit(bg, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    bg = bg.filter(ImageFilter.GaussianBlur(25))
-    enhancer = ImageEnhance.Brightness(bg)
-    bg = enhancer.enhance(0.32)
-    canvas.paste(bg, (0, 0))
-    
-    base_img.thumbnail((1160, 500), Image.Resampling.LANCZOS)
-    img_w, img_h = base_img.size
-    x_offset = (1280 - img_w) // 2
-    y_offset = 55 + (490 - img_h) // 2
-    canvas.paste(base_img, (x_offset, y_offset))
-    
+    # ملء الإطار القياسي 1280x720 بشكل مباشر واحترافي
+    canvas = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     draw = ImageDraw.Draw(canvas)
     
-    gradient = Image.new('RGBA', (1280, 240), (0,0,0,0))
+    # تدرج سفلي خفيف جداً لضمان وضوح الشريط الملون والشعار
+    gradient = Image.new('RGBA', (1280, 150), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
-    for y in range(240):
-        alpha = int((y / 240.0) * 210)
-        g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
-    canvas.paste(gradient, (0, 480), gradient)
+    for y in range(150):
+        alpha = int((y / 150.0) * 140)
+        g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
+    canvas.paste(gradient, (0, 570), gradient)
 
+    # الشريط الملون السفلي
     hex_color = stripe_hex.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
+    # الشعار في الزاوية
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
@@ -257,53 +251,21 @@ def build_final_image(base_img, stripe_hex):
     canvas.save(final_image_path, quality=98)
     return True
 
-# [إصلاح جذري]: دالة مستقلة تماماً لبناء بطاقة هوياتية فاخرة دون أخطاء تصغير أو إطارات مشوهة
-def create_fallback_image(stripe_hex):
-    canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
-    draw = ImageDraw.Draw(canvas)
-    
-    for i in range(720):
-        c = int(15 + (i / 720) * 28)
-        draw.line([(0, i), (1280, i)], fill=(c, c + 6, c + 18))
-        
-    draw.rectangle([(50, 50), (1230, 670)], outline=(40, 53, 75), width=2)
-    
-    # شعار نصي احترافي في المنتصف في حال غياب الصور الخارجية
-    draw.text((640, 310), "PUL7SAR SPORTS", fill=(255, 255, 255), anchor="mm")
-    draw.text((640, 370), "النشرة الإخبارية الرياضية الحصرية", fill=(148, 163, 184), anchor="mm")
-
-    hex_color = stripe_hex.lstrip('#')
-    rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
-    draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
-
-    red_path = "logo_red.png"
-    blue_path = "logo_blue.png"
-    target_logo_path = red_path if os.path.exists(red_path) else blue_path
-
-    try:
-        logo = Image.open(target_logo_path).convert("RGBA")
-        w_percent = (190 / float(logo.size[0]))
-        h_size = int(float(logo.size[1]) * float(w_percent))
-        logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
-        canvas.paste(logo, (15, 15), logo)
-    except:
-        pass
-
-    canvas.save(final_image_path, quality=98)
-    return True
-
 base_img = None
+download_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
+# المحاولة الأولى: جلب الصورة الأصلية للخبر
 if selected_article and selected_article.get('image'):
     try:
-        res_art_img = requests.get(selected_article['image'], timeout=8)
+        res_art_img = requests.get(selected_article['image'], headers=download_headers, timeout=8)
         if res_art_img.status_code == 200:
             temp_img = Image.open(BytesIO(res_art_img.content)).convert("RGB")
-            if temp_img.size[0] >= 700:
+            if temp_img.size[0] >= 300:
                 base_img = temp_img
-    except:
-        pass
+    except Exception as e:
+        print(f"⚠️ تعذر جلب صورة الخبر مباشرة: {e}")
 
+# المحاولة الثانية: البحث عن صورة حقيقية بديلة من ويكيميديا في حال تعذر جلب الصورة الأصلية
 if base_img is None:
     api_url = "https://commons.wikimedia.org/w/api.php"
     headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
@@ -328,20 +290,21 @@ if base_img is None:
                     img_url = imageinfo[0]["url"]
                     img_width = imageinfo[0].get("width", 0)
                     if img_width >= 800 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
-                        img_fetch = requests.get(img_url, headers=headers_wiki, timeout=8)
+                        img_fetch = requests.get(img_url, headers=download_headers, timeout=8)
                         if img_fetch.status_code == 200:
                             base_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
                             break
     except:
         pass
 
-# التنفيذ النهائي لتوليد الصورة بدقة مطلقة
+# شرط النشر الآمن: إذا لم نجد صورة حقيقية صالحة تماماً، نتخطى الخبر ولا ننشر أي شيء وهمي أو أسود
 if base_img is not None:
-    image_success = build_final_image(base_img, stripe_color)
+    build_final_image(base_img, stripe_color)
 else:
-    image_success = create_fallback_image(stripe_color)
+    print("⚠️ تم تخطي الخبر لعدم توفر صورة حقيقية مطابقة بالمواصفات.")
+    exit(0)
 
-# الإرسال عبر تليجرام مع الصورة والكابشن
+# الإرسال عبر تليجرام
 tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
 with open(final_image_path, 'rb') as photo_file:
     tele_payload = {"chat_id": chat_id, "caption": clean_text}
