@@ -1,5 +1,6 @@
-feedparser
-google-generativeai
-Pillow
 requests
-duckduckgo-search
+feedparser
+beautifulsoup4
+pillow
+ddgs
+groq
