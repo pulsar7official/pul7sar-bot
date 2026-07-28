@@ -330,4 +330,4 @@ if tele_res.status_code == 200:
     with open(history_file, "w", encoding="utf-8") as f:
         json.dump(history_data, f, ensure_ascii=False)
 else:
-    raise Exception(f"❌ خطأ تليجرام: {tele_res.text}")
+    raise Exception(f"❌ خطأ تليجرام: {tele_res.text}") 
