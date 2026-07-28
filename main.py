@@ -7,8 +7,9 @@ from bs4 import BeautifulSoup
 import random
 import time
 from datetime import datetime, timedelta
-from PIL import Image, ImageDraw, ImageOps, ImageEnhance
+from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFilter
 from io import BytesIO
+from duckduckgo_search import DDGS
 
 # قراءة مفاتيح التشغيل الأساسية
 groq_key = os.environ.get("GROQ_API_KEY", "").strip()
@@ -68,7 +69,6 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
-                # استبعاد أي خبر مضى عليه أكثر من 48 ساعة
                 if hasattr(entry, 'published_parsed') and entry.published_parsed:
                     pub_timestamp = time.mktime(entry.published_parsed)
                     if time.time() - pub_timestamp > 48 * 3600:
@@ -143,7 +143,6 @@ if is_what_if_post:
     [IMG_SEARCH: historical classic football stadium match soccer]
     """
     stripe_color = BRAND_RED
-    article_image_url = None
 else:
     gender_tag = "womens football match professional action" if is_women_topic else "modern professional football match action stadium"
     prompt = f"""
@@ -168,7 +167,6 @@ else:
     [IMG_SEARCH: {gender_tag}]
     """
     stripe_color = get_stripe_color(article_text_sample)
-    article_image_url = selected_article.get('image')
 
 payload = {
     "model": "llama-3.3-70b-versatile",
@@ -215,13 +213,10 @@ if len(clean_text) > 1020:
 
 final_image_path = "processed_image.jpg"
 
-# [تعديل هنا]: معالجة الصورة بشكل نظيف ومباشر ليملأ الإطار بالكامل دون أي خلفيات ضبابية أو تشويه
 def build_final_image(base_img, stripe_hex):
-    # ملء الإطار القياسي 1280x720 بشكل مباشر واحترافي
     canvas = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     draw = ImageDraw.Draw(canvas)
     
-    # تدرج سفلي خفيف جداً لضمان وضوح الشريط الملون والشعار
     gradient = Image.new('RGBA', (1280, 150), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
     for y in range(150):
@@ -229,12 +224,10 @@ def build_final_image(base_img, stripe_hex):
         g_draw.line([(0, y), (1280, y)], fill=(0, 0, 0, alpha))
     canvas.paste(gradient, (0, 570), gradient)
 
-    # الشريط الملون السفلي
     hex_color = stripe_hex.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
-    # الشعار في الزاوية
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
@@ -254,7 +247,7 @@ def build_final_image(base_img, stripe_hex):
 base_img = None
 download_headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
-# المحاولة الأولى: جلب الصورة الأصلية للخبر
+# 1. محاولة جلب الصورة الأصلية من الخبر
 if selected_article and selected_article.get('image'):
     try:
         res_art_img = requests.get(selected_article['image'], headers=download_headers, timeout=8)
@@ -265,7 +258,7 @@ if selected_article and selected_article.get('image'):
     except Exception as e:
         print(f"⚠️ تعذر جلب صورة الخبر مباشرة: {e}")
 
-# المحاولة الثانية: البحث عن صورة حقيقية بديلة من ويكيميديا في حال تعذر جلب الصورة الأصلية
+# 2. محاولة البحث في ويكيميديا كخيار أول بديل
 if base_img is None:
     api_url = "https://commons.wikimedia.org/w/api.php"
     headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
@@ -297,11 +290,28 @@ if base_img is None:
     except:
         pass
 
-# شرط النشر الآمن: إذا لم نجد صورة حقيقية صالحة تماماً، نتخطى الخبر ولا ننشر أي شيء وهمي أو أسود
+# 3. محاولة البحث المساند عبر DuckDuckGo Images لجلب صور حقيقية إضافية من الويب
+if base_img is None:
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.images(img_query, max_results=5))
+            for r in results:
+                img_url = r.get('image')
+                if img_url:
+                    img_fetch = requests.get(img_url, headers=download_headers, timeout=8)
+                    if img_fetch.status_code == 200:
+                        temp_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
+                        if temp_img.size[0] >= 400:
+                            base_img = temp_img
+                            break
+    except Exception as e:
+        print(f"⚠️ تنبيه في بحث الصور المساند: {e}")
+
+# التأكد من وجود صورة حقيقية قبل النشر
 if base_img is not None:
     build_final_image(base_img, stripe_color)
 else:
-    print("⚠️ تم تخطي الخبر لعدم توفر صورة حقيقية مطابقة بالمواصفات.")
+    print("⚠️ تم تخطي الخبر لعدم توفر صورة حقيقية مطابقة.")
     exit(0)
 
 # الإرسال عبر تليجرام
