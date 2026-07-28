@@ -5,7 +5,8 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 import random
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFilter
 from io import BytesIO
 
@@ -39,15 +40,14 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# [توسيع شامل للمصادر]: شبكة المصادر تشمل الرياضات العالمية، منصات السوشيال، والمواقع المخصصة
+# [تحديث المصادر مع قيد زمني صارم &tbs=qdr:d لجلب أخبار الـ 24 ساعة الأخيرة فقط]
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.espn.com/espn/rss/soccer/news",
-    "https://news.google.com/rss/search?q=football+transfer+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
-    "https://news.google.com/rss/search?q=champions+league+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
-    "https://news.google.com/rss/search?q=real+madrid+barcelona+milan+arabic&hl=ar&gl=AE&ceid=AE:ar"
-    # يمكنك هنا إضافة روابط RSS الخاصة بصفحات السوشيال ميديا أو المواقع الإضافية مباشرة
+    "https://news.google.com/rss/search?q=football+transfer+news+arabic&hl=ar&gl=AE&ceid=AE:ar&tbs=qdr:d",
+    "https://news.google.com/rss/search?q=champions+league+news+arabic&hl=ar&gl=AE&ceid=AE:ar&tbs=qdr:d",
+    "https://news.google.com/rss/search?q=real+madrid+barcelona+milan+arabic&hl=ar&gl=AE&ceid=AE:ar&tbs=qdr:d"
 ]
 
 current_hour = datetime.utcnow().hour
@@ -67,6 +67,12 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
+                # فحص زمني دقيق: استبعاد أي خبر مضى عليه أكثر من 48 ساعة
+                if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                    pub_timestamp = time.mktime(entry.published_parsed)
+                    if time.time() - pub_timestamp > 48 * 3600:
+                        continue
+
                 skip_keywords = ['quiz', 'guess', 'challenge', 'poll', 'vote', '10 things', 'rank', 'rumour']
                 if any(kw in title.lower() for kw in skip_keywords):
                     continue
@@ -141,12 +147,12 @@ else:
     أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
     
     تعليمات صارمة جداً بشأن اللغة والصياغة:
-    1. اكتب حصراً بلغة عربية فصحى سليمة، رصينة، ومصقولة احترافياً 100%. ممنوع منعاً باتاً استخدام أي كلمات ركيكة، عامية مفبركة، أو كلمات غير مفهومة (مثل طربوق أو نحوها). استخدم مصطلحات صحيحة ودقيقة.
+    1. اكتب حصراً بلغة عربية فصحى سليمة، رصينة، ومصقولة احترافياً 100%. ممنوع منعاً باتاً استخدام أي كلمات ركيكة أو عامية أو غير مفهومة.
     2. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية داخل النص الإخباري. الأسماء الأجنبية تُكتب بحروف عربية معربة فقط.
     3. الأسلوب: خبري، رسمي، ومشوق. الحجم: لا يتجاوز 900 حرف.
     4. التنسيق: ممنوع استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~).
     
-    الخبر الرياضي الخام المستخرج من المصادر:
+    الخبر الرياضي الخام المستخرج من المصادر (الحديثة حصراً):
     العنوان: {selected_article['title']}
     التفاصيل: {selected_article['summary']}
 
@@ -205,13 +211,10 @@ if len(clean_text) > 1020:
     clean_text = clean_text[:1017] + "..."
 
 final_image_path = "processed_image.jpg"
-image_success = False
 
-# [تعديل جذرى لتصميم الصورة]: معالجة متطورة لملء اللوحة ومنع الأشرطة الضيقة أو الصور القديمة
 def build_final_image(base_img):
     canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
     
-    # خلفية ضبابية متناسقة تملأ كامل المساحة
     bg = base_img.copy()
     bg = ImageOps.fit(bg, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     bg = bg.filter(ImageFilter.GaussianBlur(20))
@@ -219,7 +222,6 @@ def build_final_image(base_img):
     bg = enhancer.enhance(0.35)
     canvas.paste(bg, (0, 0))
     
-    # معالجة الصورة الرئيسية لتملأ العرض أو الارتفاع بشكل متوازن دون أي قص أو انكماش مبالغ فيه
     base_img.thumbnail((1200, 520), Image.Resampling.LANCZOS)
     img_w, img_h = base_img.size
     x_offset = (1280 - img_w) // 2
@@ -228,7 +230,6 @@ def build_final_image(base_img):
     
     draw = ImageDraw.Draw(canvas)
     
-    # تدرج لوني سفلي احترافي
     gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
     for y in range(220):
@@ -236,12 +237,10 @@ def build_final_image(base_img):
         g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
     canvas.paste(gradient, (0, 500), gradient)
 
-    # شريط ملون سفلي هوياتي
     hex_color = stripe_color.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
-    # وضع شعار المنصة
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
@@ -260,7 +259,6 @@ def build_final_image(base_img):
 
 base_img = None
 
-# التحقق من الصورة القادمة من المقال إن وجدت وبجودة عالية
 if selected_article and selected_article.get('image'):
     try:
         res_art_img = requests.get(selected_article['image'], timeout=8)
@@ -271,73 +269,48 @@ if selected_article and selected_article.get('image'):
     except:
         pass
 
-search_queries = [
-    img_query,
-    "modern football stadium match action 2026" if not is_women_topic else "womens football match action stadium"
-]
-
-api_url = "https://commons.wikimedia.org/w/api.php"
-headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
+if base_img is None:
+    api_url = "https://commons.wikimedia.org/w/api.php"
+    headers_wiki = {"User-Agent": "Pul7sarBot/2.0 (Contact@pul7sar.com)"}
+    try:
+        params = {
+            "action": "query",
+            "generator": "search",
+            "gsrsearch": img_query,
+            "gsrnamespace": 6,
+            "format": "json",
+            "gsrlimit": 6,
+            "prop": "imageinfo",
+            "iiprop": "url|size"
+        }
+        wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=10)
+        if wiki_res.status_code == 200:
+            data = wiki_res.json()
+            pages = data.get("query", {}).get("pages", {})
+            for page_id, page_info in pages.items():
+                imageinfo = page_info.get("imageinfo", [])
+                if imageinfo and "url" in imageinfo[0]:
+                    img_url = imageinfo[0]["url"]
+                    img_width = imageinfo[0].get("width", 0)
+                    if img_width >= 800 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
+                        img_fetch = requests.get(img_url, headers=headers_wiki, timeout=8)
+                        if img_fetch.status_code == 200:
+                            base_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
+                            break
+    except:
+        pass
 
 if base_img is None:
-    for query in search_queries:
-        if base_img is not None:
-            break
-        try:
-            params = {
-                "action": "query",
-                "generator": "search",
-                "gsrsearch": query,
-                "gsrnamespace": 6,
-                "format": "json",
-                "gsrlimit": 10,
-                "prop": "imageinfo",
-                "iiprop": "url|size"
-            }
-            wiki_res = requests.get(api_url, params=params, headers=headers_wiki, timeout=12)
-            if wiki_res.status_code == 200:
-                data = wiki_res.json()
-                pages = data.get("query", {}).get("pages", {})
-                for page_id, page_info in pages.items():
-                    imageinfo = page_info.get("imageinfo", [])
-                    if imageinfo and "url" in imageinfo[0]:
-                        img_url = imageinfo[0]["url"]
-                        img_width = imageinfo[0].get("width", 0)
-                        
-                        # فلتر صارم لمنع الصور القديمة، التاريخية، أو غير الرياضية
-                        unwanted_terms = ['polit', 'minister', 'president', 'summit', 'government', 'sign', 'treaty', '19', '18', 'historic', 'vintage', 'bw', 'black_and_white']
-                        if any(term in img_url.lower() for term in unwanted_terms):
-                            continue
+    fallback_canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
+    draw_fb = ImageDraw.Draw(fallback_canvas)
+    for i in range(720):
+        c = int(15 + (i / 720) * 30)
+        draw_fb.line([(0, i), (1280, i)], fill=(c, c + 8, c + 20))
+    draw_fb.rectangle([(100, 100), (1180, 620)], outline=(255, 30, 56), width=3)
+    draw_fb.text((640, 320), "PUL7SAR SPORTS", fill=(255, 255, 255), anchor="mm")
+    base_img = fallback_canvas
 
-                        if img_width >= 900 and any(img_url.lower().endswith(ext) for ext in ['.jpg', '.jpeg', '.png']):
-                            img_fetch = requests.get(img_url, headers=headers_wiki, timeout=10)
-                            if img_fetch.status_code == 200:
-                                temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
-                                base_img = temp_base
-                                break
-        except Exception as e:
-            print(f"⚠️ خطأ أثناء البحث في ويكيميديا: {e}")
-
-# [صور بديلة حديثة وملونة 100% حصراً] بدلاً من الصورة القديمة الملغاة
-if base_img is None:
-    fallback_modern_urls = [
-        "https://upload.wikimedia.org/wikipedia/commons/e/e6/2018_FIFA_World_Cup_Final_France-Croatia_%28cropped%29.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/7/72/Match_de_gala_OM-Toulon_%288%29_%28cropped%29.jpg",
-        "https://upload.wikimedia.org/wikipedia/commons/1/1d/FC_Barcelona_at_Camp_Nou_%28cropped%29.jpg"
-    ]
-    for fb_url in fallback_modern_urls:
-        try:
-            fb_res = requests.get(fb_url, headers=headers_wiki, timeout=10)
-            if fb_res.status_code == 200:
-                base_img = Image.open(BytesIO(fb_res.content)).convert("RGB")
-                break
-        except:
-            continue
-
-if base_img is not None:
-    image_success = build_final_image(base_img)
-else:
-    image_success = False
+image_success = build_final_image(base_img)
 
 if image_success and os.path.exists(final_image_path):
     tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
@@ -345,9 +318,10 @@ if image_success and os.path.exists(final_image_path):
         tele_payload = {"chat_id": chat_id, "caption": clean_text}
         tele_res = requests.post(tele_url, data=tele_payload, files={'photo': photo_file})
 else:
-    tele_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    tele_payload = {"chat_id": chat_id, "text": clean_text}
-    tele_res = requests.post(tele_url, json=tele_payload)
+    tele_url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+    with open(final_image_path, 'rb') as photo_file:
+        tele_payload = {"chat_id": chat_id, "caption": clean_text}
+        tele_res = requests.post(tele_url, data=tele_payload, files={'photo': photo_file})
 
 if tele_res.status_code == 200:
     history_data["links"] = list(posted_links)[-100:]
