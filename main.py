@@ -8,7 +8,6 @@ import random
 from datetime import datetime
 from PIL import Image, ImageDraw, ImageOps, ImageEnhance
 from io import BytesIO
-from urllib.parse import quote
 
 # قراءة مفاتيح التشغيل الأساسية
 groq_key = os.environ.get("GROQ_API_KEY", "").strip()
@@ -40,13 +39,14 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# شبكة المصادر الموسعة
+# شبكة المصادر الشاملة لمختلف الرياضات
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.espn.com/espn/rss/soccer/news",
-    "https://news.google.com/rss/search?q=bein+sports+football&hl=ar&gl=AE&ceid=AE:ar",
-    "https://news.google.com/rss/search?q=Fabrizio+Romano+transfer+news&hl=en&gl=US&ceid=US:en"
+    "https://news.google.com/rss/search?q=formula+1+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
+    "https://news.google.com/rss/search?q=snooker+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
+    "https://news.google.com/rss/search?q=bein+sports+football&hl=ar&gl=AE&ceid=AE:ar"
 ]
 
 current_hour = datetime.utcnow().hour
@@ -66,7 +66,7 @@ else:
                 link = entry.get('link', entry.get('id', ''))
                 title = entry.get('title', '')
                 
-                skip_keywords = ['quiz', 'guess', 'challenge', 'poll', 'vote', '10 things', 'rank', 'rumour', 'gossip', 'opinion']
+                skip_keywords = ['quiz', 'guess', 'challenge', 'poll', 'vote', '10 things', 'rank', 'rumour']
                 if any(kw in title.lower() for kw in skip_keywords):
                     continue
 
@@ -82,8 +82,6 @@ else:
                     image_url = entry.media_content[0].get('url')
                 elif 'media_thumbnail' in entry and len(entry.media_thumbnail) > 0:
                     image_url = entry.media_thumbnail[0].get('url')
-                elif 'enclosures' in entry and len(entry.enclosures) > 0:
-                    image_url = entry.enclosures[0].get('href')
                 else:
                     img_tag = soup_clean.find('img')
                     if img_tag and img_tag.get('src'):
@@ -109,26 +107,28 @@ BRAND_RED = "#FF1E38"
 
 def get_stripe_color(text):
     t = text.lower()
-    if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'barcelona', 'barca']):
+    if any(k in t for k in ['milan', 'liverpool', 'arsenal', 'bayern', 'barcelona']):
         return "#E50914"
-    elif any(k in t for k in ['real madrid', 'tottenham', 'spurs']):
+    elif any(k in t for k in ['real madrid', 'tottenham', 'f1', 'فورمولا']):
         return "#FEA326"
-    elif any(k in t for k in ['chelsea', 'inter', 'psg']):
+    elif any(k in t for k in ['chelsea', 'inter', 'psg', 'سنوكر', 'snooker']):
         return "#0055A5"
     return BRAND_RED
 
 groq_url = "https://api.groq.com/openai/v1/chat/completions"
 headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
 
+article_text_sample = (selected_article['title'] + " " + selected_article['summary']) if not is_what_if_post else ""
+
 if is_what_if_post:
     prompt = """
     أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم.
-    - اكتب باللغة العربية الفصحى فقط وبدون أي إدراج لرموز الماركداون أو النجوم.
+    - اكتب باللغة العربية الفصحى فقط وبدون أي إدراج لرموز الماركداون أو النجوم أو الكلمات الأجنبية.
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
-    - اجعل النص مختصراً ومركزا بحيث لا يتجاوز 900 حرف.
+    - حجم النص ألا يتجاوز 900 حرف.
     
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث رياضية إنجليزية مخصصة لكرة القدم بهذا الشكل:
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية رياضية بهذا الشكل:
     [IMG_SEARCH: historical football stadium match soccer]
     """
     stripe_color = BRAND_RED
@@ -138,26 +138,24 @@ else:
     أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
     
     تعليمات صارمة جداً بشأن اللغة والصياغة:
-    1. اكتب حصراً بلغة عربية فصحى سليمة ومصقولة 100%. ممنوع نهائياً كتابة أي كلمات إنجليزية، أحرف لاتينية، أو أرقام غير عربية داخل النص الإخباري الرئيسي.
-    2. يجب ترجمة كل اسم نادي أو لاعب أو مصطلح رياضي إلى العربية بوضوح ودقة تامة.
-    3. الأسلوب: يجب أن يكون الأسلوب خبرياً، رسمياً، ومشوقاً في نفس الوقت، وتجنب الركاكة أو الترجمة الحرفية.
-    4. الحجم: اجعل محتوى الخبر موجزاً ومكثفاً بحيث لا يتجاوز نهائياً 900 حرف ليتوافق مع معايير النشر.
-    5. التنسيق: ممنوع منعاً باتاً استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~) داخل النص.
+    1. اكتب حصراً بلغة عربية فصحى سليمة ومصقولة 100%. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية (سواء روسية، صينية، فرنسية، أو أحرف لاتينية عشوائية) داخل النص الإخباري. إذا كان هناك اسم أجنبي فيجب تعريبه أو كتابته بحروف عربية فقط.
+    2. الأسلوب: خبري، رسمي، ومشوق، وتجنب الترجمة الحرفية الركيكة.
+    3. الحجم: اججه الخبر موجزاً ومكثفاً بحيث لا يتجاوز 900 حرف.
+    4. التنسيق: ممنوع استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~).
     
     الخبر الرياضي الخام المستخرج من المصادر:
     العنوان: {selected_article['title']}
     التفاصيل: {selected_article['summary']}
 
-    قم بصياغة منشور رياضي احترافي بالكامل وفقاً للشروط أعلاه:
-    - ابدأ بعنوان رئيسي جذاب ومعبر (خالٍ من أي رموز).
-    - اكتب فقرات مفصلة وواضحة تشرح الخبر باختصار.
-    - استخدم الإيموجيات الرياضية المناسبة والاحترافية بين الجمل.
-    - أنهِ المنشور بهشتاجات عربية صحيحة مع هشتاج المنصة #PUL7SAR.
+    قم بصياغة منشور رياضي احترافي بالكامل:
+    - ابدأ بعنوان رئيسي جذاب ومعبر.
+    - اشرح الخبر بفقرات واضحة مع إيموجيات رياضية مناسبة.
+    - أنهِ المنشور لهاشتاقات عربية مناسبة مع #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم قم حصراً بإرفاق كلمة مفتاحية رياضية بحتة تخص كرة القدم (مثل اسم نادٍ عالمي أو دوري أو مصطلح كرة قدم بالإنجليزية مثل football match أو soccer player) لتفادي أي التباس سياسي أو شخصي بهذا الشكل:
-    [IMG_SEARCH: football match stadium soccer player]
+    في نهاية ردك، اترك خطاً جديداً ثم حدد بدقة نوع الرياضة المرتبطة بالخبر (مثل: f1 racing car للسيارات، snooker player للسنوكر، أو football match لكرة القدم) لتستخدم في البحث عن صورة صحيحة تماماً بهذا الشكل حصراً:
+    [IMG_SEARCH: exact sports keywords in English]
     """
-    stripe_color = get_stripe_color(selected_article['title'] + " " + selected_article['summary'])
+    stripe_color = get_stripe_color(article_text_sample)
     article_image_url = selected_article.get('image')
 
 payload = {
@@ -179,20 +177,28 @@ else:
     img_query = "football match"
     clean_text = full_ai_response.strip()
 
+# [فلتر لغوي حديدي] لحذف أي كلمات أجنبية (روسية، صينية، لاتينية عشوائية) تسربت من الذكاء الاصطناعي
 def sanitize_news_text(text):
-    text = re.sub(r'\*\*', '', text)
-    text = re.sub(r'\*', '', text)
-    text = re.sub(r'[_~`]', '_', text)
-    
+    text = re.sub(r'[\*\*_~`]', '', text)
     lines = text.split('\n')
     cleaned_lines = []
     for line in lines:
         words = line.split()
         new_words = []
         for w in words:
-            if re.search(r'[a-zA-Z]', w) and not w.startswith('#'):
+            # السماح بالهاشتاقات والأرقام والرموز
+            if w.startswith('#') or w.isdigit() or not any(char.isalnum() for char in w):
+                new_words.append(w)
                 continue
-            new_words.append(w)
+            
+            # منع أي كلمة تحتوى على حروف لاتينية أو كيريلية (روسية) أو صينية
+            if re.search(r'[a-zA-Z\u0400-\u04FF\u4E00-\u9FFF]', w):
+                continue
+                
+            # السماح فقط بالكلمات العربية الصرفة
+            if re.search(r'[\u0600-\u06FF]', w):
+                new_words.append(w)
+                
         if new_words:
             cleaned_lines.append(' '.join(new_words))
     return '\n'.join(cleaned_lines).strip()
@@ -241,15 +247,10 @@ def build_final_image(base_img):
 
 base_img = None
 
-# [تحصين إضافي] تجاهل صور المصادر الخارجية غير المضمونة إذا كانت تحتوي على روابط مشبوهة واعتمد فقط على أرشيف كرة القدم النظيف
-# (تم تعطيل جلب صورة المصدر المباشرة إذا كانت عشوائية، والاعتماد حصراً على استعلامات كرة القدم المحمية)
-
-# [تحصين صارم جداً]: إجبار استعلامات البحث على الارتباط بكلمات كرة القدم حصراً
+# تحديد استعلامات البحث الذكية بناءً على محتوى الخبر (سيارات، سنوكر، أو كرة قدم)
 search_queries = [
-    "football match stadium professional soccer",
-    "soccer players action match UEFA FIFA",
-    img_query + " football soccer match",
-    "football player action stadium"
+    img_query,
+    "sports action match professional stadium"
 ]
 
 api_url = "https://commons.wikimedia.org/w/api.php"
@@ -259,7 +260,7 @@ for query in search_queries:
     if base_img is not None:
         break
     try:
-        print(f"🔍 جاري البحث في أرشيف صور ويكيميديا الرياضي باستخدام: [{query}]...")
+        print(f"🔍 جاري البحث في أرشيف ويكيميديا باستخدام: [{query}]...")
         params = {
             "action": "query",
             "generator": "search",
@@ -280,8 +281,8 @@ for query in search_queries:
                     img_url = imageinfo[0]["url"]
                     img_width = imageinfo[0].get("width", 0)
                     
-                    # التحقق من أن اسم الملف لا يحتوي على أي مصطلحات سياسية أو غير رياضية
-                    unwanted_terms = ['polit', 'minister', 'president', 'meeting', 'summit', 'government', 'sign', 'treaty']
+                    # منع أي صور سياسية أو أشخاص غير رياضيين
+                    unwanted_terms = ['polit', 'minister', 'president', 'summit', 'government', 'sign', 'treaty']
                     if any(term in img_url.lower() for term in unwanted_terms):
                         continue
 
@@ -290,14 +291,23 @@ for query in search_queries:
                         if img_fetch.status_code == 200:
                             temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
                             base_img = temp_base
-                            print("✅ تم العثور على صورة رياضية حقيقية عالية الجودة بنجاح من أرشيف ويكيميديا!")
+                            print("✅ تم العثور على صورة رياضية حقيقية مطابقة للحدث!")
                             break
     except Exception as e:
         print(f"⚠️ خطأ أثناء البحث بـ ({query}): {e}")
 
+# [مكتبة صور بديلة متعددة حسب نوع الرياضة لمنع تكرار صورة واحدة ثابتة]
 if base_img is None:
-    print(f"📥 استخدام صورة بديلة طارئة من أرشيف كرة القدم...")
-    fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/b/b9/Football_iu_1996.jpg"
+    print(f"📥 استخدام صورة بديلة متوافقة مع نوع الحدث...")
+    text_check = (selected_article['title'] + " " + selected_article['summary']).lower()
+    
+    if any(k in text_check for k in ['f1', 'فورمولا', 'سباق', 'سيارات', 'نوريس', 'أنونيلي']):
+        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/3/33/F1_istanbul_2005_start.jpg"
+    elif any(k in text_check for k in ['سنوكر', 'أوسايفن', 'snooker']):
+        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/6/69/Snooker_table_closeup.jpg"
+    else:
+        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/b/b9/Football_iu_1996.jpg"
+        
     try:
         fb_res = requests.get(fallback_photo_url, headers=headers_wiki, timeout=10)
         if fb_res.status_code == 200:
@@ -321,7 +331,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح وبأعلى معايير النقاء والجودة!")
+    print("🚀 تم النشر بنجاح وبأعلى معايير النقاء والجودة والدقة!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
