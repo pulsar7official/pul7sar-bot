@@ -41,7 +41,7 @@ def is_topic_repeated(new_title):
             return True
     return False
 
-# مصادر الأخبار مع قيد زمني صارم للـ 24 ساعة الأخيرة
+# مصادر الأخبار المعتمدة
 rss_urls = [
     "https://www.skysports.com/rss/12040",
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
@@ -131,37 +131,37 @@ is_women_topic = any(k in article_text_sample.lower() for k in ['سيدات', '�
 if is_what_if_post:
     prompt = """
     أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم.
-    - اكتب باللغة العربية الفصحى فقط وبدون أي إدراج لرموز الماركداون أو النجوم أو الكلمات الأجنبية أو الألفاظ الركيكة.
+    - اكتب باللغة العربية الفصحى الواضحة والاحترافية حصراً. ممنوع منعاً باتاً استخدام أي جمل غامضة أو ركيكة.
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     - حجم النص ألا يتجاوز 900 حرف.
     
-    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية رياضية بهذا الشكل:
-    [IMG_SEARCH: modern professional football stadium match soccer goal celebration]
+    في نهاية ردك، اترك خطاً جديداً ثم اكتب حصراً كلمات بحث إنجليزية رياضية دقيقة بهذا الشكل:
+    [IMG_SEARCH: historic legendary football match celebration action stadium]
     """
     stripe_color = BRAND_RED
     article_image_url = None
 else:
-    gender_tag = "womens football match professional action" if is_women_topic else "modern professional football match action stadium"
+    gender_tag = "womens professional football match action" if is_women_topic else "professional football match action stadium celebration"
     prompt = f"""
-    أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
+    أنت رئيس تحرير رياضي مخضرم لمنصة PUL7SAR. مهمتك صياغة الخبر الرياضي التالي بأسلوب احترافي، واضح، ومفهوم للقارئ تماماً منذ السطر الأول.
     
-    تعليمات صارمة جداً بشأن اللغة والصياغة:
-    1. اكتب حصراً بلغة عربية فصحى سليمة، رصينة، ومصقولة احترافياً 100%. ممنوع منعاً باتاً استخدام أي كلمات ركيكة أو عامية أو غير مفهومة.
-    2. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية داخل النص الإخباري. الأسماء الأجنبية تُكتب بحروف عربية معربة فقط.
-    3. الأسلوب: خبري، رسمي، ومشوق. الحجم: لا يتجاوز 900 حرف.
-    4. التنسيق: ممنوع استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~).
+    تعليمات صارمة جداً:
+    1. اكتب حصراً بلغة عربية فصحى سليمة 100%، واضحة المعالم، وبدون أي ترجمة ركيكة أو مبهمة توحي بالخطأ.
+    2. حدد نوع الرياضة والمنافسة بوضوح تام في بداية الخبر لكي يعرف القارئ الحدث مباشرة.
+    3. ممنوع نهائياً استخدام أي كلمات أجنبية داخل النص؛ الأسماء تُعرب بدقة وتكتب بحروف عربية صحيحة.
+    4. الحجم: لا يتجاوز 900 حرف. ممنوع استخدام رموز التنسيق (مثل ** أو *).
     
-    الخبر الرياضي الخام المستخرج من المصادر:
+    الخبر الخام:
     العنوان: {selected_article['title']}
     التفاصيل: {selected_article['summary']}
 
-    قم بصياغة منشور رياضي احترافي بالكامل:
-    - ابدأ بعنوان رئيسي جذاب ومعبر.
-    - اشرح الخبر بفقرات واضحة مع إيموجيات رياضية مناسبة.
-    - أنهِ المنشور لهاشتاقات عربية مناسبة مع #PUL7SAR.
+    الصياغة المطلوبة:
+    - عنوان رئيسي جذاب وواحـح يعبر عن الرياضة والحدث بدقة.
+    - شرح تفصيلي مبسط ومشوّق مع إيموجيات مناسبة.
+    - انهاء المنشور لهاشتاقات عربية مناسبة مع #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم حدد بدقة نوع الرياضة بالإنجليزية لتستخدم في البحث عن صورة صحيحة حديثة بهذا الشكل حصراً:
+    في نهاية ردك، اترك خطاً جديداً وحدد كلمات بحث إنجليزية دقيقة لتوليد صورة صحيحة تخص الخبر حصراً بهذا الشكل:
     [IMG_SEARCH: {gender_tag}]
     """
     stripe_color = get_stripe_color(article_text_sample)
@@ -183,7 +183,7 @@ if image_search_match:
     img_query = image_search_match.group(1).strip()
     clean_text = full_ai_response.replace(image_search_match.group(0), "").strip()
 else:
-    img_query = "womens football match" if is_women_topic else "modern football match stadium"
+    img_query = "professional football match action"
     clean_text = full_ai_response.strip()
 
 def sanitize_news_text(text):
@@ -212,45 +212,45 @@ if len(clean_text) > 1020:
 
 final_image_path = "processed_image.jpg"
 
+# [إصلاح جذري لمشكلة الصورة]: عرض الصورة بملء الشاشة بوضوح تام وبدون ضبابية أو قص مشوه
 def build_final_image(base_img, stripe_hex):
+    # إنشاء لوحة بالحجم الكامل 1280x720
     canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
     
-    bg = base_img.copy()
-    bg = ImageOps.fit(bg, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    bg = bg.filter(ImageFilter.GaussianBlur(25))
-    enhancer = ImageEnhance.Brightness(bg)
-    bg = enhancer.enhance(0.32)
-    canvas.paste(bg, (0, 0))
+    # ملء الشاشة بالصورة بشكل كامل واحترافي (Cover) بدون أي ضبابية في الحواف أو فراغات
+    bg = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     
-    base_img.thumbnail((1160, 500), Image.Resampling.LANCZOS)
-    img_w, img_h = base_img.size
-    x_offset = (1280 - img_w) // 2
-    y_offset = 55 + (490 - img_h) // 2
-    canvas.paste(base_img, (x_offset, y_offset))
+    # تغميق الصورة بنسبة بسيطة جداً (لتوضيح الشعار والشريط السفلي فقط دون التأثير على وضوحها)
+    enhancer = ImageEnhance.Brightness(bg)
+    bg = enhancer.enhance(0.75)
+    canvas.paste(bg, (0, 0))
     
     draw = ImageDraw.Draw(canvas)
     
-    gradient = Image.new('RGBA', (1280, 240), (0,0,0,0))
+    # تدرج لوني سفلي خفيف جداً لضمان جمالية التصميم
+    gradient = Image.new('RGBA', (1280, 120), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
-    for y in range(240):
-        alpha = int((y / 240.0) * 210)
+    for y in range(120):
+        alpha = int((y / 120.0) * 140)
         g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
-    canvas.paste(gradient, (0, 480), gradient)
+    canvas.paste(gradient, (0, 600), gradient)
 
+    # شريط العلامة التجارية الملون في الأسفل
     hex_color = stripe_hex.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
+    # شعار المنصة في الأعلى
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
 
     try:
         logo = Image.open(target_logo_path).convert("RGBA")
-        w_percent = (190 / float(logo.size[0]))
+        w_percent = (180 / float(logo.size[0]))
         h_size = int(float(logo.size[1]) * float(w_percent))
-        logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
-        canvas.paste(logo, (15, 15), logo)
+        logo = logo.resize((180, h_size), Image.Resampling.LANCZOS)
+        canvas.paste(logo, (20, 20), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
 
@@ -265,38 +265,40 @@ if selected_article and selected_article.get('image'):
         res_art_img = requests.get(selected_article['image'], timeout=8)
         if res_art_img.status_code == 200:
             temp_img = Image.open(BytesIO(res_art_img.content)).convert("RGB")
-            if temp_img.size[0] >= 500:
+            if temp_img.size[0] >= 600:
                 base_img = temp_img
     except:
         pass
 
-# 2. [إصلاح جذري]: إذا لم تتوفر صورة في الخبر، يتم البحث الفوري عبر DuckDuckGo لجلب صورة حقيقية مطابقة للحدث
+# 2. [تحديث هام لضمان تنوع الصور]: البحث عبر DuckDuckGo واختيار صورة عشوائية لمنع تكرار نفس الصورة
 if base_img is None:
     try:
         with DDGS() as ddgs:
-            results = list(ddgs.images(img_query, max_results=5))
-            for r in results:
-                img_url = r.get('image')
-                if img_url:
-                    img_fetch = requests.get(img_url, timeout=6)
-                    if img_fetch.status_code == 200:
-                        temp_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
-                        if temp_img.size[0] >= 600:
-                            base_img = temp_img
-                            break
+            results = list(ddgs.images(img_query, max_results=10))
+            if results:
+                # خلط النتائج عشوائياً لضمان عدم تكرار نفس الصورة أبداً
+                random.shuffle(results)
+                for r in results:
+                    img_url = r.get('image')
+                    if img_url:
+                        img_fetch = requests.get(img_url, timeout=6)
+                        if img_fetch.status_code == 200:
+                            temp_img = Image.open(BytesIO(img_fetch.content)).convert("RGB")
+                            if temp_img.size[0] >= 800 and temp_img.size[1] >= 500:
+                                base_img = temp_img
+                                break
     except Exception as e:
         print(f"⚠️ خطأ في بحث الصور: {e}")
 
-# 3. بطاقة احتياطية نهائية فقط في حال تعذر جلب الصور نهائياً
+# 3. صورة احتياطية دقيقة في حال تعذر جلب أي صورة من الويب
 if base_img is None:
     base_img = Image.new("RGB", (1280, 720), (15, 23, 42))
     draw_fb = ImageDraw.Draw(base_img)
     for i in range(720):
-        c = int(15 + (i / 720) * 28)
-        draw_fb.line([(0, i), (1280, i)], fill=(c, c + 6, c + 18))
-    draw_fb.rectangle([(50, 50), (1230, 670)], outline=(40, 53, 75), width=2)
-    draw_fb.text((640, 310), "PUL7SAR SPORTS", fill=(255, 255, 255), anchor="mm")
-    draw_fb.text((640, 370), "النشرة الإخبارية الرياضية الحصرية", fill=(148, 163, 184), anchor="mm")
+        c = int(15 + (i / 720) * 35)
+        draw_fb.line([(0, i), (1280, i)], fill=(c, c + 10, c + 25))
+    draw_fb.text((640, 340), "PUL7SAR SPORTS", fill=(255, 255, 255), anchor="mm")
+    draw_fb.text((640, 400), "النشرة الإخبارية الحصرية", fill=(148, 163, 184), anchor="mm")
 
 image_success = build_final_image(base_img, stripe_color)
 
