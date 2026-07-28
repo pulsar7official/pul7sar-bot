@@ -6,7 +6,7 @@ import feedparser
 from bs4 import BeautifulSoup
 import random
 from datetime import datetime
-from PIL import Image, ImageDraw, ImageOps, ImageEnhance
+from PIL import Image, ImageDraw, ImageOps, ImageEnhance, ImageFilter
 from io import BytesIO
 
 # قراءة مفاتيح التشغيل الأساسية
@@ -45,7 +45,7 @@ rss_urls = [
     "http://feeds.bbci.co.uk/sport/football/rss.xml",
     "https://www.espn.com/espn/rss/soccer/news",
     "https://news.google.com/rss/search?q=formula+1+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
-    "https://news.google.com/rss/search?q=snooker+news+arabic&hl=ar&gl=AE&ceid=AE:ar",
+    "https://news.google.com/rss/search?q=womens+football+africa+caf&hl=ar&gl=AE&ceid=AE:ar",
     "https://news.google.com/rss/search?q=bein+sports+football&hl=ar&gl=AE&ceid=AE:ar"
 ]
 
@@ -111,7 +111,7 @@ def get_stripe_color(text):
         return "#E50914"
     elif any(k in t for k in ['real madrid', 'tottenham', 'f1', 'فورمولا']):
         return "#FEA326"
-    elif any(k in t for k in ['chelsea', 'inter', 'psg', 'سنوكر', 'snooker']):
+    elif any(k in t for k in ['chelsea', 'inter', 'psg', 'سيدات', 'womens']):
         return "#0055A5"
     return BRAND_RED
 
@@ -119,11 +119,12 @@ groq_url = "https://api.groq.com/openai/v1/chat/completions"
 headers = {"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"}
 
 article_text_sample = (selected_article['title'] + " " + selected_article['summary']) if not is_what_if_post else ""
+is_women_topic = any(k in article_text_sample.lower() for k in ['سيدات', 'نسائية', 'women', 'female', 'girls'])
 
 if is_what_if_post:
     prompt = """
     أنت محرر رياضي محترف في منصة PUL7SAR. اكتب فقرة تفاعلية مشوقة بعنوان "ماذا لو؟" عن سيناريو تاريخي في كرة القدم.
-    - اكتب باللغة العربية الفصحى فقط وبدون أي إدراج لرموز الماركداون أو النجوم أو الكلمات الأجنبية.
+    - اكتب باللغة العربية الفصحى فقط وبدون أي إدراج لرموز الماركداون أو النجوم أو الكلمات الأجنبية أو الألفاظ الركيكة.
     - ابدأ بعنوان مثير يبدأ بـ ⏳ ماذا لو؟
     - اختم بسؤال تفاعلي للمتابعين، مع هاشتاق #PUL7SAR.
     - حجم النص ألا يتجاوز 900 حرف.
@@ -134,13 +135,14 @@ if is_what_if_post:
     stripe_color = BRAND_RED
     article_image_url = None
 else:
+    gender_tag = "women's football match" if is_women_topic else "football match soccer"
     prompt = f"""
     أنت محرر صحفي رياضي احترافي لمنصة PUL7SAR.
     
-    تعليمات صارمة جداً بشأن اللغة والصياغة:
-    1. اكتب حصراً بلغة عربية فصحى سليمة ومصقولة 100%. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية (سواء روسية، صينية، فرنسية، أو أحرف لاتينية عشوائية) داخل النص الإخباري. إذا كان هناك اسم أجنبي فيجب تعريبه أو كتابته بحروف عربية فقط.
-    2. الأسلوب: خبري، رسمي، ومشوق، وتجنب الترجمة الحرفية الركيكة.
-    3. الحجم: اججه الخبر موجزاً ومكثفاً بحيث لا يتجاوز 900 حرف.
+    تعليمات صارمة جداً بشأن اللغة والصياغة (تجنب الأخطاء السابقة نهائياً):
+    1. اكتب حصراً بلغة عربية فصحى سليمة، رصينة، ومصقولة احترافياً 100%. ممنوع منعاً باتاً استخدام أي كلمات ركيكة، عامية مفبركة، أو كلمات غير مفهومة (مثل طربوق أو نحوها). استخدم مصطلحات صحيحة ودقيقة (مثل: طفرة، مفاجأة، انطلاقة، هيمنة، إلخ).
+    2. ممنوع نهائياً ولأي سبب كان كتابة أي كلمات أجنبية (سواء روسية، صينية، أو أحرف لاتينية عشوائية) داخل النص الإخباري. الأسماء الأجنبية تُكتب بحروف عربية معربة فقط.
+    3. الأسلوب: خبري، رسمي، ومشوق. الحجم: لا يتجاوز 900 حرف.
     4. التنسيق: ممنوع استخدام رموز التنسيق الماركداون (مثل ** أو * أو ~).
     
     الخبر الرياضي الخام المستخرج من المصادر:
@@ -152,8 +154,8 @@ else:
     - اشرح الخبر بفقرات واضحة مع إيموجيات رياضية مناسبة.
     - أنهِ المنشور لهاشتاقات عربية مناسبة مع #PUL7SAR.
 
-    في نهاية ردك، اترك خطاً جديداً ثم حدد بدقة نوع الرياضة المرتبطة بالخبر (مثل: f1 racing car للسيارات، snooker player للسنوكر، أو football match لكرة القدم) لتستخدم في البحث عن صورة صحيحة تماماً بهذا الشكل حصراً:
-    [IMG_SEARCH: exact sports keywords in English]
+    في نهاية ردك، اترك خطاً جديداً ثم حدد بدقة نوع الرياضة بالإنجليزية لتستخدم في البحث عن صورة صحيحة بهذا الشكل حصراً:
+    [IMG_SEARCH: {gender_tag}]
     """
     stripe_color = get_stripe_color(article_text_sample)
     article_image_url = selected_article.get('image')
@@ -174,10 +176,10 @@ if image_search_match:
     img_query = image_search_match.group(1).strip()
     clean_text = full_ai_response.replace(image_search_match.group(0), "").strip()
 else:
-    img_query = "football match"
+    img_query = "women's football match" if is_women_topic else "football match"
     clean_text = full_ai_response.strip()
 
-# [فلتر لغوي حديدي] لحذف أي كلمات أجنبية (روسية، صينية، لاتينية عشوائية) تسربت من الذكاء الاصطناعي
+# [فلتر لغوي حديدي] لحذف أي كلمات أجنبية غير عربية تسربت
 def sanitize_news_text(text):
     text = re.sub(r'[\*\*_~`]', '', text)
     lines = text.split('\n')
@@ -186,19 +188,13 @@ def sanitize_news_text(text):
         words = line.split()
         new_words = []
         for w in words:
-            # السماح بالهاشتاقات والأرقام والرموز
             if w.startswith('#') or w.isdigit() or not any(char.isalnum() for char in w):
                 new_words.append(w)
                 continue
-            
-            # منع أي كلمة تحتوى على حروف لاتينية أو كيريلية (روسية) أو صينية
             if re.search(r'[a-zA-Z\u0400-\u04FF\u4E00-\u9FFF]', w):
                 continue
-                
-            # السماح فقط بالكلمات العربية الصرفة
             if re.search(r'[\u0600-\u06FF]', w):
                 new_words.append(w)
-                
         if new_words:
             cleaned_lines.append(' '.join(new_words))
     return '\n'.join(cleaned_lines).strip()
@@ -211,24 +207,42 @@ if len(clean_text) > 1020:
 final_image_path = "processed_image.jpg"
 image_success = False
 
+# [تعديل هندسي كبير]: نظام معالجة الصور بمنهجية Letterbox لمنع قص الرؤوس نهائياً
 def build_final_image(base_img):
-    enhancer = ImageEnhance.Sharpness(base_img)
-    base_img = enhancer.enhance(1.4)
-
-    img = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
-    draw = ImageDraw.Draw(img)
-
+    # إنشاء لوحة أساسية بحجم 1280×720
+    canvas = Image.new("RGB", (1280, 720), (15, 23, 42))
+    
+    # صنع خلفية ضبابية متناسقة من نفس الصورة لتغطية الفراغات باحترافية
+    bg = base_img.copy()
+    bg = ImageOps.fit(bg, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+    bg = bg.filter(ImageFilter.GaussianBlur(15))
+    enhancer = ImageEnhance.Brightness(bg)
+    bg = enhancer.enhance(0.4)
+    canvas.paste(bg, (0, 0))
+    
+    # الحفاظ على الصورة الأصلية كاملة تماماً دون أي قص (مع الحفاظ على الأبعاد والراس والتفاصيل)
+    base_img.thumbnail((1160, 480), Image.Resampling.LANCZOS)
+    img_w, img_h = base_img.size
+    x_offset = (1280 - img_w) // 2
+    y_offset = 65 + (490 - img_h) // 2
+    canvas.paste(base_img, (x_offset, y_offset))
+    
+    draw = ImageDraw.Draw(canvas)
+    
+    # تدرج لوني سفلي احترافي للنص والشعار
     gradient = Image.new('RGBA', (1280, 220), (0,0,0,0))
     g_draw = ImageDraw.Draw(gradient)
     for y in range(220):
         alpha = int((y / 220.0) * 200)
         g_draw.line([(0, y), (1280, y)], fill=(15, 23, 42, alpha))
-    img.paste(gradient, (0, 500), gradient)
+    canvas.paste(gradient, (0, 500), gradient)
 
+    # شريط ملون سفلي هوياتي
     hex_color = stripe_color.lstrip('#')
     rgb_color = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
     draw.rectangle([(0, 710), (1280, 720)], fill=rgb_color)
 
+    # وضع شعار المنصة
     red_path = "logo_red.png"
     blue_path = "logo_blue.png"
     target_logo_path = red_path if os.path.exists(red_path) else blue_path
@@ -238,19 +252,18 @@ def build_final_image(base_img):
         w_percent = (190 / float(logo.size[0]))
         h_size = int(float(logo.size[1]) * float(w_percent))
         logo = logo.resize((190, h_size), Image.Resampling.LANCZOS)
-        img.paste(logo, (8, 8), logo)
+        canvas.paste(logo, (8, 8), logo)
     except Exception as e:
         print(f"⚠️ تنبيه حول الشعار: {e}")
 
-    img.save(final_image_path, quality=98)
+    canvas.save(final_image_path, quality=98)
     return True
 
 base_img = None
 
-# تحديد استعلامات البحث الذكية بناءً على محتوى الخبر (سيارات، سنوكر، أو كرة قدم)
 search_queries = [
     img_query,
-    "sports action match professional stadium"
+    "womens football match action" if is_women_topic else "sports action match professional stadium"
 ]
 
 api_url = "https://commons.wikimedia.org/w/api.php"
@@ -281,7 +294,6 @@ for query in search_queries:
                     img_url = imageinfo[0]["url"]
                     img_width = imageinfo[0].get("width", 0)
                     
-                    # منع أي صور سياسية أو أشخاص غير رياضيين
                     unwanted_terms = ['polit', 'minister', 'president', 'summit', 'government', 'sign', 'treaty']
                     if any(term in img_url.lower() for term in unwanted_terms):
                         continue
@@ -291,20 +303,16 @@ for query in search_queries:
                         if img_fetch.status_code == 200:
                             temp_base = Image.open(BytesIO(img_fetch.content)).convert("RGB")
                             base_img = temp_base
-                            print("✅ تم العثور على صورة رياضية حقيقية مطابقة للحدث!")
+                            print("✅ تم العثور على صورة رياضية مطابقة للحدث تماماً!")
                             break
     except Exception as e:
         print(f"⚠️ خطأ أثناء البحث بـ ({query}): {e}")
 
-# [مكتبة صور بديلة متعددة حسب نوع الرياضة لمنع تكرار صورة واحدة ثابتة]
+# مكتبة صور بديلة متوافقة بدقة مع نوع الجنس (سيدات/رجال) والرياضة لمنع أي خطأ
 if base_img is None:
-    print(f"📥 استخدام صورة بديلة متوافقة مع نوع الحدث...")
-    text_check = (selected_article['title'] + " " + selected_article['summary']).lower()
-    
-    if any(k in text_check for k in ['f1', 'فورمولا', 'سباق', 'سيارات', 'نوريس', 'أنونيلي']):
-        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/3/33/F1_istanbul_2005_start.jpg"
-    elif any(k in text_check for k in ['سنوكر', 'أوسايفن', 'snooker']):
-        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/6/69/Snooker_table_closeup.jpg"
+    print(f"📥 استخدام صورة بديلة طارئة متوافقة حصراً مع طبيعة الخبر...")
+    if is_women_topic:
+        fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/4/4f/Womens_football_match_in_2019.jpg"
     else:
         fallback_photo_url = "https://upload.wikimedia.org/wikipedia/commons/b/b9/Football_iu_1996.jpg"
         
@@ -331,7 +339,7 @@ else:
     tele_res = requests.post(tele_url, json=tele_payload)
 
 if tele_res.status_code == 200:
-    print("🚀 تم النشر بنجاح وبأعلى معايير النقاء والجودة والدقة!")
+    print("🚀 تم النشر بنجاح تام ودقة مذهلة دون أي أخطاء!")
     history_data["links"] = list(posted_links)[-100:]
     history_data["titles"] = posted_titles[-100:]
     with open(history_file, "w", encoding="utf-8") as f:
