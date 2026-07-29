@@ -7,12 +7,13 @@ import logging
 import subprocess
 from datetime import datetime, timezone
 from io import BytesIO
-from urllib.parse import urlparse, quote
+from urllib.parse import quote
 
 import requests
 import feedparser
 from bs4 import BeautifulSoup
 from PIL import Image, ImageDraw, ImageOps, ImageFont
+from duckduckgo_search import DDGS
 
 # ==============================================================================
 # الإعدادات الأساسية
@@ -210,7 +211,7 @@ def sanitize_news_text(text: str) -> str:
 
 def download_image(url: str, require_landscape: bool = True):
     def _get():
-        r = requests.get(url, headers=HTTP_HEADERS, timeout=15)
+        r = requests.get(url, headers=HTTP_HEADERS, timeout=10)
         r.raise_for_status()
         img = Image.open(BytesIO(r.content)).convert("RGB")
         if img.size[0] < 600 or img.size[1] < 400:
@@ -223,43 +224,108 @@ def download_image(url: str, require_landscape: bool = True):
 
     return retry(_get, attempts=2, what=f"تحميل صورة {url}")
 
-def search_google_images_efficient(query: str, require_landscape: bool = True):
-    if not GOOGLE_API_KEY or not GOOGLE_CSE_CX:
-        LOG.warning("مفاتيح بحث جوجل (API_KEY أو CX) غير متوفرة في البيئة.")
-        return None
+# ==============================================================================
+# نظام استخراج الصور الذكي (تدرج هرمي 4 مراحل)
+# ==============================================================================
 
-    url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "key": GOOGLE_API_KEY,
-        "cx": GOOGLE_CSE_CX,
-        "q": query,
-        "searchType": "image",
-        "num": 5,
-        "safe": "active"
-    }
-
+def extract_image_from_article(url: str):
+    """المرحلة 1: سحب الصورة مباشرة من رابط الخبر الأصلي"""
     try:
-        response = requests.get(url, params=params, timeout=15)
-        response.raise_for_status()
-        data = response.json()
-        
-        items = data.get("items", [])
-        if not items:
-            LOG.info("لم يجد بحث جوجل نتائج لـ: %s", query)
-            return None
+        r = requests.get(url, headers=HTTP_HEADERS, timeout=10)
+        r.raise_for_status()
+        soup = BeautifulSoup(r.text, "html.parser")
+        og_img = soup.find("meta", property="og:image")
+        if og_img and og_img.get("content"):
+            img = download_image(og_img["content"], require_landscape=True)
+            if img:
+                LOG.info("تم العثور على الصورة مباشرة من رابط المقال الأصلي!")
+                return img
+    except Exception as exc:
+        LOG.debug("لم يتم العثور على صورة في المقال الأصلي: %s", exc)
+    return None
 
+def search_wikipedia_image(query: str):
+    """المرحلة 2: البحث والسحب من ويكيبيديا"""
+    try:
+        search_url = f"https://en.wikipedia.org/w/api.php?action=query&list=search&srsearch={quote(query)}&format=json"
+        r = requests.get(search_url, headers=HTTP_HEADERS, timeout=10)
+        data = r.json()
+        results = data.get("query", {}).get("search", [])
+        if results:
+            page_title = results[0]["title"]
+            page_url = f"https://en.wikipedia.org/w/api.php?action=query&prop=pageimages&titles={quote(page_title)}&pithumbsize=1000&format=json"
+            r2 = requests.get(page_url, headers=HTTP_HEADERS, timeout=10)
+            pages = r2.json().get("query", {}).get("pages", {})
+            for _, page_info in pages.items():
+                thumb = page_info.get("thumbnail", {}).get("source")
+                if thumb:
+                    img = download_image(thumb, require_landscape=True)
+                    if img:
+                        LOG.info("تم العثور على صورة من ويكيبيديا بنجاح!")
+                        return img
+    except Exception as exc:
+        LOG.debug("فشل جلب الصورة من ويكيبيديا: %s", exc)
+    return None
+
+def search_images_duckduckgo(query: str):
+    """المرحلة 3: البحث عبر DuckDuckGo"""
+    try:
+        with DDGS() as ddgs:
+            results = list(ddgs.images(query, max_results=5))
+            for r in results:
+                img_url = r.get("image")
+                if not img_url:
+                    continue
+                img = download_image(img_url, require_landscape=True)
+                if img:
+                    LOG.info("تم العثور على صورة عبر DuckDuckGo بنجاح!")
+                    return img
+    except Exception as exc:
+        LOG.debug("خطأ في بحث صور DuckDuckGo: %s", exc)
+    return None
+
+def search_google_images_efficient(query: str):
+    """المرحلة 4 والأخيرة: مفتاح بحث جوجل كخط دفاع أخير"""
+    if not GOOGLE_API_KEY or not GOOGLE_CSE_CX:
+        return None
+    try:
+        url = "https://www.googleapis.com/customsearch/v1"
+        params = {"key": GOOGLE_API_KEY, "cx": GOOGLE_CSE_CX, "q": query, "searchType": "image", "num": 3, "safe": "active"}
+        response = requests.get(url, params=params, timeout=10)
+        response.raise_for_status()
+        items = response.json().get("items", [])
         for item in items:
             img_url = item.get("link")
             if not img_url:
                 continue
-            img = download_image(img_url, require_landscape=require_landscape)
+            img = download_image(img_url, require_landscape=True)
             if img:
-                LOG.info("تم العثور على صورة مطابقة ومثالية من بحث جوجل بنجاح!")
+                LOG.info("تم العثور على صورة عبر Google Custom Search API!")
                 return img
-
     except Exception as exc:
-        LOG.error("خطأ في الاتصال بـ Google Custom Search API: %s", exc)
+        LOG.debug("خطأ في بحث جوجل: %s", exc)
+    return None
 
+def get_smart_image(article_link: str, img_query: str):
+    """تنفيذ التدرج الهرمي الخماسي للصور"""
+    # 1. المصدر نفسه
+    if article_link:
+        img = extract_image_from_article(article_link)
+        if img: return img
+    
+    if img_query:
+        # 2. ويكيبيديا
+        img = search_wikipedia_image(img_query)
+        if img: return img
+        
+        # 3. DuckDuckGo
+        img = search_images_duckduckgo(img_query)
+        if img: return img
+        
+        # 4. مفتاح جوجل الأخير
+        img = search_google_images_efficient(img_query)
+        if img: return img
+        
     return None
 
 def build_final_image(base_img):
@@ -350,8 +416,8 @@ def send_telegram_photo(caption: str) -> bool:
     return retry(_send, attempts=3, what="إرسال الصورة إلى تليجرام") is not None
 
 def main():
-    if not (GROQ_KEY and BOT_TOKEN and CHAT_ID and GOOGLE_API_KEY and GOOGLE_CSE_CX):
-        LOG.critical("متغيرات البيئة الأساسية أو مفاتيح بحث جوجل ناقصة.")
+    if not (GROQ_KEY and BOT_TOKEN and CHAT_ID):
+        LOG.critical("متغيرات البيئة الأساسية ناقصة.")
         return
 
     history = load_history()
@@ -385,7 +451,7 @@ def main():
             "أنت رئيس تحرير رياضي مخضرم لمنصة PUL7SAR. مهمتك صياغة الخبر التالي بأسلوب احترافي واضح منذ السطر الأول.",
             "",
             "تعليمات صارمة:",
-            "1. اكتب حصراً بلغة عربية فصحى سليمة 100%، بدون أي كلمة أجنبية أو ترجمة ركيكة؛ عرّب الأسماء بدقة.",
+            "1. اكتب حصراً بلغة عربية فصحى سليمة 100%, بدون أي كلمة أجنبية أو ترجمة ركيكة؛ عرّب الأسماء بدقة.",
             "2. حدد نوع الرياضة والمنافسة بوضوح تام في بداية الخبر.",
             "3. الحجم لا يتجاوز 900 حرف. ممنوع رموز التنسيق (** أو *).",
             "4. استخدم هاشتاغات عربية واضحة ومفصولة عن بعضها (مثلاً: #الدوري_الإنجليزي #ريال_مدريد #PUL7SAR) وتجنب الهاشتاغات المتراصة أو المبهمة.",
@@ -421,14 +487,13 @@ def main():
     if len(clean_text) > 1020:
         clean_text = clean_text[:1017] + "..."
 
-    base_img = None
+    article_link = selected_article["link"] if selected_article else None
     
-    if img_query:
-        LOG.info("جاري البحث عن الصورة عبر Google Custom Search بكلمة: %s", img_query)
-        base_img = search_google_images_efficient(img_query)
+    LOG.info("جاري بدء التدرج الهرمي الذكي لجلب الصورة...")
+    base_img = get_smart_image(article_link, img_query)
 
     if base_img is None:
-        LOG.warning("تعذر جلب صورة حقيقية — استخدام البطاقة الاحتياطية.")
+        LOG.warning("فشلت كل مراحل جلب الصور الحقيقية — استخدام البطاقة الاحتياطية.")
         base_img = build_placeholder_image()
 
     build_final_image(base_img)
