@@ -27,8 +27,9 @@ jobs:
         # posted_history.json عبر git تلقائياً (بدالة git_commit_and_push).
         # لا حاجة لخطوة commit منفصلة بعدها — كانت تسبب فشلاً مكرراً
         # في كل مرة لا يوجد فيها تغيير جديد لتاريخ النشر.
-        env:
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        run: python main.py
+       env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+        GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
