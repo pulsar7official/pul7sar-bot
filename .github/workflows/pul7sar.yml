@@ -1,21 +1,23 @@
 name: PUL7SAR Ultimate Sports Engine
+
 on:
-  workflow_dispatch: # يسمح بتشغيل البوت يدوياً من تبويب Actions
+  workflow_dispatch:
   schedule:
-    - cron: '0 * * * *' # يتم التشغيل تلقائياً كل ساعة (عند الدقيقة 0)
+    - cron: '0 * * * *'
+
 jobs:
   run-bot:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # مطلوب للسماح للسكربت بعمل git commit و push من داخل main.py
+      contents: write
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4 # استخدام أحدث إصدار مستقر
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5 # استخدام أحدث إصدار مستقر
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10' # تحديد إصدار بايثون الثابت
+          python-version: '3.10'
 
       - name: Install Dependencies
         run: |
@@ -23,13 +25,10 @@ jobs:
           pip install requests feedparser beautifulsoup4 pillow ddgs groq
 
       - name: Run Main Script
-        # main.py يتكفل بكل شيء بنفسه: جلب الأخبار، النشر، وحفظ + دفع
-        # posted_history.json عبر git تلقائياً (بدالة git_commit_and_push).
-        # لا حاجة لخطوة commit منفصلة بعدها — كانت تسبب فشلاً مكرراً
-        # في كل مرة لا يوجد فيها تغيير جديد لتاريخ النشر.
-       env:
-        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
+        run: python main.py
