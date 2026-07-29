@@ -1,0 +1,34 @@
+name: PUL7SAR Ultimate Sports Engine
+on:
+  workflow_dispatch: # يسمح بتشغيل البوت يدوياً من تبويب Actions
+  schedule:
+    - cron: '0 * * * *' # يتم التشغيل تلقائياً كل ساعة (عند الدقيقة 0)
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # مطلوب للسماح للسكربت بعمل git commit و push من داخل main.py
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4 # استخدام أحدث إصدار مستقر
+
+      - name: Set up Python
+        uses: actions/setup-python@v5 # استخدام أحدث إصدار مستقر
+        with:
+          python-version: '3.10' # تحديد إصدار بايثون الثابت
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests feedparser beautifulsoup4 pillow ddgs groq
+
+      - name: Run Main Script
+        # main.py يتكفل بكل شيء بنفسه: جلب الأخبار، النشر، وحفظ + دفع
+        # posted_history.json عبر git تلقائياً (بدالة git_commit_and_push).
+        # لا حاجة لخطوة commit منفصلة بعدها — كانت تسبب فشلاً مكرراً
+        # في كل مرة لا يوجد فيها تغيير جديد لتاريخ النشر.
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
