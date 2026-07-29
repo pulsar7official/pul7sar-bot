@@ -185,7 +185,6 @@ def call_groq(prompt: str):
     return retry(_call, attempts=3, what="توليد المحتوى عبر Groq")
 
 def sanitize_news_text(text: str) -> str:
-    # إزالة رموز الماركداون والرموز غير المرغوب بها
     text = re.sub(r"[*_~`]+", "", text)
 
     lines = text.split("\n")
@@ -225,10 +224,6 @@ def download_image(url: str, require_landscape: bool = True):
     return retry(_get, attempts=2, what=f"تحميل صورة {url}")
 
 def search_google_images_efficient(query: str, require_landscape: bool = True):
-    """
-    بحث ذكي يوفر الرصيد المجاني: يطلب دفعة من 5 صور بطلب API واحد لجوجل، 
-    ثم يفحصها محلياً لاختيار الأنسب بدون استهلاك رصيد إضافي.
-    """
     if not GOOGLE_API_KEY or not GOOGLE_CSE_CX:
         LOG.warning("مفاتيح بحث جوجل (API_KEY أو CX) غير متوفرة في البيئة.")
         return None
@@ -428,12 +423,10 @@ def main():
 
     base_img = None
     
-    # الاعتماد الأساسي والمباشر على بحث جوجل الذكي الموفر للرصيد
     if img_query:
         LOG.info("جاري البحث عن الصورة عبر Google Custom Search بكلمة: %s", img_query)
         base_img = search_google_images_efficient(img_query)
 
-    # لو فشل البحث المخصص، يتم استخدام البطاقة الاحتياطية المصممة
     if base_img is None:
         LOG.warning("تعذر جلب صورة حقيقية — استخدام البطاقة الاحتياطية.")
         base_img = build_placeholder_image()
