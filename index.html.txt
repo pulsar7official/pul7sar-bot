@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>بطاقة الصورة البديلة</title>
+    <style>
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .placeholder-card {
+            width: 500px;
+            height: 350px;
+            
+            /* الصورة التي سترفعها باسم PULSAR7.png */
+            background-image: url('PULSAR7.png'); 
+            
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-color: #ffffff;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- البطاقة -->
+    <div class="placeholder-card"></div>
+
+</body>
+</html>
