@@ -29,12 +29,67 @@ GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY", "").strip()
 GOOGLE_CSE_CX = os.environ.get("GOOGLE_CSE_CX", "").strip()
 GIT_AUTO_PUSH = os.environ.get("GIT_AUTO_PUSH", "true").strip().lower() == "true"
 
+# مفتاح TheSportsDB المجاني
+THESPORTSDB_API_KEY = "3"
+
 HISTORY_FILE = "posted_history.json"
 MAX_HISTORY_ITEMS = 300
 ARTICLE_MAX_AGE_HOURS = 48
 FINAL_IMAGE_PATH = "processed_image.jpg"
+POST_INTERVAL_MINUTES = 10
 
-HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; PUL7SAR-Bot/2.0)"}
+HTTP_HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; PUL7SAR-Bot/3.0)"}
+
+LOGO_PATH = "logo.png"
+MIN_LANDSCAPE_RATIO = 1.05
+
+# ==============================================================================
+# قاعدة بيانات الشهرة والأحداث (نظام الأولويات الديناميكي)
+# ==============================================================================
+
+FAME_SCORES = {
+    # أساطير كرة القدم
+    "messi": 10, "ronaldo": 10, "maradona": 10, "pele": 10,
+    "zidane": 9, "ronaldinho": 9, "beckham": 8,
+    # نجوم العالم
+    "mbappe": 9, "haaland": 9, "neymar": 9, "benzema": 9,
+    "lewandowski": 8, "kane": 8, "salah": 8,
+    # نجوم كبار
+    "de bruyne": 8, "van dijk": 8, "modric": 8, "kroos": 8,
+    "ramos": 8, "marcelo": 7, "iniesta": 8, "xavi": 8,
+    # نجوم الأندية الكبرى
+    "vinicius": 7, "bellingham": 7, "saka": 7, "martinelli": 7,
+    "odegaard": 7, "rice": 7, "musiala": 7, "wirtz": 7,
+    "pedri": 7, "gavi": 7, "ansu fati": 7, "lamine yamal": 7,
+    # مدربون
+    "guardiola": 9, "ancelotti": 9, "klopp": 8, "mourinho": 8,
+    "zidane": 8, "ten hag": 7, "arteta": 7, "pochettino": 7,
+    "tuchel": 7, "nagelsmann": 7, "spalletti": 7,
+    # رياضات أخرى
+    "nadal": 9, "djokovic": 9, "federer": 9, "alcaraz": 8,
+    "hamilton": 8, "verstappen": 8, "leclerc": 7,
+}
+
+EVENT_KEYWORDS = {
+    "title": 10, "champion": 10, "cup": 9, "final": 9,
+    "transfer": 8, "sign": 8, "signed": 8, "deal": 7,
+    "injury": 8, "injured": 8, "out": 6,
+    "sacked": 9, "fired": 9, "resign": 8,
+    "record": 10, "historic": 10, "unbeaten": 9,
+    "derby": 8, "clasico": 8, "classic": 7,
+    "goal": 7, "score": 6, "win": 6, "victory": 7,
+}
+
+RARITY_KEYWORDS = {
+    "unbeaten": 10, "undefeated": 10, "invincible": 10,
+    "first time": 9, "first ever": 9, "historic": 9,
+    "shock": 8, "unexpected": 8, "surprise": 8,
+    "rare": 7, "unique": 7, "never": 7,
+}
+
+# ==============================================================================
+# STOPWORDS وإعدادات RSS
+# ==============================================================================
 
 STOPWORDS = {
     "the", "a", "an", "in", "on", "at", "for", "to", "of", "and", "with", "after",
@@ -55,6 +110,9 @@ RSS_URLS = [
 
 SKIP_KEYWORDS = ["quiz", "guess", "challenge", "poll", "vote", "10 things", "rank", "rumour"]
 
+# نطاقات القنوات التلفزيونية التي نستبدل صورها
+CHANNEL_LOGO_DOMAINS = ["bbci.co.uk", "skysports.com"]
+
 TRUSTED_IMAGE_DOMAINS = [
     "wikipedia.org", "wikimedia.org",
     "espncdn.com", "espn.com",
@@ -69,22 +127,17 @@ TRUSTED_IMAGE_DOMAINS = [
     "psg.fr", "fcbayern.com", "juventus.com", "acmilan.com", "inter.it",
 ]
 
-CHANNEL_LOGO_DOMAINS = ["bbci.co.uk", "skysports.com"]
-
-LOGO_PATH = "logo.png"
-
-MIN_LANDSCAPE_RATIO = 1.05
+GENERIC_FALLBACK_QUERY = "professional football stadium match action"
 
 # ==============================================================================
-# البطاقات الاحتياطية - 4 تصاميم مختلفة
+# دوال الخطوط والمساعدة
 # ==============================================================================
-
-PLACEHOLDER_STYLE = 1  # 1=ملعب, 2=تلفزيون, 3=عصري, 4=بطاقة لاعب
 
 def _load_bold_font(size: int):
     candidates = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansArabic-Bold.ttf",
     ]
     for path in candidates:
         if os.path.exists(path):
@@ -93,155 +146,6 @@ def _load_bold_font(size: int):
             except OSError:
                 continue
     return ImageFont.load_default()
-
-
-def build_placeholder_style1():
-    """البطاقة 1: ملعب كرة قدم"""
-    img = Image.new("RGB", (1280, 720), (34, 139, 34))
-    draw = ImageDraw.Draw(img)
-    draw.rectangle([(40, 40), (1240, 680)], outline=(255, 255, 255, 100), width=3)
-    draw.line([(640, 40), (640, 680)], fill=(255, 255, 255, 80), width=2)
-    draw.ellipse([(540, 240), (740, 480)], outline=(255, 255, 255, 80), width=2)
-    draw.rectangle([(40, 200), (160, 520)], outline=(255, 255, 255, 80), width=2)
-    draw.rectangle([(1120, 200), (1240, 520)], outline=(255, 255, 255, 80), width=2)
-    if os.path.exists(LOGO_PATH):
-        try:
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            logo_w = 200
-            ratio = logo_w / logo.size[0]
-            logo = logo.resize((logo_w, int(logo.size[1] * ratio)), Image.Resampling.LANCZOS)
-            img.paste(logo, ((1280 - logo_w) // 2, 240), logo)
-        except Exception:
-            pass
-    font = _load_bold_font(36)
-    draw.text((640, 490), "⚡ SPORTS NEWS ⚡", font=font, fill=(255, 255, 255, 200), anchor="mm")
-    font_small = _load_bold_font(22)
-    draw.text((640, 560), "#PUL7SAR", font=font_small, fill=(255, 215, 0, 200), anchor="mm")
-    return img.convert("RGB")
-
-
-def build_placeholder_style2():
-    """البطاقة 2: شاشة تلفزيون"""
-    img = Image.new("RGB", (1280, 720), (20, 20, 30))
-    draw = ImageDraw.Draw(img, "RGBA")
-    draw.rectangle([(80, 40), (1200, 680)], outline=(100, 100, 120, 255), width=8)
-    draw.rectangle([(100, 60), (1180, 600)], outline=(80, 80, 100, 255), width=2)
-    draw.rectangle([(110, 70), (1170, 590)], fill=(10, 12, 25, 230))
-    if os.path.exists(LOGO_PATH):
-        try:
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            logo_w = 120
-            ratio = logo_w / logo.size[0]
-            logo = logo.resize((logo_w, int(logo.size[1] * ratio)), Image.Resampling.LANCZOS)
-            img.paste(logo, (140, 85), logo)
-        except Exception:
-            pass
-    font_big = _load_bold_font(52)
-    draw.text((640, 220), "⚡ خَبَر عاجِل ⚡", font=font_big, fill=(255, 50, 50, 255), anchor="mm")
-    font_medium = _load_bold_font(32)
-    draw.text((640, 320), "BREAKING NEWS", font=font_medium, fill=(200, 200, 220, 200), anchor="mm")
-    draw.line([(300, 380), (980, 380)], fill=(255, 215, 0, 150), width=2)
-    font_small = _load_bold_font(24)
-    draw.text((640, 430), "تابعونا للحصول على آخر المستجدات", font=font_small, fill=(180, 190, 210, 200), anchor="mm")
-    draw.text((640, 480), "#PUL7SAR", font=font_small, fill=(255, 215, 0, 200), anchor="mm")
-    draw.ellipse([(540, 610), (560, 630)], fill=(255, 50, 50, 200))
-    draw.ellipse([(620, 610), (640, 630)], fill=(50, 50, 255, 200))
-    draw.ellipse([(700, 610), (720, 630)], fill=(50, 255, 50, 200))
-    return img.convert("RGB")
-
-
-def build_placeholder_style3():
-    """البطاقة 3: أنيقة عصرية"""
-    img = Image.new("RGB", (1280, 720), (10, 14, 26))
-    draw = ImageDraw.Draw(img, "RGBA")
-    for y in range(720):
-        shade = int(10 + (y / 720) * 22)
-        draw.line([(0, y), (1280, y)], fill=(shade, shade + 6, shade + 20))
-    draw.line([(0, 120), (1280, 120)], fill=(220, 38, 38, 180), width=2)
-    draw.line([(0, 600), (1280, 600)], fill=(220, 38, 38, 180), width=2)
-    for x in range(100, 1200, 150):
-        draw.text((x, 150), "✦", font=_load_bold_font(24), fill=(255, 215, 0, 80), anchor="mm")
-        draw.text((x, 570), "✦", font=_load_bold_font(24), fill=(255, 215, 0, 80), anchor="mm")
-    if os.path.exists(LOGO_PATH):
-        try:
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            logo_w = 280
-            ratio = logo_w / logo.size[0]
-            logo = logo.resize((logo_w, int(logo.size[1] * ratio)), Image.Resampling.LANCZOS)
-            img.paste(logo, ((1280 - logo_w) // 2, 210), logo)
-        except Exception:
-            pass
-    font_big = _load_bold_font(48)
-    draw.text((640, 350), "SPORTS NEWS", font=font_big, fill=(255, 255, 255, 220), anchor="mm")
-    draw.line([(300, 400), (980, 400)], fill=(255, 215, 0, 120), width=1)
-    font_medium = _load_bold_font(24)
-    draw.text((640, 440), "● ● ● ● ● ● ● ● ● ● ● ●", font=font_medium, fill=(255, 215, 0, 100), anchor="mm")
-    font_small = _load_bold_font(28)
-    draw.text((640, 510), "#PUL7SAR", font=font_small, fill=(255, 215, 0, 200), anchor="mm")
-    return img.convert("RGB")
-
-
-def build_placeholder_style4():
-    """البطاقة 4: بطاقة لاعب (Topps/Panini)"""
-    img = Image.new("RGB", (1280, 720), (30, 25, 20))
-    draw = ImageDraw.Draw(img, "RGBA")
-    draw.rectangle([(60, 40), (1220, 680)], outline=(255, 215, 0, 200), width=6)
-    draw.rectangle([(80, 60), (1200, 660)], outline=(255, 215, 0, 100), width=2)
-    draw.rectangle([(90, 70), (1190, 650)], fill=(20, 18, 25, 240))
-    if os.path.exists(LOGO_PATH):
-        try:
-            logo = Image.open(LOGO_PATH).convert("RGBA")
-            logo_w = 100
-            ratio = logo_w / logo.size[0]
-            logo = logo.resize((logo_w, int(logo.size[1] * ratio)), Image.Resampling.LANCZOS)
-            img.paste(logo, (120, 85), logo)
-        except Exception:
-            pass
-    draw.rectangle([(340, 100), (940, 400)], outline=(255, 215, 0, 150), width=3)
-    draw.rectangle([(350, 110), (930, 390)], fill=(15, 13, 20, 200))
-    font_big = _load_bold_font(72)
-    draw.text((640, 240), "❓", font=font_big, fill=(255, 215, 0, 120), anchor="mm")
-    font_star = _load_bold_font(32)
-    draw.text((640, 430), "⭐ ⭐ ⭐ ⭐ ⭐", font=font_star, fill=(255, 215, 0, 200), anchor="mm")
-    font_year = _load_bold_font(28)
-    draw.text((640, 490), "🏅 2026", font=font_year, fill=(255, 215, 0, 180), anchor="mm")
-    font_info = _load_bold_font(20)
-    draw.text((640, 540), "PUL7SAR SPORTS", font=font_info, fill=(180, 190, 210, 150), anchor="mm")
-    font_small = _load_bold_font(24)
-    draw.text((640, 590), "#PUL7SAR", font=font_small, fill=(255, 215, 0, 200), anchor="mm")
-    return img.convert("RGB")
-
-
-def build_placeholder_image():
-    styles = {
-        1: build_placeholder_style1,
-        2: build_placeholder_style2,
-        3: build_placeholder_style3,
-        4: build_placeholder_style4,
-    }
-    return styles.get(PLACEHOLDER_STYLE, build_placeholder_style1)()
-
-
-# ==============================================================================
-# دوال المساعدة
-# ==============================================================================
-
-def is_trusted_domain(url: str) -> bool:
-    try:
-        domain = urlparse(url).netloc.lower()
-        return any(domain == d or domain.endswith("." + d) for d in TRUSTED_IMAGE_DOMAINS)
-    except Exception:
-        return False
-
-
-def is_relevant_result(result: dict, query: str) -> bool:
-    title = (result.get("title") or "").lower()
-    if not title:
-        return True
-    query_words = [w for w in re.findall(r"[a-zA-Z]{3,}", query.lower())]
-    if not query_words:
-        return True
-    return any(w in title for w in query_words)
 
 
 def retry(fn, attempts=3, delay=2.0, what="operation"):
@@ -256,7 +160,6 @@ def retry(fn, attempts=3, delay=2.0, what="operation"):
                 time.sleep(delay * i)
     LOG.error("فشلت كل المحاولات في %s: %s", what, last_exc)
     return None
-
 
 # ==============================================================================
 # دوال إدارة السجل
@@ -305,7 +208,6 @@ def is_topic_repeated(new_title: str, posted_titles: list) -> bool:
             return True
     return False
 
-
 # ==============================================================================
 # دوال Git
 # ==============================================================================
@@ -329,7 +231,6 @@ def git_commit_and_push():
         LOG.info("تم دفع السجل إلى المستودع بنجاح.")
     except subprocess.CalledProcessError as exc:
         LOG.error("فشلت عملية Git: %s | %s", exc, exc.stderr)
-
 
 # ==============================================================================
 # دوال جلب الأخبار
@@ -383,7 +284,6 @@ def fetch_articles(posted_links_set, posted_titles):
     LOG.info("تم العثور على %d مقال صالح بعد الفلترة.", len(articles))
     return articles
 
-
 # ==============================================================================
 # دوال توليد المحتوى عبر Groq
 # ==============================================================================
@@ -403,8 +303,21 @@ def call_groq(prompt: str):
     return retry(_call, attempts=3, what="توليد المحتوى عبر Groq")
 
 
+def get_img_query_from_article(article: dict) -> str:
+    """استخراج اسم للبحث عن صورة من عنوان الخبر"""
+    title = article.get("title", "")
+    # نبحث عن أسماء لاعبين مشهورين في العنوان
+    for name in FAME_SCORES.keys():
+        if name in title.lower():
+            return name
+    # نأخذ كلمات دالة من العنوان
+    words = re.findall(r"[a-zA-Z]{4,}", title)
+    if words:
+        return " ".join(words[:2])
+    return None
+
 # ==============================================================================
-# دوال تنقية النصوص (3 طبقات)
+# دوال تنقية النصوص (3 طبقات صارمة)
 # ==============================================================================
 
 def sanitize_news_text(text: str) -> str:
@@ -475,7 +388,6 @@ def ensure_perfect_arabic(text: str) -> str:
     LOG.info("النص سليم تماماً")
     return text
 
-
 # ==============================================================================
 # دوال الصور ومصادرها
 # ==============================================================================
@@ -490,64 +402,88 @@ def download_image(url: str, require_landscape: bool = True):
         if require_landscape:
             ratio = img.size[0] / img.size[1]
             if ratio < MIN_LANDSCAPE_RATIO:
-                LOG.info("تجاهل صورة عمودية/شبه مربعة (نسبة %.2f): %s", ratio, url)
+                LOG.info("تجاهل صورة عمودية/شبه مربعة (نسبة %.2f)", ratio)
                 return None
         return img
-    return retry(_get, attempts=2, what=f"تحميل صورة {url}")
+    return retry(_get, attempts=2, what=f"تحميل صورة")
 
 
-def place_watermark_with_background(image):
+def place_watermark_clean(image):
+    """وضع الشعار بشكل نظيف بحجم مناسب (180px) - بدون خلفية بيضاء"""
     if not os.path.exists(LOGO_PATH):
-        LOG.warning("ملف الشعار غير موجود - سيتم النشر بدون علامة مائية")
+        LOG.warning("ملف الشعار غير موجود")
         return image
     try:
         image = image.convert("RGBA")
         logo = Image.open(LOGO_PATH).convert("RGBA")
-        LOGO_WIDTH = 160
+        LOGO_WIDTH = 180
         ratio = LOGO_WIDTH / logo.size[0]
         logo = logo.resize((LOGO_WIDTH, int(logo.size[1] * ratio)), Image.Resampling.LANCZOS)
         margin_x, margin_y = 20, 20
-        logo_w, logo_h = logo.size
-        overlay = Image.new("RGBA", image.size, (255, 255, 255, 0))
-        overlay_draw = ImageDraw.Draw(overlay)
-        padding = 15
-        overlay_draw.rectangle(
-            [
-                margin_x - padding,
-                margin_y - padding,
-                margin_x + logo_w + padding,
-                margin_y + logo_h + padding
-            ],
-            fill=(255, 255, 255, 220)
-        )
-        image = Image.alpha_composite(image, overlay)
         image.paste(logo, (margin_x, margin_y), logo)
-        LOG.info("تم وضع الشعار الموحد مع الخلفية")
+        LOG.info("✅ تم وضع الشعار بحجم 180px")
         return image.convert("RGB")
     except Exception as e:
-        LOG.warning(f"فشل وضع الشعار بخلفية: {e}")
+        LOG.warning(f"فشل وضع الشعار: {e}")
         return image.convert("RGB") if image.mode != "RGB" else image
+
+
+def search_thesportsdb_image(query: str):
+    """
+    البحث عن صور لاعبين/أندية من TheSportsDB
+    المفتاح المجاني: 3
+    """
+    def _search():
+        # البحث عن لاعب
+        url = f"https://www.thesportsdb.com/api/v1/json/{THESPORTSDB_API_KEY}/searchplayers.php?p={quote(query)}"
+        try:
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
+            data = r.json()
+            players = data.get("player", [])
+            if players:
+                player = players[0]
+                # نفضل الصورة المقطوعة (Cutout) لأنها أنظف
+                img_url = player.get("strCutout") or player.get("strThumb") or player.get("strRender")
+                if img_url and img_url.startswith("http"):
+                    return img_url
+        except Exception:
+            pass
+
+        # البحث عن نادي
+        url2 = f"https://www.thesportsdb.com/api/v1/json/{THESPORTSDB_API_KEY}/searchteams.php?t={quote(query)}"
+        try:
+            r2 = requests.get(url2, timeout=10)
+            r2.raise_for_status()
+            data2 = r2.json()
+            teams = data2.get("teams", [])
+            if teams:
+                team = teams[0]
+                img_url = team.get("strTeamBadge") or team.get("strTeamJersey") or team.get("strTeamLogo")
+                if img_url and img_url.startswith("http"):
+                    return img_url
+        except Exception:
+            pass
+
+        return None
+
+    img_url = retry(_search, attempts=2, what=f"بحث TheSportsDB عن '{query}'")
+    if not img_url:
+        return None
+    return download_image(img_url)
 
 
 def search_google_images_efficient(query: str):
     if not GOOGLE_API_KEY or not GOOGLE_CSE_CX:
-        LOG.warning("مفاتيح Google Custom Search غير متوفرة - تخطي هذا المصدر")
         return None
     def _search():
         url = "https://www.googleapis.com/customsearch/v1"
-        params = {
-            "key": GOOGLE_API_KEY,
-            "cx": GOOGLE_CSE_CX,
-            "q": query,
-            "searchType": "image",
-            "num": 5,
-            "safe": "active",
-        }
+        params = {"key": GOOGLE_API_KEY, "cx": GOOGLE_CSE_CX, "q": query,
+                  "searchType": "image", "num": 5, "safe": "active"}
         r = requests.get(url, params=params, headers=HTTP_HEADERS, timeout=15)
         r.raise_for_status()
-        data = r.json()
-        return data.get("items", [])
-    results = retry(_search, attempts=2, what=f"بحث Google Images عن '{query}'")
+        return r.json().get("items", [])
+    results = retry(_search, attempts=2, what=f"بحث Google عن '{query}'")
     if not results:
         return None
     for item in results:
@@ -556,47 +492,17 @@ def search_google_images_efficient(query: str):
             continue
         img = download_image(img_url)
         if img and img.size[0] >= 800 and img.size[1] >= 500:
-            LOG.info("تم جلب صورة من Google Custom Search")
+            LOG.info("✅ تم جلب صورة من Google")
             return img
-    LOG.info("لم يتم العثور على صورة مناسبة في Google Custom Search")
     return None
-
-
-def search_wikipedia_image(query: str):
-    def _search():
-        r = requests.get(
-            "https://en.wikipedia.org/w/api.php",
-            params={"action": "opensearch", "search": query, "limit": 1,
-                    "namespace": 0, "format": "json"},
-            headers=HTTP_HEADERS, timeout=10,
-        )
-        r.raise_for_status()
-        results = r.json()
-        if len(results) < 2 or not results[1]:
-            return None
-        title = results[1][0]
-        r2 = requests.get(
-            f"https://en.wikipedia.org/api/rest_v1/page/summary/{quote(title)}",
-            headers=HTTP_HEADERS, timeout=10,
-        )
-        r2.raise_for_status()
-        data = r2.json()
-        thumb = data.get("originalimage") or data.get("thumbnail")
-        return thumb.get("source") if thumb else None
-    img_url = retry(_search, attempts=2, what=f"بحث ويكيبيديا عن '{query}'")
-    if not img_url:
-        return None
-    return download_image(img_url)
 
 
 def search_wikimedia_commons(query: str):
     def _search():
         r = requests.get(
             "https://commons.wikimedia.org/w/api.php",
-            params={
-                "action": "query", "list": "search", "srnamespace": 6,
-                "srsearch": f"{query} filetype:bitmap", "srlimit": 20, "format": "json",
-            },
+            params={"action": "query", "list": "search", "srnamespace": 6,
+                    "srsearch": f"{query} filetype:bitmap", "srlimit": 15, "format": "json"},
             headers=HTTP_HEADERS, timeout=10,
         )
         r.raise_for_status()
@@ -605,7 +511,7 @@ def search_wikimedia_commons(query: str):
     if not results:
         return None
     random.shuffle(results)
-    for item in results[:12]:
+    for item in results[:10]:
         title = item.get("title")
         if not title:
             continue
@@ -623,7 +529,7 @@ def search_wikimedia_commons(query: str):
                 if infos:
                     return infos[0].get("url")
             return None
-        img_url = retry(_get_url, attempts=1, what=f"رابط صورة Commons '{title}'")
+        img_url = retry(_get_url, attempts=1, what=f"رابط صورة Commons")
         if not img_url:
             continue
         img = download_image(img_url)
@@ -632,23 +538,18 @@ def search_wikimedia_commons(query: str):
     return None
 
 
-GENERIC_FALLBACK_QUERY = "professional football stadium match action"
-
-
 def search_ddgs_image(query: str, require_relevance: bool = True):
     def _search():
         with DDGS() as ddgs:
-            return list(ddgs.images(query, max_results=25))
+            return list(ddgs.images(query, max_results=20))
     results = retry(_search, attempts=2, what=f"بحث DDG عن '{query}'")
     if not results:
         return None
     trusted = [r for r in results if is_trusted_domain(r.get("image", ""))]
     if not trusted:
-        LOG.warning("لا نتائج من نطاقات موثوقة لـ '%s'.", query)
         return None
     if require_relevance:
-        trusted_relevant = [r for r in trusted if is_relevant_result(r, query)]
-        candidates = trusted_relevant if trusted_relevant else trusted
+        candidates = [r for r in trusted if is_relevant_result(r, query)]
     else:
         candidates = trusted
     random.shuffle(candidates)
@@ -662,8 +563,164 @@ def search_ddgs_image(query: str, require_relevance: bool = True):
     return None
 
 
+def is_trusted_domain(url: str) -> bool:
+    try:
+        domain = urlparse(url).netloc.lower()
+        return any(domain == d or domain.endswith("." + d) for d in TRUSTED_IMAGE_DOMAINS)
+    except Exception:
+        return False
+
+
+def is_relevant_result(result: dict, query: str) -> bool:
+    title = (result.get("title") or "").lower()
+    if not title:
+        return True
+    query_words = [w for w in re.findall(r"[a-zA-Z]{3,}", query.lower())]
+    if not query_words:
+        return True
+    return any(w in title for w in query_words)
+
+
+def is_channel_image_url(url: str) -> bool:
+    """التحقق إذا كانت الصورة من قناة تلفزيونية (نستبدلها)"""
+    if not url:
+        return False
+    return any(domain in url for domain in CHANNEL_LOGO_DOMAINS)
+
+
+def get_best_image_for_article(article: dict) -> Image.Image:
+    """الحصول على أفضل صورة للخبر من جميع المصادر"""
+    img_query = get_img_query_from_article(article)
+    if not img_query:
+        LOG.warning("لا يوجد استعلام للبحث عن صورة")
+        return None
+
+    # قائمة مصادر الصور بالترتيب (TheSportsDB أولاً)
+    image_sources = [
+        ("TheSportsDB", lambda: search_thesportsdb_image(img_query)),
+        ("Google", lambda: search_google_images_efficient(img_query)),
+        ("Wikimedia Commons", lambda: search_wikimedia_commons(img_query)),
+        ("DDGS Trusted", lambda: search_ddgs_image(img_query, require_relevance=True)),
+        ("DDGS Generic", lambda: search_ddgs_image(GENERIC_FALLBACK_QUERY, require_relevance=False)),
+    ]
+
+    for source_name, source_fn in image_sources:
+        LOG.info(f"🔍 محاولة جلب صورة من {source_name}...")
+        img = source_fn()
+        if img:
+            LOG.info(f"✅ تم جلب صورة من {source_name}")
+            return place_watermark_clean(img)
+
+    return None
+
 # ==============================================================================
-# دوال الصورة النهائية
+# البطاقة الاحتياطية الاحترافية
+# ==============================================================================
+
+def build_placeholder_professional():
+    """بطاقة احتياطية بتصميم احترافي وأنيق"""
+    img = Image.new("RGB", (1280, 720), (10, 22, 40))
+    draw = ImageDraw.Draw(img, "RGBA")
+
+    # تدرج خلفية
+    for y in range(720):
+        shade = int(10 + (y / 720) * 30)
+        draw.line([(0, y), (1280, y)], fill=(shade, shade + 10, shade + 30))
+
+    # إطار ذهبي داخلي
+    draw.rectangle([(40, 40), (1240, 680)], outline=(255, 215, 0, 150), width=2)
+    draw.rectangle([(50, 50), (1230, 670)], outline=(255, 215, 0, 50), width=1)
+
+    # خطوط جانبية حمراء (لون العلامة التجارية)
+    draw.rectangle([(40, 40), (60, 680)], fill=(220, 38, 38, 200))
+    draw.rectangle([(1220, 40), (1240, 680)], fill=(220, 38, 38, 200))
+
+    # شعار كبير في المنتصف
+    if os.path.exists(LOGO_PATH):
+        try:
+            logo = Image.open(LOGO_PATH).convert("RGBA")
+            logo_w = 280
+            ratio = logo_w / logo.size[0]
+            logo = logo.resize((logo_w, int(logo.size[1] * ratio)), Image.Resampling.LANCZOS)
+            img.paste(logo, ((1280 - logo_w) // 2, 210), logo)
+        except Exception:
+            pass
+
+    # نص SPORTS NEWS
+    font_big = _load_bold_font(40)
+    draw.text((640, 370), "SPORTS NEWS", font=font_big, fill=(255, 255, 255, 220), anchor="mm")
+
+    # خط فاصل ذهبي
+    draw.line([(400, 420), (880, 420)], fill=(255, 215, 0, 120), width=1)
+
+    # نص تحت
+    font_medium = _load_bold_font(24)
+    draw.text((640, 460), "أخبار رياضية دقيقة ومصداقية عالية", font=font_medium,
+              fill=(180, 190, 210, 180), anchor="mm")
+
+    # هاشتاق
+    font_small = _load_bold_font(28)
+    draw.text((640, 530), "#PUL7SAR", font=font_small, fill=(255, 215, 0, 200), anchor="mm")
+
+    return img.convert("RGB")
+
+# ==============================================================================
+# دوال نظام الأولويات
+# ==============================================================================
+
+def get_fame_score(text: str) -> int:
+    text_lower = text.lower()
+    max_score = 0
+    for name, score in FAME_SCORES.items():
+        if name in text_lower:
+            max_score = max(max_score, score)
+    if max_score == 0:
+        big_clubs = ["real madrid", "barcelona", "bayern", "man city", "liverpool", "psg",
+                     "manchester united", "chelsea", "arsenal", "juventus", "ac milan", "inter"]
+        for club in big_clubs:
+            if club in text_lower:
+                max_score = max(max_score, 6)
+                break
+    return max_score
+
+
+def get_event_score(text: str) -> int:
+    text_lower = text.lower()
+    max_score = 5
+    for keyword, score in EVENT_KEYWORDS.items():
+        if keyword in text_lower:
+            max_score = max(max_score, score)
+    return max_score
+
+
+def get_rarity_score(text: str) -> int:
+    text_lower = text.lower()
+    max_score = 5
+    for keyword, score in RARITY_KEYWORDS.items():
+        if keyword in text_lower:
+            max_score = max(max_score, score)
+    return max_score
+
+
+def calculate_priority(article: dict) -> float:
+    title = article.get("title", "")
+    summary = article.get("summary", "")
+    text = title + " " + summary
+    fame = get_fame_score(text)
+    event = get_event_score(text)
+    rarity = get_rarity_score(text)
+    priority = (fame * 2) + (event * 3) + (rarity * 1.5)
+    LOG.info(f"📊 تقييم الخبر: شهرة={fame}, حدث={event}, ندرة={rarity} → أولوية={priority:.1f}")
+    return priority
+
+
+def sort_articles_by_priority(articles: list) -> list:
+    for article in articles:
+        article["_priority"] = calculate_priority(article)
+    return sorted(articles, key=lambda x: x.get("_priority", 0), reverse=True)
+
+# ==============================================================================
+# دوال الصورة النهائية والإرسال
 # ==============================================================================
 
 def build_final_image(base_img):
@@ -671,22 +728,22 @@ def build_final_image(base_img):
     bg = ImageOps.fit(base_img, (1280, 720), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
     canvas.paste(bg, (0, 0))
     canvas = canvas.convert("RGBA")
+
+    # تدرج خفيف أعلى اليسار
     corner_gradient = Image.new("RGBA", (260, 140), (0, 0, 0, 0))
     cg_draw = ImageDraw.Draw(corner_gradient)
     for y in range(140):
         alpha = int(max(0, 100 - y * 0.9))
         cg_draw.line([(0, y), (260, y)], fill=(0, 0, 0, alpha))
     canvas.alpha_composite(corner_gradient, dest=(0, 0))
+
     canvas.convert("RGB").save(FINAL_IMAGE_PATH, quality=95)
 
-
-# ==============================================================================
-# دوال إرسال تليجرام
-# ==============================================================================
 
 def send_telegram_photo(caption: str) -> bool:
     if len(caption) > 1024:
         caption = caption[:1021].rstrip() + "..."
+
     def _send():
         with open(FINAL_IMAGE_PATH, "rb") as photo_file:
             r = requests.post(
@@ -700,8 +757,83 @@ def send_telegram_photo(caption: str) -> bool:
         if not payload.get("ok"):
             raise RuntimeError(payload)
         return payload
+
     return retry(_send, attempts=3, what="إرسال الصورة إلى تليجرام") is not None
 
+# ==============================================================================
+# نشر مقال واحد
+# ==============================================================================
+
+def publish_single_article(article: dict) -> bool:
+    """نشر مقال واحد مع الصورة المناسبة"""
+    LOG.info(f"📰 نشر خبر: {article.get('title', '')[:50]}...")
+
+    # 1. توليد المحتوى
+    prompt_lines = [
+        "أنت محرر رياضي محترف في منصة PUL7SAR، تتمتع بخبرة 20 عاماً في الصحافة الرياضية العربية.",
+        "",
+        "مهمتك: صياغة الخبر التالي بأسلوب صحفي عربي احترافي وجذاب.",
+        "",
+        "تعليمات صارمة:",
+        "1. اكتب بأسلوب قصصي مشوق، وليس ترجمة حرفية.",
+        "2. استخدم لغة عربية فصحى سليمة، مع مراعاة القواعد النحوية والإملائية.",
+        "3. ابدأ بجملة افتتاحية قوية تجذب القارئ.",
+        "4. استخدم إيموجي مناسب في بداية الخبر (⚽ 🏆 🔥).",
+        "5. ركز على الجوانب المثيرة والمشوقة في الخبر.",
+        "6. تجنب تماماً أي أخطاء إملائية أو نحوية.",
+        "7. أسماء اللاعبين والأندية يجب أن تكون مكتوبة بشكل صحيح.",
+        "",
+        "الخبر:",
+        "العنوان: " + article.get("title", ""),
+        "المحتوى: " + article.get("summary", ""),
+        "",
+        "الصياغة المطلوبة:",
+        "- افتتاحية مثيرة (جملة أو جملتين)",
+        "- عرض الأحداث بتسلسل منطقي ومشوق",
+        "- خاتمة مع توقعات أو تساؤلات للجمهور",
+        "- هاشتاقات مناسبة + #PUL7SAR",
+        "",
+        "تحذير: أي خطأ إملائي أو نحوي يعني رفض المنشور.",
+    ]
+    prompt = "\n".join(prompt_lines)
+
+    ai_response = call_groq(prompt)
+    if not ai_response:
+        LOG.error("فشل توليد المحتوى")
+        return False
+
+    clean_text = ensure_perfect_arabic(ai_response)
+    if clean_text is None:
+        LOG.error("النص مشوه - لن يتم النشر")
+        return False
+
+    # 2. الحصول على الصورة
+    image_url = article.get("image")
+    base_img = None
+
+    # إذا كانت الصورة من قناة تلفزيونية، نستبدلها فوراً
+    if image_url and not is_channel_image_url(image_url):
+        base_img = download_image(image_url)
+        if base_img:
+            base_img = place_watermark_clean(base_img)
+
+    # إذا لم تنجح صورة المقال، نبحث في المصادر الأخرى
+    if base_img is None:
+        base_img = get_best_image_for_article(article)
+
+    # إذا فشل كل شيء، نستخدم البطاقة الاحتياطية
+    if base_img is None:
+        LOG.info("استخدام البطاقة الاحتياطية")
+        base_img = build_placeholder_professional()
+
+    # 3. بناء الصورة النهائية والنشر
+    build_final_image(base_img)
+
+    if not send_telegram_photo(clean_text):
+        LOG.error("فشل النشر على تليجرام")
+        return False
+
+    return True
 
 # ==============================================================================
 # الدالة الرئيسية
@@ -713,145 +845,41 @@ def main():
         return
 
     if not os.path.exists(LOGO_PATH):
-        LOG.warning("ملف الشعار غير موجود")
+        LOG.warning("⚠️ ملف الشعار غير موجود")
 
     history = load_history()
     posted_links_set = set(history["links"])
     posted_titles = history["titles"]
 
-    is_what_if_time = datetime.now(timezone.utc).hour == 18
-    selected_article = None
-
-    if not is_what_if_time:
-        articles = fetch_articles(posted_links_set, posted_titles)
-        if not articles:
-            LOG.info("لا توجد مقالات صالحة جديدة")
-            return
-        selected_article = random.choice(articles)
-
-    # توليد المحتوى
-    if is_what_if_time:
-        prompt_lines = [
-            'أنت مؤرخ رياضي خبير في منصة PUL7SAR. اكتب فقرة تفاعلية بعنوان "ماذا لو؟" عن لحظة تاريخية حقيقية في كرة القدم.',
-            '- اختر موقفاً حقيقياً وقع في مباراة رسمية (نهائي كأس عالم، دوري أبطال أوروبا، كلاسيكو).',
-            '- صف الموقف كما حدث، ثم اطرح السؤال: "ماذا لو تغيرت هذه اللحظة؟"',
-            '- استعرض السيناريو البديل وتأثيره على تاريخ كرة القدم، الألقاب، والجوائز الفردية.',
-            '- اكتب بالعربية الفصحى الواضحة، بدون رموز تنسيق.',
-            '- الحجم لا يتجاوز 900 حرف.',
-            '- اختم بـ #PUL7SAR وسؤال تفاعلي للمتابعين.',
-            '',
-            'تنبيه مهم: أي خطأ إملائي أو نحوي أو تشويه في النص يؤدي إلى رفض المنشور.',
-            '',
-            'في نهاية ردك اترك سطراً جديداً واكتب حصراً اسم لاعب أو حدث تاريخي محدد بالإنجليزية:',
-            '[IMG_SEARCH: <اسم شخص أو حدث حقيقي محدد>]',
-        ]
-        prompt = "\n".join(prompt_lines)
-        article_image_url = None
-    else:
-        prompt_lines = [
-            "أنت رئيس تحرير رياضي مخضرم لمنصة PUL7SAR. مهمتك صياغة الخبر التالي بأسلوب احترافي واضح.",
-            "",
-            "تعليمات صارمة:",
-            "1. اكتب حصراً بلغة عربية فصحى سليمة 100%.",
-            "2. حدد نوع الرياضة والمنافسة بوضوح تام في بداية الخبر.",
-            "3. الحجم لا يتجاوز 900 حرف. ممنوع رموز التنسيق.",
-            "4. أي خطأ إملائي أو نحوي يؤدي إلى رفض المنشور.",
-            "",
-            "الخبر الخام:",
-            "العنوان: " + selected_article["title"],
-            "التفاصيل: " + selected_article["summary"],
-            "",
-            "الصياغة المطلوبة:",
-            "- عنوان رئيسي جذاب يعبر عن الرياضة والحدث بدقة.",
-            "- شرح تفصيلي مبسط مع إيموجيات مناسبة.",
-            "- إنهاء المنشور بهاشتاقات عربية مناسبة مع #PUL7SAR.",
-            "",
-            "في نهاية ردك اترك خطاً جديداً وحدد اسم اللاعب أو الفريق المذكور في الخبر بالضبط،",
-            "بالإنجليزية الصحيحة، بهذا الشكل:",
-            "[IMG_SEARCH: <الاسم الحقيقي المحدد>]",
-        ]
-        prompt = "\n".join(prompt_lines)
-        article_image_url = selected_article.get("image")
-
-    ai_response = call_groq(prompt)
-    if not ai_response:
-        LOG.error("فشل توليد المحتوى")
+    # جلب الأخبار
+    articles = fetch_articles(posted_links_set, posted_titles)
+    if not articles:
+        LOG.info("لا توجد أخبار جديدة")
         return
 
-    match = re.search(r"\[IMG_SEARCH:\s*([\s\S]*?)\]", ai_response)
-    if match:
-        img_query = match.group(1).strip()
-        clean_text = ai_response.replace(match.group(0), "").strip()
-    else:
-        img_query = None
-        clean_text = ai_response.strip()
+    # ترتيب حسب الأولوية
+    sorted_articles = sort_articles_by_priority(articles)
 
-    # تنقية النص
-    clean_text = ensure_perfect_arabic(clean_text)
-    if clean_text is None:
-        LOG.critical("النص مشوه - لن يتم النشر")
-        return
+    # النشر
+    published_count = 0
+    for article in sorted_articles:
+        priority = article.get("_priority", 0)
+        if priority < 20:
+            LOG.info(f"⏭️ تخطي خبر بأولوية منخفضة ({priority:.1f})")
+            continue
 
-    # سلسلة مصادر الصور
-    base_img = None
+        if publish_single_article(article):
+            published_count += 1
+            history["links"].append(article["link"])
+            history["titles"].append(article["title"])
+            save_history(history)
+            git_commit_and_push()
 
-    # 1- صورة المقال
-    if article_image_url:
-        base_img = download_image(article_image_url)
-        if base_img:
-            if any(domain in article_image_url for domain in CHANNEL_LOGO_DOMAINS):
-                LOG.info("صورة من قناة تلفزيونية - تطبيق تغطية الشعار")
-            base_img = place_watermark_with_background(base_img)
+            if published_count < len(sorted_articles):
+                LOG.info(f"⏳ انتظار {POST_INTERVAL_MINUTES} دقائق قبل الخبر التالي...")
+                time.sleep(POST_INTERVAL_MINUTES * 60)
 
-    # 2- Google Custom Search
-    if base_img is None and img_query:
-        base_img = search_google_images_efficient(img_query)
-        if base_img:
-            base_img = place_watermark_with_background(base_img)
-
-    # 3- ويكيبيديا
-    if base_img is None and img_query:
-        base_img = search_wikipedia_image(img_query)
-        if base_img:
-            base_img = place_watermark_with_background(base_img)
-
-    # 4- Wikimedia Commons
-    if base_img is None and img_query:
-        base_img = search_wikimedia_commons(img_query)
-        if base_img:
-            base_img = place_watermark_with_background(base_img)
-
-    # 5- DDGS موثوق
-    if base_img is None and img_query:
-        base_img = search_ddgs_image(img_query, require_relevance=True)
-        if base_img:
-            base_img = place_watermark_with_background(base_img)
-
-    # 6- DDGS عام
-    if base_img is None:
-        LOG.info("محاولة أخيرة بصورة رياضية عامة")
-        base_img = search_ddgs_image(GENERIC_FALLBACK_QUERY, require_relevance=False)
-        if base_img:
-            base_img = place_watermark_with_background(base_img)
-
-    # 7- بطاقة احتياطية
-    if base_img is None:
-        LOG.warning("استخدام البطاقة الاحتياطية")
-        base_img = build_placeholder_image()
-
-    build_final_image(base_img)
-
-    if not send_telegram_photo(clean_text):
-        LOG.error("فشل النشر على تليجرام")
-        return
-
-    if selected_article:
-        history["links"].append(selected_article["link"])
-        history["titles"].append(selected_article["title"])
-        save_history(history)
-        git_commit_and_push()
-
-    LOG.info("تم نشر المنشور بنجاح")
+    LOG.info(f"✅ تم نشر {published_count} خبر")
 
 
 if __name__ == "__main__":
