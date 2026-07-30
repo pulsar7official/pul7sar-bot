@@ -1,36 +1,40 @@
-name: PUL7SAR Sports Bot
+name: PUL7SAR Bot
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # يعمل تلقائياً كل 3 ساعات (يمكنك تعديلها حسب رغبتك)
-  workflow_dispatch:       # يتيح لك تشغيله يدوياً متى ما أردت من تبويب Actions
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
-
+    
     steps:
-      - name: Checkout Repository
+      - name: Checkout repository
         uses: actions/checkout@v4
-
+        with:
+          persist-credentials: true
+          
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-          cache: 'pip'
-
-      - name: Install Dependencies
+          
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install requests feedparser beautifulsoup4 pillow duckduckgo-search
-
-      - name: Run Main Script
+          pip install -r requirements.txt
+          
+      - name: Run PUL7SAR Bot
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
           GOOGLE_CSE_CX: ${{ secrets.GOOGLE_CSE_CX }}
-          GIT_AUTO_PUSH: "true"
+          GIT_AUTO_PUSH: 'true'
         run: |
           python main.py
