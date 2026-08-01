@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+.env
+processed_image.jpg
+posted_history.json
