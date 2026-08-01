@@ -1,4 +1,3 @@
-
 import os
 import json
 import re
@@ -442,17 +441,9 @@ def place_watermark_fixed(canvas_rgba):
 
         pos_x, pos_y = WATERMARK_MARGIN, WATERMARK_MARGIN
 
-        # ظل شبه شفاف محسوب حصراً حول أبعاد الشعار الفعلية (وليس مستطيل تعتيم
-        # منفصل وثابت الحجم) -- بهذا لا يمكن أن تظهر بقعة داكنة بلا شعار فوقها،
-        # لأن الظل والشعار مرتبطان دائماً بنفس الأبعاد والموضع.
-        shadow_pad = 12
-        shadow = Image.new(
-            "RGBA",
-            (WATERMARK_WIDTH + shadow_pad * 2, logo_h + shadow_pad * 2),
-            (0, 0, 0, 0),
-        )
-        ImageDraw.Draw(shadow).rectangle([(0, 0), shadow.size], fill=(0, 0, 0, 90))
-        canvas_rgba.alpha_composite(shadow, dest=(pos_x - shadow_pad, pos_y - shadow_pad))
+        # لصق الشعار مباشرة بشفافيته الأصلية فقط -- بلا أي ظل أو مستطيل خلفية
+        # اصطناعي. طُلب صراحة عدم إظهار أي "مستطيل أو خيال وهمي" حول الشعار:
+        # الشفافية الحقيقية للـ PNG (logo.png) هي الفاصل الوحيد بين الشعار والصورة.
         canvas_rgba.alpha_composite(logo, dest=(pos_x, pos_y))
 
         LOG.info("✅ تم وضع الشعار بحجم ثابت %dpx عند (%d, %d)", WATERMARK_WIDTH, pos_x, pos_y)
