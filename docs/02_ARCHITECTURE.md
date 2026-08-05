@@ -709,4 +709,162 @@ Adding a new LayerKind should require:
 2. One dispatch mapping.
 
 No existing rendering logic should require modification whenever possible.
+# 12. Core Rendering Flow
+
+This section defines the complete execution flow of the Visual Engine.
+
+Every rendering request MUST follow this sequence without deviation.
+
+---
+
+## Step 1 — Pipeline
+
+The Pipeline is responsible for orchestrating the rendering process.
+
+Responsibilities:
+
+- Validate the incoming request.
+- Resolve configuration.
+- Resolve assets.
+- Resolve fonts.
+- Create the RenderContext.
+- Select the requested Template.
+- Invoke the Template.
+
+The Pipeline never performs rendering.
+
+---
+
+## Step 2 — RenderContext
+
+RenderContext is created exactly once.
+
+After creation it becomes immutable.
+
+Every subsystem receives the same RenderContext instance.
+
+No subsystem may modify it.
+
+---
+
+## Step 3 — Template
+
+The Template receives:
+
+- RenderContext
+
+The Template returns:
+
+- Ordered list of Layer objects.
+
+Templates never render.
+
+Templates never access Canvas.
+
+Templates never perform drawing.
+
+Templates only describe the visual composition.
+
+---
+
+## Step 4 — Renderer
+
+The Renderer receives:
+
+- RenderContext
+- Ordered list of Layer objects
+- Canvas implementation
+
+The Renderer is responsible for interpreting each Layer.
+
+The Renderer must never modify Layers.
+
+The Renderer must never modify RenderContext.
+
+The Renderer performs a single deterministic pass over the layer list.
+
+---
+
+## Step 5 — Canvas
+
+Canvas receives only renderer-specific drawing properties.
+
+Canvas never receives Template objects.
+
+Canvas never receives RenderContext.
+
+Canvas never interprets Layer semantics.
+
+Canvas executes primitive drawing operations only.
+
+Canvas implementations are backend specific.
+
+---
+
+## Step 6 — Exporter
+
+Exporter receives the completed rendered image.
+
+Exporter converts it into the required output format.
+
+Examples:
+
+- PNG
+- JPEG
+- WEBP
+
+Exporter never performs rendering.
+
+---
+
+# Data Ownership
+
+ValidatedPayload
+    owned by Pipeline
+
+RenderContext
+    owned by Pipeline
+    shared read-only
+
+Layer
+    owned by Template
+    read-only after creation
+
+Canvas
+    owned by Rendering Backend
+
+Rendered Image
+    owned by Canvas until export
+
+---
+
+# Rendering Rules
+
+Layers must never be reordered.
+
+Layers must never be modified.
+
+Renderer must never create Layers.
+
+Canvas must never interpret business rules.
+
+Templates must never issue drawing commands.
+
+Every subsystem has a single responsibility.
+
+---
+
+# Architectural Principle
+
+Description flows downward.
+
+Execution flows downward.
+
+Knowledge never flows upward.
+
+Templates describe.
+
+Renderer interprets.
+
+Canvas executes.
 End of Architecture Specification.
