@@ -288,4 +288,106 @@ These additions must integrate through existing architectural interfaces rather 
 
 ---
 
-End of Architecture Specification.
+## 8. Layer System Specification
+
+The Layer system is the fundamental abstraction of the PUL7SAR Visual Engine.
+
+Templates never draw pixels directly.
+
+Instead, every template produces an ordered collection of Layer objects.
+
+The Renderer is the only component allowed to interpret Layer objects and convert them into pixels.
+
+A Layer must contain description only.
+
+A Layer must never perform drawing, rendering, loading, or business logic.
+
+---
+
+### LayerKind
+
+Every layer belongs to exactly one kind.
+
+The initial engine defines the following kinds:
+
+- BACKGROUND
+- GRADIENT
+- IMAGE
+- TEXT
+- SHAPE
+- ICON
+- LOGO
+- TEXTURE
+- EFFECT
+
+Future kinds may be added without modifying existing templates.
+
+---
+
+### LayerZone
+
+Every layer belongs to exactly one visual zone.
+
+Zones are rendered in fixed order.
+
+The engine defines four standard zones:
+
+1. BACKGROUND
+2. CONTENT
+3. BRAND
+4. FOOTER
+
+Templates may only create CONTENT layers.
+
+BACKGROUND, BRAND and FOOTER layers are produced exclusively by BaseTemplate through OverlayManager.
+
+---
+
+### Layer Ordering
+
+Layers are rendered by:
+
+Zone Order
+
+↓
+
+z_index
+
+↓
+
+Insertion Order
+
+The renderer must never reorder layers automatically.
+
+---
+
+### Layer Structure
+
+Every Layer contains:
+
+- kind
+- zone
+- z_index
+- properties
+
+properties is a generic immutable mapping containing renderer-specific parameters.
+
+Layer itself never interprets properties.
+
+---
+
+### Design Rules
+
+Layer must be immutable.
+
+Layer must contain no rendering logic.
+
+Layer must contain no helper methods.
+
+Layer must be backend independent.
+
+Layer must be serializable.
+
+Layer must be deterministic.
+
+Two equal Layers must always describe identical rendering operations.
