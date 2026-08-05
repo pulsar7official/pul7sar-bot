@@ -216,5 +216,259 @@ Every Layer contains:
 Layers are immutable after creation.
 
 ---
+---
 
-End of Part 1.
+# 8. LayerKind Specification
+
+LayerKind defines the semantic type of a Layer.
+
+Every Layer must have exactly one LayerKind.
+
+Allowed values are:
+
+- BACKGROUND
+- IMAGE
+- TEXT
+- ICON
+- SHAPE
+- GRADIENT
+- TEXTURE
+- OVERLAY
+
+No additional values may be introduced without updating this specification.
+
+---
+
+## BACKGROUND
+
+Represents the base visual surface.
+
+Examples:
+
+- solid color
+- stadium image
+- abstract background
+
+---
+
+## IMAGE
+
+Represents raster or vector imagery.
+
+Examples:
+
+- player photo
+- club badge
+- competition logo
+
+---
+
+## TEXT
+
+Represents textual content.
+
+Examples:
+
+- headline
+- subtitle
+- statistics
+- captions
+
+---
+
+## ICON
+
+Represents lightweight symbolic graphics.
+
+Examples:
+
+- whistle
+- football
+- warning icon
+- trophy icon
+
+---
+
+## SHAPE
+
+Represents geometric primitives.
+
+Examples:
+
+- rectangle
+- rounded rectangle
+- circle
+- line
+
+---
+
+## GRADIENT
+
+Represents color transitions.
+
+Gradients must never contain business logic.
+
+---
+
+## TEXTURE
+
+Represents reusable surface effects.
+
+Examples:
+
+- dust
+- grain
+- turf
+- paper
+- motion blur
+
+---
+
+## OVERLAY
+
+Represents reusable visual effects.
+
+Examples:
+
+- lighting
+- watermark
+- pulse effect
+- glow
+
+---
+
+# 9. LayerZone Specification
+
+LayerZone determines where a Layer belongs within the rendering stack.
+
+Allowed values:
+
+- BACKGROUND
+- CONTENT
+- BRAND
+- FOOTER
+
+---
+
+## BACKGROUND
+
+Contains:
+
+- gradients
+- background images
+- textures
+- lighting
+
+Generated only by BaseTemplate.
+
+---
+
+## CONTENT
+
+Contains all template-specific visual elements.
+
+Generated only by template implementations.
+
+---
+
+## BRAND
+
+Contains:
+
+- logo
+- pulse mark
+- watermark
+
+Generated only by BaseTemplate.
+
+---
+
+## FOOTER
+
+Contains:
+
+- social handle
+- copyright
+- footer branding
+
+Generated only by BaseTemplate.
+
+---
+
+# 10. Canvas Specification
+
+Canvas is the rendering backend abstraction.
+
+Canvas is responsible only for drawing operations.
+
+Canvas never knows:
+
+- sports
+- templates
+- branding
+- business logic
+
+Canvas exposes drawing capabilities only.
+
+Typical operations include:
+
+- draw image
+- draw text
+- draw shape
+- apply blur
+- apply gradient
+- apply shadow
+
+Canvas implementations may vary.
+
+The remainder of the system must remain unaware of the chosen backend.
+
+---
+
+# 11. Renderer Specification
+
+Renderer transforms ordered Layers into pixels.
+
+Renderer receives:
+
+- RenderContext
+- ordered Layer collection
+- Canvas implementation
+
+Renderer produces:
+
+- rendered image
+
+Renderer never:
+
+- resolves assets
+- resolves fonts
+- validates payloads
+- exports files
+
+Renderer only renders.
+
+---
+
+# 12. Pipeline Specification
+
+Pipeline coordinates the complete rendering lifecycle.
+
+Pipeline owns:
+
+- validation
+- context creation
+- configuration loading
+- asset resolution
+- font resolution
+- template execution
+- rendering
+- exporting
+
+Pipeline is the only component allowed to orchestrate multiple subsystems.
+
+No other component may coordinate the rendering lifecycle.
+
+---
+
+End of Part 2.
