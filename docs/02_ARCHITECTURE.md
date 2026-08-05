@@ -518,3 +518,74 @@ Examples:
 • Exceptions MAY wrap lower-level exceptions using Python exception chaining.
 
 • Engine subsystems MUST raise engine exceptions instead of raw built-in exceptions whenever possible.
+# 10. Canvas Abstraction
+
+The Canvas is the backend-independent drawing surface of the Visual Engine.
+
+Templates never draw on the Canvas directly.
+
+The Renderer is the only subsystem allowed to issue drawing operations to the Canvas.
+
+The Canvas itself is only an abstraction.
+
+Concrete implementations (Pillow, Skia, Cairo, SVG, etc.) are provided by backend adapters.
+
+---
+
+## Responsibilities
+
+The Canvas is responsible for exposing a minimal drawing interface.
+
+It does not contain business logic.
+
+It does not know templates.
+
+It does not know football.
+
+It does not know branding rules.
+
+It only knows how to execute primitive drawing operations.
+
+---
+
+## Design Principles
+
+The Canvas MUST remain backend independent.
+
+No template may import a backend implementation.
+
+The Renderer communicates only with the Canvas abstraction.
+
+Concrete implementations are injected by the rendering pipeline.
+
+---
+
+## Supported Primitive Operations
+
+The abstraction must support the following operations:
+
+- draw_image
+- draw_text
+- draw_shape
+- draw_gradient
+- draw_texture
+- draw_overlay
+
+Future operations may be added without breaking existing templates.
+
+---
+
+## State
+
+Canvas implementations may maintain internal rendering state.
+
+The abstract Canvas interface itself must not expose mutable state.
+
+---
+
+## Error Handling
+
+Canvas implementations must raise RenderingError whenever a drawing operation cannot be completed.
+
+Backend-specific exceptions must never escape outside the Canvas boundary.
+End of Architecture Specification.
