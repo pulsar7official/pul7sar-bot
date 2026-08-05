@@ -588,4 +588,125 @@ The abstract Canvas interface itself must not expose mutable state.
 Canvas implementations must raise RenderingError whenever a drawing operation cannot be completed.
 
 Backend-specific exceptions must never escape outside the Canvas boundary.
+# 11. Renderer Architecture
+
+The Renderer is the execution engine of the Visual Engine.
+
+Templates never draw.
+
+Layers never draw.
+
+Canvas never decides what to draw.
+
+The Renderer is the only subsystem responsible for transforming a list of Layer objects into drawing operations executed on a Canvas.
+
+---
+
+## Responsibilities
+
+The Renderer is responsible for:
+
+- Receiving a RenderContext.
+- Receiving an ordered collection of Layer objects.
+- Rendering Layers in deterministic order.
+- Selecting the correct Canvas operation for every LayerKind.
+- Producing the final rendered result.
+
+The Renderer never creates Layers.
+
+The Renderer never modifies Layers.
+
+The Renderer never modifies RenderContext.
+
+---
+
+## Rendering Pipeline
+
+Rendering always follows the same sequence.
+
+1. Receive RenderContext.
+2. Receive ordered Layers.
+3. Validate renderer inputs.
+4. Iterate through Layers.
+5. Dispatch every Layer to the corresponding Canvas operation.
+6. Finish rendering.
+7. Return the rendered output.
+
+The Renderer must never skip or reorder Layers.
+
+---
+
+## Layer Dispatch
+
+Each LayerKind maps to exactly one Canvas operation.
+
+| LayerKind | Canvas Method |
+|-----------|---------------|
+| BACKGROUND | draw_image |
+| IMAGE | draw_image |
+| TEXT | draw_text |
+| ICON | draw_image |
+| SHAPE | draw_shape |
+| GRADIENT | draw_gradient |
+| TEXTURE | draw_texture |
+| OVERLAY | draw_overlay |
+
+Dispatching must be deterministic.
+
+The Renderer must never use if/else chains longer than necessary.
+
+Dictionary-based dispatch tables are preferred.
+
+---
+
+## Error Handling
+
+Unknown LayerKind must raise RenderingError.
+
+Canvas failures must be propagated as RenderingError.
+
+The Renderer must never expose backend-specific exceptions.
+
+---
+
+## Design Principles
+
+Renderer must be stateless.
+
+Renderer must be deterministic.
+
+Renderer must be backend independent.
+
+Renderer must never contain branding rules.
+
+Renderer must never know football concepts.
+
+Renderer must never modify input data.
+
+Renderer must depend only on abstractions.
+
+---
+
+## Performance
+
+Renderer must execute in a single pass.
+
+Complexity should remain O(n).
+
+No recursive rendering.
+
+No hidden sorting.
+
+No duplicated traversal.
+
+---
+
+## Extensibility
+
+Adding a new LayerKind should require:
+
+1. One new Canvas operation (if necessary).
+2. One dispatch mapping.
+
+No existing rendering logic should require modification whenever possible.
 End of Architecture Specification.
