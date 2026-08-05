@@ -311,14 +311,13 @@ Every layer belongs to exactly one kind.
 The initial engine defines the following kinds:
 
 - BACKGROUND
-- GRADIENT
 - IMAGE
 - TEXT
-- SHAPE
 - ICON
-- LOGO
+- SHAPE
+- GRADIENT
 - TEXTURE
-- EFFECT
+- OVERLAY
 
 Future kinds may be added without modifying existing templates.
 
