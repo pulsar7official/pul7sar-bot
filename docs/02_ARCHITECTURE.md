@@ -390,3 +390,131 @@ Layer must be serializable.
 Layer must be deterministic.
 
 Two equal Layers must always describe identical rendering operations.
+# 9. Exception Hierarchy
+
+The Visual Engine MUST use a dedicated exception hierarchy.
+
+All engine-specific exceptions MUST inherit from a single base exception.
+
+Python built-in exceptions MUST NOT be exposed across subsystem boundaries.
+
+---
+
+## Base Exception
+
+VisualEngineError
+
+The root exception for every error produced by the Visual Engine.
+
+---
+
+## Configuration Errors
+
+ConfigurationError
+
+Raised when engine configuration cannot be loaded, validated, or resolved.
+
+Examples:
+
+- Missing configuration file.
+- Invalid configuration value.
+- Invalid YAML schema.
+
+---
+
+## Asset Errors
+
+AssetError
+
+Raised when an asset cannot be found or loaded.
+
+Examples:
+
+- Missing logo.
+- Missing background.
+- Unsupported image format.
+- Corrupted asset.
+
+---
+
+## Font Errors
+
+FontError
+
+Raised when a required font cannot be loaded.
+
+Examples:
+
+- Font file missing.
+- Invalid font.
+- Unsupported font format.
+
+---
+
+## Template Errors
+
+TemplateError
+
+Raised when a template cannot be created or executed.
+
+Examples:
+
+- Unknown template.
+- Invalid template implementation.
+- Missing required layer.
+
+---
+
+## Rendering Errors
+
+RenderingError
+
+Raised whenever rendering cannot complete successfully.
+
+Examples:
+
+- Canvas creation failed.
+- Drawing operation failed.
+- Renderer internal failure.
+
+---
+
+## Export Errors
+
+ExportError
+
+Raised when exporting the final image fails.
+
+Examples:
+
+- Cannot save image.
+- Unsupported export format.
+- File system write failure.
+
+---
+
+## Validation Errors
+
+ValidationError
+
+Raised when validated input data becomes invalid before rendering.
+
+Examples:
+
+- Missing required payload field.
+- Invalid render request.
+- Unsupported platform profile.
+
+---
+
+## Rules
+
+• Every engine exception MUST inherit from VisualEngineError.
+
+• Exceptions MUST NOT contain rendering logic.
+
+• Exceptions SHOULD contain only human-readable error messages.
+
+• Exceptions MAY wrap lower-level exceptions using Python exception chaining.
+
+• Engine subsystems MUST raise engine exceptions instead of raw built-in exceptions whenever possible.
