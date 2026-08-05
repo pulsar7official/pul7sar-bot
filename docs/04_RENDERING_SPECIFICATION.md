@@ -412,12 +412,12 @@ Canvas exposes drawing capabilities only.
 
 Typical operations include:
 
-- draw image
-- draw text
-- draw shape
-- apply blur
-- apply gradient
-- apply shadow
+draw_image
+draw_text
+draw_shape
+draw_gradient
+draw_texture
+draw_overlay
 
 Canvas implementations may vary.
 
