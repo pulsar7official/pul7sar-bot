@@ -403,10 +403,10 @@ Canvas is responsible only for drawing operations.
 
 Canvas never knows:
 
-- sports
-- templates
-- branding
-- business logic
+sports
+templates
+branding
+business logic
 
 Canvas exposes drawing capabilities only.
 
@@ -422,6 +422,16 @@ draw_overlay
 Canvas implementations may vary.
 
 The remainder of the system must remain unaware of the chosen backend.
+
+Canvas also exposes one result retrieval operation:
+
+get_result
+
+Returns the fully rendered image produced by the current rendering pass.
+
+Renderer calls get_result() exactly once after all drawing operations have completed.
+
+Canvas implementations own the rendered image until get_result() is called.
 
 ---
 
