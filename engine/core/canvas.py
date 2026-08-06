@@ -63,3 +63,7 @@ class Canvas(ABC):
     def draw_overlay(self, properties: Mapping[str, Any]) -> None:
         """Draw a reusable visual effect onto the canvas."""
         raise NotImplementedError
+    @abstractmethod
+    def get_result(self) -> Any:
+        """Return the rendered image produced by the current rendering pass."""
+        raise NotImplementedError
