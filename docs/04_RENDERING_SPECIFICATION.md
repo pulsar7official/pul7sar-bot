@@ -457,7 +457,24 @@ Renderer never:
 - exports files
 
 Renderer only renders.
+LayerKind Dispatch
 
+The Renderer shall dispatch LayerKind values to Canvas operations using
+the following fixed mapping:
+
+BACKGROUND -> draw_image
+IMAGE -> draw_image
+TEXT -> draw_text
+ICON -> draw_image
+SHAPE -> draw_shape
+GRADIENT -> draw_gradient
+TEXTURE -> draw_texture
+OVERLAY -> draw_overlay
+
+This mapping is normative.
+
+Renderer implementations must not introduce additional Canvas operations
+without updating this specification.
 ---
 
 # 12. Pipeline Specification
