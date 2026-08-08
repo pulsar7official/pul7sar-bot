@@ -514,4 +514,8 @@ Pipeline must execute these stages in the order defined by the Rendering Lifecyc
 
 Pipeline is responsible for coordinating each stage and passing the required results to the next stage.
 
+Pipeline must not perform the responsibilities of the subsystems it coordinates.
+
+No other component may coordinate the rendering lifecycle.
+
 End of Part 2.
