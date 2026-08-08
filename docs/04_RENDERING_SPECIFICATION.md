@@ -497,19 +497,21 @@ Pipeline coordinates the complete rendering lifecycle.
 
 Pipeline owns:
 
-- validation
-- context creation
-- configuration loading
-- asset resolution
-- font resolution
-- template execution
-- rendering
-- exporting
+validation
+configuration loading
+asset resolution
+font resolution
+context creation
+template execution
+layer generation
+rendering
+quality verification
+exporting
 
 Pipeline is the only component allowed to orchestrate multiple subsystems.
 
-No other component may coordinate the rendering lifecycle.
+Pipeline must execute these stages in the order defined by the Rendering Lifecycle.
 
----
+Pipeline is responsible for coordinating each stage and passing the required results to the next stage.
 
 End of Part 2.
