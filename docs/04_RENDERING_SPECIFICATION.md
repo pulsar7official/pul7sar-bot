@@ -395,11 +395,11 @@ Generated only by BaseTemplate.
 
 ---
 
-10. Canvas Specification
+## 10. Canvas Specification
 
 Canvas is the rendering backend abstraction.
 
-Canvas is responsible only for drawing operations and final result retrieval.
+Canvas is responsible only for drawing operations.
 
 Canvas never knows:
 
@@ -410,7 +410,8 @@ Canvas never knows:
 
 Canvas exposes drawing capabilities only.
 
-The following six operations are the complete normative drawing interface of Canvas for the current engine version:
+The following six operations are the complete normative drawing interface
+of Canvas for the current engine version:
 
 - draw_image
 - draw_text
@@ -419,23 +420,24 @@ The following six operations are the complete normative drawing interface of Can
 - draw_texture
 - draw_overlay
 
+No additional Canvas drawing operation may be introduced without updating
+this specification and the Architecture Specification.
+
 Canvas also exposes the following result-retrieval operation:
 
 - get_result
 
 get_result is not a drawing primitive.
 
-It is used only to retrieve the completed rendered image after all Layer drawing operations have finished.
+It is used only to retrieve the completed rendered image after all Layer
+drawing operations have finished.
 
-Renderer MUST call get_result exactly once after dispatching the complete ordered Layer collection.
-
-No additional Canvas drawing operation may be introduced without updating this specification and the Architecture Specification.
+Renderer MUST call get_result exactly once after dispatching the complete
+ordered Layer collection.
 
 Canvas implementations may vary.
 
 The remainder of the system must remain unaware of the chosen backend.
-
----
 
 # 11. Renderer Specification
 
