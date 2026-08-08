@@ -36,20 +36,15 @@ Rendering must produce identical results for identical inputs.
 
 ---
 
-# 3. Rendering Lifecycle
+3. Rendering Lifecycle
 
 Every render follows the exact same lifecycle.
 
-```
 Request
 
 ↓
 
 Validation
-
-↓
-
-RenderContext Creation
 
 ↓
 
@@ -62,6 +57,10 @@ Asset Resolution
 ↓
 
 Font Resolution
+
+↓
+
+RenderContext Creation
 
 ↓
 
@@ -86,13 +85,24 @@ Export
 ↓
 
 Completed Result
-```
 
 No stage may be skipped.
 
-No stage may modify previous stages.
+Each stage must receive the outputs required from the preceding stages.
 
----
+No stage may modify the authoritative outputs of a previous stage.
+
+RenderContext is created only after validation, configuration resolution,
+asset resolution, and font resolution have been completed.
+
+Once created, RenderContext represents the resolved and immutable state
+of the current rendering request and is shared by the rendering
+subsystems that require it.
+
+Pipeline is responsible for coordinating this lifecycle.
+
+No other component may reorder, skip, or independently orchestrate
+these stages.
 
 # 4. Core Rendering Components
 
