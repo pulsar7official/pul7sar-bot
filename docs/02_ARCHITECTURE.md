@@ -306,9 +306,9 @@ A Layer must never perform drawing, rendering, loading, or business logic.
 
 ### LayerKind
 
-Every layer belongs to exactly one kind.
+Every Layer MUST belong to exactly one LayerKind.
 
-The initial engine defines the following kinds:
+The PUL7SAR Visual Engine v1 defines exactly the following LayerKind values:
 
 - BACKGROUND
 - IMAGE
@@ -319,7 +319,13 @@ The initial engine defines the following kinds:
 - TEXTURE
 - OVERLAY
 
-Future kinds may be added without modifying existing templates.
+These eight values are the complete and authoritative LayerKind vocabulary for the current engine version.
+
+No additional LayerKind may be introduced by implementation code, templates, or rendering backends without first updating the official Rendering Specification and Architecture Specification.
+
+LayerKind values are semantic classifications only.
+
+LayerKind must never contain business logic, branding rules, sports-specific meaning, or backend-specific behavior.
 
 ---
 
@@ -562,7 +568,7 @@ Concrete implementations are injected by the rendering pipeline.
 
 ## Supported Primitive Operations
 
-The abstraction must support the following operations:
+The Canvas abstraction exposes exactly the following drawing operations:
 
 - draw_image
 - draw_text
@@ -571,7 +577,23 @@ The abstraction must support the following operations:
 - draw_texture
 - draw_overlay
 
-Future operations may be added without breaking existing templates.
+These six operations constitute the complete normative drawing interface of Canvas for the current engine version.
+
+No additional drawing operation may be introduced by Renderer, Layer, Template, or backend implementation unless the official Canvas Specification and Rendering Specification are updated first.
+
+LayerKind values must map to these Canvas operations according to the normative LayerKind Dispatch table defined in Section 11.
+
+Canvas implementations may maintain internal rendering state, but the abstract Canvas interface must not expose mutable state.
+
+The Canvas abstraction also exposes one result-retrieval operation:
+
+- get_result
+
+get_result is not a drawing primitive. It is the finalization and result-access operation used by Renderer after all Layer drawing operations have completed.
+
+Renderer MUST call get_result exactly once, after the complete ordered Layer collection has been dispatched.
+
+get_result returns the completed rendered image owned by the Canvas until it is passed to the Exporter.
 
 ---
 
@@ -651,12 +673,19 @@ Each LayerKind maps to exactly one Canvas operation.
 | TEXTURE | draw_texture |
 | OVERLAY | draw_overlay |
 
-Dispatching must be deterministic.
+Dispatching must be deterministic and must follow the normative mapping above exactly.
 
-The Renderer must never use if/else chains longer than necessary.
+The Renderer MUST use the LayerKind values defined in Section 8 and MUST use only the Canvas operations defined in Section 10.
 
-Dictionary-based dispatch tables are preferred.
+The Renderer MUST NOT invent, infer, rename, or introduce Canvas operations for any LayerKind.
 
+The Renderer MUST NOT introduce special handling for individual LayerKind values outside the normative dispatch table.
+
+A LayerKind without a corresponding entry in the normative dispatch table MUST raise RenderingError.
+
+A Canvas implementation missing a required operation MUST raise RenderingError when that operation is requested.
+
+Dictionary-based dispatch is the preferred implementation strategy, but the implementation mechanism must not alter the normative mapping.
 ---
 
 ## Error Handling
@@ -703,12 +732,20 @@ No duplicated traversal.
 
 ## Extensibility
 
-Adding a new LayerKind should require:
+The current engine defines a closed LayerKind vocabulary consisting of the eight values specified in Section 8.
 
-1. One new Canvas operation (if necessary).
-2. One dispatch mapping.
+Adding a new LayerKind is an architectural change and MUST NOT be performed implicitly by implementation code.
 
-No existing rendering logic should require modification whenever possible.
+To introduce a new LayerKind, the following specifications MUST be updated first:
+
+1. Section 8 — LayerKind Specification.
+2. Section 10 — Canvas Abstraction, if a new Canvas operation is required.
+3. Section 11 — Renderer Layer Dispatch.
+4. 04_RENDERING_SPECIFICATION.md and any other normative specification affected by the change.
+
+Only after the specifications have been updated may implementation code introduce the new LayerKind.
+
+Existing LayerKind behavior and mappings must remain unchanged unless explicitly revised by the updated specifications.
 # 12. Core Rendering Flow
 
 This section defines the complete execution flow of the Visual Engine.
