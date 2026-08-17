@@ -16,7 +16,7 @@ from abc import ABC, abstractmethod
 from typing import Sequence
 
 from engine.core.context import RenderContext
-from engine.core.layer import Layer
+from engine.layers.layer import Layer
 from engine.pipeline import TemplateProtocol
 
 
