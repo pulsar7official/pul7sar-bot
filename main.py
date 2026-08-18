@@ -556,7 +556,7 @@ def call_groq(prompt: str):
         r = requests.post(
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {GROQ_KEY}", "Content-Type": "application/json"},
-            json={"model": "model": "openai/gpt-oss-120b",, "temperature": 0.6,
+            json={"model": "openai/gpt-oss-120b",, "temperature": 0.6,
                   "messages": [{"role": "user", "content": prompt}]},
             timeout=30,
         )
