@@ -1,0 +1,174 @@
+{
+  "real_madrid": {
+    "kind": "club",
+    "display_name": "Real Madrid",
+    "primary": "#FFFFFF",
+    "secondary": "#FEBE10",
+    "accent": "#FEBE10",
+    "overlay": "#0B1B3A",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "real madrid",
+      "real madrid cf",
+      "ريال مدريد"
+    ]
+  },
+  "barcelona": {
+    "kind": "club",
+    "display_name": "Barcelona",
+    "primary": "#004D98",
+    "secondary": "#A50044",
+    "accent": "#EDBB00",
+    "overlay": "#101A38",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "barcelona",
+      "fc barcelona",
+      "barça",
+      "برشلونة"
+    ]
+  },
+  "liverpool": {
+    "kind": "club",
+    "display_name": "Liverpool",
+    "primary": "#C8102E",
+    "secondary": "#00B2A9",
+    "accent": "#C8102E",
+    "overlay": "#350A12",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "liverpool",
+      "liverpool fc",
+      "ليفربول"
+    ]
+  },
+  "manchester_city": {
+    "kind": "club",
+    "display_name": "Manchester City",
+    "primary": "#6CABDD",
+    "secondary": "#1C2C5B",
+    "accent": "#6CABDD",
+    "overlay": "#12243A",
+    "overlay_opacity": 0.7,
+    "aliases": [
+      "manchester city",
+      "man city",
+      "مانشستر سيتي"
+    ]
+  },
+  "manchester_united": {
+    "kind": "club",
+    "display_name": "Manchester United",
+    "primary": "#DA291C",
+    "secondary": "#FBE122",
+    "accent": "#DA291C",
+    "overlay": "#380B0B",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "manchester united",
+      "man utd",
+      "man united",
+      "مانشستر يونايتد"
+    ]
+  },
+  "chelsea": {
+    "kind": "club",
+    "display_name": "Chelsea",
+    "primary": "#034694",
+    "secondary": "#DBA111",
+    "accent": "#034694",
+    "overlay": "#071A3D",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "chelsea",
+      "chelsea fc",
+      "تشيلسي"
+    ]
+  },
+  "arsenal": {
+    "kind": "club",
+    "display_name": "Arsenal",
+    "primary": "#EF0107",
+    "secondary": "#FFFFFF",
+    "accent": "#EF0107",
+    "overlay": "#3A090B",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "arsenal",
+      "arsenal fc",
+      "آرسنال"
+    ]
+  },
+  "bayern_munich": {
+    "kind": "club",
+    "display_name": "Bayern Munich",
+    "primary": "#DC052D",
+    "secondary": "#0066B2",
+    "accent": "#DC052D",
+    "overlay": "#330A18",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "bayern munich",
+      "bayern",
+      "fc bayern",
+      "بايرن ميونخ"
+    ]
+  },
+  "psg": {
+    "kind": "club",
+    "display_name": "Paris Saint-Germain",
+    "primary": "#004170",
+    "secondary": "#DA291C",
+    "accent": "#DA291C",
+    "overlay": "#071B2E",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "psg",
+      "paris saint-germain",
+      "باريس سان جيرمان"
+    ]
+  },
+  "juventus": {
+    "kind": "club",
+    "display_name": "Juventus",
+    "primary": "#FFFFFF",
+    "secondary": "#000000",
+    "accent": "#D4AF37",
+    "overlay": "#111111",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "juventus",
+      "juve",
+      "يوفنتوس"
+    ]
+  },
+  "ac_milan": {
+    "kind": "club",
+    "display_name": "AC Milan",
+    "primary": "#AC171E",
+    "secondary": "#000000",
+    "accent": "#AC171E",
+    "overlay": "#25090B",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "ac milan",
+      "milan",
+      "ميلان"
+    ]
+  },
+  "inter_milan": {
+    "kind": "club",
+    "display_name": "Inter Milan",
+    "primary": "#00529F",
+    "secondary": "#000000",
+    "accent": "#00529F",
+    "overlay": "#061A31",
+    "overlay_opacity": 0.72,
+    "aliases": [
+      "inter milan",
+      "inter",
+      "انتر ميلان",
+      "إنتر"
+    ]
+  }
+}
