@@ -12,6 +12,8 @@ permissions:
 jobs:
   verify-phase17:
     runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
 
     steps:
       - name: Checkout repository
@@ -27,8 +29,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y fonts-noto-core fonts-dejavu-core
           fc-cache -f -v
-          echo "Arabic/Noto font candidates:"
-          find /usr/share/fonts -type f \( -iname '*Noto*Arabic*.ttf' -o -iname 'DejaVuSans-Bold.ttf' \) | sort | head -50
 
       - name: Install Python dependencies
         run: |
@@ -54,9 +54,9 @@ jobs:
 
       - name: Generate Phase 17 previews
         run: |
-          python scripts/render_news_preview.py
-          python scripts/preview_themes.py
-          python scripts/preview_templates.py
+          python -m scripts.render_news_preview
+          python -m scripts.preview_themes
+          python -m scripts.preview_templates
 
       - name: Verify News and Breaking previews
         run: |
@@ -114,5 +114,4 @@ jobs:
         continue-on-error: true
         run: |
           echo "This step is informational and does not gate Phase 17."
-          echo "Known legacy/environment-sensitive tests may still fail."
           python -m unittest discover -s tests -v
