@@ -1,0 +1,84 @@
+name: Phase 17 Verification
+
+on:
+  push:
+    paths:
+      - '.github/workflows/phase17-verify.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-phase17:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Syntax check
+        run: |
+          python -m py_compile main.py
+          python -m py_compile engine/templates/components/breaking.py
+          python -m py_compile engine/templates/components/headline.py
+          python -m py_compile engine/templates/components/overlay.py
+          python -m py_compile engine/templates/implementations/breaking.py
+          python -m py_compile engine/bootstrap.py
+
+      - name: Run full test suite
+        run: |
+          python -m unittest discover -s tests -v
+
+      - name: Generate previews
+        run: |
+          python scripts/render_news_preview.py
+          python scripts/preview_themes.py
+          python scripts/preview_templates.py
+
+      - name: Verify News and Breaking previews
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          news = Path('scripts/preview_news.jpg')
+          breaking = Path('scripts/preview_breaking.jpg')
+
+          for path in (news, breaking):
+              if not path.is_file():
+                  raise SystemExit(f'Missing preview: {path}')
+              with Image.open(path) as img:
+                  print(path.name, img.format, img.size, img.mode, path.stat().st_size)
+                  assert img.format == 'JPEG'
+                  assert img.size == (1280, 720)
+                  assert img.mode == 'RGB'
+
+          assert news.read_bytes() != breaking.read_bytes(), 'News and Breaking previews must differ'
+          print('Phase 17 preview verification PASS')
+          PY
+
+      - name: Upload Phase 17 previews
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase17-previews
+          path: |
+            scripts/preview_news.jpg
+            scripts/preview_breaking.jpg
+            scripts/preview_default.jpg
+            scripts/preview_real_madrid.jpg
+            scripts/preview_barcelona.jpg
+            scripts/preview_chelsea.jpg
+            scripts/preview_liverpool.jpg
+          if-no-files-found: warn
+          retention-days: 7
