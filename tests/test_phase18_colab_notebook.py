@@ -20,7 +20,10 @@ class ColabGoldenVisualNotebookTests(unittest.TestCase):
         self.assertIn("phase18_verify_golden_batch.py", text)
         self.assertIn("phase18_flux2_batch_execute.py", text)
         self.assertIn("--limit 1", text)
+        self.assertIn("--dtype auto", text)
         self.assertIn("first-candidate-execution.json", text)
+        self.assertIn("Resolved dtype:", text)
+        self.assertIn("BF16 supported:", text)
         self.assertIn("$0-local", text)
         self.assertNotIn("api_key", text.casefold())
         self.assertNotIn("openai", text.casefold())
@@ -29,6 +32,7 @@ class ColabGoldenVisualNotebookTests(unittest.TestCase):
     def test_full_batch_execution_is_opt_in_after_first_candidate(self):
         _, text = self.notebook_text()
         self.assertIn("# !PYTHONPATH=. python tools/phase18_flux2_batch_execute.py", text)
+        self.assertIn("--dtype auto", text)
         self.assertIn("batch-execution.json", text)
 
     def test_review_stage_declares_strict_golden_floor(self):
