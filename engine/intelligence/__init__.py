@@ -38,6 +38,7 @@ from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep
 from engine.intelligence.provider_prompting import CompiledProviderConstraints, ConstraintPromptMode, PromptConstraintCompiler
 from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler
+from engine.intelligence.semantic_publication_gate import SemanticPublicationDecision, SemanticPublicationGate
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
