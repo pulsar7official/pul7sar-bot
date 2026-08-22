@@ -1,9 +1,10 @@
-"""CUDA-aware dtype selection for Phase 18 local/free GPU execution.
+"""CUDA-aware dtype policy for Phase 18 Golden Visual execution.
 
-Free notebook GPUs are not homogeneous. Some expose sufficient VRAM for the
-approved FLUX.2 Klein 4B profile but do not provide native bfloat16 support.
-PUL7SAR therefore resolves `auto` deterministically from the probed CUDA runtime
-instead of assuming every >=13 GB GPU behaves like a newer RTX/Ampere device.
+PUL7SAR's approved FLUX.2 Klein 4B reference path is quality-locked to the
+model's documented bfloat16 Diffusers configuration. Free notebook GPUs are not
+homogeneous, so hardware capability is probed instead of assumed. The Golden
+Visual path fails closed when native BF16 support cannot be proven rather than
+silently changing numerical precision before the first benchmark is established.
 """
 
 from __future__ import annotations
@@ -13,7 +14,7 @@ from dataclasses import dataclass
 from engine.intelligence.local_runtime import RuntimeHardwareSnapshot, RuntimeKind
 
 
-_ALLOWED = {"auto", "float16", "bfloat16", "float32"}
+_ALLOWED = {"auto", "bfloat16"}
 
 
 @dataclass(frozen=True)
@@ -24,47 +25,40 @@ class LocalDTypeDecision:
 
 
 class LocalDTypeSelector:
-    """Resolve a concrete torch dtype without silently choosing unsupported BF16."""
+    """Resolve only quality-verified dtype modes for the Golden Visual path."""
 
     def select(self, runtime: RuntimeHardwareSnapshot, requested: str = "auto") -> LocalDTypeDecision:
         if not isinstance(runtime, RuntimeHardwareSnapshot):
             raise TypeError("runtime must be RuntimeHardwareSnapshot")
         if requested not in _ALLOWED:
-            raise ValueError("unsupported dtype request")
+            raise ValueError(
+                "unsupported Golden Visual dtype request; only auto/bfloat16 are quality-verified"
+            )
         if runtime.kind is not RuntimeKind.LOCAL_CUDA or not runtime.cuda_available:
             raise ValueError("CUDA runtime is required for FLUX dtype selection")
 
         bf16_supported = runtime.metadata.get("bf16_supported")
         if bf16_supported not in {True, False, None}:
             raise ValueError("runtime bf16 capability must be true, false or unknown")
-
-        if requested == "auto":
-            if bf16_supported is True:
-                return LocalDTypeDecision(
-                    requested="auto",
-                    resolved="bfloat16",
-                    reason="CUDA runtime explicitly reports native bfloat16 support",
-                )
-            return LocalDTypeDecision(
-                requested="auto",
-                resolved="float16",
-                reason=(
-                    "CUDA runtime reports no native bfloat16 support"
-                    if bf16_supported is False
-                    else "CUDA bfloat16 support is unknown; using conservative float16 fallback"
-                ),
+        if bf16_supported is not True:
+            detail = (
+                "runtime explicitly reports no native bfloat16 support"
+                if bf16_supported is False
+                else "runtime bfloat16 support could not be proven"
+            )
+            raise ValueError(
+                detail
+                + "; PUL7SAR Golden Visual execution will not silently fall back to an unverified precision"
             )
 
-        if requested == "bfloat16":
-            if bf16_supported is not True:
-                raise ValueError("bfloat16 was explicitly requested but runtime support is not proven")
-            return LocalDTypeDecision(requested, requested, "explicit bfloat16 request is supported")
-
-        if requested == "float16":
-            return LocalDTypeDecision(requested, requested, "explicit float16 request")
-
+        if requested == "auto":
+            return LocalDTypeDecision(
+                requested="auto",
+                resolved="bfloat16",
+                reason="official Golden Visual dtype selected after native bfloat16 support was proven",
+            )
         return LocalDTypeDecision(
-            requested,
-            requested,
-            "explicit float32 request; caller accepts increased memory pressure",
+            requested="bfloat16",
+            resolved="bfloat16",
+            reason="explicit bfloat16 request is supported by the CUDA runtime",
         )
