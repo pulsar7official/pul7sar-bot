@@ -6,6 +6,10 @@ closed unless CUDA/VRAM and explicit Flux2KleinPipeline readiness are proven. On
 success it writes a native aligned PNG, normalizes it to the exact platform
 canvas, registers the exact-canvas PNG as the visual proof with provenance, and
 can persist a machine-readable result file that is immune to noisy library logs.
+
+The default dtype is `auto`: PUL7SAR prefers bfloat16 when the CUDA runtime proves
+native support, otherwise it falls back to float16. This keeps free notebook GPU
+execution portable without silently forcing unsupported BF16.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from engine.intelligence.flux2_klein_diffusers import (
 from engine.intelligence.local_backend import LocalBackendReadinessGate
 from engine.intelligence.local_backend_execution import LocalBackendResultGate
 from engine.intelligence.local_diffusers_adapter import DiffusersExecutionConfig, DiffusersLocalBackend
+from engine.intelligence.local_dtype import LocalDTypeSelector
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 from engine.intelligence.local_runtime import LocalRuntimeProbe
 from engine.intelligence.visual_proof import VisualProofArtifactWriter
@@ -66,8 +71,9 @@ def execute_request(
             + (f"; backend_details={detail}" if detail else "")
         )
 
+    dtype_decision = LocalDTypeSelector().select(runtime, dtype)
     backend = DiffusersLocalBackend(
-        DiffusersExecutionConfig(output_dir=generation_dir, dtype=dtype),
+        DiffusersExecutionConfig(output_dir=generation_dir, dtype=dtype_decision.resolved),
         build_flux2_klein_pipeline_factory(),
     )
     result = backend.generate(request)
@@ -99,6 +105,13 @@ def execute_request(
         "native_height": request.height,
         "width": normalized.provenance.width,
         "height": normalized.provenance.height,
+        "requested_dtype": dtype_decision.requested,
+        "resolved_dtype": dtype_decision.resolved,
+        "dtype_reason": dtype_decision.reason,
+        "gpu_name": runtime.gpu_name,
+        "gpu_vram_gb": runtime.gpu_vram_gb,
+        "bf16_supported": runtime.metadata.get("bf16_supported"),
+        "compute_capability": runtime.metadata.get("compute_capability"),
         "cost_mode": "$0-local",
     }
 
@@ -108,7 +121,7 @@ def main() -> int:
     parser.add_argument("--request", required=True, help="Versioned PUL7SAR local-generation handoff JSON")
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
-    parser.add_argument("--dtype", choices=("float16", "bfloat16", "float32"), default="bfloat16")
+    parser.add_argument("--dtype", choices=("auto", "float16", "bfloat16", "float32"), default="auto")
     parser.add_argument(
         "--result",
         help="Optional JSON result path. Batch execution should prefer this over parsing stdout.",
