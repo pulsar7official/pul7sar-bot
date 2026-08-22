@@ -43,12 +43,14 @@ class LocalBackendExecutionTests(unittest.TestCase):
             reference_asset_ids=("identity-ref-1",),
         )
 
-    def test_compile_preserves_zero_cost_and_seed(self):
+    def test_compile_preserves_zero_cost_seed_and_canvas_contract(self):
         request = self.request()
         self.assertEqual(request.seed, 7007)
         self.assertEqual(request.metadata["cost_mode"], "$0-local")
-        self.assertEqual(request.width, 1080)
-        self.assertEqual(request.height, 1920)
+        self.assertEqual((request.width, request.height), (1088, 1920))
+        self.assertEqual((request.metadata["target_width"], request.metadata["target_height"]), (1080, 1920))
+        self.assertEqual(request.metadata["generation_alignment"], 16)
+        self.assertTrue(request.metadata["canvas_normalization_required"])
 
     def test_portable_handoff_can_be_compiled_without_local_gpu_readiness(self):
         request = LocalBackendRequestCompiler().compile_portable_handoff(
@@ -61,6 +63,8 @@ class LocalBackendExecutionTests(unittest.TestCase):
         self.assertEqual(request.seed, 7008)
         self.assertTrue(request.metadata["portable_handoff"])
         self.assertEqual(request.metadata["cost_mode"], "$0-local")
+        self.assertEqual(request.width % 16, 0)
+        self.assertEqual(request.height % 16, 0)
 
     def test_execution_local_request_is_not_marked_portable(self):
         request = self.request()
