@@ -1,8 +1,9 @@
 """Concrete optional FLUX.2 [klein] 4B Diffusers runtime wrapper.
 
-The module imports torch/diffusers only when a real runtime factory is invoked.
-It follows the official Flux2KleinPipeline inference shape while preserving the
-provider-neutral DiffusersLocalBackend contract used by PUL7SAR.
+The module imports torch/diffusers only when runtime probing or a real pipeline
+factory is invoked. It follows the official Flux2KleinPipeline inference shape
+while preserving the provider-neutral DiffusersLocalBackend contract used by
+PUL7SAR.
 
 No dependency installation, weight download, or network call happens at import.
 """
@@ -10,7 +11,11 @@ No dependency installation, weight download, or network call happens at import.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from importlib import import_module
+from importlib.metadata import PackageNotFoundError, version as package_version
 from typing import Any, Callable
+
+from engine.intelligence.local_backend import LocalBackendKind, LocalBackendSnapshot
 
 
 @dataclass(frozen=True)
@@ -24,6 +29,49 @@ class Flux2KleinInferenceConfig:
             raise ValueError("guidance_scale must be positive")
         if self.num_inference_steps <= 0:
             raise ValueError("num_inference_steps must be positive")
+
+
+class Flux2KleinDiffusersProbe:
+    """Prove that the installed Diffusers build exposes Flux2KleinPipeline.
+
+    Generic `diffusers` presence is insufficient: an older build can import
+    successfully yet still be unable to execute the approved FLUX.2 klein model.
+    This probe performs no model download and no network call.
+    """
+
+    def probe(self) -> LocalBackendSnapshot:
+        details: list[str] = ["flux2-klein-preflight"]
+        try:
+            import_module("torch")
+        except (ImportError, ModuleNotFoundError):
+            return LocalBackendSnapshot(
+                LocalBackendKind.DIFFUSERS,
+                False,
+                version=None,
+                details=tuple(details + ["torch-missing"]),
+            )
+        try:
+            diffusers = import_module("diffusers")
+        except (ImportError, ModuleNotFoundError):
+            return LocalBackendSnapshot(
+                LocalBackendKind.DIFFUSERS,
+                False,
+                version=None,
+                details=tuple(details + ["diffusers-missing"]),
+            )
+
+        supported = getattr(diffusers, "Flux2KleinPipeline", None) is not None
+        try:
+            diffusers_version = package_version("diffusers")
+        except PackageNotFoundError:
+            diffusers_version = getattr(diffusers, "__version__", None)
+        details.append("Flux2KleinPipeline-present" if supported else "Flux2KleinPipeline-missing")
+        return LocalBackendSnapshot(
+            LocalBackendKind.DIFFUSERS,
+            supported,
+            version=diffusers_version,
+            details=tuple(details),
+        )
 
 
 class Flux2KleinPipelineWrapper:
