@@ -2,9 +2,11 @@
 
 from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, AssetTreatment
 from engine.intelligence.batch_scene import MultiPlatformSceneCompiler, PlatformScenePackage
+from engine.intelligence.brand_semantics import BrandPlacementPlan, BrandPlacementPlanner
 from engine.intelligence.classification import EntityCandidate, EntityKind, StoryClassification, StoryClassifier, StoryScope, StoryType
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
 from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestCompiler
+from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
@@ -18,6 +20,7 @@ from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment,
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
+from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
 
