@@ -1,9 +1,9 @@
-# PUL7SAR Phase 18 — Change Set 050: CUDA-Aware Dtype Selection
+# PUL7SAR Phase 18 — Change Set 050: CUDA-Aware Golden Dtype Verification
 
 ## Purpose
-Make the first real `$0-local` FLUX.2 GPU proof portable across heterogeneous free/self-hosted CUDA runtimes without assuming that every GPU with enough VRAM supports native `bfloat16`.
+Make the first real `$0-local` FLUX.2 GPU proof truthful across heterogeneous free/self-hosted CUDA runtimes without assuming that every GPU with enough VRAM supports the documented `bfloat16` reference path.
 
-This change does not alter the approved model, the generation prompt, the four Golden Visual seeds, the platform dimensions, or the `$0-local` cost policy.
+This change does not alter the approved model, generation prompt, four Golden Visual seeds, platform dimensions, or `$0-local` cost policy.
 
 ## Modified / added files
 - `engine/intelligence/local_runtime.py`
@@ -16,6 +16,7 @@ This change does not alter the approved model, the generation prompt, the four G
 - `docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md`
 - `tests/test_phase18_local_dtype.py`
 - `tests/test_phase18_local_readiness_command.py`
+- `tests/test_phase18_flux2_batch_execute.py`
 - `tests/test_phase18_colab_notebook.py`
 
 ## Runtime probe changes
@@ -26,26 +27,25 @@ This change does not alter the approved model, the generation prompt, the four G
 
 Failure to retrieve those optional fields does not invent a capability. The value remains unknown.
 
-## New dtype policy
-`LocalDTypeSelector` resolves the requested execution dtype.
+## Final dtype policy
+During implementation an FP16 fallback was considered for broader notebook compatibility. Before the first real benchmark, the official FLUX.2 Klein 4B Diffusers reference path was rechecked and its documented configuration uses `torch.bfloat16`. Because PUL7SAR's requirement is quality first, the Golden Visual path was tightened before any PNG was generated.
 
-Supported requests:
+The final `LocalDTypeSelector` supports only:
 - `auto`
-- `float16`
 - `bfloat16`
-- `float32`
 
-`auto` is now the default real-execution policy:
+For the Golden Visual benchmark:
 
-1. If native BF16 support is explicitly proven, resolve to `bfloat16`.
-2. If BF16 is false or cannot be proven, resolve conservatively to `float16`.
-3. If a caller explicitly requests `bfloat16` and support is not proven, fail closed.
-4. Explicit `float32` remains possible but is never selected automatically because of its higher memory pressure.
+1. `auto` means native BF16 support must be explicitly proven.
+2. If BF16 support is true, resolve to `bfloat16`.
+3. If BF16 support is false or unknown, fail closed.
+4. Explicit `bfloat16` also fails unless support is proven.
+5. `float16` and `float32` are not accepted by the Golden executor merely to widen hardware compatibility.
 
-The policy only resolves dtype after the normal CUDA/VRAM/model-specific readiness gate passes.
+This avoids creating the first quality baseline under a precision mode that has not been accepted as the PUL7SAR reference configuration.
 
 ## Executor changes
-`phase18_flux2_execute.py` now accepts `--dtype auto` and defaults to it. The resulting machine-readable report records:
+`phase18_flux2_execute.py` defaults to `--dtype auto`, but `auto` is a proof policy rather than a fallback policy. The resulting machine-readable report records:
 
 - requested dtype
 - resolved dtype
@@ -55,10 +55,15 @@ The policy only resolves dtype after the normal CUDA/VRAM/model-specific readine
 - BF16 support
 - compute capability
 
-The batch executor propagates the same fields into each candidate report so all four Golden candidates can be proven to have used the intended precision/runtime context.
+The batch executor additionally rejects any candidate result whose resolved dtype is not `bfloat16`.
 
 ## Readiness changes
-`phase18_local_readiness.py` now emits a `recommended_dtype` section before model execution. When generation is ready, this predicts the same `auto` decision used by the real executor. When generation is not ready, it leaves the resolved dtype empty rather than pretending a usable GPU path exists.
+`phase18_local_readiness.py` distinguishes:
+
+- generic model/backend generation readiness; and
+- `golden_generation_ready` for the documented BF16 benchmark path.
+
+A machine may therefore have CUDA, enough VRAM and `Flux2KleinPipeline`, yet still be rejected for the Golden proof when native BF16 support is not proven.
 
 The readiness command still:
 - installs nothing;
@@ -67,20 +72,18 @@ The readiness command still:
 - requires `Flux2KleinPipeline` to exist in the installed Diffusers build.
 
 ## Colab changes
-The Golden Visual Colab notebook now invokes both the first-candidate smoke proof and the optional full batch with `--dtype auto`. After candidate 1 is generated, it displays the actual GPU name, VRAM, BF16 capability and resolved dtype before displaying the PNG.
+The Golden Visual Colab notebook uses `--dtype auto` for candidate 1 and the optional full batch. It explicitly states that `auto` does not authorize a precision downgrade. After candidate 1, it asserts that the resolved dtype is `bfloat16` before displaying the PNG.
 
-This is especially important for zero-cost notebook runtimes because GPU models are not assumed to be homogeneous.
+This means some free notebook GPU assignments may be rejected. That is intentional: the project does not lower the benchmark simply because a free runtime happens to expose weaker hardware.
 
 ## Quality impact
-This is a runtime compatibility/reliability change, not a quality downgrade. It does not lower:
+This is a quality-preservation change. It does not lower:
 
 - the strict Golden Visual weighted floor of `8.5/10`;
 - the core visual floor of `8.0/10`;
 - the `9.0+` elite target;
 - semantic publication gates;
 - identity or neutrality constraints.
-
-If a runtime cannot satisfy the approved model's CUDA/VRAM requirements, generation still stops. Dtype fallback does not bypass the model readiness gate.
 
 ## Production isolation
 - `main.py`: untouched.
@@ -91,4 +94,4 @@ If a runtime cannot satisfy the approved model's CUDA/VRAM requirements, generat
 - GitHub CPU CI still does not claim a PNG was generated.
 
 ## Next execution milestone
-The remaining external milestone is unchanged: run the verified Golden batch on a compatible CUDA runtime. Candidate 1 should be executed first with `--limit 1 --dtype auto`; only after it produces a genuine PNG should the remaining seeds be executed and visually compared.
+Run candidate 1 on a compatible CUDA runtime with `--limit 1 --dtype auto`. The readiness stage must report `golden_generation_ready: true`, and the generated candidate must report `resolved_dtype: bfloat16`. Only then should the first PNG be treated as a valid Golden benchmark candidate and visually reviewed.
