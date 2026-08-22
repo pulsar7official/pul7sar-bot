@@ -101,6 +101,12 @@ def execute_batch(
                 "png": payload["png"],
                 "metadata": payload["metadata"],
                 "native_png": payload["native_png"],
+                "requested_dtype": payload.get("requested_dtype", dtype),
+                "resolved_dtype": payload.get("resolved_dtype"),
+                "gpu_name": payload.get("gpu_name"),
+                "gpu_vram_gb": payload.get("gpu_vram_gb"),
+                "bf16_supported": payload.get("bf16_supported"),
+                "compute_capability": payload.get("compute_capability"),
             })
 
     return results
@@ -111,7 +117,7 @@ def main() -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
-    parser.add_argument("--dtype", choices=("float16", "bfloat16", "float32"), default="bfloat16")
+    parser.add_argument("--dtype", choices=("auto", "float16", "bfloat16", "float32"), default="auto")
     parser.add_argument("--limit", type=int, help="Execute only the first N locked candidates; use 1 for GPU smoke proof")
     parser.add_argument("--result", default="output/phase18_visual_proof/batch-execution.json")
     args = parser.parse_args()
@@ -131,6 +137,7 @@ def main() -> int:
         "candidate_count": len(results),
         "execution_scope": "partial" if args.limit is not None else "full",
         "requested_limit": args.limit,
+        "requested_dtype": args.dtype,
         "candidates": results,
     }
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
