@@ -6,8 +6,8 @@ Usage from repository root:
 The command installs nothing, downloads nothing, and calls no paid API. For the
 approved FLUX.2 klein candidate it proves that the installed Diffusers build
 actually exposes Flux2KleinPipeline, not merely that `diffusers` can import.
-When generation readiness is proven it also reports the CUDA-aware dtype that the
-real executor will resolve from `--dtype auto`.
+It separately reports whether the runtime is ready for the quality-locked Golden
+Visual BF16 path; a CUDA/VRAM-capable GPU is not promoted if BF16 is unproven.
 """
 from __future__ import annotations
 
@@ -43,24 +43,32 @@ def main() -> int:
         "bf16_supported": runtime.metadata.get("bf16_supported"),
         "compute_capability": runtime.metadata.get("compute_capability"),
     }
+    golden_generation_ready = False
     if bundle.generation_ready:
-        decision = LocalDTypeSelector().select(runtime, "auto")
-        dtype_report.update({
-            "resolved": decision.resolved,
-            "reason": decision.reason,
-        })
+        try:
+            decision = LocalDTypeSelector().select(runtime, "auto")
+        except ValueError as exc:
+            dtype_report["reason"] = str(exc)
+        else:
+            dtype_report.update({
+                "resolved": decision.resolved,
+                "reason": decision.reason,
+            })
+            golden_generation_ready = True
     report["recommended_dtype"] = dtype_report
+    report["golden_generation_ready"] = golden_generation_ready
     report["command_policy"] = {
         "installs_dependencies": False,
         "downloads_model_weights": False,
         "uses_paid_api": False,
         "backend_probe": LocalBackendKind.DIFFUSERS.value,
         "required_pipeline": "Flux2KleinPipeline",
+        "quality_locked_dtype": "bfloat16",
         "backend_details": list(backend.details),
         "backend_version": backend.version,
     }
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
-    return 0 if bundle.generation_ready else 2
+    return 0 if golden_generation_ready else 2
 
 
 if __name__ == "__main__":
