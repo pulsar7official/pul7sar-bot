@@ -19,6 +19,7 @@ from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatme
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform
 from engine.intelligence.provider_capabilities import ProviderCapabilities, ProviderEligibilityDecision, ProviderEligibilityGate, ProviderFeature, ProviderRequirements
+from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep, ProviderExecutionPlan, ProviderExecutionPlanner
 from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
