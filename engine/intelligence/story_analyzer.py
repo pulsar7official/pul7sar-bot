@@ -55,7 +55,9 @@ class StoryAnalyzer:
         if overrides:
             data.update(dict(overrides))
 
-        headline = self._required_text(data.get("headline", data.get("title")), "headline")
+        headline = self._required_text(
+            data.get("headline", data.get("title")), "headline"
+        )
         summary = data.get("summary", data.get("description", ""))
         if summary is None:
             summary = ""
@@ -77,9 +79,12 @@ class StoryAnalyzer:
                     "secondary_entities must contain non-empty strings"
                 )
 
-        metadata = dict(data.get("metadata", {}) or {})
-        if not isinstance(metadata, dict):
+        raw_metadata = data.get("metadata", {})
+        if raw_metadata is None:
+            raw_metadata = {}
+        if not isinstance(raw_metadata, Mapping):
             raise StoryAnalysisError("metadata must be a mapping")
+        metadata = dict(raw_metadata)
 
         # Preserve useful source tracing without interpreting it as a fact.
         for source_key in ("link", "source", "published"):
