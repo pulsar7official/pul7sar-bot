@@ -3,7 +3,7 @@ import unittest
 from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, AssetTreatment
 from engine.intelligence.generation_package import GenerationPackageCompiler
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutRequirements
-from engine.intelligence.models import Sentiment, VisualIntent
+from engine.intelligence.models import Sentiment
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 
@@ -14,8 +14,8 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         self.layout_planner = DeterministicLayoutPlanner()
         self.compiler = GenerationPackageCompiler()
         self.assets = AssetBundle((
-            AssetReference("pul7sar-wordmark", AssetRole.BRAND_WORDMARK, AssetTreatment.EXACT),
-            AssetReference("pul7sar-pulse", AssetRole.BRAND_ACCENT, AssetTreatment.TINTABLE_ACCENT),
+            AssetReference("pul7sar-wordmark", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT),
+            AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT),
         ))
 
     def _spec(self, platform):
