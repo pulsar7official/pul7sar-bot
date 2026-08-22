@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Protocol
 
-from engine.intelligence.local_runtime import LocalRuntimeSnapshot, LocalModelRuntimeGate
-from engine.intelligence.zero_cost_models import ZeroCostModelProfile
+from engine.intelligence.local_runtime import LocalModelRuntimeGate, RuntimeHardwareSnapshot
+from engine.intelligence.zero_cost_models import LocalModelCandidate
 
 
 class LocalBackendKind(str, Enum):
@@ -49,14 +49,14 @@ class LocalBackendReadinessGate:
     def evaluate(
         self,
         *,
-        model: ZeroCostModelProfile,
-        runtime: LocalRuntimeSnapshot,
+        model: LocalModelCandidate,
+        runtime: RuntimeHardwareSnapshot,
         backend: LocalBackendSnapshot,
     ) -> LocalBackendReadiness:
         failures: list[str] = []
         warnings: list[str] = []
         runtime_decision = self._runtime_gate.evaluate(model, runtime)
-        if not runtime_decision.eligible:
+        if not runtime_decision.compatible:
             failures.extend(runtime_decision.reasons)
         if not backend.available:
             failures.append(f"local backend is unavailable: {backend.kind.value}")
