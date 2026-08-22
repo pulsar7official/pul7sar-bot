@@ -10,6 +10,8 @@ class LocalReadinessCommandTests(unittest.TestCase):
         self.assertIn('"installs_dependencies": False', text)
         self.assertIn('"downloads_model_weights": False', text)
         self.assertIn('"uses_paid_api": False', text)
+        self.assertIn('"required_pipeline": "Flux2KleinPipeline"', text)
+        self.assertIn("Flux2KleinDiffusersProbe", text)
         self.assertNotIn("subprocess", text)
         self.assertNotIn("pip install", text)
 
