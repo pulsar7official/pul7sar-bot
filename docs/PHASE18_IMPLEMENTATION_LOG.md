@@ -30,58 +30,63 @@ Previously documented foundation: Fact Lock, StoryAnalyzer, identity verificatio
 - CI `32578343142`: SUCCESS.
 
 ## Change Set 015 — Provider capability and eligibility layer
-
-### Added
-- `engine/intelligence/provider_capabilities.py`
-  - Models text-to-image, reference images, identity reference, multiple references, transparent PNG input, exact asset compositing, negative instructions, deterministic seed and post-compositing.
-  - Validates maximum resolution, supported aspect ratios and maximum reference-image count.
-  - `ProviderEligibilityGate` rejects any provider that cannot satisfy explicit package requirements.
-
-- `engine/intelligence/provider_selection.py`
-  - Adds explicit ordered fallback selection.
-  - Never ranks providers silently by price, popularity or vendor name.
-  - If no provider qualifies, selection remains empty rather than degrading the visual contract.
-
-- `tests/test_phase18_provider_eligibility.py`
-  - Covers feature, resolution, aspect ratio, reference count, explicit fallback, no-provider and duplicate-ID behavior.
-
-### Validation
+- Models provider features, output limits and reference limits.
+- Explicit eligibility and ordered fallback policy.
 - CI `32579225091`: SUCCESS.
 
 ## Change Set 016 — Provider-neutral execution plan
+- AI provider generates only the base scene.
+- Official logos, crests, social icons, score typography and final copy are applied later by PUL7SAR.
+- Strict stages: generate -> exact assets -> editorial text -> quality -> export.
+- CI `32579444426`: SUCCESS.
 
-### Core architectural decision
-The image model is responsible for the **original photographic/editorial base scene**, not for reproducing PUL7SAR branding, official team crests, social icons, score typography or final headline text.
+## Change Set 017 — Deterministic post-generation composition + quality gate
 
-Those official/deterministic elements are applied **after** scene generation by the PUL7SAR composition layer. This avoids asking an image model to reproduce assets it is structurally bad at reproducing exactly.
+### Core production rule
+Official brand assets and final editorial typography are deterministic post-generation elements. The image model never becomes the source of truth for PUL7SAR branding, team crests, score text, or platform footer content.
 
 ### Added
-- `engine/intelligence/provider_execution.py`
-  - Adds `ExecutionStage`, `ExecutionStep`, `ProviderExecutionPlan`, and `ProviderExecutionPlanner`.
-  - Produces strict stages:
-    1. `GENERATE_BASE_SCENE`
-    2. `APPLY_EXACT_ASSETS`
-    3. `APPLY_EDITORIAL_TEXT`
-    4. `QUALITY_VERIFY`
-    5. `EXPORT`
-  - Sends verified identity-reference assets to the image provider only when required.
-  - Keeps PUL7SAR logo, PUL7SAR 7/pulse, team crests, competition marks and social icons out of provider generation and reserves them for deterministic post-compositing.
-  - Derives provider requirements from actual generation-stage needs.
-  - Negative constraints require provider negative-instruction support.
-  - Multiple identity references require multiple-reference support.
-  - Exact-asset compositing and transparent-PNG support are intentionally **not** required from the image provider when those assets are post-composited by PUL7SAR.
-  - Refuses to compile an execution plan when provider selection found no eligible provider.
+- `engine/intelligence/post_composition.py`
+  - Adds `CompositionRole`, `CompositionElement`, `PostCompositionPlan`, `PostCompositionPlanner`, `AssetIntegrityRecord`, `CompositionQualityDecision`, and `PostCompositionQualityGate`.
+  - Maps approved exact assets to deterministic layout roles.
+  - PUL7SAR wordmark/logo remains untinted.
+  - Team/club crests remain untinted.
+  - Only a PUL7SAR pulse/7 asset explicitly marked `TINTABLE_ACCENT` may receive the package accent color.
+  - Headline, score and destination handle are rendered outside the image model and require corresponding approved layout boxes.
+  - Optional assets are skipped when their role is not present in the approved story layout rather than being forced into the visual.
 
-- `tests/test_phase18_provider_execution.py`
-  - Verifies exact official assets never become generated references.
-  - Verifies identity reference is passed to the provider stage.
-  - Verifies provider capability requirements do not unnecessarily include exact-asset compositing or transparent PNG handling.
-  - Verifies negative-constraint capability, multiple references and strict stage ordering.
-  - Verifies no eligible provider blocks execution planning.
+### Asset integrity
+- `AssetIntegrityRecord` adds a strict SHA-256 contract.
+- If an asset declares an expected `metadata.sha256`, the quality gate requires a matching runtime integrity record before export.
+- Missing or mismatched checksums fail closed.
+- Duplicate integrity records are rejected by the quality gate.
+
+### Quality gate
+The post-composition quality gate rejects:
+- platform mismatch
+- canvas mismatch
+- missing approved layout boxes
+- unknown asset IDs
+- missing required asset integrity evidence
+- checksum mismatches
+- missing or duplicated PUL7SAR logo placement
+- tinted PUL7SAR wordmark/logo
+- tinted team/club crest
+
+### Added tests
+- `tests/test_phase18_post_composition.py`
+  - exact assets and text are planned outside the image model
+  - only the pulse/7 receives entity accent
+  - missing text geometry fails closed
+  - valid SHA-256 evidence passes
+  - checksum mismatch fails closed
+  - wordmark tint is rejected
+  - team crest tint is rejected
+  - platform/canvas mismatch fails
 
 ### Modified
 - `engine/intelligence/__init__.py`
-  - Exports provider execution-planning APIs.
+  - Exports post-composition and integrity APIs.
 
 ### Production safety
 - `main.py`: untouched.
@@ -89,14 +94,14 @@ Those official/deterministic elements are applied **after** scene generation by 
 - Legacy image sourcing/rendering: untouched.
 - Production renderer/templates: untouched.
 - No external image provider invoked.
-- No secret/API key added.
+- No production secret/API key added.
 
-### Architecture after Change Set 016
-`Article -> Story Intelligence -> Fact/Identity/Sentiment/Neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Exact Destination Assets -> Deterministic Layout -> Generation Package -> Provider Eligibility/Selection -> Provider Execution Plan -> AI Base Scene -> Deterministic Asset/Text Composition -> Quality Verification -> Platform Export`
+### Architecture after Change Set 017
+`Article -> Story Intelligence -> factual / identity / sentiment / neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Destination Assets -> Deterministic Layout -> Generation Package -> Provider Eligibility -> Execution Plan -> AI Base Scene -> PostCompositionPlanner -> Asset Integrity + PostCompositionQualityGate -> platform export`
 
 ### Next planned work
-1. Verify Change Set 016 CI.
-2. Add a renderer/compositor contract for applying exact assets into deterministic layout boxes.
-3. Add text-rendering contracts for headline, score and compact destination footer outside the image model.
-4. Add post-composition quality-verification contracts for asset checksum/identity, geometry, legibility and safe-area compliance.
-5. Only after these deterministic post-generation stages are stable should a real image provider adapter be connected.
+1. Verify Change Set 017 CI.
+2. Add explicit deterministic text-style contracts for headline, score and footer: font-family reference, size bounds, weight, line count and overflow policy.
+3. Add composition-output contract and final export gate.
+4. Add visual-quality evidence contract for generated base scene before post-composition.
+5. After those gates are green, evaluate the first real provider adapter behind the existing authorization and eligibility layers.
