@@ -5,180 +5,115 @@ This document is the authoritative implementation journal for Phase 18 on the
 and what remains intentionally untouched.
 
 ## Change Set 001 — Branch creation
-
 - Branch: `phase18/story-intelligence`
 - Base: `main`
 - Production behavior changed: **No**
-- Files changed: **None**
-- Purpose: isolate Phase 18 work from the production branch.
 
 ## Change Set 002 — Story-intelligence contracts + Fact Lock foundation
-
-### Added
-- `engine/intelligence/__init__.py`: package boundary.
-- `engine/intelligence/models.py`: immutable story, claim, identity, sentiment and visual-intent contracts.
-- `engine/intelligence/fact_lock.py`: deterministic factual-safety gate.
-- `tests/test_story_intelligence_models.py`: contract and Fact Lock regression tests.
-
-### Safety
-- No production file modified.
-- `main.py`, Telegram, legacy rendering, templates and `USE_VISUAL_ENGINE` untouched.
+- Added immutable story/identity/claim/visual-intent models.
+- Added deterministic Fact Lock.
+- Added regression tests.
+- Production untouched.
 
 ## Change Set 003 — StoryAnalyzer + evidence-based identity gate
+- Added deterministic StoryAnalyzer.
+- Added IdentityEvidence / IdentityRequirements / IdentityVerifier.
+- Added Charlie Hull and Sam Hickey identity regression protection.
+- Added isolated Phase 18 CI.
+- CI `32574409083`: SUCCESS.
 
-### Added
-- `engine/intelligence/story_analyzer.py`: deterministic article-to-StoryBrief adapter.
-- `engine/intelligence/identity.py`: evidence/requirements/verifier split for real-person identity.
-- `tests/test_phase18_identity_verifier.py`: Charlie Hull and Sam Hickey regression protection.
-- `tests/test_phase18_story_analyzer.py`: transfer-state, general-story and sentiment-signal tests.
-- `.github/workflows/phase18-intelligence.yml`: isolated read-only Phase 18 CI.
-
-### Validation
-- Draft PR #1 opened and kept unmerged.
-- CI run `32574409083`: SUCCESS.
-
-## Change Set 004 — Story classification, result neutrality and Visual Family routing
-
-### Editorial principle
-PUL7SAR may celebrate a winner but must not humiliate the losing side. The loser
-may be absent, respectfully represented, or shown with realistic disappointment.
-Mockery, degrading symbolism, domination symbolism, exaggerated shame and
-humiliating treatment are rejected.
-
-### Added
-- `engine/intelligence/classification.py`
-- `engine/intelligence/neutrality.py`
-- `engine/intelligence/visual_router.py`
-- `tests/test_phase18_classification_router.py`
-- `tests/test_phase18_neutrality.py`
-
-### Validation
-- CI run `32575035862`: SUCCESS.
+## Change Set 004 — Classification, neutrality and Visual Family routing
+- Added StoryClassifier and stable story scopes/types.
+- Added EditorialNeutralityGate.
+- Added VisualFamilyRouter.
+- Result principle: celebrate the winner without humiliating the losing side.
+- CI `32575035862`: SUCCESS.
 
 ## Change Set 005 — Perspective-aware results + Concept Director
-
-### Added
-
-- `engine/intelligence/perspective.py`
-  - Separates the emotional perspective of winner, loser and PUL7SAR editorial voice.
-  - Enforces `NEUTRAL` as the editorial result perspective.
-  - Prevents a winner's positive sentiment from becoming a platform-level bias.
-
-- `engine/intelligence/concept_director.py`
-  - Adds `ConceptBrief`, `ProposedConcept`, `ConceptConstraint` and `ConceptDirector`.
-  - Introduces family-specific forbidden-concept constraints.
-  - Result concepts inherit anti-humiliation, anti-mockery, anti-degrading-symbolism and anti-exaggerated-shame rules.
-  - Transfer concepts inherit `NO_UNVERIFIED_SIGNING`.
-  - Matchday concepts inherit `NO_INVENTED_RESULT`.
-  - Player stories inherit `NO_UNVERIFIED_IDENTITY`.
-  - Serious news inherits `NO_SENSATIONAL_HARM`.
-  - A concept cannot bypass `EditorialNeutralityGate` merely by claiming compliance.
-
-- `tests/test_phase18_perspective_concept.py`
-  - Verifies separate winner/loser/editorial sentiments.
-  - Verifies editorial neutrality cannot be changed to positive/negative.
-  - Verifies result constraints are mandatory.
-  - Verifies humiliating concepts remain blocked even if they claim to acknowledge constraints.
-
-### Modified
-- `engine/intelligence/__init__.py`: exports perspective and concept APIs.
-- `.github/workflows/phase18-intelligence.yml`: includes new tests.
-
-### Validation
-- CI run `32575594345`: SUCCESS.
-- Syntax, tests and production-isolation gate passed.
+- Winner, loser and PUL7SAR editorial emotion are modeled separately.
+- PUL7SAR result perspective is forced to NEUTRAL.
+- Concept Director adds anti-humiliation, anti-mockery, factual and identity constraints.
+- CI `32575594345`: SUCCESS.
 
 ## Change Set 006 — Sentiment evidence + conservative resolver
+- Providers produce SentimentEvidence, not final authority.
+- Missing, weak or conflicting evidence falls back to NEUTRAL.
+- CI changed to automatically discover Phase 18 tests.
+
+## Change Set 007 — Generation Authorization + provider boundary
+- Added GenerationAuthorizer.
+- Added AuthorizedSceneGenerator and OriginalSceneProvider protocol.
+- Denied factual/identity/sentiment/neutrality/concept states cannot call a provider.
+- No external image API selected or invoked.
+- CI `32576136095`: SUCCESS.
+
+## Change Set 008 — Platform-aware Original Scene Specification
+
+### Important production rule
+A single PUL7SAR visual is not assumed to fit every platform. Each publishing
+surface receives its own output profile and safe area. The scene is therefore
+art-directed for the target canvas rather than blindly resized or center-cropped.
 
 ### Added
 
-- `engine/intelligence/sentiment.py`
-  - Adds `SentimentProvider` protocol for future rules/LLM providers.
-  - Adds `SentimentEvidence`, which requires a source and confidence.
-  - Adds `SentimentResolver` as the stable authority over provider suggestions.
-  - No evidence -> `NEUTRAL`.
-  - Low-confidence evidence -> `NEUTRAL`.
-  - Strong conflicting evidence -> `NEUTRAL` with `conflicted=True`.
-  - A provider suggestion is evidence, not authority over editorial tone.
+- `engine/intelligence/platform_profiles.py`
+  - Adds `SocialPlatform`, `SafeArea`, `PlatformImageProfile`, and `PlatformProfileRegistry`.
+  - Centralizes versioned PUL7SAR output presets so dimensions can be updated without changing story intelligence.
+  - Current PUL7SAR presets:
+    - Instagram Feed: `1080x1350` (4:5)
+    - Instagram Story/Reel vertical surface: `1080x1920` (9:16)
+    - Facebook Feed: `1200x1500` (4:5)
+    - X Feed: `1600x900` (16:9)
+    - Threads Feed: `1080x1350` (4:5)
+    - TikTok Photo: `1080x1920` (9:16)
+    - Telegram Post: `1280x720` (16:9)
+  - Every profile carries a platform-specific safe area for critical faces, logos, score, headline and social footer.
+  - Profiles are explicitly documented as PUL7SAR production presets, not permanent platform limits.
 
-- `tests/test_phase18_sentiment.py`
-  - Covers no evidence, low confidence, strong positive, high-confidence conflict, and source validation.
+- `engine/intelligence/scene_spec.py`
+  - Adds `OriginalSceneSpecification`, `SceneIdentityReference`, and `SceneSpecCompiler`.
+  - Compiles an approved concept into a provider-neutral dry-run scene package.
+  - Carries exact target width, height, aspect ratio and safe area.
+  - Carries visual family, concept, hero subject, verified identity details, environment, composition, camera direction, emotional mood, palette strategy, required assets, visual copy, factual constraints and forbidden visual elements.
+  - Unverified or partial real-person identity cannot enter the scene specification.
+  - Factual constraints are copied only from locked FACT claims.
+  - The specification remains `dry_run=True`; no external provider call happens here.
+
+- `tests/test_phase18_platform_scene_spec.py`
+  - Verifies each supported platform has a profile.
+  - Verifies Instagram Story and TikTok vertical output behavior.
+  - Verifies X and Telegram landscape behavior.
+  - Verifies platform dimensions/safe areas reach the scene specification.
+  - Verifies Sam Hickey-style verified identity metadata reaches the scene package.
+  - Verifies unverified identity is blocked before scene compilation.
 
 ### Modified
-- `engine/intelligence/__init__.py`: exports sentiment APIs.
-- `.github/workflows/phase18-intelligence.yml`: switched to discovery for all `test_phase18_*.py` tests so later Phase 18 tests are included automatically.
+- `engine/intelligence/__init__.py`
+  - Exports platform-profile and scene-specification APIs.
 
 ### Deleted
 - Nothing.
 
-### Production safety
-- No production integration.
-- No model/API provider wired.
-- No image generation wired.
-
-## Change Set 007 — Generation Authorization + original-scene provider boundary
-
-### Purpose
-Create the final mandatory safety boundary before any future original image provider can be invoked.
-
-### Added
-
-- `engine/intelligence/generation_authorization.py`
-  - Adds `GenerationAuthorizer`.
-  - Aggregates Fact Lock, identity requirements, sentiment conflict state and Concept Director validation.
-  - Produces an explicit `GenerationAuthorization` allow/deny decision.
-  - Denied decisions never contain an authorization token.
-  - Allowed decisions require the internal Phase 18 authorization token.
-  - If identity is required, generation is denied unless status is `VERIFIED` and `depiction_allowed=True`.
-  - High-confidence sentiment conflict blocks generation rather than guessing a mood.
-  - Forbidden factual claims block generation.
-  - Neutrality/concept failures block generation.
-
-- `engine/intelligence/generation_provider.py`
-  - Adds `OriginalSceneProvider` protocol without choosing a vendor.
-  - Adds `OriginalSceneRequest` and `OriginalSceneResult` contracts.
-  - Adds `AuthorizedSceneGenerator`, the wrapper that validates authorization before calling a provider.
-  - A denied authorization prevents provider invocation entirely.
-  - This makes Generation Authorization an architectural requirement instead of a coding convention.
-
-- `tests/test_phase18_generation_authorization.py`
-  - Safe result can be authorized.
-  - Forbidden claim blocks generation.
-  - Missing or partial identity blocks generation when required.
-  - Verified identity passes the identity gate.
-  - Conflicted sentiment blocks generation.
-  - Humiliating concept blocks generation.
-
-- `tests/test_phase18_generation_provider.py`
-  - Valid authorization permits provider invocation.
-  - Denied authorization prevents the provider from being called at all.
-  - Invalid output dimensions are rejected before provider execution.
-
-### Modified
-- `engine/intelligence/__init__.py`: exports generation authorization/provider contracts.
-
-### Deleted
-- Nothing.
+### External platform note
+X currently documents that a single photo with a standard aspect ratio between
+2:1 and 3:4 can display in full in a post. The chosen PUL7SAR X preset (16:9)
+is inside that documented range. Other platform presets remain internal,
+versioned PUL7SAR art-direction defaults and should be periodically reviewed.
 
 ### Production safety
 - `main.py`: untouched.
 - Telegram publishing: untouched.
-- `USE_VISUAL_ENGINE`: untouched.
 - Legacy image sourcing/rendering: untouched.
 - Existing renderer/templates: untouched.
-- No external image provider selected or invoked.
-- No secret/API key added.
+- No external image provider invoked.
+- No API key/secret added.
 
-### Architecture after Change Set 007
-
-`Article -> StoryAnalyzer -> Fact Lock -> Classification -> Identity Verification -> Sentiment Evidence/Resolution -> Perspective Separation -> Neutrality Gate -> Visual Family Router -> Concept Director -> Generation Authorizer -> AuthorizedSceneGenerator -> future OriginalSceneProvider -> existing composition/render layer`
-
-The future provider cannot be reached through the intended Phase 18 path unless the request has passed the factual, identity, sentiment, neutrality and concept gates.
+### Architecture after Change Set 008
+`Article -> StoryAnalyzer -> Fact Lock -> Classification -> Identity -> Sentiment/Perspective -> Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Original Scene Specification (dry run) -> future provider adapter -> existing composition/render layer`
 
 ### Next planned work
-
-1. Define the **Original Scene Specification** that translates an authorized concept into provider-neutral scene requirements: subject, environment, camera, mood, palette, exact assets, forbidden elements and output format.
-2. Add a deterministic Prompt/Scene Compiler that never invents facts beyond Fact Lock and ConceptBrief.
-3. Add provider capability abstraction and fallback strategy without choosing a paid provider yet.
-4. Build a dry-run vertical slice that produces a complete generation package without calling any external image API.
-5. Only after that package is inspectable and regression-tested should the first real original-image provider be connected.
+1. Build a provider-neutral Prompt/Generation Package compiler from `OriginalSceneSpecification`.
+2. Add multi-platform batch compilation so one story can produce separate scene packages for all enabled publishing surfaces.
+3. Add crop/safe-zone regression tests to guarantee logo, headline, score and social footer are never placed outside critical safe areas.
+4. Add required exact-asset contracts for PUL7SAR logo/pulse, club crest and social icons.
+5. Only after the dry-run generation package is inspectable should a real original-image provider be connected.
