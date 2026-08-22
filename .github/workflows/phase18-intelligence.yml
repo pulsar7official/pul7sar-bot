@@ -3,9 +3,9 @@ name: Phase 18 Story Intelligence Verification
 on:
   push:
     branches: ['phase18/**']
-    paths: ['engine/intelligence/**', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', '.github/workflows/phase18-intelligence.yml']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', '.github/workflows/phase18-intelligence.yml']
   pull_request:
-    paths: ['engine/intelligence/**', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', '.github/workflows/phase18-intelligence.yml']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', '.github/workflows/phase18-intelligence.yml']
   workflow_dispatch:
 
 permissions:
@@ -20,12 +20,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses:
+          actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Syntax check Phase 18 modules and tests
+      - name: Syntax check Phase 18 modules, tools and tests
         run: |
           python -m py_compile engine/intelligence/*.py
+          python -m py_compile tools/phase18_*.py
           python -m py_compile tests/test_story_intelligence_models.py
           python -m py_compile tests/test_phase18_*.py
       - name: Run Phase 18 intelligence tests
