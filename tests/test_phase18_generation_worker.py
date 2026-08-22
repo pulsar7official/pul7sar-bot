@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-
-import pytest
+import unittest
 
 from engine.intelligence.generation_jobs import (
     GenerationJob,
@@ -106,100 +105,98 @@ class DriftExecutor:
         )
 
 
-def test_job_state_machine_rejects_skipping_lease():
-    with pytest.raises(ValueError, match="invalid generation job transition"):
-        make_job().transition(GenerationJobState.RUNNING, now=NOW)
+class GenerationWorkerTests(unittest.TestCase):
+    def test_job_state_machine_rejects_skipping_lease(self):
+        with self.assertRaisesRegex(ValueError, "invalid generation job transition"):
+            make_job().transition(GenerationJobState.RUNNING, now=NOW)
+
+    def test_worker_succeeds_only_with_matching_locked_result_identity(self):
+        store = MemoryStore(make_job())
+        service = GenerationWorkerService(store=store, executor=SuccessExecutor(), capabilities=make_caps())
+
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "succeeded")
+        self.assertIsNotNone(store.job)
+        self.assertIs(store.job.state, GenerationJobState.SUCCEEDED)
+        self.assertEqual(store.job.attempt, 1)
+        self.assertEqual(store.job.result_path, "output/phase18_visual_proof/candidate-01.png")
+
+    def test_result_identity_drift_is_terminal_and_never_requeued(self):
+        store = MemoryStore(make_job())
+        service = GenerationWorkerService(store=store, executor=DriftExecutor(), capabilities=make_caps())
+
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "terminal_failed")
+        self.assertIs(store.job.state, GenerationJobState.TERMINAL_FAILED)
+        self.assertEqual(store.job.failure_code, "result_identity_mismatch")
+
+    def test_retryable_gpu_failure_requeues_without_lowering_attempt_limit(self):
+        store = MemoryStore(make_job(max_attempts=3))
+        service = GenerationWorkerService(store=store, executor=RetryExecutor(), capabilities=make_caps())
+
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "requeued")
+        self.assertIs(store.job.state, GenerationJobState.QUEUED)
+        self.assertEqual(store.job.attempt, 1)
+        self.assertEqual(store.job.max_attempts, 3)
+        self.assertIsNone(store.job.lease_owner)
+
+    def test_retryable_failure_becomes_terminal_on_last_allowed_attempt(self):
+        initial = replace(make_job(max_attempts=2), attempt=1)
+        store = MemoryStore(initial)
+        service = GenerationWorkerService(store=store, executor=RetryExecutor(), capabilities=make_caps())
+
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "terminal_failed")
+        self.assertIs(store.job.state, GenerationJobState.TERMINAL_FAILED)
+        self.assertEqual(store.job.attempt, 2)
+        self.assertEqual(store.job.failure_code, "cuda_oom")
+
+    def test_worker_fails_closed_when_bf16_is_not_proven(self):
+        store = MemoryStore(make_job())
+        service = GenerationWorkerService(
+            store=store,
+            executor=SuccessExecutor(),
+            capabilities=make_caps(bf16_supported=False),
+            require_bf16=True,
+        )
+
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "terminal_failed")
+        self.assertEqual(store.job.failure_code, "worker_capability_mismatch")
+
+    def test_expired_lease_is_rejected_before_executor_runs(self):
+        class ExpiredStore(MemoryStore):
+            def lease_next(self, *, worker, lease_until):
+                job = self.job.transition(
+                    GenerationJobState.LEASED,
+                    now=NOW,
+                    lease_owner=worker.worker_id,
+                    lease_expires_at=NOW - timedelta(seconds=1),
+                )
+                self.job = job
+                return job
+
+        store = ExpiredStore(make_job())
+        service = GenerationWorkerService(store=store, executor=SuccessExecutor(), capabilities=make_caps())
+
+        with self.assertRaisesRegex(ValueError, "lease is already expired"):
+            service.run_once(now=NOW)
+
+    def test_worker_returns_idle_when_queue_has_no_compatible_job(self):
+        store = MemoryStore(None)
+        service = GenerationWorkerService(store=store, executor=SuccessExecutor(), capabilities=make_caps())
+
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "idle")
+        self.assertIsNone(cycle.job_id)
 
 
-def test_worker_succeeds_only_with_matching_locked_result_identity():
-    store = MemoryStore(make_job())
-    service = GenerationWorkerService(store=store, executor=SuccessExecutor(), capabilities=make_caps())
-
-    cycle = service.run_once(now=NOW)
-
-    assert cycle.status == "succeeded"
-    assert store.job is not None
-    assert store.job.state is GenerationJobState.SUCCEEDED
-    assert store.job.attempt == 1
-    assert store.job.result_path == "output/phase18_visual_proof/candidate-01.png"
-
-
-def test_result_identity_drift_is_terminal_and_never_requeued():
-    store = MemoryStore(make_job())
-    service = GenerationWorkerService(store=store, executor=DriftExecutor(), capabilities=make_caps())
-
-    cycle = service.run_once(now=NOW)
-
-    assert cycle.status == "terminal_failed"
-    assert store.job.state is GenerationJobState.TERMINAL_FAILED
-    assert store.job.failure_code == "result_identity_mismatch"
-
-
-def test_retryable_gpu_failure_requeues_without_lowering_attempt_limit():
-    store = MemoryStore(make_job(max_attempts=3))
-    service = GenerationWorkerService(store=store, executor=RetryExecutor(), capabilities=make_caps())
-
-    cycle = service.run_once(now=NOW)
-
-    assert cycle.status == "requeued"
-    assert store.job.state is GenerationJobState.QUEUED
-    assert store.job.attempt == 1
-    assert store.job.max_attempts == 3
-    assert store.job.lease_owner is None
-
-
-def test_retryable_failure_becomes_terminal_on_last_allowed_attempt():
-    initial = replace(make_job(max_attempts=2), attempt=1)
-    store = MemoryStore(initial)
-    service = GenerationWorkerService(store=store, executor=RetryExecutor(), capabilities=make_caps())
-
-    cycle = service.run_once(now=NOW)
-
-    assert cycle.status == "terminal_failed"
-    assert store.job.state is GenerationJobState.TERMINAL_FAILED
-    assert store.job.attempt == 2
-    assert store.job.failure_code == "cuda_oom"
-
-
-def test_worker_fails_closed_when_bf16_is_not_proven():
-    store = MemoryStore(make_job())
-    service = GenerationWorkerService(
-        store=store,
-        executor=SuccessExecutor(),
-        capabilities=make_caps(bf16_supported=False),
-        require_bf16=True,
-    )
-
-    cycle = service.run_once(now=NOW)
-
-    assert cycle.status == "terminal_failed"
-    assert store.job.failure_code == "worker_capability_mismatch"
-
-
-def test_expired_lease_is_rejected_before_executor_runs():
-    class ExpiredStore(MemoryStore):
-        def lease_next(self, *, worker, lease_until):
-            job = self.job.transition(
-                GenerationJobState.LEASED,
-                now=NOW,
-                lease_owner=worker.worker_id,
-                lease_expires_at=NOW - timedelta(seconds=1),
-            )
-            self.job = job
-            return job
-
-    store = ExpiredStore(make_job())
-    service = GenerationWorkerService(store=store, executor=SuccessExecutor(), capabilities=make_caps())
-
-    with pytest.raises(ValueError, match="lease is already expired"):
-        service.run_once(now=NOW)
-
-
-def test_worker_returns_idle_when_queue_has_no_compatible_job():
-    store = MemoryStore(None)
-    service = GenerationWorkerService(store=store, executor=SuccessExecutor(), capabilities=make_caps())
-
-    cycle = service.run_once(now=NOW)
-
-    assert cycle.status == "idle"
-    assert cycle.job_id is None
+if __name__ == "__main__":
+    unittest.main()
