@@ -7,9 +7,9 @@ success it writes a native aligned PNG, normalizes it to the exact platform
 canvas, registers the exact-canvas PNG as the visual proof with provenance, and
 can persist a machine-readable result file that is immune to noisy library logs.
 
-The default dtype is `auto`: PUL7SAR prefers bfloat16 when the CUDA runtime proves
-native support, otherwise it falls back to float16. This keeps free notebook GPU
-execution portable without silently forcing unsupported BF16.
+The Golden Visual dtype is quality-locked to the model's documented bfloat16
+Diffusers path. `auto` means "prove native BF16 and use it"; it does not silently
+change precision when BF16 support is unavailable.
 """
 
 from __future__ import annotations
@@ -121,7 +121,7 @@ def main() -> int:
     parser.add_argument("--request", required=True, help="Versioned PUL7SAR local-generation handoff JSON")
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
-    parser.add_argument("--dtype", choices=("auto", "float16", "bfloat16", "float32"), default="auto")
+    parser.add_argument("--dtype", choices=("auto", "bfloat16"), default="auto")
     parser.add_argument(
         "--result",
         help="Optional JSON result path. Batch execution should prefer this over parsing stdout.",
