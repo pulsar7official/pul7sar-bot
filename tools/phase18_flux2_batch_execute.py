@@ -5,6 +5,10 @@ The command intentionally delegates each candidate to the single-request executo
 so every candidate passes the same integrity, cost, readiness, provenance and
 canvas-normalization path. It never parallelizes GPU inference, avoiding VRAM
 contention and making failures attributable to one deterministic candidate.
+
+Batch control reads each candidate result from a dedicated JSON file rather than
+parsing stdout, because real Diffusers/Transformers runtimes may emit progress or
+informational text while loading model weights.
 """
 
 from __future__ import annotations
@@ -14,6 +18,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 
 def load_manifest(path: str) -> dict[str, object]:
@@ -48,35 +53,43 @@ def execute_batch(
     root = Path(manifest_path).resolve().parent
     results: list[dict[str, object]] = []
 
-    for candidate in manifest["candidates"]:
-        handoff = root / str(candidate["handoff"])
-        if not handoff.is_file():
-            raise FileNotFoundError(f"Golden Visual handoff is missing: {handoff}")
-        command = [
-            python_executable,
-            "tools/phase18_flux2_execute.py",
-            "--request", str(handoff),
-            "--generation-dir", generation_dir,
-            "--proof-dir", proof_dir,
-            "--dtype", dtype,
-        ]
-        completed = runner(command, check=True, text=True, capture_output=True)
-        try:
-            payload = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(f"candidate {candidate['request_id']} returned non-JSON executor output") from exc
-        if payload.get("status") != "REAL_VISUAL_PROOF_GENERATED":
-            raise RuntimeError(f"candidate {candidate['request_id']} did not produce a real visual proof")
-        if int(payload.get("seed", -1)) != int(candidate["seed"]):
-            raise RuntimeError(f"candidate {candidate['request_id']} returned an unexpected seed")
-        results.append({
-            "candidate": candidate["candidate"],
-            "seed": candidate["seed"],
-            "request_id": candidate["request_id"],
-            "png": payload["png"],
-            "metadata": payload["metadata"],
-            "native_png": payload["native_png"],
-        })
+    with tempfile.TemporaryDirectory(prefix="pul7sar-phase18-results-") as temp_results:
+        result_root = Path(temp_results)
+        for candidate in manifest["candidates"]:
+            handoff = root / str(candidate["handoff"])
+            if not handoff.is_file():
+                raise FileNotFoundError(f"Golden Visual handoff is missing: {handoff}")
+            result_file = result_root / f"{candidate['request_id']}.json"
+            command = [
+                python_executable,
+                "tools/phase18_flux2_execute.py",
+                "--request", str(handoff),
+                "--generation-dir", generation_dir,
+                "--proof-dir", proof_dir,
+                "--dtype", dtype,
+                "--result", str(result_file),
+            ]
+            runner(command, check=True, text=True, capture_output=True)
+            if not result_file.is_file():
+                raise RuntimeError(f"candidate {candidate['request_id']} did not write its executor result file")
+            try:
+                payload = json.loads(result_file.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                raise RuntimeError(f"candidate {candidate['request_id']} wrote invalid executor result JSON") from exc
+            if payload.get("status") != "REAL_VISUAL_PROOF_GENERATED":
+                raise RuntimeError(f"candidate {candidate['request_id']} did not produce a real visual proof")
+            if int(payload.get("seed", -1)) != int(candidate["seed"]):
+                raise RuntimeError(f"candidate {candidate['request_id']} returned an unexpected seed")
+            if payload.get("request_id") not in {None, candidate["request_id"]}:
+                raise RuntimeError(f"candidate {candidate['request_id']} returned an unexpected request_id")
+            results.append({
+                "candidate": candidate["candidate"],
+                "seed": candidate["seed"],
+                "request_id": candidate["request_id"],
+                "png": payload["png"],
+                "metadata": payload["metadata"],
+                "native_png": payload["native_png"],
+            })
 
     return results
 
