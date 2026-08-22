@@ -1,6 +1,9 @@
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from engine.intelligence.flux2_klein_diffusers import (
+    Flux2KleinDiffusersProbe,
     Flux2KleinInferenceConfig,
     Flux2KleinPipelineWrapper,
     build_flux2_klein_pipeline_factory,
@@ -43,6 +46,29 @@ class _Pipe:
 
 
 class Flux2KleinDiffusersTests(unittest.TestCase):
+    def test_probe_requires_flux2_klein_pipeline_symbol(self):
+        modules = {
+            "torch": SimpleNamespace(),
+            "diffusers": SimpleNamespace(__version__="test", Flux2KleinPipeline=object()),
+        }
+        with patch("engine.intelligence.flux2_klein_diffusers.import_module", side_effect=lambda name: modules[name]), \
+             patch("engine.intelligence.flux2_klein_diffusers.package_version", return_value="9.9.9"):
+            snapshot = Flux2KleinDiffusersProbe().probe()
+        self.assertTrue(snapshot.available)
+        self.assertEqual(snapshot.version, "9.9.9")
+        self.assertIn("Flux2KleinPipeline-present", snapshot.details)
+
+    def test_probe_rejects_old_diffusers_without_flux2_klein_pipeline(self):
+        modules = {
+            "torch": SimpleNamespace(),
+            "diffusers": SimpleNamespace(__version__="old"),
+        }
+        with patch("engine.intelligence.flux2_klein_diffusers.import_module", side_effect=lambda name: modules[name]), \
+             patch("engine.intelligence.flux2_klein_diffusers.package_version", return_value="0.0.1"):
+            snapshot = Flux2KleinDiffusersProbe().probe()
+        self.assertFalse(snapshot.available)
+        self.assertIn("Flux2KleinPipeline-missing", snapshot.details)
+
     def test_factory_uses_locked_model_dtype_and_cpu_offload(self):
         pipe = _Pipe()
         calls = []
