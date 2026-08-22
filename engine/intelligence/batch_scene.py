@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from engine.intelligence.assets import AssetBundle
 from engine.intelligence.concept_director import ConceptBrief, ProposedConcept
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
+from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutRequirements, PlannedLayout
 from engine.intelligence.models import LockedClaim, VisualIntent
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneSpecCompiler
@@ -16,6 +17,7 @@ from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneSpec
 class PlatformScenePackage:
     specification: OriginalSceneSpecification
     generation_package: GenerationPackage
+    planned_layout: PlannedLayout | None = None
 
 
 class MultiPlatformSceneCompiler:
@@ -27,10 +29,12 @@ class MultiPlatformSceneCompiler:
         registry: PlatformProfileRegistry | None = None,
         scene_compiler: SceneSpecCompiler | None = None,
         package_compiler: GenerationPackageCompiler | None = None,
+        layout_planner: DeterministicLayoutPlanner | None = None,
     ) -> None:
         self._registry = registry or PlatformProfileRegistry()
         self._scene_compiler = scene_compiler or SceneSpecCompiler()
         self._package_compiler = package_compiler or GenerationPackageCompiler()
+        self._layout_planner = layout_planner or DeterministicLayoutPlanner()
 
     def compile(
         self,
@@ -42,6 +46,8 @@ class MultiPlatformSceneCompiler:
         assets: AssetBundle,
         locked_claims: tuple[LockedClaim, ...] = (),
         extra_forbidden_elements: tuple[str, ...] = (),
+        layout_requirements: LayoutRequirements = LayoutRequirements(),
+        entity_accent_hex: str | None = None,
     ) -> tuple[PlatformScenePackage, ...]:
         platforms = tuple(platforms)
         if not platforms:
@@ -62,6 +68,11 @@ class MultiPlatformSceneCompiler:
                 required_assets=asset_ids,
                 extra_forbidden_elements=extra_forbidden_elements,
             )
-            package = self._package_compiler.compile(specification, assets)
-            output.append(PlatformScenePackage(specification, package))
+            layout = self._layout_planner.plan(
+                profile,
+                layout_requirements,
+                entity_accent_hex=entity_accent_hex,
+            )
+            package = self._package_compiler.compile(specification, assets, planned_layout=layout)
+            output.append(PlatformScenePackage(specification, package, layout))
         return tuple(output)
