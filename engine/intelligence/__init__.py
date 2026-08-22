@@ -15,6 +15,7 @@ from engine.intelligence.final_export import ExportAuthorization, FinalComposedO
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
 from engine.intelligence.generation_provider import AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult
+from engine.intelligence.generation_session import AttemptDiagnostic, GenerationAttemptProvider, GenerationSessionOrchestrator, GenerationSessionResult
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutOrientation, LayoutRequirements, PlannedLayout
 from engine.intelligence.layout_safety import ElementBox, LayoutRole, LayoutSafetyDecision, PlatformLayoutSafetyGate
