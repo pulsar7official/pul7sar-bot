@@ -49,7 +49,7 @@ python tools/phase18_build_golden_batch.py \
   --seeds 7007001 7007002 7007003 7007004
 ```
 
-The batch deliberately varies only the deterministic seed. Prompt, model, platform geometry, constraints and cost policy stay identical. `manifest.json` records each candidate's request ID and SHA-256 so candidates can be compared fairly after generation.
+The batch deliberately varies only the deterministic seed. Prompt, model, platform geometry, constraints and cost policy stay identical. `manifest.json` records each candidate's request ID, exact native/target canvas and SHA-256 so candidates can be compared fairly after generation.
 
 ## GPU runtime preparation
 Use Python 3 with an existing CUDA-enabled PyTorch installation. Install only the optional Phase 18 packages:
@@ -78,9 +78,21 @@ PYTHONPATH=. python tools/phase18_flux2_execute.py \
   --dtype bfloat16
 ```
 
-Repeat for the other batch candidates only after the runtime remains healthy. The selector must not favor the first seed; the purpose of the batch is visual comparison.
+## Execute the full quality batch with one command
+After one candidate proves the GPU runtime is stable, run all four sequentially:
 
-The executor performs, in order:
+```bash
+PYTHONPATH=. python tools/phase18_flux2_batch_execute.py \
+  --manifest output/phase18_handoffs/golden-batch/manifest.json \
+  --generation-dir output/phase18_generated \
+  --proof-dir output/phase18_visual_proof \
+  --dtype bfloat16 \
+  --result output/phase18_visual_proof/batch-execution.json
+```
+
+The batch executor never runs candidates in parallel. It delegates every candidate to the exact same single-request execution path, validates the returned deterministic seed, and stops immediately on the first failed candidate. This avoids VRAM contention and prevents one candidate from bypassing the normal integrity/readiness/provenance/normalization gates.
+
+The single-request executor performs, in order:
 
 1. Validate handoff version, SHA-256 and `$0-local` lock.
 2. Confirm approved FLUX.2 model/provider/backend IDs.
