@@ -84,12 +84,11 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 
 ## Change Set 043 — Quality-first Golden Visual candidate batch
 - Adds `tools/phase18_build_golden_batch.py` and tests.
-- CI now builds four deterministic requests using seeds `7007001`–`7007004`.
+- CI builds four deterministic requests using seeds `7007001`–`7007004`.
 - Only the seed varies; prompt/model/platform/layout/factual constraints remain identical.
 - `manifest.json` records each request ID, native canvas `1088x1360`, exact target canvas `1080x1350`, normalization requirement, and payload SHA-256.
 - The candidate batch is uploaded as a multi-file GitHub Actions artifact.
 - CI Run `32594690472`: SUCCESS.
-- Artifact `9481231735` contains all four handoffs plus the manifest.
 
 ## Change Set 044 — Sequential GPU batch executor
 - Adds `tools/phase18_flux2_batch_execute.py` and tests.
@@ -110,20 +109,49 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 ## Change Set 046 — FLUX-specific Diffusers readiness
 - Generic `diffusers` import is no longer enough for the approved model.
 - Adds `Flux2KleinDiffusersProbe`, which proves the installed build actually exposes `Flux2KleinPipeline` without downloading weights or making network calls.
-- `tools/phase18_local_readiness.py` and the real executor now use this model-specific backend preflight.
+- `tools/phase18_local_readiness.py` and the real executor use this model-specific backend preflight.
 - Older Diffusers builds that import successfully but lack the required pipeline fail closed before weight loading.
 
+## Change Set 047 — Strict Golden Visual approval floor
+- Raises the Golden weighted floor to `8.5/10` and critical core dimensions to `8.0/10`.
+- Adds `9.0+` `elite` classification for flagship visual targets.
+- An image with a hard visual blocker remains `below_golden` regardless of score.
+- Review output now exposes `quality_tier`.
+- CI Run `32595997677`: SUCCESS.
+- Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
+
+## Change Set 048 — Durable executor result channel
+- Single-request GPU execution can persist its structured result with `--result`.
+- Batch orchestration no longer parses noisy model/runtime stdout as JSON.
+- Each candidate result file is validated for status, seed and request identity.
+- Missing or malformed result files fail closed.
+- CI Run `32596095005`: SUCCESS.
+- Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
+
+## Change Set 049 — Production-equivalent first-candidate GPU smoke proof
+- Batch executor adds `--limit N`; `--limit 1` is the first real GPU smoke path.
+- The four-candidate manifest stays unchanged while only candidate 1 is executed.
+- Colab now uses the same batch orchestration for the smoke proof and the eventual full batch.
+- Structured partial execution report is read to locate/display the real PNG.
+- CI Run `32596245628`: SUCCESS.
+- Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
+
+## Change Set 050 — CUDA-aware dtype selection
+- `LocalRuntimeProbe` records BF16 support and compute capability when PyTorch can prove them.
+- Adds `LocalDTypeSelector` with `auto`, `float16`, `bfloat16`, and `float32` policies.
+- Real execution defaults to `auto`: BF16 only when explicitly supported; otherwise FP16.
+- Explicit BF16 fails closed if support is not proven.
+- Local readiness reports the recommended dtype before model loading.
+- GPU execution reports requested/resolved dtype, GPU identity, VRAM, BF16 support and compute capability.
+- Colab uses `--dtype auto` for both candidate 1 and the full batch.
+- CI Run `32596622314`: SUCCESS for the integrated code/test path.
+- Runbook CI Run `32596643514`: SUCCESS.
+- Detailed record: `docs/PHASE18_CHANGESET_050_GPU_DTYPE.md`.
+
 ## Current verified Golden Visual batch
-Downloaded CI artifact contents have been independently rechecked outside GitHub Actions. All four candidate JSON payloads recompute to their declared SHA-256 values:
+The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. The current code still reports truthfully that a real PNG has **not yet been generated** because a compatible CUDA runtime has not yet executed the handoff.
 
-- seed `7007001` -> `e6a1ed5b5314bee977e0f2dd9c191f9c4f27f03bcb38b0716ff64b86964a2bfa`
-- seed `7007002` -> `102390c144a158288df4f6a3c0f22eecdc2b9823d0bfe262e14bb7131a1c25ba`
-- seed `7007003` -> `0dd9e4fe988ee93e718a3ea5dccab09b38c38bacd4433e6c12325b3b662b28ec`
-- seed `7007004` -> `06cd395693c3b43ee1f5578e6194c9b1f24c225dd9aac7e857eac8ad99ac31ce`
-
-Every current Golden Visual request is therefore transport-ready and tamper-evident. This does **not** mean a PNG has been generated yet.
-
-## Production safety through Change Set 046
+## Production safety through Change Set 050
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
@@ -131,18 +159,18 @@ Every current Golden Visual request is therefore transport-ready and tamper-evid
 - No paid API selected.
 - No production secret/API key added.
 - No model weights or font files committed.
-- No local image model executed by GitHub CPU CI.
+- GitHub CPU CI does not claim to generate the FLUX image.
 - No fake PNG is generated to satisfy Visual Proof.
 - Missing semantic verification remains fail-closed.
-- Golden Visual aesthetic approval is now an additional gate, not a substitute for semantic publication safety.
+- Golden Visual aesthetic approval is additional to, not a substitute for, semantic publication safety.
+- Dtype fallback cannot bypass CUDA/VRAM/model readiness.
 
-## Architecture after Change Set 046
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> FLUX-Specific CUDA/Diffusers Readiness -> Sequential Candidate Generation -> Native Canvas Provenance -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Golden Visual Quality Scorecard -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 050
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch Integrity -> FLUX-Specific CUDA/Diffusers Readiness -> CUDA-Aware Dtype Resolution -> --limit 1 GPU Smoke Proof -> Dedicated Result JSON -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Full Sequential Candidate Batch -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Close the current FLUX-specific readiness CI run; repair any regression before proceeding.
-2. Provide the lowest-friction free-GPU execution entry point for the already-built four-candidate artifact.
-3. Execute at least one genuine `$0` Golden Visual handoff on a compatible CUDA runtime and register the resulting PNG.
-4. If candidate 1 is technically successful, execute the remaining batch sequentially and compare all four using the Golden Visual scorecard.
-5. Reject every candidate below the visual benchmark; do not promote a merely functioning image.
-6. After the non-person Golden Visual proves the generation path, connect verified reference-image asset resolution for identity-required stories.
+1. Execute candidate 1 on a compatible `$0` CUDA runtime with `--limit 1 --dtype auto` and register the first genuine PNG.
+2. Inspect the real result against the strict Golden benchmark; generation success alone is not visual acceptance.
+3. If candidate 1 proves runtime stability, execute the remaining deterministic seeds sequentially.
+4. Review all real candidates and reject the entire batch if none reaches the Golden bar.
+5. After the non-person Golden Visual proves the complete generation path, connect verified reference-image resolution for identity-required stories without weakening identity similarity gates.
