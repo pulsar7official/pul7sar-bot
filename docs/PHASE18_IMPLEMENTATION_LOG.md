@@ -41,52 +41,50 @@ Previously documented foundation: Fact Lock, StoryAnalyzer, identity verificatio
 - CI `32579444426`: SUCCESS.
 
 ## Change Set 017 — Deterministic post-generation composition + quality gate
+- Exact official assets and final editorial text are post-composited outside the image model.
+- Asset SHA-256 integrity support and fail-closed composition validation.
+- CI `32580744885`: SUCCESS.
 
-### Core production rule
-Official brand assets and final editorial typography are deterministic post-generation elements. The image model never becomes the source of truth for PUL7SAR branding, team crests, score text, or platform footer content.
+## Change Set 018 — Deterministic typography + final export authorization
+
+### Purpose
+Make final text rendering and export deterministic, inspectable and fail-closed. The image model is not trusted to render the final headline, score or platform footer.
 
 ### Added
-- `engine/intelligence/post_composition.py`
-  - Adds `CompositionRole`, `CompositionElement`, `PostCompositionPlan`, `PostCompositionPlanner`, `AssetIntegrityRecord`, `CompositionQualityDecision`, and `PostCompositionQualityGate`.
-  - Maps approved exact assets to deterministic layout roles.
-  - PUL7SAR wordmark/logo remains untinted.
-  - Team/club crests remain untinted.
-  - Only a PUL7SAR pulse/7 asset explicitly marked `TINTABLE_ACCENT` may receive the package accent color.
-  - Headline, score and destination handle are rendered outside the image model and require corresponding approved layout boxes.
-  - Optional assets are skipped when their role is not present in the approved story layout rather than being forced into the visual.
+- `engine/intelligence/typography.py`
+  - Adds `FontReference`, `TextStyle`, `TextRole`, `TextAlign`, `TextBox`, `TextLayout`, `TypographyDecision`, `DeterministicTypographyEngine`, and `Pul7sarTypographyPolicy`.
+  - Fonts are referenced by configured IDs/family names and optional SHA-256; no font file is bundled or guessed by the intelligence layer.
+  - Headline, score and social-footer roles have independent size bounds, line limits, alignment and overflow policy.
+  - Default policy prohibits silent headline truncation/ellipsis.
+  - Score and footer are single-line roles.
+  - The engine shrinks text deterministically within approved min/max bounds and fails closed if it cannot fit the approved layout box.
+  - Latin-only uppercase support never mutates Arabic/non-Latin text.
+  - Current fit estimation is deterministic/conservative and is explicitly a contract until a concrete renderer supplies exact glyph metrics.
 
-### Asset integrity
-- `AssetIntegrityRecord` adds a strict SHA-256 contract.
-- If an asset declares an expected `metadata.sha256`, the quality gate requires a matching runtime integrity record before export.
-- Missing or mismatched checksums fail closed.
-- Duplicate integrity records are rejected by the quality gate.
-
-### Quality gate
-The post-composition quality gate rejects:
-- platform mismatch
-- canvas mismatch
-- missing approved layout boxes
-- unknown asset IDs
-- missing required asset integrity evidence
-- checksum mismatches
-- missing or duplicated PUL7SAR logo placement
-- tinted PUL7SAR wordmark/logo
-- tinted team/club crest
+- `engine/intelligence/final_export.py`
+  - Adds `FinalComposedOutput`, `ExportAuthorization`, and `FinalExportGate`.
+  - Final export re-runs post-composition quality checks.
+  - Rejects final platform/canvas mismatch.
+  - Requires a base-scene reference and composed-output reference.
+  - Every rendered text role must use an approved style and exact approved geometry.
+  - Missing, duplicated or unexpected rendered text roles fail closed.
+  - Unapproved fonts, out-of-bounds font sizes, excessive line count and prohibited truncation fail closed.
+  - Successful export receives a non-empty authorization token; denied export never receives a token.
 
 ### Added tests
-- `tests/test_phase18_post_composition.py`
-  - exact assets and text are planned outside the image model
-  - only the pulse/7 receives entity accent
-  - missing text geometry fails closed
-  - valid SHA-256 evidence passes
-  - checksum mismatch fails closed
-  - wordmark tint is rejected
-  - team crest tint is rejected
-  - platform/canvas mismatch fails
+- `tests/test_phase18_typography_export.py`
+  - headline fitting without silent truncation
+  - overlong/tiny-box failure
+  - one-line score
+  - compact one-line footer
+  - complete valid export authorization
+  - missing rendered headline rejection
+  - wrong text geometry rejection
+  - unapproved font rejection
 
 ### Modified
 - `engine/intelligence/__init__.py`
-  - Exports post-composition and integrity APIs.
+  - Exports typography and final-export APIs.
 
 ### Production safety
 - `main.py`: untouched.
@@ -94,14 +92,15 @@ The post-composition quality gate rejects:
 - Legacy image sourcing/rendering: untouched.
 - Production renderer/templates: untouched.
 - No external image provider invoked.
+- No font file added or exposed.
 - No production secret/API key added.
 
-### Architecture after Change Set 017
-`Article -> Story Intelligence -> factual / identity / sentiment / neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Destination Assets -> Deterministic Layout -> Generation Package -> Provider Eligibility -> Execution Plan -> AI Base Scene -> PostCompositionPlanner -> Asset Integrity + PostCompositionQualityGate -> platform export`
+### Architecture after Change Set 018
+`Article -> Story Intelligence -> factual / identity / sentiment / neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Destination Assets -> Deterministic Layout -> Generation Package -> Provider Eligibility -> Execution Plan -> AI Base Scene -> PostCompositionPlanner -> Asset Integrity / Composition Quality -> Deterministic Typography -> FinalExportGate -> Platform Export`
 
 ### Next planned work
-1. Verify Change Set 017 CI.
-2. Add explicit deterministic text-style contracts for headline, score and footer: font-family reference, size bounds, weight, line count and overflow policy.
-3. Add composition-output contract and final export gate.
-4. Add visual-quality evidence contract for generated base scene before post-composition.
-5. After those gates are green, evaluate the first real provider adapter behind the existing authorization and eligibility layers.
+1. Verify Change Set 018 CI.
+2. Add visual-quality evidence for the AI base scene before official assets/text are composited: resolution, subject framing, identity-reference confidence, blank protected regions and generation defect flags.
+3. Add a base-scene acceptance gate so a poor generation never reaches the branding/composition layer.
+4. Add a provider adapter interface that produces this evidence without binding Phase 18 to one vendor.
+5. Only after the base-scene quality gate is green should a real provider be evaluated/connected.
