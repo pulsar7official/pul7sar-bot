@@ -110,6 +110,14 @@ PYTHONPATH=. python tools/phase18_gpu_worker.py \
   --queue-root output/phase18_generation_queue
 ```
 
+## Post-review hardening
+Two issues were caught during the implementation review and corrected before treating this layer as ready for GPU proof:
+
+1. `GenerationJob.metadata` is intentionally immutable through `MappingProxyType`. The initial filesystem serializer used `dataclasses.asdict()`, whose deep-copy behavior is incompatible with mapping proxies. The serializer now builds the persisted payload explicitly and copies metadata through `dict(job.metadata)`.
+2. Handoff integrity exceptions originally could have crossed the executor boundary and been classified by the generic worker service as retryable `executor_exception`. The FLUX adapter now converts missing/tampered/mismatched handoffs into explicit non-retryable `handoff_integrity_failure`, so retry can never weaken an integrity failure into a normal runtime retry.
+
+Regression tests cover both persistence round trips and terminal hash-drift behavior before subprocess execution.
+
 ## What this closes
 The first real Golden PNG no longer requires the image-generation logic to be manually orchestrated command-by-command. Once a compatible GPU host has the repository, model dependencies and handoff files, the path can be:
 
