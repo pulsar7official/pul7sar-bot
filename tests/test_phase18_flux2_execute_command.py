@@ -15,6 +15,7 @@ class Flux2ExecuteCommandTests(unittest.TestCase):
 
     def valid(self):
         return {
+            "handoff_version": "pul7sar-local-generation-v1",
             "provider_id": "local-flux2-klein-4b",
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "backend": "diffusers",
@@ -52,7 +53,17 @@ class Flux2ExecuteCommandTests(unittest.TestCase):
         del data["seed"]
         temp, path = self.write(data)
         try:
-            with self.assertRaisesRegex(ValueError, "missing request fields"):
+            with self.assertRaisesRegex(ValueError, "missing generation handoff fields"):
+                _request_from_json(str(path))
+        finally:
+            temp.cleanup()
+
+    def test_unknown_handoff_version_is_rejected(self):
+        data = self.valid()
+        data["handoff_version"] = "future-version"
+        temp, path = self.write(data)
+        try:
+            with self.assertRaisesRegex(ValueError, "handoff version"):
                 _request_from_json(str(path))
         finally:
             temp.cleanup()
