@@ -1,6 +1,6 @@
 """Locked subprocess adapter from the generic GPU worker to FLUX.2 execution.
 
-The worker never shells out with prompt/model parameters.  It passes only the
+The worker never shells out with prompt/model parameters. It passes only the
 already SHA-256-locked handoff path plus controlled output paths and dtype, then
 validates the dedicated result JSON before returning it to GenerationWorkerService.
 """
@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-import tempfile
 
 from engine.intelligence.generation_jobs import GenerationJob
 from engine.intelligence.generation_worker import WorkerExecutionResult
@@ -56,7 +55,12 @@ class Flux2SubprocessLockedExecutor:
         if not handoff_path.is_absolute():
             handoff_path = Path(self.config.repository_root) / handoff_path
         handoff_path = handoff_path.resolve()
-        self._validate_handoff(job, handoff_path)
+        try:
+            self._validate_handoff(job, handoff_path)
+        except (FileNotFoundError, OSError, ValueError, json.JSONDecodeError) as exc:
+            # Integrity/identity failures must never become the worker service's
+            # generic retryable executor_exception path.
+            return self._failure(job, "handoff_integrity_failure", str(exc), retryable=False)
 
         tool = (Path(self.config.repository_root) / "tools" / "phase18_flux2_execute.py").resolve()
         if not tool.is_file():
