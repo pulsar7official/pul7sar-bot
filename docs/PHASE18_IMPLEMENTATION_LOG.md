@@ -1,140 +1,74 @@
 # PUL7SAR Phase 18 — Implementation Log
 
-This document is the authoritative implementation journal for Phase 18 on the
-`phase18/story-intelligence` branch. It records what changed, why it changed,
-and what remains intentionally untouched.
+This document is the authoritative implementation journal for Phase 18 on the `phase18/story-intelligence` branch.
 
-## Change Set 001 — Branch creation
-- Branch: `phase18/story-intelligence`
-- Base: `main`
-- Production behavior changed: **No**
+## Change Sets 001–009
+Previously documented foundation: Fact Lock, StoryAnalyzer, identity verification, classification, neutrality, Visual Family routing, perspective-aware result sentiment, Concept Director, sentiment resolver, Generation Authorization, platform profiles, Original Scene Specification, exact assets, layout safety, multi-platform batch generation packages. All production paths remain isolated.
 
-## Change Set 002 — Story-intelligence contracts + Fact Lock foundation
-- Added immutable story/identity/claim/visual-intent models.
-- Added deterministic Fact Lock.
-- Added regression tests.
-- Production untouched.
-
-## Change Set 003 — StoryAnalyzer + evidence-based identity gate
-- Added deterministic StoryAnalyzer.
-- Added IdentityEvidence / IdentityRequirements / IdentityVerifier.
-- Added Charlie Hull and Sam Hickey identity regression protection.
-- Added isolated Phase 18 CI.
-- CI `32574409083`: SUCCESS.
-
-## Change Set 004 — Classification, neutrality and Visual Family routing
-- Added StoryClassifier and stable story scopes/types.
-- Added EditorialNeutralityGate.
-- Added VisualFamilyRouter.
-- Result principle: celebrate the winner without humiliating the losing side.
-- CI `32575035862`: SUCCESS.
-
-## Change Set 005 — Perspective-aware results + Concept Director
-- Winner, loser and PUL7SAR editorial emotion are modeled separately.
-- PUL7SAR result perspective is forced to NEUTRAL.
-- Concept Director adds anti-humiliation, anti-mockery, factual and identity constraints.
-- CI `32575594345`: SUCCESS.
-
-## Change Set 006 — Sentiment evidence + conservative resolver
-- Providers produce SentimentEvidence, not final authority.
-- Missing, weak or conflicting evidence falls back to NEUTRAL.
-- CI changed to automatically discover Phase 18 tests.
-
-## Change Set 007 — Generation Authorization + provider boundary
-- Added GenerationAuthorizer.
-- Added AuthorizedSceneGenerator and OriginalSceneProvider protocol.
-- Denied factual/identity/sentiment/neutrality/concept states cannot call a provider.
-- No external image API selected or invoked.
-- CI `32576136095`: SUCCESS.
-
-## Change Set 008 — Platform-aware Original Scene Specification
-
-### Important production rule
-A single PUL7SAR visual is not assumed to fit every platform. Each publishing
-surface receives its own output profile and safe area. The scene is therefore
-art-directed for the target canvas rather than blindly resized or center-cropped.
+## Change Set 010 — Deterministic platform layout planner
 
 ### Added
-- `engine/intelligence/platform_profiles.py`
-  - Versioned platform dimensions and safe areas.
-  - Instagram Feed 1080x1350; Story 1080x1920; Facebook 1200x1500; X 1600x900; Threads 1080x1350; TikTok 1080x1920; Telegram 1280x720.
-- `engine/intelligence/scene_spec.py`
-  - Provider-neutral, platform-aware dry-run scene specification.
-  - Carries identity, environment, camera, mood, palette, assets, facts and forbidden elements.
-- `tests/test_phase18_platform_scene_spec.py`
-  - Verifies platform dimensions, safe areas and identity propagation.
+- `engine/intelligence/layout_planner.py`
+  - Adds `DeterministicLayoutPlanner`, `LayoutRequirements`, `LayoutOrientation`, and `PlannedLayout`.
+  - Computes actual protected boxes for hero, PUL7SAR logo, club crest, score, headline, and compact social footer.
+  - Uses a distinct composition strategy for portrait, vertical, and landscape canvases.
+  - Every generated box is immediately validated by `PlatformLayoutSafetyGate`.
+  - General stories default to the current PUL7SAR red placeholder `#E10600`.
+  - Entity-led stories may supply a validated `#RRGGBB` accent for the approved tintable 7/pulse asset only.
+
+- `tests/test_phase18_layout_planner.py`
+  - Verifies Instagram Story vertical layout, Instagram Feed portrait layout, and X landscape layout.
+  - Verifies score/crest result layout.
+  - Verifies adaptive entity accent normalization.
+  - Verifies invalid colors are rejected.
+  - Verifies one story is art-directed differently between vertical and landscape surfaces.
 
 ### Validation
-- CI `32576454445`: SUCCESS.
+- CI run `32577397716`: SUCCESS.
+- Syntax: PASS.
+- Phase 18 tests: PASS.
+- Production isolation: PASS.
 
-## Change Set 009 — Multi-platform generation packages, exact assets and layout safety
+## Change Set 011 — Layout-aware Generation Package
 
-### Core production rules
-- One approved story can now compile into multiple platform-specific packages in one deterministic batch.
-- Each package keeps its own canvas and safe area; it is not a resized clone of another platform's scene.
-- PUL7SAR official wordmark/logo is an exact asset and may not be hallucinated or redesigned.
-- The approved PUL7SAR number-7/pulse accent may adapt to the leading entity's primary color only when its asset is explicitly marked `TINTABLE_ACCENT`.
-- Team/club crests are exact assets and may never be recolored or regenerated by the image model.
-- Club/team names shown in artwork remain in their approved English form unless explicit editorial copy says otherwise.
-- Social footer is intentionally compact: small official platform icon + PUL7SAR handle/name only. Dense URLs, email rows, or crowded contact information are excluded unless specifically requested.
-
-### Added
-
-- `engine/intelligence/assets.py`
-  - Adds `AssetRole`, `AssetTreatment`, `AssetReference`, and `AssetBundle`.
-  - Separates exact official marks from tintable accent elements and reference-only identity material.
-  - Enforces exactly one PUL7SAR logo and pulse in a brand-ready bundle.
-  - Enforces exact treatment for team crests.
-
-- `engine/intelligence/layout_safety.py`
-  - Adds `ElementBox`, `LayoutRole`, `LayoutSafetyDecision`, and `PlatformLayoutSafetyGate`.
-  - Validates hero, logo, crest, score, headline and social footer against platform safe areas.
-  - Rejects critical elements that enter platform UI/crop-risk margins.
-
-- `engine/intelligence/generation_package.py`
-  - Adds `GenerationPackage` and `GenerationPackageCompiler`.
-  - Converts `OriginalSceneSpecification` into a provider-neutral dry-run prompt/package.
-  - Carries canvas, facts, forbidden elements, assets and safe-area metadata.
-  - Explicitly tells future providers to use exact supplied official marks instead of redrawing them.
-  - Encodes the compact social-footer policy.
-
-- `engine/intelligence/batch_scene.py`
-  - Adds `MultiPlatformSceneCompiler` and `PlatformScenePackage`.
-  - Compiles one approved intent/concept into unique platform specifications and generation packages.
-  - Rejects empty or duplicate platform requests.
-
-- `tests/test_phase18_batch_assets_layout.py`
-  - Verifies exact brand/crest treatment.
-  - Verifies one story compiles to 1080x1350, 1080x1920 and 1600x900 packages simultaneously.
-  - Verifies duplicate platforms are rejected.
-  - Verifies safe-zone acceptance/rejection, including a social footer placed in the Story UI-risk area.
+### Purpose
+Move deterministic geometry from a planning-only object into the actual provider-neutral generation package, so future image providers receive explicit protected layout coordinates rather than vague placement prose.
 
 ### Modified
 - `engine/intelligence/generation_package.py`
-  - Tightened PUL7SAR logo/pulse, English club-name and compact social-footer instructions.
-- `engine/intelligence/__init__.py`
-  - Exports asset, layout, batch and generation-package APIs.
+  - `GenerationPackage` now carries `layout_boxes` and `accent_hex`.
+  - `GenerationPackageCompiler.compile()` accepts an optional `PlannedLayout`.
+  - Rejects platform or canvas mismatches between the scene specification and planned layout.
+  - Serializes each protected element into exact `x / y / width / height` geometry.
+  - Adds the approved accent color to the package.
+  - Adds an explicit prompt instruction to follow deterministic layout geometry for protected editorial elements.
+  - Retains exact-asset, English club/team naming, compact social-footer, factual, and negative-constraint rules.
 
-### Validation
-- CI `32576726681`: SUCCESS.
-- Syntax checks: PASS.
-- All discovered Phase 18 tests: PASS.
-- Production-isolation gate: PASS.
+### Added
+- `tests/test_phase18_generation_layout.py`
+  - Verifies Story layout geometry reaches the package.
+  - Verifies hero/logo/headline/footer coordinates are included.
+  - Verifies entity accent reaches both structured data and scene instructions.
+  - Verifies result packages can carry score and crest boxes.
+  - Verifies a layout for X cannot be attached to an Instagram package.
+
+### Deleted
+- Nothing.
 
 ### Production safety
 - `main.py`: untouched.
 - Telegram publishing: untouched.
 - Legacy image sourcing/rendering: untouched.
-- Existing renderer/templates: untouched.
+- Existing production renderer/templates: untouched.
 - No external image provider invoked.
-- No secret/API key added.
+- No production secret/API key added.
 
-### Architecture after Change Set 009
-`Article -> StoryAnalyzer -> Fact Lock -> Classification -> Identity -> Sentiment/Perspective -> Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Original Scene Specification -> Exact Asset Bundle + Layout Safety -> Multi-platform Batch Compiler -> Generation Package (dry run) -> future provider adapter`
+### Architecture after Change Set 011
+`Article -> Story Intelligence -> Fact/Identity/Sentiment/Neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Deterministic Layout Planner -> Exact Assets -> Layout-aware Generation Package -> future provider adapter`
 
 ### Next planned work
-1. Build a deterministic platform-specific layout planner that proposes actual element boxes before render/generation and validates them through `PlatformLayoutSafetyGate`.
-2. Add brand placement contracts for PUL7SAR logo/pulse and adaptive accent color selection from verified leading entity palette.
-3. Add platform-specific social-footer asset selection so only the destination platform's icon is used where appropriate.
-4. Add a complete dry-run JSON-like inspection artifact for one news story across all enabled platforms.
-5. After those packages are fully inspectable, evaluate and connect the first real original-image provider behind `AuthorizedSceneGenerator`.
+1. Add an inspectable cross-platform dry-run manifest for one story.
+2. Add destination-platform social-icon selection instead of passing unrelated social icons.
+3. Add brand-placement semantics separating exact wordmark from tintable 7/pulse geometry.
+4. Add theme/accent resolver integration from verified entity palette.
+5. After the manifest is stable and reviewed, evaluate the first real original-image provider behind the existing authorization boundary.
