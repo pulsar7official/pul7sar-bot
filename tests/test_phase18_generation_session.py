@@ -102,6 +102,12 @@ class GenerationSessionTests(unittest.TestCase):
         result = self.orchestrator(min_quality=0.94).run(self.package, provider)
         self.assertEqual(result.outcome, CandidateOutcome.ACCEPTED)
         self.assertEqual(result.attempts_used, 2)
+        self.assertEqual(len(result.diagnostics), 2)
+        self.assertEqual(result.diagnostics[0].candidate_count, 1)
+        self.assertEqual(result.diagnostics[0].accepted_count, 1)
+        self.assertEqual(result.diagnostics[1].candidate_count, 1)
+        self.assertEqual(result.diagnostics[1].accepted_count, 1)
+        self.assertTrue(any("below minimum" in r for r in result.diagnostics[0].rejection_reasons))
 
     def test_no_best_bad_fallback_after_attempt_limit(self):
         provider = FakeProvider([
