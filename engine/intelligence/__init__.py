@@ -18,6 +18,7 @@ from engine.intelligence.generation_authorization import AuthorizationFailure, G
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
 from engine.intelligence.generation_provider import AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult
 from engine.intelligence.generation_session import AttemptDiagnostic, GenerationAttemptProvider, GenerationSessionOrchestrator, GenerationSessionResult
+from engine.intelligence.golden_visual_quality import GoldenVisualBlockers, GoldenVisualEvaluation, GoldenVisualQualitySelector, GoldenVisualScores, GoldenVisualSelection
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
 from engine.intelligence.image_evidence_extraction import BaseSceneEvidenceExtractor, ForbiddenVisualProbe, GeneratedImageObservation, GenerationDefectProbe, IdentityVisualProbe, ImageEvidenceProbeSet, ProtectedRegionProbe, SafeCropProbe, SubjectFramingProbe
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutOrientation, LayoutRequirements, PlannedLayout
