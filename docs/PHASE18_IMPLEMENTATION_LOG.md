@@ -79,94 +79,86 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 ## Change Set 042 — Cryptographic handoff integrity
 - Handoff schema advances to `pul7sar-local-generation-v2`.
 - A canonical SHA-256 protects provider, model, backend, prompt, constraints, native canvas, seed, request ID, reference IDs and metadata.
-- Prompt/seed/canvas/provider tampering is rejected before model execution.
+- Prompt/seed/canvas/provider tampering is rejected before generation.
 - Recomputing the hash cannot bypass the independent `$0-local` cost-policy check.
 
 ## Change Set 043 — Quality-first Golden Visual candidate batch
 - Adds `tools/phase18_build_golden_batch.py` and tests.
 - CI builds four deterministic requests using seeds `7007001`–`7007004`.
 - Only the seed varies; prompt/model/platform geometry, constraints and cost policy stay identical.
-- `manifest.json` records each request ID, native canvas `1088x1360`, exact target canvas `1080x1350`, normalization requirement, and payload SHA-256.
-- The candidate batch is uploaded as a multi-file GitHub Actions artifact.
+- `manifest.json` records request IDs, native `1088x1360`, target `1080x1350`, normalization and payload SHA-256.
 - CI Run `32594690472`: SUCCESS.
 
 ## Change Set 044 — Sequential GPU batch executor
 - Adds `tools/phase18_flux2_batch_execute.py` and tests.
 - Executes candidate handoffs sequentially through the same single-request executor.
 - Never parallelizes model inference, avoiding VRAM contention.
-- Stops on the first failed candidate.
-- Verifies each returned seed against the locked batch manifest.
-- Writes a machine-readable real-proof batch execution report.
+- Stops on the first failed candidate and verifies seed/request identity.
 
 ## Change Set 045 — Explicit Golden Visual quality scorecard
 - Adds `engine/intelligence/golden_visual_quality.py` and tests.
 - Safety and aesthetics are separated: a safe scene can still fail Golden Visual quality.
-- Weighted criteria cover editorial realism, composition hierarchy, stadium depth, controlled lighting, protected-zone cleanliness and platform crop strength.
-- Hard blockers include fantasy/monument staging, fake logos/crests, pseudo-text, invented results, cluttered collage treatment and broken geometry/anatomy.
-- A high numeric score can never override a hard blocker.
-- Adds `tools/phase18_review_golden_batch.py` to enforce complete review coverage and select only among approved candidates.
+- Weighted criteria cover editorial realism, composition hierarchy, stadium depth, controlled lighting, protected-zone cleanliness and crop strength.
+- Hard blockers include fantasy/monument staging, fake logos/crests, pseudo-text, invented results, clutter and broken geometry/anatomy.
 
 ## Change Set 046 — FLUX-specific Diffusers readiness
 - Generic `diffusers` import is no longer enough for the approved model.
-- Adds `Flux2KleinDiffusersProbe`, which proves the installed build actually exposes `Flux2KleinPipeline` without downloading weights or making network calls.
-- `tools/phase18_local_readiness.py` and the real executor use this model-specific backend preflight.
-- Older Diffusers builds that import successfully but lack the required pipeline fail closed before weight loading.
+- Adds `Flux2KleinDiffusersProbe`, proving the installed build exposes `Flux2KleinPipeline` before weights are loaded.
+- Older incompatible Diffusers builds fail closed.
 
 ## Change Set 047 — Strict Golden Visual approval floor
-- Raises the Golden weighted floor to `8.5/10` and critical core dimensions to `8.0/10`.
-- Adds `9.0+` `elite` classification for flagship visual targets.
-- An image with a hard visual blocker remains `below_golden` regardless of score.
-- Review output now exposes `quality_tier`.
+- Raises weighted floor to `8.5/10`, critical core dimensions to `8.0/10`, and marks `9.0+` as `elite`.
+- Hard blockers override numeric score.
 - CI Run `32595997677`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
 
 ## Change Set 048 — Durable executor result channel
-- Single-request GPU execution can persist its structured result with `--result`.
-- Batch orchestration no longer parses noisy model/runtime stdout as JSON.
-- Each candidate result file is validated for status, seed and request identity.
-- Missing or malformed result files fail closed.
+- Single-request GPU execution persists structured `--result` JSON.
+- Batch orchestration no longer parses noisy model/runtime stdout.
+- Missing/malformed results fail closed.
 - CI Run `32596095005`: SUCCESS.
-- Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
 
 ## Change Set 049 — Production-equivalent first-candidate GPU smoke proof
-- Batch executor adds `--limit N`; `--limit 1` is the first real GPU smoke path.
-- The four-candidate manifest stays unchanged while only candidate 1 is executed.
-- Colab uses the same batch orchestration for the smoke proof and eventual full batch.
-- Structured partial execution report is read to locate/display the real PNG.
+- Batch executor adds `--limit 1` without altering the four-candidate manifest.
+- Colab uses the same orchestration as the eventual full batch.
 - CI Run `32596245628`: SUCCESS.
-- Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
 
 ## Change Set 050 — CUDA-aware Golden BF16 verification
-- `LocalRuntimeProbe` records BF16 support and compute capability when PyTorch can prove them.
-- Adds `LocalDTypeSelector` for the quality-locked Golden path.
-- The first benchmark is locked to BF16 rather than silently falling back to another precision.
-- `auto` means prove native BF16 and resolve to `bfloat16`; false/unknown BF16 fails closed.
-- Batch execution rejects any result that escapes the BF16 precision lock.
-- CI Run `32596910115`: SUCCESS for the final fail-closed code path.
+- `LocalRuntimeProbe` records BF16 support and compute capability.
+- `LocalDTypeSelector` locks the Golden benchmark to BF16.
+- Unsupported/unproven BF16 fails closed; no FP16 fallback.
+- CI Run `32596910115`: SUCCESS.
 - Notebook CI Run `32596936433`: SUCCESS.
 - Runbook CI Run `32596975853`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_050_GPU_DTYPE.md`.
 
 ## Change Set 051 — Provider-neutral generation jobs and GPU worker service
 - Adds `engine/intelligence/generation_jobs.py`, `engine/intelligence/generation_worker.py`, and worker tests.
-- Defines durable job identity, bounded attempts, lease ownership/expiry, capability matching, result identity verification, explicit retryability, and terminal failure semantics.
+- Defines durable job identity, bounded attempts, lease ownership/expiry, capability matching, result identity verification, explicit retryability and terminal failure semantics.
 - A worker cannot silently switch provider/model/request/payload identity or bypass CUDA/BF16 requirements.
-- This creates the queue/worker contract needed for unattended execution while leaving the queue backend and GPU backend replaceable.
 
 ## Change Set 052 — Durable filesystem queue + locked FLUX worker adapter
 - Adds `engine/intelligence/generation_job_store.py` with exclusive enqueue and atomic filesystem claims.
-- Adds `engine/intelligence/flux_worker_executor.py`, connecting leased jobs to the existing real FLUX executor without passing mutable prompt/model/seed/canvas values on the command line.
-- Adds `tools/phase18_enqueue_generation.py` for immutable handoff-to-job enqueue.
-- Adds `tools/phase18_gpu_worker.py` for one-cycle smoke execution or continuous unattended polling.
-- Adds queue persistence and FLUX worker boundary tests.
-- Real executor success requires dedicated result JSON, `REAL_VISUAL_PROOF_GENERATED`, exact BF16, matching locked identity, and an existing PNG.
-- Transient GPU failures can retry within the bounded job policy; integrity/dtype/proof failures remain fail-closed.
+- Adds `engine/intelligence/flux_worker_executor.py`, connecting leased jobs to the existing real FLUX executor while keeping prompt/model/seed/canvas inside the SHA-256 handoff.
+- Adds `tools/phase18_enqueue_generation.py` and `tools/phase18_gpu_worker.py`.
+- Adds queue persistence and executor-boundary tests.
+- Fixes immutable metadata serialization by avoiding `dataclasses.asdict()` deep-copy of `MappingProxyType`.
+- Handoff integrity failures are explicit terminal failures and cannot fall into generic retry handling.
 - Detailed record: `docs/PHASE18_CHANGESET_051_052_GPU_AUTOMATION.md`.
+
+## Change Set 053 — Dead-worker lease recovery and queue telemetry
+- Adds expired lease recovery to `FilesystemGenerationJobStore` for both leased and running jobs.
+- Expired jobs with attempts remaining return to `queued` through the legal `retryable_failed` transition; exhausted jobs become `terminal_failed`.
+- Preserves the existing attempt count and records `lease_expired` rather than pretending the prior execution succeeded or never happened.
+- Adds `QueueSnapshot` and `LeaseRecoverySummary` for pending/active/state counts and explicit recovery reporting.
+- `tools/phase18_gpu_worker.py` now performs recovery before every poll/execute cycle and emits queue counts plus recovered/terminal-expired job IDs.
+- Adds regression tests for successful recovery, exhausted-attempt terminal failure and queue snapshots.
+- No automatic model/provider/precision downgrade is introduced during recovery.
 
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 052
+## Production safety through Change Set 053
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
@@ -177,17 +169,17 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - GitHub CPU CI does not claim to generate the FLUX image.
 - No fake PNG is generated to satisfy Visual Proof.
 - Missing semantic verification remains fail-closed.
-- Golden Visual aesthetic approval is additional to, not a substitute for, semantic publication safety.
+- Golden Visual aesthetic approval remains additional to semantic publication safety.
 - Unsupported or unproven BF16 does not trigger a silent precision downgrade.
 
-## Architecture after Change Set 052
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Durable Generation Job -> Atomic Queue Lease -> BF16/CUDA GPU Worker -> Locked FLUX Executor -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 053
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Locked FLUX Executor -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Run the new enqueue + worker path on a compatible `$0` CUDA/BF16 host for candidate 1.
-2. Capture real generation latency, peak VRAM and proof metadata instead of estimating production capacity.
-3. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
+1. Run the enqueue + worker path on a compatible `$0` CUDA/BF16 host for candidate 1.
+2. Capture real generation latency, peak VRAM and proof metadata instead of estimating capacity.
+3. Inspect candidate 1 against semantic and strict Golden benchmarks.
 4. If stable, execute the remaining deterministic seeds through the worker path.
-5. Add worker heartbeat/lease recovery and queue observability before multi-host production scaling.
-6. Add a distributed queue adapter only after the single-host worker is proven, preserving the same GenerationJobStore contract.
+5. Add durable worker heartbeat/metrics persistence before multi-host production scaling.
+6. Add a distributed queue adapter only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
 7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
