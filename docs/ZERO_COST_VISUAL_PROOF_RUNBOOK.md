@@ -51,6 +51,16 @@ python tools/phase18_build_golden_batch.py \
 
 The batch deliberately varies only the deterministic seed. Prompt, model, platform geometry, constraints and cost policy stay identical. `manifest.json` records each candidate's request ID, exact native/target canvas and SHA-256 so candidates can be compared fairly after generation.
 
+## Pre-GPU transport verification
+Before model loading, verify the whole batch without CUDA or network access:
+
+```bash
+PYTHONPATH=. python tools/phase18_verify_golden_batch.py \
+  --manifest output/phase18_handoffs/golden-batch/manifest.json
+```
+
+The verifier checks every v2 handoff hash, manifest-to-handoff SHA, request ID, seed, approved provider/model/backend, `$0-local` lock, native/target canvas and exact one-to-one candidate file coverage. Unknown or unmanifested candidate files fail closed.
+
 ## GPU runtime preparation
 Use Python 3 with an existing CUDA-enabled PyTorch installation. Install only the optional Phase 18 packages:
 
@@ -66,7 +76,7 @@ Then verify the environment:
 PYTHONPATH=. python tools/phase18_local_readiness.py
 ```
 
-Execution must stop if CUDA/VRAM/backend readiness is not proven.
+Readiness proves the installed Diffusers build exposes `Flux2KleinPipeline`; generic package import is not sufficient. Execution stops if CUDA, VRAM, backend or model-specific pipeline readiness is not proven.
 
 ## Execute one real Golden Visual handoff
 
@@ -96,12 +106,34 @@ The single-request executor performs, in order:
 
 1. Validate handoff version, SHA-256 and `$0-local` lock.
 2. Confirm approved FLUX.2 model/provider/backend IDs.
-3. Confirm CUDA, VRAM and Diffusers readiness.
+3. Confirm CUDA, VRAM and model-specific Diffusers readiness.
 4. Load `Flux2KleinPipeline` locally through Diffusers.
 5. Generate using the locked prompt and deterministic seed.
 6. Validate native result provider/model/backend/request ID/seed/dimensions.
 7. Normalize native aligned canvas to the exact platform canvas.
 8. Write the real PNG and JSON provenance to `output/phase18_visual_proof/`.
+
+## Build the human review template
+After the full real batch exists, build a review file from the execution report:
+
+```bash
+PYTHONPATH=. python tools/phase18_build_golden_review_template.py \
+  --execution-report output/phase18_visual_proof/batch-execution.json \
+  --output output/phase18_visual_proof/golden-review.json
+```
+
+PUL7SAR copies the exact request IDs, seeds, PNG paths and metadata paths into the review template. Every visual score is deliberately `null` until the real PNG is inspected; no visual judgment is fabricated. Hard blockers default to `false` only as an editable checklist and must be changed to `true` wherever observed.
+
+After all six 0–10 score fields are completed for every candidate and blockers are reviewed, select through the quality gate:
+
+```bash
+PYTHONPATH=. python tools/phase18_review_golden_batch.py \
+  --execution-report output/phase18_visual_proof/batch-execution.json \
+  --review output/phase18_visual_proof/golden-review.json \
+  --output output/phase18_visual_proof/golden-selection.json
+```
+
+A candidate cannot win through score alone if it has fantasy/monument staging, fake logos/crests, pseudo-text, an invented result, cluttered collage treatment, or broken geometry/anatomy.
 
 ## What is recorded
 The proof metadata preserves:
@@ -123,7 +155,10 @@ The proof metadata preserves:
 ## Publication status
 A generated proof is **not automatically publication-ready**.
 
-The first PNG must still pass PUL7SAR's independent subject/framing, semantic-defect, forbidden-visual, protected-region and — when applicable — identity-similarity checks. The Semantic Publication Gate remains fail-closed.
+The first PNG must still pass PUL7SAR's independent subject/framing, semantic-defect, forbidden-visual, protected-region and — when applicable — identity-similarity checks. The Semantic Publication Gate remains fail-closed. Golden Visual approval is an additional aesthetic gate, not a substitute for semantic safety.
+
+## Colab execution path
+`notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb` provides the current lowest-friction free-GPU path. It checks for a GPU, installs only the Phase 18 GPU requirements, proves FLUX-specific readiness, builds and verifies the deterministic batch, generates candidate 1, and displays the real proof. Full-batch generation is intentionally opt-in after candidate 1 proves the runtime stable.
 
 ## Golden Visual benchmark
 For the first general-season proof, evaluate at minimum:
