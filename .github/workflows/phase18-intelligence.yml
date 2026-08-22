@@ -45,3 +45,22 @@ jobs:
                       raise SystemExit(f"Phase 18 isolation violation in {path}: {forbidden}")
           print("Phase 18 production-isolation check PASS")
           PY
+      - name: Detect visual proof output
+        id: visual-proof
+        shell: bash
+        run: |
+          if [ -d output/phase18_visual_proof ] && find output/phase18_visual_proof -type f -name '*.png' -print -quit | grep -q .; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No generated visual proof PNG exists in this verification run yet."
+          fi
+      - name: Upload PUL7SAR visual proof
+        if: steps.visual-proof.outputs.available == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-visual-proof-${{ github.sha }}
+          path: output/phase18_visual_proof/
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
