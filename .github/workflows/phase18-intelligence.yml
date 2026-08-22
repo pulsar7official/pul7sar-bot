@@ -45,6 +45,20 @@ jobs:
                       raise SystemExit(f"Phase 18 isolation violation in {path}: {forbidden}")
           print("Phase 18 production-isolation check PASS")
           PY
+      - name: Build portable Golden Visual GPU handoff
+        run: |
+          python tools/phase18_build_golden_handoff.py \
+            --output output/phase18_handoffs/golden-general-season-opener.json \
+            --seed 7007001 \
+            --request-id golden-general-season-opener-001
+      - name: Upload Golden Visual GPU handoff
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-general-season-opener.json
+          path: output/phase18_handoffs/golden-general-season-opener.json
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
       - name: Detect visual proof output
         id: visual-proof
         shell: bash
