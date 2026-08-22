@@ -15,196 +15,125 @@ and what remains intentionally untouched.
 ## Change Set 002 — Story-intelligence contracts + Fact Lock foundation
 
 ### Added
+- `engine/intelligence/__init__.py`: package boundary.
+- `engine/intelligence/models.py`: immutable story, claim, identity, sentiment and visual-intent contracts.
+- `engine/intelligence/fact_lock.py`: deterministic factual-safety gate.
+- `tests/test_story_intelligence_models.py`: contract and Fact Lock regression tests.
 
-- `engine/intelligence/__init__.py`
-  - Creates the Phase 18 intelligence package boundary.
-  - Exposes only the first stable contracts and the Fact Lock gate.
-  - Does not import or mutate `main.py` production behavior.
-
-- `engine/intelligence/models.py`
-  - Adds immutable domain contracts for story meaning and visual safety:
-    - `ClaimKind`
-    - `LockedClaim`
-    - `Sentiment`
-    - `StoryBrief`
-    - `IdentityStatus`
-    - `IdentityPlan`
-    - `VisualIntent`
-  - Keeps editorial/story intelligence separate from `RenderContext`.
-  - Prevents real-person depiction unless identity status is `VERIFIED`.
-  - Uses immutable metadata mappings to prevent downstream accidental mutation.
-
-- `engine/intelligence/fact_lock.py`
-  - Adds a deterministic factual-safety boundary.
-  - No LLM calls, no network calls, no fact discovery.
-  - Accepts pre-classified claims and controls which claims may drive copy or
-    visuals.
-  - `FORBIDDEN` claims are never returned as usable.
-  - `assert_publishable()` fails closed when forbidden claims exist.
-  - `require_fact()` requires an exact locked fact at a requested confidence
-    level rather than silently converting an inference into a fact.
-
-- `tests/test_story_intelligence_models.py`
-  - Verifies immutable claim metadata and confidence validation.
-  - Verifies that `depiction_allowed=True` requires verified identity.
-  - Adds regression-shaped examples around Charlie Hull, Sam Hickey, and an
-    unconfirmed Arsenal transfer state.
-  - Verifies Fact Lock filtering and fail-closed behavior.
-
-### Modified
-
-- No existing production file was modified.
-- No existing Visual Engine component was modified.
-- No workflow was modified in this change set.
-
-### Deleted
-
-- Nothing.
-
-### Production safety
-
-- `main.py`: untouched.
-- `USE_VISUAL_ENGINE`: untouched and remains governed by existing production
-  configuration.
-- Telegram publishing: untouched.
-- Legacy image sourcing/rendering: untouched.
-- Existing templates: untouched.
-- Existing entity normalizer: untouched.
-- Existing `QualityVerifier`: untouched.
-
-### Architectural role
-
-Phase 18 now has an explicit domain layer that can sit before the current
-rendering pipeline:
-
-`Article -> Story Intelligence -> Fact Lock -> Identity/Sentiment/Visual Intent -> existing rendering engine`
-
-The new code does **not** yet perform automatic entity discovery, web identity
-verification, sentiment classification, visual-family routing, concept
-selection, or image generation. Those remain later Phase 18 change sets.
-
-### Next planned change set
-
-Build the first deterministic `StoryAnalyzer` / input adapter and explicit
-identity-verification result contract, then add regression tests for:
-
-1. Charlie Hull -> golf / female / correct entity context.
-2. Sam Hickey -> boxing / Scottish / middleweight context.
-3. Transfer rumor/approach -> never upgrade to completed signing.
-4. General multi-league story -> general PUL7SAR world rather than one club.
-5. Positive vs negative story -> distinct sentiment signal before art direction.
+### Safety
+- No production file modified.
+- `main.py`, Telegram, legacy rendering, templates and `USE_VISUAL_ENGINE` untouched.
 
 ## Change Set 003 — StoryAnalyzer + evidence-based identity gate
 
 ### Added
+- `engine/intelligence/story_analyzer.py`: deterministic article-to-StoryBrief adapter.
+- `engine/intelligence/identity.py`: evidence/requirements/verifier split for real-person identity.
+- `tests/test_phase18_identity_verifier.py`: Charlie Hull and Sam Hickey regression protection.
+- `tests/test_phase18_story_analyzer.py`: transfer-state, general-story and sentiment-signal tests.
+- `.github/workflows/phase18-intelligence.yml`: isolated read-only Phase 18 CI.
 
-- `engine/intelligence/story_analyzer.py`
-  - Adds the first deterministic `article -> StoryBrief` adapter.
-  - Accepts the production article shape (`title`, `summary`, `sport`, etc.)
-    without importing `main.py`.
-  - Supports explicit overrides from later intelligence providers.
-  - Normalizes explicit sentiment labels but does **not** infer sentiment from
-    prose yet.
-  - Preserves source tracing (`link`, `source`, `published`) as metadata without
-    promoting those values into factual claims.
-  - Does not silently infer entity identity, event completion, or missing story
-    state.
+### Modified
+- `engine/intelligence/__init__.py`: exported StoryAnalyzer and identity APIs.
 
-- `engine/intelligence/identity.py`
-  - Adds `IdentityEvidence`, `IdentityRequirements`, and `IdentityVerifier`.
-  - Separates evidence discovery from the safety decision that allows a real
-    person to appear in a generated visual.
-  - Uses name normalization plus contextual constraints such as sport, role,
-    gender, nationality, and team/affiliation.
-  - Fails closed on name mismatch, context mismatch, weak evidence, or
-    high-confidence provider conflict.
-  - Only returns `depiction_allowed=True` when status is `VERIFIED` and the
-    minimum confidence threshold is met.
-  - Contains no network or LLM calls; future external providers must supply the
-    evidence explicitly.
+### Validation
+- Draft PR #1 opened and kept unmerged.
+- CI run `32574409083`: SUCCESS.
+- Syntax, intelligence tests and production-isolation gate all passed.
 
-- `tests/test_phase18_identity_verifier.py`
-  - Adds the Charlie Hull regression: golf/female verifies, wrong-gender
-    candidate is rejected.
-  - Adds the Sam Hickey regression: boxing/Scottish/middleweight verifies, a
-    golf candidate with the same name is rejected.
-  - Tests high-confidence source conflicts, low-confidence results, and name
-    normalization.
+## Change Set 004 — Story classification, result neutrality and Visual Family routing
 
-- `tests/test_phase18_story_analyzer.py`
-  - Verifies compatibility with the current article dictionary shape.
-  - Verifies that transfer `approach` is not silently upgraded to `completed`.
-  - Verifies entity-neutral multi-league stories remain entity-neutral.
-  - Verifies positive and negative sentiment remain distinct signals.
-  - Verifies unknown sentiment and malformed entity collections fail closed.
+### Editorial principle added
 
-- `.github/workflows/phase18-intelligence.yml`
-  - Adds isolated CI for Phase 18 intelligence files only.
-  - Performs Python syntax checks.
-  - Runs the Phase 18 model, identity, and analyzer test suites.
-  - Adds an isolation gate that rejects imports from `main.py` inside
-    `engine/intelligence`.
-  - Uses `contents: read`; the workflow itself has no write permission.
+PUL7SAR may celebrate a winner but must not humiliate the losing side. The loser
+may be absent, respectfully represented, or shown with realistic disappointment.
+Mockery, degrading symbolism, domination symbolism, exaggerated shame and
+humiliating treatment are rejected. Even a verified harsh sporting context does
+not authorize ridicule or degradation.
+
+This rule applies to clubs, teams, athletes, institutions and their audiences.
+The visual objective is to amplify the winner's moment rather than attack the
+loser.
+
+### Added
+
+- `engine/intelligence/classification.py`
+  - Stable enums for `StoryType`, `StoryScope`, and `EntityKind`.
+  - `EntityCandidate` is explicitly a candidate, never a verified identity.
+  - `StoryClassification` validates general/entity-led/multi-entity scope.
+  - `StoryClassifier` normalizes explicit story-type signals without inventing
+    missing facts.
+
+- `engine/intelligence/neutrality.py`
+  - Adds `EditorialNeutralityGate`.
+  - Adds `ResultVisualTreatment`, `LoserTreatment`, and `NeutralityDecision`.
+  - Fails closed on mocking copy, degrading symbolism, domination symbolism,
+    exaggerated shame, or humiliating loser treatment.
+  - Allows celebration of the winner, respectful loser treatment, loser absence,
+    and proportionate realistic disappointment.
+  - Verified harsh context may support a serious/realistic mood but never
+    overrides the anti-humiliation rules.
+
+- `engine/intelligence/visual_router.py`
+  - Adds `VisualFamily`: RESULTS, TRANSFERS, MATCHDAY, PLAYER_STORIES,
+    SERIOUS_NEWS, ORGANIZATION, GENERAL_WORLD.
+  - Routes result stories through the neutrality gate.
+  - Routes person-led stories through identity verification requirements.
+  - Keeps transfer concepts from visually implying an unverified completed
+    signing.
+  - Routes general multi-league/editorial stories to a brand-led world and marks
+    the color strategy as `brand_red`.
+  - Entity-led stories use `adaptive_entity_palette` as the high-level strategy.
+
+- `tests/test_phase18_classification_router.py`
+  - General multi-league story -> GENERAL_WORLD / brand red / no hero entity.
+  - Result -> RESULTS + mandatory neutrality gate.
+  - Transfer approach -> TRANSFERS without completed-signing implication.
+  - Sam Hickey-style player story -> PLAYER_STORIES + identity gate.
+  - General scope cannot secretly carry entity candidates.
+
+- `tests/test_phase18_neutrality.py`
+  - Winner celebration is allowed.
+  - Losing side may be absent or respectful.
+  - Realistic disappointment is allowed.
+  - Humiliation, mocking copy, degrading/domination symbolism and exaggerated
+    shame are rejected.
+  - Verified harsh context still cannot authorize mockery.
 
 ### Modified
 
 - `engine/intelligence/__init__.py`
-  - Exports the StoryAnalyzer and identity-verification APIs through the package
-    boundary.
+  - Exports classification, neutrality and routing APIs.
 
-- `engine/intelligence/story_analyzer.py`
-  - Tightened metadata validation after initial creation so malformed metadata
-    fails with `StoryAnalysisError` instead of leaking a generic conversion
-    exception.
+- `.github/workflows/phase18-intelligence.yml`
+  - Adds syntax checks and unit tests for Change Set 004 modules.
+  - Retains `contents: read` and production-isolation enforcement.
 
 ### Deleted
-
 - Nothing.
 
 ### Production safety
-
 - `main.py`: untouched.
-- Production workflows: untouched.
 - Telegram publishing: untouched.
 - `USE_VISUAL_ENGINE`: untouched.
-- Existing rendering pipeline and templates: untouched.
-- Legacy image search/rendering: untouched.
-- Existing `engine/entities` normalization behavior: untouched.
+- Legacy image sourcing/rendering: untouched.
+- Existing templates/render pipeline: untouched.
+- Existing entity normalizer: untouched.
+- Existing structural QualityVerifier: untouched.
 
-### Important architectural decision
+### Architecture after Change Set 004
 
-Identity verification is now intentionally split into two future-facing stages:
+`Article -> StoryAnalyzer -> Fact Lock -> Classification -> Identity Gate -> Neutrality Policy -> Visual Family Router -> VisualIntent -> future concept/generation layer -> existing renderer`
 
-`Identity Provider(s) -> IdentityEvidence -> IdentityVerifier -> IdentityPlan`
+The router chooses visual grammar only. It does not generate images, choose a
+specific pose, or bypass identity/factual/neutrality gates.
 
-The provider may later use structured sports databases, authoritative web
-sources, or another retrieval strategy. The verifier remains deterministic and
-conservative. This prevents a search provider from directly granting depiction
-permission merely because it returned a same-name result.
+### Next planned work
 
-### Validation status
-
-- Draft Pull Request opened: `#1 — Phase 18: Story Intelligence foundation`.
-- PR remains **draft** and must not be merged yet.
-- Phase 18 CI run `32574409083`: **SUCCESS**.
-- Syntax-check step: **PASS**.
-- Phase 18 intelligence unit tests: **PASS**.
-- Production-isolation gate: **PASS**.
-- No write permission is granted to the CI workflow itself (`contents: read`).
-
-### Current limitation
-
-No automatic provider exists yet, so Phase 18 cannot independently discover or
-verify Charlie Hull, Sam Hickey, or another real person from the web. The safety
-contract and regression protection are now present; provider integration is a
-later change set.
-
-### Next planned change set
-
-Build the first **Story Classification layer** for:
-
-1. explicit entity extraction candidates,
-2. event/story type normalization,
-3. sentiment classification contract,
-4. general-vs-entity-led story routing,
-5. the first `VisualFamily` router without image generation.
+1. Add a sentiment-classification provider contract rather than relying only on
+   explicit sentiment labels.
+2. Add editorial role/perspective for results so winner and loser sentiments are
+   modeled separately instead of collapsing the whole story into one emotion.
+3. Add Concept Director contracts with forbidden-concept constraints from Fact
+   Lock, Identity Gate and Neutrality Gate.
+4. Only after those gates are stable, begin the first original-scene provider.
