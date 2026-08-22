@@ -2,12 +2,17 @@
 
 This is intentionally separate from factual/semantic publication safety. A scene
 may be safe yet visually mediocre; Golden Visual approval requires both no hard
-visual blockers and a strong editorial-quality score.
+visual blockers and a genuinely premium editorial-quality score.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+
+
+GOLDEN_WEIGHTED_FLOOR = 8.5
+GOLDEN_CORE_FLOOR = 8.0
+ELITE_TARGET = 9.0
 
 
 @dataclass(frozen=True)
@@ -70,14 +75,28 @@ class GoldenVisualEvaluation:
     def approved(self) -> bool:
         if self.blockers.active:
             return False
-        if self.scores.weighted_score < 7.5:
+        if self.scores.weighted_score < GOLDEN_WEIGHTED_FLOOR:
             return False
         core = (
             self.scores.editorial_realism,
             self.scores.composition_hierarchy,
             self.scores.protected_zone_cleanliness,
         )
-        return min(core) >= 7.0
+        return min(core) >= GOLDEN_CORE_FLOOR
+
+    @property
+    def quality_tier(self) -> str:
+        """Expose the visual bar without weakening approval semantics.
+
+        `elite` is the 9+ target for flagship visuals. `golden` meets the strict
+        publication benchmark. Everything else remains below the PUL7SAR Golden
+        Visual bar even if it is technically valid.
+        """
+        if not self.approved:
+            return "below_golden"
+        if self.scores.weighted_score >= ELITE_TARGET:
+            return "elite"
+        return "golden"
 
 
 @dataclass(frozen=True)
