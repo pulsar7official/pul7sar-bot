@@ -76,6 +76,36 @@ class Flux2BatchExecuteTests(unittest.TestCase):
             self.assertIn("tools/phase18_flux2_execute.py", calls[0])
             self.assertIn("--result", calls[0])
 
+    def test_limit_one_runs_only_first_locked_candidate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.make_manifest(temp)
+            calls = []
+            results = execute_batch(
+                str(path), generation_dir="generated", proof_dir="proof",
+                dtype="bfloat16", limit=1, python_executable="python",
+                runner=self.runner_writing_result(calls),
+            )
+            self.assertEqual([item["seed"] for item in results], [101])
+            self.assertEqual(len(calls), 1)
+            self.assertIn("candidate-1.json", " ".join(calls[0]))
+
+    def test_limit_must_be_positive_and_within_manifest_count(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.make_manifest(temp)
+            calls = []
+            with self.assertRaisesRegex(ValueError, "positive integer"):
+                execute_batch(
+                    str(path), generation_dir="generated", proof_dir="proof",
+                    dtype="bfloat16", limit=0, python_executable="python",
+                    runner=self.runner_writing_result(calls),
+                )
+            with self.assertRaisesRegex(ValueError, "cannot exceed"):
+                execute_batch(
+                    str(path), generation_dir="generated", proof_dir="proof",
+                    dtype="bfloat16", limit=3, python_executable="python",
+                    runner=self.runner_writing_result(calls),
+                )
+
     def test_batch_does_not_depend_on_clean_stdout(self):
         with tempfile.TemporaryDirectory() as temp:
             path = self.make_manifest(temp)
