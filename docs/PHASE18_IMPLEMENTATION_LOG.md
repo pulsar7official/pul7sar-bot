@@ -33,81 +33,129 @@ and what remains intentionally untouched.
 - `tests/test_phase18_story_analyzer.py`: transfer-state, general-story and sentiment-signal tests.
 - `.github/workflows/phase18-intelligence.yml`: isolated read-only Phase 18 CI.
 
-### Modified
-- `engine/intelligence/__init__.py`: exported StoryAnalyzer and identity APIs.
-
 ### Validation
 - Draft PR #1 opened and kept unmerged.
 - CI run `32574409083`: SUCCESS.
-- Syntax, intelligence tests and production-isolation gate all passed.
 
 ## Change Set 004 — Story classification, result neutrality and Visual Family routing
 
-### Editorial principle added
-
+### Editorial principle
 PUL7SAR may celebrate a winner but must not humiliate the losing side. The loser
 may be absent, respectfully represented, or shown with realistic disappointment.
 Mockery, degrading symbolism, domination symbolism, exaggerated shame and
-humiliating treatment are rejected. Even a verified harsh sporting context does
-not authorize ridicule or degradation.
+humiliating treatment are rejected.
 
-This rule applies to clubs, teams, athletes, institutions and their audiences.
-The visual objective is to amplify the winner's moment rather than attack the
-loser.
+### Added
+- `engine/intelligence/classification.py`
+- `engine/intelligence/neutrality.py`
+- `engine/intelligence/visual_router.py`
+- `tests/test_phase18_classification_router.py`
+- `tests/test_phase18_neutrality.py`
+
+### Validation
+- CI run `32575035862`: SUCCESS.
+
+## Change Set 005 — Perspective-aware results + Concept Director
 
 ### Added
 
-- `engine/intelligence/classification.py`
-  - Stable enums for `StoryType`, `StoryScope`, and `EntityKind`.
-  - `EntityCandidate` is explicitly a candidate, never a verified identity.
-  - `StoryClassification` validates general/entity-led/multi-entity scope.
-  - `StoryClassifier` normalizes explicit story-type signals without inventing
-    missing facts.
+- `engine/intelligence/perspective.py`
+  - Separates the emotional perspective of winner, loser and PUL7SAR editorial voice.
+  - Enforces `NEUTRAL` as the editorial result perspective.
+  - Prevents a winner's positive sentiment from becoming a platform-level bias.
 
-- `engine/intelligence/neutrality.py`
-  - Adds `EditorialNeutralityGate`.
-  - Adds `ResultVisualTreatment`, `LoserTreatment`, and `NeutralityDecision`.
-  - Fails closed on mocking copy, degrading symbolism, domination symbolism,
-    exaggerated shame, or humiliating loser treatment.
-  - Allows celebration of the winner, respectful loser treatment, loser absence,
-    and proportionate realistic disappointment.
-  - Verified harsh context may support a serious/realistic mood but never
-    overrides the anti-humiliation rules.
+- `engine/intelligence/concept_director.py`
+  - Adds `ConceptBrief`, `ProposedConcept`, `ConceptConstraint` and `ConceptDirector`.
+  - Introduces family-specific forbidden-concept constraints.
+  - Result concepts inherit anti-humiliation, anti-mockery, anti-degrading-symbolism and anti-exaggerated-shame rules.
+  - Transfer concepts inherit `NO_UNVERIFIED_SIGNING`.
+  - Matchday concepts inherit `NO_INVENTED_RESULT`.
+  - Player stories inherit `NO_UNVERIFIED_IDENTITY`.
+  - Serious news inherits `NO_SENSATIONAL_HARM`.
+  - A concept cannot bypass `EditorialNeutralityGate` merely by claiming compliance.
 
-- `engine/intelligence/visual_router.py`
-  - Adds `VisualFamily`: RESULTS, TRANSFERS, MATCHDAY, PLAYER_STORIES,
-    SERIOUS_NEWS, ORGANIZATION, GENERAL_WORLD.
-  - Routes result stories through the neutrality gate.
-  - Routes person-led stories through identity verification requirements.
-  - Keeps transfer concepts from visually implying an unverified completed
-    signing.
-  - Routes general multi-league/editorial stories to a brand-led world and marks
-    the color strategy as `brand_red`.
-  - Entity-led stories use `adaptive_entity_palette` as the high-level strategy.
-
-- `tests/test_phase18_classification_router.py`
-  - General multi-league story -> GENERAL_WORLD / brand red / no hero entity.
-  - Result -> RESULTS + mandatory neutrality gate.
-  - Transfer approach -> TRANSFERS without completed-signing implication.
-  - Sam Hickey-style player story -> PLAYER_STORIES + identity gate.
-  - General scope cannot secretly carry entity candidates.
-
-- `tests/test_phase18_neutrality.py`
-  - Winner celebration is allowed.
-  - Losing side may be absent or respectful.
-  - Realistic disappointment is allowed.
-  - Humiliation, mocking copy, degrading/domination symbolism and exaggerated
-    shame are rejected.
-  - Verified harsh context still cannot authorize mockery.
+- `tests/test_phase18_perspective_concept.py`
+  - Verifies separate winner/loser/editorial sentiments.
+  - Verifies editorial neutrality cannot be changed to positive/negative.
+  - Verifies result constraints are mandatory.
+  - Verifies humiliating concepts remain blocked even if they claim to acknowledge constraints.
 
 ### Modified
+- `engine/intelligence/__init__.py`: exports perspective and concept APIs.
+- `.github/workflows/phase18-intelligence.yml`: includes new tests.
 
-- `engine/intelligence/__init__.py`
-  - Exports classification, neutrality and routing APIs.
+### Validation
+- CI run `32575594345`: SUCCESS.
+- Syntax, tests and production-isolation gate passed.
 
-- `.github/workflows/phase18-intelligence.yml`
-  - Adds syntax checks and unit tests for Change Set 004 modules.
-  - Retains `contents: read` and production-isolation enforcement.
+## Change Set 006 — Sentiment evidence + conservative resolver
+
+### Added
+
+- `engine/intelligence/sentiment.py`
+  - Adds `SentimentProvider` protocol for future rules/LLM providers.
+  - Adds `SentimentEvidence`, which requires a source and confidence.
+  - Adds `SentimentResolver` as the stable authority over provider suggestions.
+  - No evidence -> `NEUTRAL`.
+  - Low-confidence evidence -> `NEUTRAL`.
+  - Strong conflicting evidence -> `NEUTRAL` with `conflicted=True`.
+  - A provider suggestion is evidence, not authority over editorial tone.
+
+- `tests/test_phase18_sentiment.py`
+  - Covers no evidence, low confidence, strong positive, high-confidence conflict, and source validation.
+
+### Modified
+- `engine/intelligence/__init__.py`: exports sentiment APIs.
+- `.github/workflows/phase18-intelligence.yml`: switched to discovery for all `test_phase18_*.py` tests so later Phase 18 tests are included automatically.
+
+### Deleted
+- Nothing.
+
+### Production safety
+- No production integration.
+- No model/API provider wired.
+- No image generation wired.
+
+## Change Set 007 — Generation Authorization + original-scene provider boundary
+
+### Purpose
+Create the final mandatory safety boundary before any future original image provider can be invoked.
+
+### Added
+
+- `engine/intelligence/generation_authorization.py`
+  - Adds `GenerationAuthorizer`.
+  - Aggregates Fact Lock, identity requirements, sentiment conflict state and Concept Director validation.
+  - Produces an explicit `GenerationAuthorization` allow/deny decision.
+  - Denied decisions never contain an authorization token.
+  - Allowed decisions require the internal Phase 18 authorization token.
+  - If identity is required, generation is denied unless status is `VERIFIED` and `depiction_allowed=True`.
+  - High-confidence sentiment conflict blocks generation rather than guessing a mood.
+  - Forbidden factual claims block generation.
+  - Neutrality/concept failures block generation.
+
+- `engine/intelligence/generation_provider.py`
+  - Adds `OriginalSceneProvider` protocol without choosing a vendor.
+  - Adds `OriginalSceneRequest` and `OriginalSceneResult` contracts.
+  - Adds `AuthorizedSceneGenerator`, the wrapper that validates authorization before calling a provider.
+  - A denied authorization prevents provider invocation entirely.
+  - This makes Generation Authorization an architectural requirement instead of a coding convention.
+
+- `tests/test_phase18_generation_authorization.py`
+  - Safe result can be authorized.
+  - Forbidden claim blocks generation.
+  - Missing or partial identity blocks generation when required.
+  - Verified identity passes the identity gate.
+  - Conflicted sentiment blocks generation.
+  - Humiliating concept blocks generation.
+
+- `tests/test_phase18_generation_provider.py`
+  - Valid authorization permits provider invocation.
+  - Denied authorization prevents the provider from being called at all.
+  - Invalid output dimensions are rejected before provider execution.
+
+### Modified
+- `engine/intelligence/__init__.py`: exports generation authorization/provider contracts.
 
 ### Deleted
 - Nothing.
@@ -117,23 +165,20 @@ loser.
 - Telegram publishing: untouched.
 - `USE_VISUAL_ENGINE`: untouched.
 - Legacy image sourcing/rendering: untouched.
-- Existing templates/render pipeline: untouched.
-- Existing entity normalizer: untouched.
-- Existing structural QualityVerifier: untouched.
+- Existing renderer/templates: untouched.
+- No external image provider selected or invoked.
+- No secret/API key added.
 
-### Architecture after Change Set 004
+### Architecture after Change Set 007
 
-`Article -> StoryAnalyzer -> Fact Lock -> Classification -> Identity Gate -> Neutrality Policy -> Visual Family Router -> VisualIntent -> future concept/generation layer -> existing renderer`
+`Article -> StoryAnalyzer -> Fact Lock -> Classification -> Identity Verification -> Sentiment Evidence/Resolution -> Perspective Separation -> Neutrality Gate -> Visual Family Router -> Concept Director -> Generation Authorizer -> AuthorizedSceneGenerator -> future OriginalSceneProvider -> existing composition/render layer`
 
-The router chooses visual grammar only. It does not generate images, choose a
-specific pose, or bypass identity/factual/neutrality gates.
+The future provider cannot be reached through the intended Phase 18 path unless the request has passed the factual, identity, sentiment, neutrality and concept gates.
 
 ### Next planned work
 
-1. Add a sentiment-classification provider contract rather than relying only on
-   explicit sentiment labels.
-2. Add editorial role/perspective for results so winner and loser sentiments are
-   modeled separately instead of collapsing the whole story into one emotion.
-3. Add Concept Director contracts with forbidden-concept constraints from Fact
-   Lock, Identity Gate and Neutrality Gate.
-4. Only after those gates are stable, begin the first original-scene provider.
+1. Define the **Original Scene Specification** that translates an authorized concept into provider-neutral scene requirements: subject, environment, camera, mood, palette, exact assets, forbidden elements and output format.
+2. Add a deterministic Prompt/Scene Compiler that never invents facts beyond Fact Lock and ConceptBrief.
+3. Add provider capability abstraction and fallback strategy without choosing a paid provider yet.
+4. Build a dry-run vertical slice that produces a complete generation package without calling any external image API.
+5. Only after that package is inspectable and regression-tested should the first real original-image provider be connected.
