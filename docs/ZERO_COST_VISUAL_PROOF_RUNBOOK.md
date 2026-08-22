@@ -12,6 +12,7 @@ The PUL7SAR core stays environment-neutral. A compatible CUDA GPU may be a user-
 - Conservative PUL7SAR VRAM floor: 13 GB
 - Backend: Diffusers
 - Native canvas alignment: 16 pixels
+- Golden Visual precision: documented `bfloat16` path
 - Current development cost mode: `$0-local`
 
 No BFL paid API is used by this runbook.
@@ -78,7 +79,7 @@ PYTHONPATH=. python tools/phase18_local_readiness.py
 
 Readiness proves the installed Diffusers build exposes `Flux2KleinPipeline`; generic package import is not sufficient. Execution stops if CUDA, VRAM, backend or model-specific pipeline readiness is not proven.
 
-The readiness report also exposes `recommended_dtype`. The default generation request uses `--dtype auto`: PUL7SAR chooses `bfloat16` only when the CUDA runtime explicitly proves native BF16 support; otherwise it uses `float16`. The report also records BF16 capability and compute capability when PyTorch can expose them. Explicitly requesting `bfloat16` fails closed when support is not proven.
+The readiness report also exposes `recommended_dtype` and `golden_generation_ready`. The current Golden Visual benchmark follows the model's documented Diffusers `bfloat16` configuration. `--dtype auto` therefore means **prove native BF16 support and use BF16**. If BF16 support is false or cannot be proven, Golden generation stops; it does not silently switch to FP16 or another unverified precision. This keeps the first benchmark comparable to the documented reference path rather than trading quality certainty for broader hardware compatibility.
 
 ## First real GPU smoke proof — candidate 1 only
 Use the same sequential batch executor that will later produce the complete four-candidate set, but limit it to the first locked candidate:
@@ -109,14 +110,14 @@ PYTHONPATH=. python tools/phase18_flux2_batch_execute.py \
   --result output/phase18_visual_proof/batch-execution.json
 ```
 
-The batch executor never runs candidates in parallel. It delegates every candidate to the exact same single-request execution path, validates returned deterministic seed/request identity, and stops immediately on the first failed candidate. This avoids VRAM contention and prevents one candidate from bypassing the normal integrity/readiness/provenance/normalization gates.
+The batch executor never runs candidates in parallel. It delegates every candidate to the exact same single-request execution path, validates returned deterministic seed/request identity and confirms the result stayed on BF16, then stops immediately on the first failed candidate. This avoids VRAM contention and prevents one candidate from bypassing the normal integrity/readiness/provenance/normalization/precision gates.
 
 The single-request executor performs, in order:
 
 1. Validate handoff version, SHA-256 and `$0-local` lock.
 2. Confirm approved FLUX.2 model/provider/backend IDs.
 3. Confirm CUDA, VRAM and model-specific Diffusers readiness.
-4. Resolve the safe CUDA dtype (`BF16` only when proven, otherwise `FP16` in auto mode).
+4. Prove native BF16 support and resolve the Golden dtype to `bfloat16`.
 5. Load `Flux2KleinPipeline` locally through Diffusers.
 6. Generate using the locked prompt and deterministic seed.
 7. Validate native result provider/model/backend/request ID/seed/dimensions.
@@ -181,7 +182,7 @@ A generated proof is **not automatically publication-ready**.
 The first PNG must still pass PUL7SAR's independent subject/framing, semantic-defect, forbidden-visual, protected-region and — when applicable — identity-similarity checks. The Semantic Publication Gate remains fail-closed. Golden Visual approval is an additional aesthetic gate, not a substitute for semantic safety.
 
 ## Colab execution path
-`notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb` provides the current lowest-friction free-GPU path. It checks for a GPU, installs only the Phase 18 GPU requirements, proves FLUX-specific readiness, builds and verifies the deterministic batch, executes candidate 1 through `--limit 1 --dtype auto`, reads the structured execution report, prints the actual GPU/dtype decision, and displays the real proof. Full-batch generation remains intentionally opt-in after candidate 1 proves the runtime stable.
+`notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb` provides the current lowest-friction free-GPU path. It checks for a GPU, installs only the Phase 18 GPU requirements, proves FLUX-specific and BF16 Golden readiness, builds and verifies the deterministic batch, executes candidate 1 through `--limit 1 --dtype auto`, reads the structured execution report, confirms the result resolved to BF16, and displays the real proof. Full-batch generation remains intentionally opt-in after candidate 1 proves the runtime stable.
 
 ## Golden Visual benchmark
 For the first general-season proof, evaluate at minimum:
