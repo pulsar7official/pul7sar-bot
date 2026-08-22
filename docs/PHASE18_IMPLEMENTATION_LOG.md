@@ -85,7 +85,7 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 ## Change Set 043 — Quality-first Golden Visual candidate batch
 - Adds `tools/phase18_build_golden_batch.py` and tests.
 - CI builds four deterministic requests using seeds `7007001`–`7007004`.
-- Only the seed varies; prompt/model/platform/layout/factual constraints remain identical.
+- Only the seed varies; prompt/model/platform geometry, constraints and cost policy stay identical.
 - `manifest.json` records each request ID, native canvas `1088x1360`, exact target canvas `1080x1350`, normalization requirement, and payload SHA-256.
 - The candidate batch is uploaded as a multi-file GitHub Actions artifact.
 - CI Run `32594690472`: SUCCESS.
@@ -139,22 +139,34 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 ## Change Set 050 — CUDA-aware Golden BF16 verification
 - `LocalRuntimeProbe` records BF16 support and compute capability when PyTorch can prove them.
 - Adds `LocalDTypeSelector` for the quality-locked Golden path.
-- After rechecking the documented FLUX.2 Klein 4B Diffusers reference configuration before the first PNG, the benchmark is locked to BF16 rather than silently falling back to another precision.
-- `auto` means prove native BF16 and resolve to `bfloat16`; BF16 false/unknown fails closed.
-- Golden executor accepts only `auto` or explicit `bfloat16`.
-- Batch executor rejects any result that escapes the BF16 precision lock.
-- Local readiness distinguishes generic generation readiness from `golden_generation_ready`.
-- GPU execution reports requested/resolved dtype, GPU identity, VRAM, BF16 support and compute capability.
-- Colab uses `--dtype auto` for both candidate 1 and the full batch and asserts BF16 before displaying the proof.
+- The first benchmark is locked to BF16 rather than silently falling back to another precision.
+- `auto` means prove native BF16 and resolve to `bfloat16`; false/unknown BF16 fails closed.
+- Batch execution rejects any result that escapes the BF16 precision lock.
 - CI Run `32596910115`: SUCCESS for the final fail-closed code path.
 - Notebook CI Run `32596936433`: SUCCESS.
 - Runbook CI Run `32596975853`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_050_GPU_DTYPE.md`.
 
-## Current verified Golden Visual batch
-The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. The current code still reports truthfully that a real PNG has **not yet been generated** because a compatible CUDA runtime has not yet executed the handoff.
+## Change Set 051 — Provider-neutral generation jobs and GPU worker service
+- Adds `engine/intelligence/generation_jobs.py`, `engine/intelligence/generation_worker.py`, and worker tests.
+- Defines durable job identity, bounded attempts, lease ownership/expiry, capability matching, result identity verification, explicit retryability, and terminal failure semantics.
+- A worker cannot silently switch provider/model/request/payload identity or bypass CUDA/BF16 requirements.
+- This creates the queue/worker contract needed for unattended execution while leaving the queue backend and GPU backend replaceable.
 
-## Production safety through Change Set 050
+## Change Set 052 — Durable filesystem queue + locked FLUX worker adapter
+- Adds `engine/intelligence/generation_job_store.py` with exclusive enqueue and atomic filesystem claims.
+- Adds `engine/intelligence/flux_worker_executor.py`, connecting leased jobs to the existing real FLUX executor without passing mutable prompt/model/seed/canvas values on the command line.
+- Adds `tools/phase18_enqueue_generation.py` for immutable handoff-to-job enqueue.
+- Adds `tools/phase18_gpu_worker.py` for one-cycle smoke execution or continuous unattended polling.
+- Adds queue persistence and FLUX worker boundary tests.
+- Real executor success requires dedicated result JSON, `REAL_VISUAL_PROOF_GENERATED`, exact BF16, matching locked identity, and an existing PNG.
+- Transient GPU failures can retry within the bounded job policy; integrity/dtype/proof failures remain fail-closed.
+- Detailed record: `docs/PHASE18_CHANGESET_051_052_GPU_AUTOMATION.md`.
+
+## Current verified Golden Visual batch
+The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
+
+## Production safety through Change Set 052
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
@@ -168,13 +180,14 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Golden Visual aesthetic approval is additional to, not a substitute for, semantic publication safety.
 - Unsupported or unproven BF16 does not trigger a silent precision downgrade.
 
-## Architecture after Change Set 050
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch Integrity -> FLUX-Specific CUDA/Diffusers Readiness -> Golden BF16 Readiness -> --limit 1 GPU Smoke Proof -> Dedicated Result JSON -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Full Sequential Candidate Batch -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 052
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Durable Generation Job -> Atomic Queue Lease -> BF16/CUDA GPU Worker -> Locked FLUX Executor -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Execute candidate 1 on a compatible `$0` CUDA runtime with `--limit 1 --dtype auto`; readiness must report `golden_generation_ready: true`.
-2. Confirm the candidate reports `resolved_dtype: bfloat16` and register the first genuine PNG.
-3. Inspect the real result against the strict Golden benchmark; generation success alone is not visual acceptance.
-4. If candidate 1 proves runtime stability, execute the remaining deterministic seeds sequentially.
-5. Review all real candidates and reject the entire batch if none reaches the Golden bar.
-6. After the non-person Golden Visual proves the complete generation path, connect verified reference-image resolution for identity-required stories without weakening identity similarity gates.
+1. Run the new enqueue + worker path on a compatible `$0` CUDA/BF16 host for candidate 1.
+2. Capture real generation latency, peak VRAM and proof metadata instead of estimating production capacity.
+3. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
+4. If stable, execute the remaining deterministic seeds through the worker path.
+5. Add worker heartbeat/lease recovery and queue observability before multi-host production scaling.
+6. Add a distributed queue adapter only after the single-host worker is proven, preserving the same GenerationJobStore contract.
+7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
