@@ -10,6 +10,9 @@ Batch control reads each candidate result from a dedicated JSON file rather than
 parsing stdout, because real Diffusers/Transformers runtimes may emit progress or
 informational text while loading model weights. `--limit 1` provides a safe first
 GPU smoke proof without changing the locked four-candidate manifest.
+
+Golden execution is precision-locked to the documented BF16 path. `--dtype auto`
+means native BF16 must be proven; no silent FP16 fallback is allowed.
 """
 
 from __future__ import annotations
@@ -94,6 +97,8 @@ def execute_batch(
                 raise RuntimeError(f"candidate {candidate['request_id']} returned an unexpected seed")
             if payload.get("request_id") not in {None, candidate["request_id"]}:
                 raise RuntimeError(f"candidate {candidate['request_id']} returned an unexpected request_id")
+            if payload.get("resolved_dtype") not in {None, "bfloat16"}:
+                raise RuntimeError(f"candidate {candidate['request_id']} escaped the Golden BF16 precision lock")
             results.append({
                 "candidate": candidate["candidate"],
                 "seed": candidate["seed"],
@@ -117,7 +122,7 @@ def main() -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
-    parser.add_argument("--dtype", choices=("auto", "float16", "bfloat16", "float32"), default="auto")
+    parser.add_argument("--dtype", choices=("auto", "bfloat16"), default="auto")
     parser.add_argument("--limit", type=int, help="Execute only the first N locked candidates; use 1 for GPU smoke proof")
     parser.add_argument("--result", default="output/phase18_visual_proof/batch-execution.json")
     args = parser.parse_args()
