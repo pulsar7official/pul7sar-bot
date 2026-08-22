@@ -50,6 +50,8 @@ class Flux2KleinPipelineWrapper:
             raise ValueError(
                 "identity/reference image execution requires a verified asset-path resolver and is not enabled in the text-to-image wrapper"
             )
+        if width % 16 != 0 or height % 16 != 0:
+            raise ValueError("FLUX.2 klein native generation canvas must be divisible by 16")
         generator = self._torch.Generator(device="cuda").manual_seed(seed)
         result = self._pipe(
             prompt=prompt,
@@ -62,7 +64,16 @@ class Flux2KleinPipelineWrapper:
         images = getattr(result, "images", None)
         if not images:
             raise ValueError("Flux2KleinPipeline returned no images")
-        return {"image": images[0]}
+        return {
+            "image": images[0],
+            "metadata": {
+                "pipeline": "Flux2KleinPipeline",
+                "guidance_scale": self._config.guidance_scale,
+                "num_inference_steps": self._config.num_inference_steps,
+                "cpu_offload": self._config.cpu_offload,
+                "native_canvas_alignment": 16,
+            },
+        }
 
 
 def build_flux2_klein_pipeline_factory(
