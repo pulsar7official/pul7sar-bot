@@ -18,6 +18,7 @@ from engine.intelligence.models import ClaimKind, IdentityPlan, IdentityStatus, 
 from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatment, NeutralityDecision, NeutralityViolation, ResultVisualTreatment
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform
+from engine.intelligence.post_composition import AssetIntegrityRecord, CompositionElement, CompositionQualityDecision, CompositionRole, PostCompositionPlan, PostCompositionPlanner, PostCompositionQualityGate
 from engine.intelligence.provider_capabilities import ProviderCapabilities, ProviderEligibilityDecision, ProviderEligibilityGate, ProviderFeature, ProviderRequirements
 from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep, ProviderExecutionPlan, ProviderExecutionPlanner
 from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
