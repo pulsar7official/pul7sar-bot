@@ -78,13 +78,33 @@ class DiffusersLocalBackend:
             reference_asset_ids=request.reference_asset_ids,
         )
         image = getattr(result, "image", None)
-        if image is None and isinstance(result, dict):
-            image = result.get("image")
+        result_metadata: dict[str, Any] = {}
+        if isinstance(result, dict):
+            if image is None:
+                image = result.get("image")
+            supplied = result.get("metadata")
+            if isinstance(supplied, dict):
+                result_metadata.update(supplied)
         if image is None or not hasattr(image, "save"):
             raise ValueError("Diffusers pipeline did not return a saveable image")
 
         output_path = output_dir / f"{request.request_id}.png"
         image.save(output_path)
+        metadata: dict[str, Any] = {
+            "adapter": "diffusers",
+            "dtype": self.config.dtype,
+        }
+        try:
+            from importlib.metadata import version as pkg_version
+            metadata["diffusers_version"] = pkg_version("diffusers")
+        except Exception:
+            metadata["diffusers_version"] = None
+        try:
+            import torch
+            metadata["torch_version"] = getattr(torch, "__version__", None)
+        except Exception:
+            metadata["torch_version"] = None
+        metadata.update(result_metadata)
         return LocalBackendGenerationResult(
             provider_id=request.provider_id,
             model_id=request.model_id,
@@ -94,5 +114,5 @@ class DiffusersLocalBackend:
             width=request.width,
             height=request.height,
             output_ref=str(output_path),
-            metadata={"adapter": "diffusers", "dtype": self.config.dtype},
+            metadata=metadata,
         )
