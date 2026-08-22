@@ -39,54 +39,74 @@ class Flux2BatchExecuteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "\\$0-local"):
                 load_manifest(str(path))
 
-    def test_executes_candidates_sequentially_and_checks_seed(self):
-        with tempfile.TemporaryDirectory() as temp:
-            path = self.make_manifest(temp)
-            calls = []
-
-            def runner(command, **kwargs):
-                calls.append(command)
-                request = Path(command[command.index("--request") + 1]).name
-                seed = 101 if request == "candidate-1.json" else 102
+    def runner_writing_result(self, calls, *, seed_override=None, write=True):
+        def runner(command, **kwargs):
+            calls.append(command)
+            request = Path(command[command.index("--request") + 1]).name
+            expected_seed = 101 if request == "candidate-1.json" else 102
+            seed = expected_seed if seed_override is None else seed_override
+            result_path = Path(command[command.index("--result") + 1])
+            if write:
                 payload = {
                     "status": "REAL_VISUAL_PROOF_GENERATED",
                     "seed": seed,
+                    "request_id": "req-1" if request == "candidate-1.json" else "req-2",
                     "png": f"proof-{seed}.png",
                     "metadata": f"proof-{seed}.json",
                     "native_png": f"native-{seed}.png",
                 }
-                return SimpleNamespace(stdout=json.dumps(payload))
+                result_path.write_text(json.dumps(payload), encoding="utf-8")
+            return SimpleNamespace(stdout="library progress noise before/after structured result")
+        return runner
 
+    def test_executes_candidates_sequentially_and_checks_seed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.make_manifest(temp)
+            calls = []
             results = execute_batch(
                 str(path),
                 generation_dir="generated",
                 proof_dir="proof",
                 dtype="bfloat16",
                 python_executable="python",
-                runner=runner,
+                runner=self.runner_writing_result(calls),
             )
             self.assertEqual([item["seed"] for item in results], [101, 102])
             self.assertEqual(len(calls), 2)
             self.assertIn("tools/phase18_flux2_execute.py", calls[0])
+            self.assertIn("--result", calls[0])
+
+    def test_batch_does_not_depend_on_clean_stdout(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.make_manifest(temp)
+            calls = []
+            results = execute_batch(
+                str(path), generation_dir="generated", proof_dir="proof",
+                dtype="bfloat16", python_executable="python",
+                runner=self.runner_writing_result(calls),
+            )
+            self.assertEqual(len(results), 2)
+
+    def test_missing_executor_result_file_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.make_manifest(temp)
+            calls = []
+            with self.assertRaisesRegex(RuntimeError, "did not write its executor result file"):
+                execute_batch(
+                    str(path), generation_dir="generated", proof_dir="proof",
+                    dtype="bfloat16", python_executable="python",
+                    runner=self.runner_writing_result(calls, write=False),
+                )
 
     def test_unexpected_seed_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             path = self.make_manifest(temp)
-
-            def runner(command, **kwargs):
-                payload = {
-                    "status": "REAL_VISUAL_PROOF_GENERATED",
-                    "seed": 999,
-                    "png": "proof.png",
-                    "metadata": "proof.json",
-                    "native_png": "native.png",
-                }
-                return SimpleNamespace(stdout=json.dumps(payload))
-
+            calls = []
             with self.assertRaisesRegex(RuntimeError, "unexpected seed"):
                 execute_batch(
                     str(path), generation_dir="generated", proof_dir="proof",
-                    dtype="bfloat16", python_executable="python", runner=runner,
+                    dtype="bfloat16", python_executable="python",
+                    runner=self.runner_writing_result(calls, seed_override=999),
                 )
 
 
