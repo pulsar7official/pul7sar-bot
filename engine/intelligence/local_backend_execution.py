@@ -96,10 +96,9 @@ class LocalImageBackend(Protocol):
 class LocalBackendRequestCompiler:
     """Compile PUL7SAR packages into exact local-backend requests.
 
-    `compile` is execution-local and requires proven runtime/backend readiness.
-    `compile_portable_handoff` creates the same locked request on a non-GPU host,
-    but only for a provider already proven zero-cost. The execution host must
-    independently re-check hardware/backend readiness before invoking a model.
+    The destination canvas belongs to PUL7SAR. The native model canvas may need
+    alignment (FLUX.2 currently uses 16-pixel alignment), so a request records
+    both canvases and downstream normalization restores the exact platform size.
     """
 
     def __init__(
@@ -173,9 +172,8 @@ class LocalBackendRequestCompiler:
         reference_asset_ids: tuple[str, ...],
         handoff: bool,
     ) -> LocalBackendGenerationRequest:
-        width, height = self._canvas(package.canvas)
-        if not model.supports_canvas(width, height):
-            raise ValueError("requested canvas exceeds selected local model envelope")
+        target_width, target_height = self._canvas(package.canvas)
+        generation_width, generation_height = model.align_canvas(target_width, target_height)
 
         compiled = self._constraints.compile(
             package.negative_constraints,
@@ -198,8 +196,8 @@ class LocalBackendRequestCompiler:
             backend=backend,
             prompt=" ".join(prompt_parts),
             native_negative_constraints=compiled.native_negative_constraints,
-            width=width,
-            height=height,
+            width=generation_width,
+            height=generation_height,
             seed=seed,
             request_id=request_id,
             reference_asset_ids=reference_asset_ids,
@@ -208,6 +206,10 @@ class LocalBackendRequestCompiler:
                 "cost_mode": "$0-local",
                 "layout_boxes": {role: dict(box) for role, box in package.layout_boxes.items()},
                 "portable_handoff": handoff,
+                "target_width": target_width,
+                "target_height": target_height,
+                "generation_alignment": model.generation_alignment,
+                "canvas_normalization_required": (generation_width, generation_height) != (target_width, target_height),
             },
         )
 
@@ -224,7 +226,7 @@ class LocalBackendRequestCompiler:
 
 
 class LocalBackendResultGate:
-    """Reject backend output that changes the approved request contract."""
+    """Reject backend output that changes the approved native generation request."""
 
     def validate(
         self,
@@ -242,5 +244,5 @@ class LocalBackendResultGate:
         if result.seed != request.seed:
             raise ValueError("local backend changed deterministic seed")
         if (result.width, result.height) != (request.width, request.height):
-            raise ValueError("local backend returned unexpected output dimensions")
+            raise ValueError("local backend returned unexpected native output dimensions")
         return result.provenance
