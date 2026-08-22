@@ -46,45 +46,64 @@ Previously documented foundation: Fact Lock, StoryAnalyzer, identity verificatio
 - CI `32580744885`: SUCCESS.
 
 ## Change Set 018 — Deterministic typography + final export authorization
+- Deterministic headline/score/footer style and fit contracts.
+- Final export authorization requires approved typography, geometry and post-composition quality.
+- CI `32580980268`: SUCCESS.
+
+## Change Set 019 — Base-scene visual acceptance gate
 
 ### Purpose
-Make final text rendering and export deterministic, inspectable and fail-closed. The image model is not trusted to render the final headline, score or platform footer.
+Reject weak or unsafe AI-generated base scenes before any official PUL7SAR branding, crest, score, headline or social footer is composited.
 
 ### Added
-- `engine/intelligence/typography.py`
-  - Adds `FontReference`, `TextStyle`, `TextRole`, `TextAlign`, `TextBox`, `TextLayout`, `TypographyDecision`, `DeterministicTypographyEngine`, and `Pul7sarTypographyPolicy`.
-  - Fonts are referenced by configured IDs/family names and optional SHA-256; no font file is bundled or guessed by the intelligence layer.
-  - Headline, score and social-footer roles have independent size bounds, line limits, alignment and overflow policy.
-  - Default policy prohibits silent headline truncation/ellipsis.
-  - Score and footer are single-line roles.
-  - The engine shrinks text deterministically within approved min/max bounds and fails closed if it cannot fit the approved layout box.
-  - Latin-only uppercase support never mutates Arabic/non-Latin text.
-  - Current fit estimation is deterministic/conservative and is explicitly a contract until a concrete renderer supplies exact glyph metrics.
+- `engine/intelligence/base_scene_quality.py`
+  - `SubjectFramingEvidence`
+  - `IdentityVisualEvidence`
+  - `ProtectedRegionEvidence`
+  - `GenerationDefectEvidence`
+  - `BaseSceneEvidence`
+  - `BaseSceneAcceptanceDecision`
+  - `BaseSceneVisualAcceptanceGate`
 
-- `engine/intelligence/final_export.py`
-  - Adds `FinalComposedOutput`, `ExportAuthorization`, and `FinalExportGate`.
-  - Final export re-runs post-composition quality checks.
-  - Rejects final platform/canvas mismatch.
-  - Requires a base-scene reference and composed-output reference.
-  - Every rendered text role must use an approved style and exact approved geometry.
-  - Missing, duplicated or unexpected rendered text roles fail closed.
-  - Unapproved fonts, out-of-bounds font sizes, excessive line count and prohibited truncation fail closed.
-  - Successful export receives a non-empty authorization token; denied export never receives a token.
+### Fail-closed checks
+- exact output resolution vs GenerationPackage canvas
+- exact reduced aspect ratio
+- required subject presence
+- approved subject framing/crop
+- usable hero region
+- framing confidence threshold
+- required identity match against verified reference IDs
+- identity confidence threshold
+- protected overlay regions remain sufficiently clear
+- duplicate/missing protected-region evidence
+- generation defect evidence (e.g. anatomy/equipment defects)
+- forbidden visual detections
+- safe crop potential
+- provider provenance evidence
+
+### Protected-region rule
+The hero box is intentionally occupied by the generated subject and is not required to be blank. Every other approved composition region (logo, headline, score, crest, footer, etc.) must provide evidence that it remains sufficiently clear for deterministic overlays.
+
+### Provenance
+Provider provenance is required. Missing provenance fails closed. A missing provider request ID currently produces a warning so adapters can be integrated incrementally while still preserving a provider/model evidence record.
 
 ### Added tests
-- `tests/test_phase18_typography_export.py`
-  - headline fitting without silent truncation
-  - overlong/tiny-box failure
-  - one-line score
-  - compact one-line footer
-  - complete valid export authorization
-  - missing rendered headline rejection
-  - wrong text geometry rejection
-  - unapproved font rejection
+- `tests/test_phase18_base_scene_quality.py`
+  - clean scene acceptance
+  - resolution rejection
+  - identity mismatch rejection
+  - low identity-confidence rejection
+  - busy headline-region rejection
+  - missing protected-region evidence rejection
+  - generation-defect rejection
+  - forbidden-visual rejection
+  - unsafe-crop rejection
+  - missing-provenance rejection
+  - missing request ID warning
 
 ### Modified
 - `engine/intelligence/__init__.py`
-  - Exports typography and final-export APIs.
+  - Exports base-scene evidence and acceptance APIs.
 
 ### Production safety
 - `main.py`: untouched.
@@ -92,15 +111,14 @@ Make final text rendering and export deterministic, inspectable and fail-closed.
 - Legacy image sourcing/rendering: untouched.
 - Production renderer/templates: untouched.
 - No external image provider invoked.
-- No font file added or exposed.
 - No production secret/API key added.
 
-### Architecture after Change Set 018
-`Article -> Story Intelligence -> factual / identity / sentiment / neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Destination Assets -> Deterministic Layout -> Generation Package -> Provider Eligibility -> Execution Plan -> AI Base Scene -> PostCompositionPlanner -> Asset Integrity / Composition Quality -> Deterministic Typography -> FinalExportGate -> Platform Export`
+### Architecture after Change Set 019
+`Article -> Story Intelligence -> factual / identity / sentiment / neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Destination Assets -> Deterministic Layout -> Generation Package -> Provider Eligibility -> Execution Plan -> AI Base Scene -> BaseSceneVisualAcceptanceGate -> PostCompositionPlanner -> Asset Integrity / Composition Quality -> Deterministic Typography -> FinalExportGate -> Platform Export`
 
 ### Next planned work
-1. Verify Change Set 018 CI.
-2. Add visual-quality evidence for the AI base scene before official assets/text are composited: resolution, subject framing, identity-reference confidence, blank protected regions and generation defect flags.
-3. Add a base-scene acceptance gate so a poor generation never reaches the branding/composition layer.
-4. Add a provider adapter interface that produces this evidence without binding Phase 18 to one vendor.
-5. Only after the base-scene quality gate is green should a real provider be evaluated/connected.
+1. Verify Change Set 019 CI.
+2. Add a provider-adapter evidence contract that translates vendor output into `BaseSceneEvidence` without trusting vendor-specific payloads elsewhere in the domain.
+3. Add regeneration/retry policy with bounded attempts and explicit rejection reasons.
+4. Add candidate ranking so several generated scenes can be evaluated and the best accepted scene selected deterministically.
+5. Only then evaluate/connect a real image provider behind the existing authorization, eligibility and quality gates.
