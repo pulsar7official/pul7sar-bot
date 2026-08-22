@@ -39,7 +39,7 @@ class Flux2BatchExecuteTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "\\$0-local"):
                 load_manifest(str(path))
 
-    def runner_writing_result(self, calls, *, seed_override=None, write=True):
+    def runner_writing_result(self, calls, *, seed_override=None, write=True, resolved_dtype="bfloat16"):
         def runner(command, **kwargs):
             calls.append(command)
             request = Path(command[command.index("--request") + 1]).name
@@ -54,6 +54,8 @@ class Flux2BatchExecuteTests(unittest.TestCase):
                     "png": f"proof-{seed}.png",
                     "metadata": f"proof-{seed}.json",
                     "native_png": f"native-{seed}.png",
+                    "requested_dtype": command[command.index("--dtype") + 1],
+                    "resolved_dtype": resolved_dtype,
                 }
                 result_path.write_text(json.dumps(payload), encoding="utf-8")
             return SimpleNamespace(stdout="library progress noise before/after structured result")
@@ -72,9 +74,21 @@ class Flux2BatchExecuteTests(unittest.TestCase):
                 runner=self.runner_writing_result(calls),
             )
             self.assertEqual([item["seed"] for item in results], [101, 102])
+            self.assertEqual([item["resolved_dtype"] for item in results], ["bfloat16", "bfloat16"])
             self.assertEqual(len(calls), 2)
             self.assertIn("tools/phase18_flux2_execute.py", calls[0])
             self.assertIn("--result", calls[0])
+
+    def test_non_bf16_executor_result_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = self.make_manifest(temp)
+            calls = []
+            with self.assertRaisesRegex(RuntimeError, "escaped the Golden BF16 precision lock"):
+                execute_batch(
+                    str(path), generation_dir="generated", proof_dir="proof",
+                    dtype="auto", limit=1, python_executable="python",
+                    runner=self.runner_writing_result(calls, resolved_dtype="float16"),
+                )
 
     def test_limit_one_runs_only_first_locked_candidate(self):
         with tempfile.TemporaryDirectory() as temp:
