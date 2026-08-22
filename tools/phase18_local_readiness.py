@@ -3,7 +3,9 @@
 Usage from repository root:
     python tools/phase18_local_readiness.py
 
-The command installs nothing, downloads nothing, and calls no paid API.
+The command installs nothing, downloads nothing, and calls no paid API. For the
+approved FLUX.2 klein candidate it proves that the installed Diffusers build
+actually exposes Flux2KleinPipeline, not merely that `diffusers` can import.
 """
 from __future__ import annotations
 
@@ -15,14 +17,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from engine.intelligence.local_backend import LocalBackendKind, LocalBackendSnapshot
-from engine.intelligence.local_diffusers_adapter import DiffusersBackendProbe
+from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe
+from engine.intelligence.local_backend import LocalBackendKind
 from engine.intelligence.local_readiness_service import LocalReadinessService
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
 def main() -> int:
-    backend = DiffusersBackendProbe().probe()
+    backend = Flux2KleinDiffusersProbe().probe()
     bundle = LocalReadinessService().evaluate(model=FLUX2_KLEIN_4B_LOCAL, backend=backend)
     report = bundle.as_dict()
     report["command_policy"] = {
@@ -30,6 +32,9 @@ def main() -> int:
         "downloads_model_weights": False,
         "uses_paid_api": False,
         "backend_probe": LocalBackendKind.DIFFUSERS.value,
+        "required_pipeline": "Flux2KleinPipeline",
+        "backend_details": list(backend.details),
+        "backend_version": backend.version,
     }
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if bundle.generation_ready else 2
