@@ -2,13 +2,14 @@
 """Run the Phase 18 durable GPU generation worker.
 
 This command is production-shaped but remains intentionally single-host and
-$0-local.  It refuses to consume queued work unless CUDA, FLUX.2 Klein Diffusers
+$0-local. It refuses to consume queued work unless CUDA, FLUX.2 Klein Diffusers
 support, and native BF16 are all proven on the worker host.
 """
 
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import time
 
@@ -103,7 +104,10 @@ def main() -> int:
 
     cycles = 0
     while True:
-        result = service.run_once()
+        current = datetime.now(timezone.utc)
+        recovery = store.recover_expired(now=current)
+        result = service.run_once(now=current)
+        snapshot = store.snapshot()
         cycles += 1
         print(json.dumps({
             "worker_id": result.worker_id,
@@ -111,6 +115,11 @@ def main() -> int:
             "job_id": result.job_id,
             "state": result.state.value if result.state else None,
             "detail": result.detail,
+            "recovered_expired_jobs": list(recovery.recovered_job_ids),
+            "terminal_expired_jobs": list(recovery.terminal_job_ids),
+            "queue_counts": snapshot.counts,
+            "queue_pending": snapshot.pending,
+            "queue_active": snapshot.active,
         }, sort_keys=True))
 
         if args.once or (args.max_cycles is not None and cycles >= args.max_cycles):
