@@ -13,7 +13,7 @@ from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestC
 from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
 from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
-from engine.intelligence.flux2_klein_diffusers import Flux2KleinInferenceConfig, Flux2KleinPipelineWrapper, build_flux2_klein_pipeline_factory
+from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, Flux2KleinInferenceConfig, Flux2KleinPipelineWrapper, build_flux2_klein_pipeline_factory
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
 from engine.intelligence.generation_provider import AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult
