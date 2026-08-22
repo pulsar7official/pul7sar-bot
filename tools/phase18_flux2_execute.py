@@ -3,14 +3,17 @@
 
 This command does not install dependencies and does not use a paid API. It fails
 closed unless CUDA/VRAM and Diffusers readiness are proven. On success it writes
-a real PNG and registers it into output/phase18_visual_proof with provenance.
+a native aligned PNG, normalizes it to the exact platform canvas, and registers
+the exact-canvas PNG as the visual proof with full provenance.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
+from engine.intelligence.canvas_normalization import PillowPlatformCanvasNormalizer
 from engine.intelligence.flux2_klein_diffusers import build_flux2_klein_pipeline_factory
 from engine.intelligence.local_backend import LocalBackendReadinessGate
 from engine.intelligence.local_backend_execution import LocalBackendResultGate
@@ -64,22 +67,33 @@ def main() -> int:
         build_flux2_klein_pipeline_factory(),
     )
     result = backend.generate(request)
-    provenance = LocalBackendResultGate().validate(request, result)
+    native_provenance = LocalBackendResultGate().validate(request, result)
+
+    normalized_path = str(Path(args.generation_dir) / f"{request.request_id}-platform.png")
+    normalized = PillowPlatformCanvasNormalizer().normalize(
+        request=request,
+        source_png=result.output_ref,
+        source_provenance=native_provenance,
+        output_path=normalized_path,
+    )
     artifact = VisualProofArtifactWriter(args.proof_dir).register(
-        png_path=result.output_ref,
-        provenance=provenance,
+        png_path=normalized.output_ref,
+        provenance=normalized.provenance,
     )
     print(json.dumps({
         "status": "REAL_VISUAL_PROOF_GENERATED",
         "png": artifact.png_path,
         "metadata": artifact.metadata_path,
-        "provider_id": provenance.provider_id,
-        "model_id": provenance.model_id,
-        "backend": provenance.backend,
-        "seed": provenance.seed,
-        "request_id": provenance.request_id,
-        "width": provenance.width,
-        "height": provenance.height,
+        "native_png": result.output_ref,
+        "provider_id": normalized.provenance.provider_id,
+        "model_id": normalized.provenance.model_id,
+        "backend": normalized.provenance.backend,
+        "seed": normalized.provenance.seed,
+        "request_id": normalized.provenance.request_id,
+        "native_width": request.width,
+        "native_height": request.height,
+        "width": normalized.provenance.width,
+        "height": normalized.provenance.height,
         "cost_mode": "$0-local",
     }, ensure_ascii=False, indent=2))
     return 0
