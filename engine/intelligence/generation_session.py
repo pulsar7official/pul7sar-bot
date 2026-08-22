@@ -23,8 +23,6 @@ from engine.intelligence.provider_adapter import ProviderAdapterRegistry, Provid
 
 
 class GenerationAttemptProvider(Protocol):
-    """Minimal provider boundary used by the session orchestrator."""
-
     provider_id: str
 
     def generate_attempt(
@@ -89,11 +87,7 @@ class GenerationSessionOrchestrator:
         self._regeneration = regeneration or BoundedRegenerationController(RegenerationPolicy())
         self.minimum_quality_score = minimum_quality_score
 
-    def run(
-        self,
-        package: GenerationPackage,
-        provider: GenerationAttemptProvider,
-    ) -> GenerationSessionResult:
+    def run(self, package: GenerationPackage, provider: GenerationAttemptProvider) -> GenerationSessionResult:
         provider_id = getattr(provider, "provider_id", None)
         if not isinstance(provider_id, str) or not provider_id.strip():
             raise ValueError("provider provider_id must be non-empty")
@@ -118,24 +112,16 @@ class GenerationSessionOrchestrator:
                     raise ValueError("provider returned raw generation for a different provider_id")
                 all_evidence.append(self._adapters.normalize(raw, package))
 
-            selection = self._selector.select(
-                package,
-                tuple(all_evidence),
-                attempts_used=attempts_used,
-            )
+            selection = self._selector.select(package, tuple(all_evidence), attempts_used=attempts_used)
             accepted = [item for item in selection.evaluations if item.decision.accepted]
-            diagnostics.append(
-                AttemptDiagnostic(
-                    attempt_number=attempts_used,
-                    candidate_count=len(raw_candidates),
-                    accepted_count=len(accepted),
-                    rejection_reasons=selection.rejection_reasons,
-                )
-            )
+            reasons = list(selection.rejection_reasons)
 
             if selection.outcome is CandidateOutcome.ACCEPTED:
                 assert selection.selected is not None
                 if selection.selected.quality_score >= self.minimum_quality_score:
+                    diagnostics.append(
+                        AttemptDiagnostic(attempts_used, len(raw_candidates), len(accepted), tuple(reasons))
+                    )
                     return GenerationSessionResult(
                         CandidateOutcome.ACCEPTED,
                         selection,
@@ -144,15 +130,31 @@ class GenerationSessionOrchestrator:
                         provider_id,
                         metadata={"minimum_quality_score": self.minimum_quality_score},
                     )
+                reasons.append(
+                    f"best accepted candidate quality {selection.selected.quality_score:.6f} is below minimum {self.minimum_quality_score:.6f}"
+                )
+
+            diagnostics.append(
+                AttemptDiagnostic(
+                    attempts_used,
+                    len(raw_candidates),
+                    len(accepted),
+                    tuple(dict.fromkeys(reasons)),
+                )
+            )
+
+            # Gate acceptance is necessary but not sufficient. A candidate below
+            # the explicit PUL7SAR quality floor must trigger another attempt
+            # while attempts remain; the floor is never lowered.
+            if selection.outcome is CandidateOutcome.ACCEPTED:
+                if attempts_used >= self._regeneration.policy.max_attempts:
+                    break
+                continue
 
             if not self._regeneration.may_retry(attempts_used=attempts_used, selection=selection):
                 break
 
-        final_selection = self._selector.select(
-            package,
-            tuple(all_evidence),
-            attempts_used=attempts_used,
-        )
+        final_selection = self._selector.select(package, tuple(all_evidence), attempts_used=attempts_used)
         reasons = list(final_selection.rejection_reasons)
         if final_selection.selected is not None and final_selection.selected.quality_score < self.minimum_quality_score:
             reasons.append(
