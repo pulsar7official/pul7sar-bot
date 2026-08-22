@@ -34,6 +34,8 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         path = target / filename
         LocalGenerationHandoff.write(request, str(path))
         data = json.loads(path.read_text(encoding="utf-8"))
+        target_width = int(request.metadata["target_width"])
+        target_height = int(request.metadata["target_height"])
         candidates.append({
             "candidate": index,
             "seed": seed,
@@ -42,7 +44,8 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
             "payload_sha256": data["payload_sha256"],
             "model_id": request.model_id,
             "native_canvas": f"{request.width}x{request.height}",
-            "target_canvas": request.metadata.get("target_canvas"),
+            "target_canvas": f"{target_width}x{target_height}",
+            "canvas_normalization_required": bool(request.metadata["canvas_normalization_required"]),
         })
 
     manifest = {
