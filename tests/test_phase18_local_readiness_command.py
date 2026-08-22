@@ -12,6 +12,11 @@ class LocalReadinessCommandTests(unittest.TestCase):
         self.assertIn('"uses_paid_api": False', text)
         self.assertIn('"required_pipeline": "Flux2KleinPipeline"', text)
         self.assertIn("Flux2KleinDiffusersProbe", text)
+        self.assertIn("LocalDTypeSelector", text)
+        self.assertIn('report["recommended_dtype"]', text)
+        self.assertIn('"requested": "auto"', text)
+        self.assertIn('"bf16_supported"', text)
+        self.assertIn('"compute_capability"', text)
         self.assertNotIn("subprocess", text)
         self.assertNotIn("pip install", text)
 
