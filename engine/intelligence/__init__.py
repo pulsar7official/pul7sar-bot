@@ -23,6 +23,9 @@ from engine.intelligence.neutrality import (
     ResultVisualTreatment,
 )
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
+from engine.intelligence.sentiment import (
+    SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver,
+)
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
 
@@ -33,7 +36,7 @@ __all__ = [
     "IdentityRequirements", "IdentityStatus", "IdentityVerificationError", "IdentityVerifier",
     "LockedClaim", "LoserTreatment", "NeutralityDecision", "NeutralityViolation",
     "PerspectiveSentiment", "ProposedConcept", "ResultPerspectives", "ResultVisualTreatment",
-    "Sentiment", "StoryAnalysisError", "StoryAnalyzer", "StoryBrief", "StoryClassification",
-    "StoryClassifier", "StoryScope", "StoryType", "VisualFamily", "VisualFamilyRouter",
-    "VisualIntent", "VisualRoute",
+    "Sentiment", "SentimentDecision", "SentimentEvidence", "SentimentProvider", "SentimentResolver",
+    "StoryAnalysisError", "StoryAnalyzer", "StoryBrief", "StoryClassification", "StoryClassifier",
+    "StoryScope", "StoryType", "VisualFamily", "VisualFamilyRouter", "VisualIntent", "VisualRoute",
 ]
