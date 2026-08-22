@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Mapping
 
-from engine.intelligence.assets import AssetBundle
+from engine.intelligence.assets import AssetBundle, AssetRole
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 
 
@@ -34,11 +34,7 @@ class GenerationPackage:
 class GenerationPackageCompiler:
     """Compile a dry-run scene package without calling an image provider."""
 
-    def compile(
-        self,
-        specification: OriginalSceneSpecification,
-        assets: AssetBundle,
-    ) -> GenerationPackage:
+    def compile(self, specification: OriginalSceneSpecification, assets: AssetBundle) -> GenerationPackage:
         if not isinstance(specification, OriginalSceneSpecification):
             raise TypeError("specification must be OriginalSceneSpecification")
         if not isinstance(assets, AssetBundle):
@@ -46,6 +42,7 @@ class GenerationPackageCompiler:
 
         assets.assert_brand_ready()
         assets.assert_team_crests_exact()
+        social_assets = assets.by_role(AssetRole.SOCIAL_ICON)
 
         prompt_parts = [
             f"Create a premium PUL7SAR sports editorial scene for {specification.platform.value}.",
@@ -68,26 +65,24 @@ class GenerationPackageCompiler:
             prompt_parts.append(
                 "Verified identity context: "
                 + ", ".join(
-                    value
-                    for value in (
-                        identity.entity_name,
-                        identity.sport,
-                        identity.role,
-                        identity.gender,
-                        identity.nationality,
-                        identity.affiliation,
-                    )
-                    if value
+                    value for value in (
+                        identity.entity_name, identity.sport, identity.role,
+                        identity.gender, identity.nationality, identity.affiliation,
+                    ) if value
                 )
                 + "."
             )
 
-        prompt_parts.append(
-            "Critical visual elements must stay inside the declared platform safe area."
-        )
-        prompt_parts.append(
-            "Use exact supplied PUL7SAR/team/social assets; do not redraw or hallucinate official marks."
-        )
+        prompt_parts.extend((
+            "Critical visual elements must stay inside the declared platform safe area.",
+            "Use the exact supplied PUL7SAR wordmark and official team/competition marks; never redraw, reinterpret, or hallucinate them.",
+            "The PUL7SAR wordmark itself remains exact. Only the approved number-7/pulse accent may adapt to the leading entity's primary color when its asset is explicitly marked tintable.",
+            "Club/team names shown in artwork must remain in their approved English form unless explicit editorial copy says otherwise.",
+        ))
+        if social_assets:
+            prompt_parts.append(
+                "Keep the social footer compact and uncrowded: small official platform icon plus PUL7SAR handle/name only; no long URLs, email address, or dense contact row unless explicitly requested."
+            )
 
         return GenerationPackage(
             platform=specification.platform.value,
@@ -101,5 +96,6 @@ class GenerationPackageCompiler:
                 "safe_area": dict(specification.safe_area),
                 "profile_version": specification.metadata.get("profile_version"),
                 "crop_strategy": specification.metadata.get("crop_strategy"),
+                "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
             },
         )
