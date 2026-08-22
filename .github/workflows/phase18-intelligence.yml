@@ -1,0 +1,95 @@
+name: Phase 18 Story Intelligence Verification
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml']
+  pull_request:
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-story-intelligence:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Syntax check Phase 18 modules, tools and tests
+        run: |
+          python -m py_compile engine/intelligence/*.py
+          python -m py_compile tools/phase18_*.py
+          python -m py_compile tests/test_story_intelligence_models.py
+          python -m py_compile tests/test_phase18_*.py
+      - name: Run Phase 18 intelligence tests
+        run: |
+          python -m unittest discover -v -s tests -p 'test_phase18_*.py'
+          python -m unittest -v tests.test_story_intelligence_models
+      - name: Verify production isolation
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          forbidden_imports = ("import main", "from main import")
+          for path in Path("engine/intelligence").glob("*.py"):
+              text = path.read_text(encoding="utf-8")
+              for forbidden in forbidden_imports:
+                  if forbidden in text:
+                      raise SystemExit(f"Phase 18 isolation violation in {path}: {forbidden}")
+          print("Phase 18 production-isolation check PASS")
+          PY
+      - name: Build portable Golden Visual GPU handoff
+        run: |
+          python tools/phase18_build_golden_handoff.py \
+            --output output/phase18_handoffs/golden-general-season-opener.json \
+            --seed 7007001 \
+            --request-id golden-general-season-opener-001
+      - name: Build quality-first Golden Visual candidate batch
+        run: |
+          python tools/phase18_build_golden_batch.py \
+            --output-dir output/phase18_handoffs/golden-batch \
+            --seeds 7007001 7007002 7007003 7007004
+      - name: Verify Golden Visual candidate batch integrity
+        run: |
+          python tools/phase18_verify_golden_batch.py \
+            --manifest output/phase18_handoffs/golden-batch/manifest.json
+      - name: Upload Golden Visual GPU handoff
+        uses: actions/upload-artifact@v7
+        with:
+          name: golden-general-season-opener.json
+          path: output/phase18_handoffs/golden-general-season-opener.json
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Golden Visual candidate batch
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-golden-visual-candidate-batch-${{ github.sha }}
+          path: output/phase18_handoffs/golden-batch/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Detect visual proof output
+        id: visual-proof
+        shell: bash
+        run: |
+          if [ -d output/phase18_visual_proof ] && find output/phase18_visual_proof -type f -name '*.png' -print -quit | grep -q .; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "No generated visual proof PNG exists in this verification run yet."
+          fi
+      - name: Upload PUL7SAR visual proof
+        if: steps.visual-proof.outputs.available == 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-visual-proof-${{ github.sha }}
+          path: output/phase18_visual_proof/
+          if-no-files-found: error
+          retention-days: 14

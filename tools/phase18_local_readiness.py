@@ -1,0 +1,75 @@
+"""Print PUL7SAR Phase 18 local generation/publication readiness as JSON.
+
+Usage from repository root:
+    python tools/phase18_local_readiness.py
+
+The command installs nothing, downloads nothing, and calls no paid API. For the
+approved FLUX.2 klein candidate it proves that the installed Diffusers build
+actually exposes Flux2KleinPipeline, not merely that `diffusers` can import.
+It separately reports whether the runtime is ready for the quality-locked Golden
+Visual BF16 path; a CUDA/VRAM-capable GPU is not promoted if BF16 is unproven.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe
+from engine.intelligence.local_backend import LocalBackendKind
+from engine.intelligence.local_dtype import LocalDTypeSelector
+from engine.intelligence.local_readiness_service import LocalReadinessService
+from engine.intelligence.local_runtime import LocalRuntimeProbe
+from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
+
+
+def main() -> int:
+    backend = Flux2KleinDiffusersProbe().probe()
+    runtime = LocalRuntimeProbe().detect()
+    bundle = LocalReadinessService().evaluate(
+        model=FLUX2_KLEIN_4B_LOCAL,
+        backend=backend,
+        runtime=runtime,
+    )
+    report = bundle.as_dict()
+    dtype_report: dict[str, object] = {
+        "requested": "auto",
+        "resolved": None,
+        "reason": "generation runtime is not ready",
+        "bf16_supported": runtime.metadata.get("bf16_supported"),
+        "compute_capability": runtime.metadata.get("compute_capability"),
+    }
+    golden_generation_ready = False
+    if bundle.generation_ready:
+        try:
+            decision = LocalDTypeSelector().select(runtime, "auto")
+        except ValueError as exc:
+            dtype_report["reason"] = str(exc)
+        else:
+            dtype_report.update({
+                "resolved": decision.resolved,
+                "reason": decision.reason,
+            })
+            golden_generation_ready = True
+    report["recommended_dtype"] = dtype_report
+    report["golden_generation_ready"] = golden_generation_ready
+    report["command_policy"] = {
+        "installs_dependencies": False,
+        "downloads_model_weights": False,
+        "uses_paid_api": False,
+        "backend_probe": LocalBackendKind.DIFFUSERS.value,
+        "required_pipeline": "Flux2KleinPipeline",
+        "quality_locked_dtype": "bfloat16",
+        "backend_details": list(backend.details),
+        "backend_version": backend.version,
+    }
+    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if golden_generation_ready else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

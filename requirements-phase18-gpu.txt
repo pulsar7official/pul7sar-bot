@@ -1,0 +1,11 @@
+# Optional dependencies for real Phase 18 local/free-GPU visual proof execution.
+# PyTorch is intentionally not pinned/installed here because CUDA wheels depend on
+# the execution environment (Colab/self-hosted GPU). The runtime gate verifies it.
+# Diffusers 0.39.0 is the current PyPI release line verified during Phase 18 and
+# exposes the FLUX.2 API family; runtime preflight additionally proves that the
+# installed build exports Flux2KleinPipeline before any model weights are loaded.
+diffusers>=0.39.0
+transformers
+accelerate
+safetensors
+Pillow
