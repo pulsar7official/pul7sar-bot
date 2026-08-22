@@ -4,6 +4,7 @@ from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, A
 from engine.intelligence.base_scene_quality import BaseSceneAcceptanceDecision, BaseSceneEvidence, BaseSceneVisualAcceptanceGate, GenerationDefectEvidence, IdentityVisualEvidence, ProtectedRegionEvidence, SubjectFramingEvidence
 from engine.intelligence.batch_scene import MultiPlatformSceneCompiler, PlatformScenePackage
 from engine.intelligence.brand_semantics import BrandPlacementPlan, BrandPlacementPlanner
+from engine.intelligence.candidate_selection import BoundedRegenerationController, CandidateEvaluation, CandidateOutcome, CandidateSelectionResult, QualityFirstCandidateSelector, RegenerationPolicy
 from engine.intelligence.classification import EntityCandidate, EntityKind, StoryClassification, StoryClassifier, StoryScope, StoryType
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
 from engine.intelligence.cost_policy import BillingClass, CostPolicyDecision, DevelopmentCostPolicy, ProviderEconomics
@@ -22,6 +23,7 @@ from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatme
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform
 from engine.intelligence.post_composition import AssetIntegrityRecord, CompositionElement, CompositionQualityDecision, CompositionRole, PostCompositionPlan, PostCompositionPlanner, PostCompositionQualityGate
+from engine.intelligence.provider_adapter import AdapterMismatchError, ProviderAdapterRegistry, ProviderEvidenceAdapter, ProviderRawGeneration
 from engine.intelligence.provider_capabilities import ProviderCapabilities, ProviderEligibilityDecision, ProviderEligibilityGate, ProviderFeature, ProviderRequirements
 from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep, ProviderExecutionPlan, ProviderExecutionPlanner
 from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
