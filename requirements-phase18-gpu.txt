@@ -1,0 +1,8 @@
+# Optional dependencies for real Phase 18 local/free-GPU visual proof execution.
+# PyTorch is intentionally not pinned/installed here because CUDA wheels depend on
+# the execution environment (Colab/self-hosted GPU). The runtime gate verifies it.
+diffusers
+transformers
+accelerate
+safetensors
+Pillow
