@@ -4,7 +4,8 @@
 This command does not install dependencies and does not use a paid API. It fails
 closed unless CUDA/VRAM and explicit Flux2KleinPipeline readiness are proven. On
 success it writes a native aligned PNG, normalizes it to the exact platform
-canvas, and registers the exact-canvas PNG as the visual proof with provenance.
+canvas, registers the exact-canvas PNG as the visual proof with provenance, and
+can persist a machine-readable result file that is immune to noisy library logs.
 """
 
 from __future__ import annotations
@@ -32,15 +33,14 @@ def _request_from_json(path: str):
     return LocalGenerationHandoff.read(path)
 
 
-def main() -> int:
-    parser = argparse.ArgumentParser(description="Execute a real $0-local PUL7SAR FLUX.2 visual proof request")
-    parser.add_argument("--request", required=True, help="Versioned PUL7SAR local-generation handoff JSON")
-    parser.add_argument("--generation-dir", default="output/phase18_generated")
-    parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
-    parser.add_argument("--dtype", choices=("float16", "bfloat16", "float32"), default="bfloat16")
-    args = parser.parse_args()
-
-    request = _request_from_json(args.request)
+def execute_request(
+    *,
+    request_path: str,
+    generation_dir: str,
+    proof_dir: str,
+    dtype: str,
+) -> dict[str, object]:
+    request = _request_from_json(request_path)
     model = FLUX2_KLEIN_4B_LOCAL
     if request.provider_id != model.provider_id or request.model_id != model.model_id:
         raise ValueError("request does not target the approved zero-cost FLUX.2 klein candidate")
@@ -67,24 +67,24 @@ def main() -> int:
         )
 
     backend = DiffusersLocalBackend(
-        DiffusersExecutionConfig(output_dir=args.generation_dir, dtype=args.dtype),
+        DiffusersExecutionConfig(output_dir=generation_dir, dtype=dtype),
         build_flux2_klein_pipeline_factory(),
     )
     result = backend.generate(request)
     native_provenance = LocalBackendResultGate().validate(request, result)
 
-    normalized_path = str(Path(args.generation_dir) / f"{request.request_id}-platform.png")
+    normalized_path = str(Path(generation_dir) / f"{request.request_id}-platform.png")
     normalized = PillowPlatformCanvasNormalizer().normalize(
         request=request,
         source_png=result.output_ref,
         source_provenance=native_provenance,
         output_path=normalized_path,
     )
-    artifact = VisualProofArtifactWriter(args.proof_dir).register(
+    artifact = VisualProofArtifactWriter(proof_dir).register(
         png_path=normalized.output_ref,
         provenance=normalized.provenance,
     )
-    print(json.dumps({
+    return {
         "status": "REAL_VISUAL_PROOF_GENERATED",
         "png": artifact.png_path,
         "metadata": artifact.metadata_path,
@@ -100,7 +100,35 @@ def main() -> int:
         "width": normalized.provenance.width,
         "height": normalized.provenance.height,
         "cost_mode": "$0-local",
-    }, ensure_ascii=False, indent=2))
+    }
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Execute a real $0-local PUL7SAR FLUX.2 visual proof request")
+    parser.add_argument("--request", required=True, help="Versioned PUL7SAR local-generation handoff JSON")
+    parser.add_argument("--generation-dir", default="output/phase18_generated")
+    parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
+    parser.add_argument("--dtype", choices=("float16", "bfloat16", "float32"), default="bfloat16")
+    parser.add_argument(
+        "--result",
+        help="Optional JSON result path. Batch execution should prefer this over parsing stdout.",
+    )
+    args = parser.parse_args()
+
+    payload = execute_request(
+        request_path=args.request,
+        generation_dir=args.generation_dir,
+        proof_dir=args.proof_dir,
+        dtype=args.dtype,
+    )
+    if args.result:
+        result_path = Path(args.result)
+        result_path.parent.mkdir(parents=True, exist_ok=True)
+        result_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
 
