@@ -8,6 +8,7 @@ same filesystem from leasing the same queued job.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 import json
 import os
@@ -29,6 +30,29 @@ _STATE_DIRS = {
     GenerationJobState.RETRYABLE_FAILED: "retryable_failed",
     GenerationJobState.TERMINAL_FAILED: "terminal_failed",
 }
+
+
+@dataclass(frozen=True)
+class LeaseRecoverySummary:
+    recovered_job_ids: tuple[str, ...]
+    terminal_job_ids: tuple[str, ...]
+
+    @property
+    def total(self) -> int:
+        return len(self.recovered_job_ids) + len(self.terminal_job_ids)
+
+
+@dataclass(frozen=True)
+class QueueSnapshot:
+    counts: dict[str, int]
+
+    @property
+    def pending(self) -> int:
+        return self.counts.get(GenerationJobState.QUEUED.value, 0)
+
+    @property
+    def active(self) -> int:
+        return self.counts.get(GenerationJobState.LEASED.value, 0) + self.counts.get(GenerationJobState.RUNNING.value, 0)
 
 
 class FilesystemGenerationJobStore:
@@ -85,6 +109,41 @@ class FilesystemGenerationJobStore:
             self._atomic_write(claim, leased)
             return leased
         return None
+
+    def recover_expired(self, *, now: datetime) -> LeaseRecoverySummary:
+        """Recover jobs abandoned by a dead worker without exceeding retry limits."""
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise ValueError("now must be timezone-aware")
+        recovered: list[str] = []
+        terminal: list[str] = []
+        for state in (GenerationJobState.LEASED, GenerationJobState.RUNNING):
+            for job in tuple(self.iter_state(state)):
+                if job.lease_expires_at is None or job.lease_expires_at > now:
+                    continue
+                can_retry = job.attempt < job.max_attempts
+                failed_state = GenerationJobState.RETRYABLE_FAILED if can_retry else GenerationJobState.TERMINAL_FAILED
+                failed = job.transition(
+                    failed_state,
+                    now=now,
+                    failure_code="lease_expired",
+                    failure_detail=f"worker lease expired while job was {job.state.value}",
+                )
+                self.save(failed)
+                if can_retry:
+                    requeued = failed.transition(
+                        GenerationJobState.QUEUED,
+                        now=now,
+                        lease_owner=None,
+                        lease_expires_at=None,
+                    )
+                    self.save(requeued)
+                    recovered.append(job.job_id)
+                else:
+                    terminal.append(job.job_id)
+        return LeaseRecoverySummary(tuple(recovered), tuple(terminal))
+
+    def snapshot(self) -> QueueSnapshot:
+        return QueueSnapshot({state.value: sum(1 for _ in self.iter_state(state)) for state in GenerationJobState})
 
     def save(self, job: GenerationJob) -> None:
         target = self._path(job.state, job.job_id)
