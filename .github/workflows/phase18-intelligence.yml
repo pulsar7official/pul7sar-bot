@@ -2,19 +2,10 @@ name: Phase 18 Story Intelligence Verification
 
 on:
   push:
-    branches:
-      - 'phase18/**'
-    paths:
-      - 'engine/intelligence/**'
-      - 'tests/test_phase18_*.py'
-      - 'tests/test_story_intelligence_models.py'
-      - '.github/workflows/phase18-intelligence.yml'
+    branches: ['phase18/**']
+    paths: ['engine/intelligence/**', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', '.github/workflows/phase18-intelligence.yml']
   pull_request:
-    paths:
-      - 'engine/intelligence/**'
-      - 'tests/test_phase18_*.py'
-      - 'tests/test_story_intelligence_models.py'
-      - '.github/workflows/phase18-intelligence.yml'
+    paths: ['engine/intelligence/**', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', '.github/workflows/phase18-intelligence.yml']
   workflow_dispatch:
 
 permissions:
@@ -25,57 +16,31 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: ${{ github.workspace }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-
       - name: Syntax check Phase 18 modules and tests
         run: |
-          python -m py_compile engine/intelligence/__init__.py
-          python -m py_compile engine/intelligence/models.py
-          python -m py_compile engine/intelligence/fact_lock.py
-          python -m py_compile engine/intelligence/identity.py
-          python -m py_compile engine/intelligence/story_analyzer.py
-          python -m py_compile engine/intelligence/classification.py
-          python -m py_compile engine/intelligence/neutrality.py
-          python -m py_compile engine/intelligence/visual_router.py
-          python -m py_compile engine/intelligence/perspective.py
-          python -m py_compile engine/intelligence/concept_director.py
+          python -m py_compile engine/intelligence/*.py
           python -m py_compile tests/test_story_intelligence_models.py
-          python -m py_compile tests/test_phase18_identity_verifier.py
-          python -m py_compile tests/test_phase18_story_analyzer.py
-          python -m py_compile tests/test_phase18_classification_router.py
-          python -m py_compile tests/test_phase18_neutrality.py
-          python -m py_compile tests/test_phase18_perspective_concept.py
-
+          python -m py_compile tests/test_phase18_*.py
       - name: Run Phase 18 intelligence tests
         run: |
-          python -m unittest -v \
-            tests.test_story_intelligence_models \
-            tests.test_phase18_identity_verifier \
-            tests.test_phase18_story_analyzer \
-            tests.test_phase18_classification_router \
-            tests.test_phase18_neutrality \
-            tests.test_phase18_perspective_concept
-
+          python -m unittest discover -v -s tests -p 'test_phase18_*.py'
+          python -m unittest -v tests.test_story_intelligence_models
       - name: Verify production isolation
         run: |
           python - <<'PY'
           from pathlib import Path
-
           forbidden_imports = ("import main", "from main import")
           for path in Path("engine/intelligence").glob("*.py"):
               text = path.read_text(encoding="utf-8")
               for forbidden in forbidden_imports:
                   if forbidden in text:
-                      raise SystemExit(
-                          f"Phase 18 isolation violation in {path}: {forbidden}"
-                      )
+                      raise SystemExit(f"Phase 18 isolation violation in {path}: {forbidden}")
           print("Phase 18 production-isolation check PASS")
           PY
