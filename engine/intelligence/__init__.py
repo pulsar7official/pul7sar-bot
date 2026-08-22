@@ -5,6 +5,7 @@ from engine.intelligence.base_scene_quality import BaseSceneAcceptanceDecision, 
 from engine.intelligence.batch_scene import MultiPlatformSceneCompiler, PlatformScenePackage
 from engine.intelligence.brand_semantics import BrandPlacementPlan, BrandPlacementPlanner
 from engine.intelligence.candidate_selection import BoundedRegenerationController, CandidateEvaluation, CandidateOutcome, CandidateSelectionResult, QualityFirstCandidateSelector, RegenerationPolicy
+from engine.intelligence.canvas_normalization import CanvasNormalizedOutput, CanvasNormalizationPlan, CanvasNormalizationPlanner, PillowPlatformCanvasNormalizer
 from engine.intelligence.classification import EntityCandidate, EntityKind, StoryClassification, StoryClassifier, StoryScope, StoryType
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
 from engine.intelligence.cost_policy import BillingClass, CostPolicyDecision, DevelopmentCostPolicy, ProviderEconomics
