@@ -9,8 +9,8 @@ from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIden
 class IdentityMetadataPropagationTests(unittest.TestCase):
     def assets(self):
         return AssetBundle((
-            AssetReference("pul7sar-logo", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT, source_reference="exact://pul7sar-logo"),
-            AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT, source_reference="exact://pul7sar-pulse", accent_color="#EF0107"),
+            AssetReference("pul7sar-logo", AssetRole.PUL7SAR_LOGO, treatment=AssetTreatment.EXACT, source_reference="exact://pul7sar-logo"),
+            AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, treatment=AssetTreatment.TINTABLE_ACCENT, source_reference="exact://pul7sar-pulse", accent_color="#EF0107"),
         ))
 
     def specification(self, identity):
