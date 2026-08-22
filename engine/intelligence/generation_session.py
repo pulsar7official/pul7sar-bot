@@ -107,20 +107,38 @@ class GenerationSessionOrchestrator:
             )
             if len(raw_candidates) > self._regeneration.policy.candidates_per_attempt:
                 raise ValueError("provider returned more candidates than requested")
+
+            attempt_evidence = []
             for raw in raw_candidates:
                 if raw.provider_id != provider_id:
                     raise ValueError("provider returned raw generation for a different provider_id")
-                all_evidence.append(self._adapters.normalize(raw, package))
+                evidence = self._adapters.normalize(raw, package)
+                attempt_evidence.append(evidence)
+                all_evidence.append(evidence)
 
+            # Global selection decides the best scene across all attempts.
             selection = self._selector.select(package, tuple(all_evidence), attempts_used=attempts_used)
-            accepted = [item for item in selection.evaluations if item.decision.accepted]
-            reasons = list(selection.rejection_reasons)
+            # Diagnostics must describe only this attempt, never accumulated candidates.
+            attempt_selection = self._selector.select(
+                package,
+                tuple(attempt_evidence),
+                attempts_used=attempts_used,
+            )
+            accepted_current = sum(
+                1 for item in attempt_selection.evaluations if item.decision.accepted
+            )
+            reasons = list(attempt_selection.rejection_reasons)
 
             if selection.outcome is CandidateOutcome.ACCEPTED:
                 assert selection.selected is not None
                 if selection.selected.quality_score >= self.minimum_quality_score:
                     diagnostics.append(
-                        AttemptDiagnostic(attempts_used, len(raw_candidates), len(accepted), tuple(reasons))
+                        AttemptDiagnostic(
+                            attempts_used,
+                            len(raw_candidates),
+                            accepted_current,
+                            tuple(dict.fromkeys(reasons)),
+                        )
                     )
                     return GenerationSessionResult(
                         CandidateOutcome.ACCEPTED,
@@ -138,7 +156,7 @@ class GenerationSessionOrchestrator:
                 AttemptDiagnostic(
                     attempts_used,
                     len(raw_candidates),
-                    len(accepted),
+                    accepted_current,
                     tuple(dict.fromkeys(reasons)),
                 )
             )
