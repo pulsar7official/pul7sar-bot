@@ -1,0 +1,39 @@
+"""Print PUL7SAR Phase 18 local generation/publication readiness as JSON.
+
+Usage from repository root:
+    python tools/phase18_local_readiness.py
+
+The command installs nothing, downloads nothing, and calls no paid API.
+"""
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from engine.intelligence.local_backend import LocalBackendKind, LocalBackendSnapshot
+from engine.intelligence.local_diffusers_adapter import DiffusersBackendProbe
+from engine.intelligence.local_readiness_service import LocalReadinessService
+from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
+
+
+def main() -> int:
+    backend = DiffusersBackendProbe().probe()
+    bundle = LocalReadinessService().evaluate(model=FLUX2_KLEIN_4B_LOCAL, backend=backend)
+    report = bundle.as_dict()
+    report["command_policy"] = {
+        "installs_dependencies": False,
+        "downloads_model_weights": False,
+        "uses_paid_api": False,
+        "backend_probe": LocalBackendKind.DIFFUSERS.value,
+    }
+    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0 if bundle.generation_ready else 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
