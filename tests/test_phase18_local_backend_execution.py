@@ -50,6 +50,22 @@ class LocalBackendExecutionTests(unittest.TestCase):
         self.assertEqual(request.width, 1080)
         self.assertEqual(request.height, 1920)
 
+    def test_portable_handoff_can_be_compiled_without_local_gpu_readiness(self):
+        request = LocalBackendRequestCompiler().compile_portable_handoff(
+            package=self.package,
+            model=FLUX2_KLEIN_4B_LOCAL,
+            backend="diffusers",
+            seed=7008,
+            request_id="portable-001",
+        )
+        self.assertEqual(request.seed, 7008)
+        self.assertTrue(request.metadata["portable_handoff"])
+        self.assertEqual(request.metadata["cost_mode"], "$0-local")
+
+    def test_execution_local_request_is_not_marked_portable(self):
+        request = self.request()
+        self.assertFalse(request.metadata["portable_handoff"])
+
     def test_flux_constraints_are_reframed_not_dropped(self):
         request = self.request()
         self.assertEqual(request.native_negative_constraints, ())
