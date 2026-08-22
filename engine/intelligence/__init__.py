@@ -1,6 +1,7 @@
 """PUL7SAR Phase 18 story-intelligence domain."""
 
 from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, AssetTreatment
+from engine.intelligence.base_scene_quality import BaseSceneAcceptanceDecision, BaseSceneEvidence, BaseSceneVisualAcceptanceGate, GenerationDefectEvidence, IdentityVisualEvidence, ProtectedRegionEvidence, SubjectFramingEvidence
 from engine.intelligence.batch_scene import MultiPlatformSceneCompiler, PlatformScenePackage
 from engine.intelligence.brand_semantics import BrandPlacementPlan, BrandPlacementPlanner
 from engine.intelligence.classification import EntityCandidate, EntityKind, StoryClassification, StoryClassifier, StoryScope, StoryType
