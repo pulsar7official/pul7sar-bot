@@ -25,6 +25,7 @@ from engine.intelligence.local_backend_execution import LocalBackendGenerationRe
 from engine.intelligence.local_generation_provenance import LocalGenerationProvenance
 from engine.intelligence.local_readiness_report import LocalGenerationReadinessReport
 from engine.intelligence.local_runtime import LocalModelRuntimeGate, LocalRuntimeProbe, RuntimeCompatibilityDecision, RuntimeHardwareSnapshot, RuntimeKind
+from engine.intelligence.local_vision_inspectors import FailClosedForbiddenVisualProbe, FailClosedIdentityProbe, FailClosedSemanticDefectProbe, FailClosedSubjectFramingProbe, GeometrySafeCropProbe, LocalImageInspectionError, LocalVisionCapabilityReport, PillowProtectedRegionProbe, PngFileObserver, detect_local_vision_capabilities
 from engine.intelligence.models import ClaimKind, IdentityPlan, IdentityStatus, LockedClaim, Sentiment, StoryBrief, VisualIntent
 from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatment, NeutralityDecision, NeutralityViolation, ResultVisualTreatment
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
