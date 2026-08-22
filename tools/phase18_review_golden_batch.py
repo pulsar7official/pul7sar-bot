@@ -20,6 +20,7 @@ from engine.intelligence.golden_visual_quality import (
 )
 
 
+REVIEW_VERSION = "pul7sar-golden-visual-review-v1"
 _SCORE_FIELDS = (
     "editorial_realism",
     "composition_hierarchy",
@@ -45,6 +46,17 @@ def _load_json(path: str) -> dict[str, object]:
     return data
 
 
+def _validated_score(value: object, *, field: str, request_id: str) -> float:
+    if value is None:
+        raise ValueError(f"review score {field} is still null for {request_id}")
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        raise ValueError(f"review score {field} must be numeric for {request_id}")
+    numeric = float(value)
+    if not 0.0 <= numeric <= 10.0:
+        raise ValueError(f"review score {field} must be between 0 and 10 for {request_id}")
+    return numeric
+
+
 def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
     execution = _load_json(execution_report)
     review = _load_json(review_file)
@@ -52,6 +64,8 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
         raise ValueError("execution report is not a completed real visual proof batch")
     if execution.get("cost_mode") != "$0-local":
         raise ValueError("execution report is not locked to $0-local")
+    if review.get("review_version") != REVIEW_VERSION:
+        raise ValueError("unsupported or missing Golden Visual review version")
     generated = execution.get("candidates")
     reviews = review.get("candidates")
     if not isinstance(generated, list) or not generated:
@@ -75,7 +89,9 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
         generated_item = generated_by_id.get(request_id)
         if generated_item is None:
             raise ValueError(f"review references unknown generated candidate: {request_id}")
-        seed = int(item.get("seed", -1))
+        seed = item.get("seed")
+        if isinstance(seed, bool) or not isinstance(seed, int):
+            raise ValueError(f"review seed must be an integer for {request_id}")
         if seed != int(generated_item["seed"]):
             raise ValueError(f"review seed mismatch for {request_id}")
 
@@ -85,12 +101,28 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
             raise ValueError(f"review scores missing for {request_id}")
         if not isinstance(blockers_data, dict):
             raise ValueError(f"review blockers invalid for {request_id}")
-        missing_scores = [field for field in _SCORE_FIELDS if field not in scores_data]
-        if missing_scores:
-            raise ValueError(f"review scores incomplete for {request_id}: {', '.join(missing_scores)}")
+        if set(scores_data) != set(_SCORE_FIELDS):
+            missing = sorted(set(_SCORE_FIELDS) - set(scores_data))
+            unknown = sorted(set(scores_data) - set(_SCORE_FIELDS))
+            details = []
+            if missing:
+                details.append("missing=" + ",".join(missing))
+            if unknown:
+                details.append("unknown=" + ",".join(unknown))
+            raise ValueError(f"review score schema mismatch for {request_id}: {'; '.join(details)}")
+        unknown_blockers = sorted(set(blockers_data) - set(_BLOCKER_FIELDS))
+        if unknown_blockers:
+            raise ValueError(f"unknown review blockers for {request_id}: {', '.join(unknown_blockers)}")
+        for field in _BLOCKER_FIELDS:
+            value = blockers_data.get(field, False)
+            if not isinstance(value, bool):
+                raise ValueError(f"review blocker {field} must be boolean for {request_id}")
 
-        scores = GoldenVisualScores(**{field: float(scores_data[field]) for field in _SCORE_FIELDS})
-        blockers = GoldenVisualBlockers(**{field: bool(blockers_data.get(field, False)) for field in _BLOCKER_FIELDS})
+        scores = GoldenVisualScores(**{
+            field: _validated_score(scores_data[field], field=field, request_id=request_id)
+            for field in _SCORE_FIELDS
+        })
+        blockers = GoldenVisualBlockers(**{field: blockers_data.get(field, False) for field in _BLOCKER_FIELDS})
         evaluations.append(GoldenVisualEvaluation(request_id, seed, scores, blockers))
 
     if seen != set(generated_by_id):
