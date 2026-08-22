@@ -74,7 +74,7 @@ class GenerationPackageCompiler:
             raise ValueError("identity-required scene needs at least one VERIFIED_IDENTITY_REFERENCE asset")
 
         prompt_parts = [
-            f"Create a premium PUL7SAR sports editorial scene for {specification.platform.value}.",
+            f"Create a premium PUL7SAR sports editorial base scene for {specification.platform.value}.",
             f"Canvas: {specification.width}x{specification.height} ({specification.aspect_ratio}).",
             f"Visual family: {specification.family}.",
             f"Concept: {specification.concept}.",
@@ -88,7 +88,9 @@ class GenerationPackageCompiler:
         if specification.palette_strategy:
             prompt_parts.append(f"Palette strategy: {specification.palette_strategy}.")
         if specification.visual_copy:
-            prompt_parts.append(f"Approved visual copy: {specification.visual_copy}.")
+            prompt_parts.append(
+                "Editorial copy exists for deterministic post-composition; reserve suitable clean space for it but do not render the text into the base scene."
+            )
         if identity is not None:
             prompt_parts.append(
                 "Verified identity context: "
@@ -116,17 +118,23 @@ class GenerationPackageCompiler:
                     "width": box.width,
                     "height": box.height,
                 }
-            prompt_parts.append("Follow the supplied deterministic layout geometry exactly for protected editorial elements.")
-            prompt_parts.append("Accent color for the approved number-7/pulse element: " + planned_layout.accent_hex + ".")
+            prompt_parts.append(
+                "Respect the supplied deterministic layout geometry by keeping all non-hero overlay regions visually calm and free of critical subject detail."
+            )
+            prompt_parts.append(
+                "Use " + planned_layout.accent_hex + " only as a contextual environmental accent when visually appropriate; the exact PUL7SAR number-7/pulse treatment is added later by deterministic composition."
+            )
 
         prompt_parts.extend((
             "Critical visual elements must stay inside the declared platform safe area.",
-            "Use the exact supplied PUL7SAR wordmark and official team/competition marks; never redraw, reinterpret, or hallucinate them.",
-            "The PUL7SAR wordmark itself remains exact. Only the approved number-7/pulse accent may adapt to the leading entity's primary color when its asset is explicitly marked tintable.",
-            "Club/team names shown in artwork must remain in their approved English form unless explicit editorial copy says otherwise.",
+            "Generate only the clean photographic/editorial base scene. Do not draw or imitate the PUL7SAR logo, heartbeat mark, club/team crests, competition marks, social icons, headline typography, score typography, or footer text.",
+            "Official marks, PUL7SAR branding, the contextual number-7/pulse tint, and all final editorial typography are deterministic post-composition assets and must remain absent from the AI base scene.",
+            "If a club/team identity is visually implied through kit or environment, keep it editorially plausible without inventing unreadable pseudo-logos or fake text.",
         ))
         if social_assets:
-            prompt_parts.append("Keep the social footer compact and uncrowded: small official platform icon plus PUL7SAR handle/name only; no long URLs, email address, or dense contact row unless explicitly requested.")
+            prompt_parts.append(
+                "Reserve a compact, visually quiet footer zone for a later small platform icon plus PUL7SAR handle; do not render that footer yourself."
+            )
 
         metadata = {
             "dry_run": True,
@@ -135,6 +143,7 @@ class GenerationPackageCompiler:
             "crop_strategy": specification.metadata.get("crop_strategy"),
             "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
             "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
+            "base_scene_overlay_policy": "no_brand_or_editorial_overlays_in_ai_scene",
             "identity_required": identity is not None,
             "identity_entity_name": identity.entity_name if identity else None,
             "identity_reference_confidence": identity.confidence if identity else None,
