@@ -4,6 +4,7 @@ from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, A
 from engine.intelligence.batch_scene import MultiPlatformSceneCompiler, PlatformScenePackage
 from engine.intelligence.classification import EntityCandidate, EntityKind, StoryClassification, StoryClassifier, StoryScope, StoryType
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
+from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestCompiler
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
