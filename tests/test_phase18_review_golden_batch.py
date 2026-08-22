@@ -41,42 +41,55 @@ class ReviewGoldenBatchTests(unittest.TestCase):
     def test_selects_highest_approved_visual(self):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(temp, [
-                self.review("a", 1, 7.8),
+                self.review("a", 1, 8.4),
                 self.review("b", 2, 8.7),
             ])
             result = evaluate(str(execution), str(review))
             self.assertEqual(result["status"], "GOLDEN_VISUAL_SELECTED")
             self.assertEqual(result["selected"]["request_id"], "b")
+            self.assertEqual(result["selected"]["quality_tier"], "golden")
+
+    def test_elite_quality_tier_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            execution, review = self.write_inputs(temp, [
+                self.review("a", 1, 8.7),
+                self.review("b", 2, 9.2),
+            ])
+            result = evaluate(str(execution), str(review))
+            self.assertEqual(result["selected"]["request_id"], "b")
+            self.assertEqual(result["selected"]["quality_tier"], "elite")
 
     def test_blocker_beats_numeric_score(self):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(temp, [
                 self.review("a", 1, 9.9, {"pseudo_text_or_gibberish": True}),
-                self.review("b", 2, 8.1),
+                self.review("b", 2, 8.6),
             ])
             result = evaluate(str(execution), str(review))
             self.assertEqual(result["selected"]["request_id"], "b")
             self.assertIn("a", result["rejected_request_ids"])
+            blocked = next(item for item in result["ranked"] if item["request_id"] == "a")
+            self.assertEqual(blocked["quality_tier"], "below_golden")
 
     def test_review_must_cover_every_generated_candidate(self):
         with tempfile.TemporaryDirectory() as temp:
-            execution, review = self.write_inputs(temp, [self.review("a", 1, 8.0)])
+            execution, review = self.write_inputs(temp, [self.review("a", 1, 8.6)])
             with self.assertRaisesRegex(ValueError, "cover every"):
                 evaluate(str(execution), str(review))
 
     def test_seed_mismatch_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(temp, [
-                self.review("a", 999, 8.0), self.review("b", 2, 8.0)
+                self.review("a", 999, 8.6), self.review("b", 2, 8.6)
             ])
             with self.assertRaisesRegex(ValueError, "seed mismatch"):
                 evaluate(str(execution), str(review))
 
     def test_null_score_from_unedited_template_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
-            first = self.review("a", 1, 8.0)
+            first = self.review("a", 1, 8.6)
             first["scores"]["editorial_realism"] = None
-            execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.0)])
+            execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.6)])
             with self.assertRaisesRegex(ValueError, "still null"):
                 evaluate(str(execution), str(review))
 
@@ -84,7 +97,7 @@ class ReviewGoldenBatchTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(
                 temp,
-                [self.review("a", 1, 8.0), self.review("b", 2, 8.0)],
+                [self.review("a", 1, 8.6), self.review("b", 2, 8.6)],
                 review_version="future-review",
             )
             with self.assertRaisesRegex(ValueError, "review version"):
@@ -92,8 +105,8 @@ class ReviewGoldenBatchTests(unittest.TestCase):
 
     def test_unknown_blocker_field_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
-            first = self.review("a", 1, 8.0, {"mystery_blocker": True})
-            execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.0)])
+            first = self.review("a", 1, 8.6, {"mystery_blocker": True})
+            execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.6)])
             with self.assertRaisesRegex(ValueError, "unknown review blockers"):
                 evaluate(str(execution), str(review))
 
