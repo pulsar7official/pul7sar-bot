@@ -2,142 +2,116 @@
 
 This document is the authoritative implementation journal for Phase 18 on the `phase18/story-intelligence` branch.
 
-## Change Sets 001–009
-Previously documented foundation: Fact Lock, StoryAnalyzer, identity verification, classification, neutrality, Visual Family routing, perspective-aware result sentiment, Concept Director, sentiment resolver, Generation Authorization, platform profiles, Original Scene Specification, exact assets, layout safety, multi-platform batch generation packages. All production paths remain isolated.
-
-## Change Set 010 — Deterministic platform layout planner
-- Deterministic protected geometry for hero/logo/crest/score/headline/footer.
-- Separate portrait, vertical and landscape art direction.
-- CI `32577397716`: SUCCESS.
-
-## Change Set 011 — Layout-aware Generation Package
-- Generation package carries exact geometry and accent color.
-- CI `32577621033`: SUCCESS.
-
-## Change Set 012 — Cross-platform dry-run manifest
-- Inspectable canvas/safe-area/layout/assets/facts/negative constraints per platform.
-- CI `32577945352`: SUCCESS.
-
-## Change Set 013 — Entity theme, exact brand semantics, destination social assets
-- Verified palette resolver with PUL7SAR-red fallback.
-- Exact wordmark vs tintable 7/pulse semantics.
-- Destination-only social icon filtering.
-- CI `32578124530`: SUCCESS.
-
-## Change Set 014 — Inspectable brand/theme manifest + end-to-end regression fixture
-- Manifest v2 exposes verified theme and brand plan.
-- Seven-platform synthetic transfer-story regression fixture.
-- CI `32578343142`: SUCCESS.
-
-## Change Set 015 — Provider capability and eligibility layer
-- Models provider features, output limits and reference limits.
-- Explicit eligibility and ordered fallback policy.
-- CI `32579225091`: SUCCESS.
-
-## Change Set 016 — Provider-neutral execution plan
-- AI provider generates only the base scene.
-- Official logos, crests, social icons, score typography and final copy are applied later by PUL7SAR.
-- Strict stages: generate -> exact assets -> editorial text -> quality -> export.
-- CI `32579444426`: SUCCESS.
-
-## Change Set 017 — Deterministic post-generation composition + quality gate
-- Exact official assets and final editorial text are post-composited outside the image model.
-- Asset SHA-256 integrity support and fail-closed composition validation.
-- CI `32580744885`: SUCCESS.
-
-## Change Set 018 — Deterministic typography + final export authorization
-- Deterministic headline/score/footer style and fit contracts.
-- Final export authorization requires approved typography, geometry and post-composition quality.
-- CI `32580980268`: SUCCESS.
-
-## Change Set 019 — Base-scene visual acceptance gate
-- Rejects weak/unsafe generated scenes before PUL7SAR branding and typography.
-- Checks resolution, ratio, framing, identity confidence, protected regions, defects, forbidden visuals, crop potential and provenance.
-- CI `32581392130`: SUCCESS.
+## Change Sets 001–019
+Previously documented foundation: Fact Lock, StoryAnalyzer, identity verification, classification, neutrality, Visual Family routing, perspective-aware result sentiment, Concept Director, sentiment resolver, Generation Authorization, platform profiles, Original Scene Specification, exact assets, layout safety, multi-platform packages, deterministic layout, dry-run manifest, entity theme, exact brand semantics, provider capability/selection/execution, post-composition, deterministic typography/final export, and base-scene visual acceptance. Production paths remain isolated.
 
 ## Change Set 020 — Zero-cost development enforcement
 - Adds `engine/intelligence/cost_policy.py`.
 - Current development execution accepts only proven zero-cost/local or genuinely free-tier providers without a required payment method.
 - Paid/unknown-cost providers remain modelable for future expansion but are not selectable in current zero-cost mode.
 - Provider selection applies cost eligibility before technical selection.
-- Quality thresholds are not relaxed to satisfy zero-cost operation.
+- Quality thresholds are never relaxed to satisfy zero-cost operation.
 
 ## Change Set 021 — Provider evidence adapters + quality-first candidate selection
-
-### Purpose
-Normalize provider-native output into PUL7SAR-owned evidence contracts, keep vendor payloads outside the domain core, and select the best *accepted* scene rather than the first technically successful generation.
-
-### Added
-- `engine/intelligence/provider_adapter.py`
-  - `ProviderRawGeneration`
-  - `ProviderEvidenceAdapter` protocol
-  - `ProviderAdapterRegistry`
-  - `AdapterMismatchError`
-  - Explicit provider-ID adapter resolution; payload formats are never guessed.
-  - Adapter output is rejected if it changes provider identity or output reference.
-
-- `engine/intelligence/candidate_selection.py`
-  - `CandidateOutcome`
-  - `CandidateEvaluation`
-  - `CandidateSelectionResult`
-  - `RegenerationPolicy`
-  - `QualityFirstCandidateSelector`
-  - `BoundedRegenerationController`
-
-### Quality-first ranking
-Only candidates that already pass `BaseSceneVisualAcceptanceGate` can receive a non-zero quality score.
-
-Accepted candidates are ranked using:
-- verified identity confidence
-- framing confidence
-- cleanliness of protected overlay regions
-
-Cost is deliberately excluded from candidate quality scoring. Cost/economics determines provider eligibility upstream; once an eligible zero-cost provider has generated candidates, visual quality decides the winner.
-
-### No degraded fallback
-If no candidate passes all acceptance gates, the explicit outcome is `NO_ACCEPTABLE_SCENE`.
-
-Reaching the regeneration-attempt bound never authorizes a rejected image. It stops generation and preserves rejection reasons for diagnostics/review.
-
-### Tests
-- `tests/test_phase18_candidate_selection.py`
-  - provider payload normalization
-  - unknown adapter rejection
-  - adapter provider relabel protection
-  - best accepted candidate wins by quality
-  - rejected candidate score remains zero
-  - explicit no-acceptable-scene outcome
-  - bounded retries without degraded fallback
-  - immediate stop after acceptable candidate
-
-### Validation
+- Adds provider-native normalization boundary and quality-first candidate ranking.
+- Only BaseScene-gate-approved candidates can score above zero.
+- Identity, framing and protected-region cleanliness determine candidate quality; cost does not.
+- No accepted candidate -> `NO_ACCEPTABLE_SCENE`; there is no degraded fallback.
+- Adds future Social/Video architecture document.
 - CI `32585786963`: SUCCESS.
 
-### Future architecture recorded
-- `docs/FUTURE_SOCIAL_VIDEO_ARCHITECTURE.md`
-  - Headless PUL7SAR Studio / API direction
-  - credential security via OAuth/tokens/secrets rather than passwords in code
-  - Social Intelligence source discovery
-  - semantic deduplication + Story Memory
-  - Video Intelligence / Motion Identity
-  - Rights & Provenance gate
-  - zero-cost development with future paid-provider extensibility
-  - quality-first rule across all future automation
+## Change Set 022 — Generation Session Orchestrator
 
-### Production safety
+### Added
+- `engine/intelligence/generation_session.py`
+  - provider-neutral bounded generation loop
+  - provider-ID integrity
+  - candidate-count enforcement
+  - normalization through `ProviderAdapterRegistry`
+  - accumulated global candidate selection
+  - per-attempt diagnostics
+  - explicit `minimum_quality_score` above basic gate pass
+  - retry when a gate-passing image remains below the PUL7SAR quality floor
+  - no best-bad-image fallback after attempt exhaustion
+- `tests/test_phase18_generation_session.py`
+
+### CI discoveries and fixes
+The first implementation exposed two useful regression cases rather than being merged blindly:
+1. The lower-level regeneration controller stopped on `ACCEPTED` even when the session-level quality floor was not reached. Ownership was corrected: gate-pass-but-below-floor retries are controlled by the Generation Session layer.
+2. Diagnostics originally counted accepted candidates across all accumulated attempts while recording only current-attempt candidate count. This was corrected so diagnostics evaluate each attempt separately while global selection still ranks all candidates across the session.
+
+The regression test now asserts that each attempt's `accepted_count` cannot leak accumulated counts from previous attempts.
+
+### Validation
+- Final CI after both fixes: `32586498538`: SUCCESS.
+- Syntax: PASS.
+- Phase 18 tests: PASS.
+- Production isolation: PASS.
+
+## Change Set 023 — First zero-cost local image-model evaluation profile
+
+### Added
+- `engine/intelligence/zero_cost_models.py`
+- `engine/intelligence/provider_prompting.py`
+- `tests/test_phase18_zero_cost_model.py`
+- `docs/ZERO_COST_IMAGE_PROVIDER_EVALUATION.md`
+
+### First candidate
+`black-forest-labs/FLUX.2-klein-4B`
+
+This is an evaluation profile only; it is not claimed to be installed or executed on the user's machine.
+
+The profile records:
+- local/no per-image API cost path
+- Apache-2.0 4B weights
+- text-to-image and multi-reference capability
+- conservative 13 GB VRAM runtime floor based on the official model card
+- current PUL7SAR platform canvases inside the declared 4-megapixel evaluation envelope
+- no assumption of native negative-prompt support
+
+### Constraint prompting
+Official FLUX.2 guidance states that negative prompting is not supported. PUL7SAR therefore does not silently drop forbidden constraints. `PromptConstraintCompiler` deterministically reframes known constraints into positive desired scene instructions. Unknown constraints fail closed and block that provider package.
+
+Examples include neutrality, no humiliation, pre-signing transfer states, no invented result and restrained injury/harm treatment.
+
+## Change Set 024 — Local runtime capability gate
+
+### Added
+- `engine/intelligence/local_runtime.py`
+  - `RuntimeKind`
+  - `RuntimeHardwareSnapshot`
+  - `RuntimeCompatibilityDecision`
+  - `LocalRuntimeProbe`
+  - `LocalModelRuntimeGate`
+- `tests/test_phase18_local_runtime.py`
+
+### Rules
+- Local runtime probing is best-effort and does not make PyTorch a hard Phase 18 dependency.
+- Missing PyTorch/CUDA is recorded rather than crashing the domain.
+- The FLUX.2 klein 4B candidate is not automatically approved on CPU-only or unknown-VRAM hardware.
+- Unknown GPU memory fails closed.
+- VRAM below the declared candidate floor fails closed.
+- A proven CUDA runtime meeting the declared floor can pass the compatibility gate.
+
+### Validation
+- CI `32586567250`: SUCCESS.
+
+## Production safety through Change Set 024
 - `main.py`: untouched.
-- Telegram publishing: untouched.
+- Telegram production publishing: untouched.
 - Legacy image sourcing/rendering: untouched.
 - Production renderer/templates: untouched.
-- No external image provider invoked.
+- No paid provider connected.
+- No BFL paid API selected.
 - No production secret/API key added.
+- No model weights or font files committed to the repository.
 
-### Architecture after Change Set 021
-`Article -> Story Intelligence -> factual / identity / sentiment / neutrality gates -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme -> Destination Assets -> Deterministic Layout -> Generation Package -> Zero-Cost Provider Eligibility -> Execution Plan -> Provider Adapter -> Candidate Base Scenes -> BaseSceneVisualAcceptanceGate -> QualityFirstCandidateSelector -> PostCompositionPlanner -> Asset Integrity / Composition Quality -> Deterministic Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 024
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Provider Eligibility -> Local Runtime Compatibility -> Execution Plan -> Provider Prompt Constraint Compilation -> Generation Session -> Provider Adapter -> BaseSceneVisualAcceptanceGate -> Quality-First Candidate Selection -> PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
-### Next planned work
-1. Build a provider-neutral generation-session orchestrator that coordinates bounded attempts without knowing vendor details.
-2. Persist structured rejection diagnostics for each candidate/attempt.
-3. Add a deterministic acceptance threshold above basic gate pass so very weak-but-technically-valid scenes can still be rejected.
-4. Prepare the first $0 real-provider/local-provider evaluation behind the existing gates.
-5. Produce the first end-to-end PUL7SAR visual at $0 cost before considering any paid provider.
+## Next planned work
+1. Add an optional local backend contract for Diffusers/ComfyUI without making either a hard repository dependency.
+2. Build an install/runtime readiness report rather than silently installing heavy model dependencies.
+3. Add local output-file provenance and deterministic seed/session metadata.
+4. Build evidence extraction interfaces for identity/framing/protected-region/defect probes from actual generated images.
+5. Only after runtime readiness is proven should the first real local image generation be attempted.
