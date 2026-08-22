@@ -31,7 +31,7 @@ class DryRunManifest:
 
 
 class DryRunManifestCompiler:
-    VERSION = "pul7sar-phase18-manifest-v1"
+    VERSION = "pul7sar-phase18-manifest-v2"
 
     def compile(self, story_id: str, packages: tuple[PlatformScenePackage, ...]) -> DryRunManifest:
         packages = tuple(packages)
@@ -44,12 +44,34 @@ class DryRunManifestCompiler:
             key = spec.platform.value
             if key in data:
                 raise ValueError(f"duplicate platform package: {key}")
+
+            brand = None
+            if item.brand_plan is not None:
+                brand = {
+                    "logo_asset_id": item.brand_plan.logo_asset_id,
+                    "pulse_asset_id": item.brand_plan.pulse_asset_id,
+                    "pulse_tint_hex": item.brand_plan.pulse_tint_hex,
+                    "preserve_wordmark_exact": item.brand_plan.preserve_wordmark_exact,
+                    "preserve_team_crests_exact": item.brand_plan.preserve_team_crests_exact,
+                }
+
+            theme = None
+            if item.theme is not None:
+                theme = {
+                    "accent_hex": item.theme.accent_hex,
+                    "source": item.theme.source,
+                    "entity_name": item.theme.entity_name,
+                    "verified": item.theme.verified,
+                }
+
             data[key] = MappingProxyType({
                 "canvas": package.canvas,
                 "aspect_ratio": spec.aspect_ratio,
                 "safe_area": dict(spec.safe_area),
                 "layout_boxes": {role: dict(box) for role, box in package.layout_boxes.items()},
                 "accent_hex": package.accent_hex,
+                "theme": theme,
+                "brand_plan": brand,
                 "asset_ids": list(package.asset_ids),
                 "factual_constraints": list(package.factual_constraints),
                 "negative_constraints": list(package.negative_constraints),
