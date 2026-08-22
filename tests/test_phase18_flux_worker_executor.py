@@ -46,7 +46,8 @@ class Flux2SubprocessLockedExecutorTests(unittest.TestCase):
         )
         return job
 
-    def test_rejects_job_hash_drift_before_subprocess(self):
+    @patch("engine.intelligence.flux_worker_executor.subprocess.run")
+    def test_rejects_job_hash_drift_before_subprocess(self, run_mock):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             job = self._fixture(root)
@@ -60,8 +61,11 @@ class Flux2SubprocessLockedExecutorTests(unittest.TestCase):
                 attempt=1,
             )
             executor = Flux2SubprocessLockedExecutor(Flux2SubprocessConfig(repository_root=str(root)))
-            with self.assertRaises(ValueError):
-                executor.execute(drifted)
+            result = executor.execute(drifted)
+            self.assertFalse(result.succeeded)
+            self.assertEqual(result.failure_code, "handoff_integrity_failure")
+            self.assertFalse(result.retryable)
+            run_mock.assert_not_called()
 
     @patch("engine.intelligence.flux_worker_executor.subprocess.run")
     def test_success_requires_real_png_and_bfloat16(self, run_mock):
