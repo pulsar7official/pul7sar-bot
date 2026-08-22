@@ -182,6 +182,16 @@ sources, or another retrieval strategy. The verifier remains deterministic and
 conservative. This prevents a search provider from directly granting depiction
 permission merely because it returned a same-name result.
 
+### Validation status
+
+- Draft Pull Request opened: `#1 — Phase 18: Story Intelligence foundation`.
+- PR remains **draft** and must not be merged yet.
+- Phase 18 CI run `32574409083`: **SUCCESS**.
+- Syntax-check step: **PASS**.
+- Phase 18 intelligence unit tests: **PASS**.
+- Production-isolation gate: **PASS**.
+- No write permission is granted to the CI workflow itself (`contents: read`).
+
 ### Current limitation
 
 No automatic provider exists yet, so Phase 18 cannot independently discover or
