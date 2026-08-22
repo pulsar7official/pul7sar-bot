@@ -97,6 +97,58 @@ class FilesystemGenerationJobStoreTests(unittest.TestCase):
             self.assertTrue((Path(tmp) / "running" / "job-1.json").exists())
             self.assertEqual(store.get("job-1").attempt, 1)
 
+    def test_expired_running_job_is_requeued_when_attempts_remain(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FilesystemGenerationJobStore(tmp)
+            store.enqueue(make_job())
+            now = datetime.now(timezone.utc)
+            leased = store.lease_next(worker=make_worker(), lease_until=now + timedelta(seconds=1))
+            running = leased.transition(GenerationJobState.RUNNING, now=now, attempt=1)
+            store.save(running)
+            summary = store.recover_expired(now=now + timedelta(seconds=2))
+            recovered = store.get("job-1")
+            self.assertEqual(summary.recovered_job_ids, ("job-1",))
+            self.assertEqual(recovered.state, GenerationJobState.QUEUED)
+            self.assertEqual(recovered.failure_code, "lease_expired")
+            self.assertIsNone(recovered.lease_owner)
+            self.assertIsNone(recovered.lease_expires_at)
+
+    def test_expired_running_job_becomes_terminal_when_attempts_exhausted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FilesystemGenerationJobStore(tmp)
+            job = GenerationJob(
+                job_id="job-1",
+                request_id="request-job-1",
+                handoff_path="handoffs/job-1.json",
+                payload_sha256=SHA,
+                provider_id="local-flux2-klein-4b",
+                model_id="black-forest-labs/FLUX.2-klein-4B",
+                max_attempts=1,
+            )
+            store.enqueue(job)
+            now = datetime.now(timezone.utc)
+            leased = store.lease_next(worker=make_worker(), lease_until=now + timedelta(seconds=1))
+            running = leased.transition(GenerationJobState.RUNNING, now=now, attempt=1)
+            store.save(running)
+            summary = store.recover_expired(now=now + timedelta(seconds=2))
+            failed = store.get("job-1")
+            self.assertEqual(summary.terminal_job_ids, ("job-1",))
+            self.assertEqual(failed.state, GenerationJobState.TERMINAL_FAILED)
+            self.assertEqual(failed.failure_code, "lease_expired")
+
+    def test_snapshot_reports_pending_and_active_jobs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = FilesystemGenerationJobStore(tmp)
+            store.enqueue(make_job("job-1"))
+            store.enqueue(make_job("job-2"))
+            now = datetime.now(timezone.utc)
+            store.lease_next(worker=make_worker(), lease_until=now + timedelta(minutes=10))
+            snapshot = store.snapshot()
+            self.assertEqual(snapshot.pending, 1)
+            self.assertEqual(snapshot.active, 1)
+            self.assertEqual(snapshot.counts[GenerationJobState.QUEUED.value], 1)
+            self.assertEqual(snapshot.counts[GenerationJobState.LEASED.value], 1)
+
     def test_unsafe_job_id_is_rejected_for_filesystem_persistence(self):
         with tempfile.TemporaryDirectory() as tmp:
             store = FilesystemGenerationJobStore(tmp)
