@@ -8,7 +8,8 @@ contention and making failures attributable to one deterministic candidate.
 
 Batch control reads each candidate result from a dedicated JSON file rather than
 parsing stdout, because real Diffusers/Transformers runtimes may emit progress or
-informational text while loading model weights.
+informational text while loading model weights. `--limit 1` provides a safe first
+GPU smoke proof without changing the locked four-candidate manifest.
 """
 
 from __future__ import annotations
@@ -46,16 +47,27 @@ def execute_batch(
     generation_dir: str,
     proof_dir: str,
     dtype: str,
+    limit: int | None = None,
     python_executable: str = sys.executable,
     runner=subprocess.run,
 ) -> list[dict[str, object]]:
     manifest = load_manifest(manifest_path)
+    all_candidates = manifest["candidates"]
+    if limit is not None:
+        if isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
+            raise ValueError("limit must be a positive integer or None")
+        if limit > len(all_candidates):
+            raise ValueError("limit cannot exceed Golden Visual candidate count")
+        candidates = all_candidates[:limit]
+    else:
+        candidates = all_candidates
+
     root = Path(manifest_path).resolve().parent
     results: list[dict[str, object]] = []
 
     with tempfile.TemporaryDirectory(prefix="pul7sar-phase18-results-") as temp_results:
         result_root = Path(temp_results)
-        for candidate in manifest["candidates"]:
+        for candidate in candidates:
             handoff = root / str(candidate["handoff"])
             if not handoff.is_file():
                 raise FileNotFoundError(f"Golden Visual handoff is missing: {handoff}")
@@ -100,6 +112,7 @@ def main() -> int:
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
     parser.add_argument("--dtype", choices=("float16", "bfloat16", "float32"), default="bfloat16")
+    parser.add_argument("--limit", type=int, help="Execute only the first N locked candidates; use 1 for GPU smoke proof")
     parser.add_argument("--result", default="output/phase18_visual_proof/batch-execution.json")
     args = parser.parse_args()
 
@@ -108,6 +121,7 @@ def main() -> int:
         generation_dir=args.generation_dir,
         proof_dir=args.proof_dir,
         dtype=args.dtype,
+        limit=args.limit,
     )
     output = Path(args.result)
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -115,6 +129,8 @@ def main() -> int:
         "status": "REAL_VISUAL_PROOF_BATCH_GENERATED",
         "cost_mode": "$0-local",
         "candidate_count": len(results),
+        "execution_scope": "partial" if args.limit is not None else "full",
+        "requested_limit": args.limit,
         "candidates": results,
     }
     output.write_text(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
