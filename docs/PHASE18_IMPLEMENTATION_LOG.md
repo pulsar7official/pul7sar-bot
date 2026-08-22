@@ -131,21 +131,24 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 ## Change Set 049 — Production-equivalent first-candidate GPU smoke proof
 - Batch executor adds `--limit N`; `--limit 1` is the first real GPU smoke path.
 - The four-candidate manifest stays unchanged while only candidate 1 is executed.
-- Colab now uses the same batch orchestration for the smoke proof and the eventual full batch.
+- Colab uses the same batch orchestration for the smoke proof and eventual full batch.
 - Structured partial execution report is read to locate/display the real PNG.
 - CI Run `32596245628`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_047_049.md`.
 
-## Change Set 050 — CUDA-aware dtype selection
+## Change Set 050 — CUDA-aware Golden BF16 verification
 - `LocalRuntimeProbe` records BF16 support and compute capability when PyTorch can prove them.
-- Adds `LocalDTypeSelector` with `auto`, `float16`, `bfloat16`, and `float32` policies.
-- Real execution defaults to `auto`: BF16 only when explicitly supported; otherwise FP16.
-- Explicit BF16 fails closed if support is not proven.
-- Local readiness reports the recommended dtype before model loading.
+- Adds `LocalDTypeSelector` for the quality-locked Golden path.
+- After rechecking the documented FLUX.2 Klein 4B Diffusers reference configuration before the first PNG, the benchmark is locked to BF16 rather than silently falling back to another precision.
+- `auto` means prove native BF16 and resolve to `bfloat16`; BF16 false/unknown fails closed.
+- Golden executor accepts only `auto` or explicit `bfloat16`.
+- Batch executor rejects any result that escapes the BF16 precision lock.
+- Local readiness distinguishes generic generation readiness from `golden_generation_ready`.
 - GPU execution reports requested/resolved dtype, GPU identity, VRAM, BF16 support and compute capability.
-- Colab uses `--dtype auto` for both candidate 1 and the full batch.
-- CI Run `32596622314`: SUCCESS for the integrated code/test path.
-- Runbook CI Run `32596643514`: SUCCESS.
+- Colab uses `--dtype auto` for both candidate 1 and the full batch and asserts BF16 before displaying the proof.
+- CI Run `32596910115`: SUCCESS for the final fail-closed code path.
+- Notebook CI Run `32596936433`: SUCCESS.
+- Runbook CI Run `32596975853`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_050_GPU_DTYPE.md`.
 
 ## Current verified Golden Visual batch
@@ -163,14 +166,15 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - No fake PNG is generated to satisfy Visual Proof.
 - Missing semantic verification remains fail-closed.
 - Golden Visual aesthetic approval is additional to, not a substitute for, semantic publication safety.
-- Dtype fallback cannot bypass CUDA/VRAM/model readiness.
+- Unsupported or unproven BF16 does not trigger a silent precision downgrade.
 
 ## Architecture after Change Set 050
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch Integrity -> FLUX-Specific CUDA/Diffusers Readiness -> CUDA-Aware Dtype Resolution -> --limit 1 GPU Smoke Proof -> Dedicated Result JSON -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Full Sequential Candidate Batch -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch Integrity -> FLUX-Specific CUDA/Diffusers Readiness -> Golden BF16 Readiness -> --limit 1 GPU Smoke Proof -> Dedicated Result JSON -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Full Sequential Candidate Batch -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Execute candidate 1 on a compatible `$0` CUDA runtime with `--limit 1 --dtype auto` and register the first genuine PNG.
-2. Inspect the real result against the strict Golden benchmark; generation success alone is not visual acceptance.
-3. If candidate 1 proves runtime stability, execute the remaining deterministic seeds sequentially.
-4. Review all real candidates and reject the entire batch if none reaches the Golden bar.
-5. After the non-person Golden Visual proves the complete generation path, connect verified reference-image resolution for identity-required stories without weakening identity similarity gates.
+1. Execute candidate 1 on a compatible `$0` CUDA runtime with `--limit 1 --dtype auto`; readiness must report `golden_generation_ready: true`.
+2. Confirm the candidate reports `resolved_dtype: bfloat16` and register the first genuine PNG.
+3. Inspect the real result against the strict Golden benchmark; generation success alone is not visual acceptance.
+4. If candidate 1 proves runtime stability, execute the remaining deterministic seeds sequentially.
+5. Review all real candidates and reject the entire batch if none reaches the Golden bar.
+6. After the non-person Golden Visual proves the complete generation path, connect verified reference-image resolution for identity-required stories without weakening identity similarity gates.
