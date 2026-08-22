@@ -27,6 +27,7 @@ from engine.intelligence.post_composition import AssetIntegrityRecord, Compositi
 from engine.intelligence.provider_adapter import AdapterMismatchError, ProviderAdapterRegistry, ProviderEvidenceAdapter, ProviderRawGeneration
 from engine.intelligence.provider_capabilities import ProviderCapabilities, ProviderEligibilityDecision, ProviderEligibilityGate, ProviderFeature, ProviderRequirements
 from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep, ProviderExecutionPlan, ProviderExecutionPlanner
+from engine.intelligence.provider_prompting import CompiledProviderConstraints, ConstraintPromptMode, PromptConstraintCompiler
 from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
@@ -34,5 +35,6 @@ from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
+from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL, ZERO_COST_LOCAL_CANDIDATES, LocalModelCandidate
 
 __all__ = [name for name in globals() if not name.startswith("_")]
