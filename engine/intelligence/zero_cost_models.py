@@ -23,6 +23,11 @@ class LocalModelCandidate:
     supports_native_negative_prompt: bool
     supports_multi_reference: bool
     notes: str
+    generation_alignment: int = 1
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.generation_alignment, int) or isinstance(self.generation_alignment, bool) or self.generation_alignment <= 0:
+            raise ValueError("generation_alignment must be a positive integer")
 
     @property
     def economics(self) -> ProviderEconomics:
@@ -43,8 +48,8 @@ class LocalModelCandidate:
         return ProviderCapabilities(
             provider_id=self.provider_id,
             features=frozenset(features),
-            max_width=2000,
-            max_height=2000,
+            max_width=2048,
+            max_height=2048,
             supported_aspect_ratios=frozenset({"4:5", "9:16", "16:9"}),
             max_reference_images=4 if self.supports_multi_reference else 1,
             metadata={
@@ -52,6 +57,7 @@ class LocalModelCandidate:
                 "license_id": self.license_id,
                 "minimum_vram_gb": self.minimum_vram_gb,
                 "maximum_megapixels": self.maximum_megapixels,
+                "generation_alignment": self.generation_alignment,
                 "local_only": True,
             },
         )
@@ -60,6 +66,16 @@ class LocalModelCandidate:
         if width <= 0 or height <= 0:
             return False
         return (width * height) <= int(self.maximum_megapixels * 1_000_000)
+
+    def align_canvas(self, width: int, height: int) -> tuple[int, int]:
+        if width <= 0 or height <= 0:
+            raise ValueError("canvas dimensions must be positive")
+        alignment = self.generation_alignment
+        aligned_width = ((width + alignment - 1) // alignment) * alignment
+        aligned_height = ((height + alignment - 1) // alignment) * alignment
+        if not self.supports_canvas(aligned_width, aligned_height):
+            raise ValueError("aligned generation canvas exceeds selected local model envelope")
+        return aligned_width, aligned_height
 
 
 FLUX2_KLEIN_4B_LOCAL = LocalModelCandidate(
@@ -74,9 +90,12 @@ FLUX2_KLEIN_4B_LOCAL = LocalModelCandidate(
         "First zero-cost local evaluation candidate. Apache-2.0 4B FLUX.2 klein "
         "profile with text-to-image, editing and multi-reference support. PUL7SAR "
         "uses a conservative 13 GB local VRAM readiness floor from current BFL "
-        "fast-generation guidance/model-card documentation; measured implementations "
-        "may vary. Negative constraints are positively reframed before execution."
+        "guidance/model-card documentation. Diffusers Flux2KleinPipeline packs VAE "
+        "latents and expects image dimensions aligned to 16 pixels, so PUL7SAR "
+        "generates on an aligned native canvas and deterministically normalizes to "
+        "the exact destination canvas afterward. Negative constraints are positively reframed."
     ),
+    generation_alignment=16,
 )
 
 ZERO_COST_LOCAL_CANDIDATES = (FLUX2_KLEIN_4B_LOCAL,)
