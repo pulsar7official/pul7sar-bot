@@ -22,50 +22,58 @@ Previously documented foundation: Fact Lock, StoryAnalyzer, identity verificatio
 - CI `32587249246`: SUCCESS.
 
 ## Change Set 027 — Exact local backend execution boundary
+- Adds `engine/intelligence/local_backend_execution.py`.
+- Local request compilation requires ready `$0-local` state.
+- Locks provider/model/backend, prompt, constraints, dimensions, deterministic seed, request ID and reference IDs.
+- Result gate rejects provider/model/backend/request/seed/dimension mutation.
+- Valid result produces deterministic `LocalGenerationProvenance`.
+- CI `32587484617`: SUCCESS.
+
+## Change Set 028 — Optional local Diffusers / ComfyUI adapter shells
+- Adds optional Diffusers and ComfyUI execution adapters behind the local backend contract.
+- No automatic heavyweight dependency installation.
+- Diffusers pipeline construction remains injectable/testable without model download in CI.
+- ComfyUI execution is restricted to explicit localhost/loopback endpoints in current zero-cost local mode.
+- Seed, request ID, dimensions and reference IDs stay locked through adapter execution.
+- CI `32588022017`: SUCCESS.
+
+## Change Set 029 — Provider-neutral image evidence extraction boundary
+- Adds `engine/intelligence/image_evidence_extraction.py`.
+- Introduces independent probe contracts for subject framing, identity, protected regions, generation defects, forbidden visuals and safe crop.
+- `BaseSceneEvidenceExtractor` aggregates only typed evidence; it does not invent missing observations.
+- Generated image output reference and dimensions must match local generation provenance before evidence is accepted.
+- CI `32588151793`: SUCCESS.
+
+## Change Set 030 — Zero-cost local image inspectors
 
 ### Added
-- `engine/intelligence/local_backend_execution.py`
-  - `LocalBackendGenerationRequest`
-  - `LocalBackendGenerationResult`
-  - `LocalImageBackend` protocol
-  - `LocalBackendRequestCompiler`
-  - `LocalBackendResultGate`
-- `tests/test_phase18_local_backend_execution.py`
+- `engine/intelligence/local_vision_inspectors.py`
+- `tests/test_phase18_local_vision_inspectors.py`
 
-### Request compilation
-A local generation request can only be compiled from a readiness report with `ready=True` and `$0-local` cost mode.
+### Deterministic image facts
+`PngFileObserver` reads exact local PNG width/height/aspect ratio using Python stdlib only. It rejects remote URLs and invalid/non-PNG outputs.
 
-The request locks:
-- provider ID
-- model ID
-- backend ID
-- final base-scene prompt
-- translated/native negative constraints
-- width/height
-- deterministic seed
-- request ID
-- verified reference asset IDs
-- platform/layout metadata
+### Optional local protected-region clutter
+`PillowProtectedRegionProbe` can estimate visual clutter inside deterministic logo/headline/footer/score/crest boxes when Pillow is already available locally. Pillow is optional and is not auto-installed by Phase 18.
 
-For models without native negative prompts, all PUL7SAR forbidden constraints must translate completely through `PromptConstraintCompiler`; unknown constraints still fail closed.
+This is deliberately treated as a pixel-clutter heuristic, not semantic object recognition.
 
-The request explicitly instructs the backend to generate only the clean base scene. PUL7SAR branding, official crests, social icons, score typography, final headline and footer text remain outside the image model.
+### Fail-closed semantic probes
+Until a capable free/local vision model is installed and explicitly wired:
+- subject framing is not invented
+- identity similarity is not invented
+- semantic defect-free status is not invented
+- forbidden-visual compliance is not silently assumed
 
-### Result integrity
-`LocalBackendResultGate` rejects any backend result that changes:
-- provider ID
-- model ID
-- backend identity
-- request ID
-- deterministic seed
-- approved dimensions
+Identity-required scenes therefore remain blocked when identity similarity cannot actually be measured.
 
-Validated output becomes `LocalGenerationProvenance` for downstream quality evidence and reproducibility.
+### Geometry safe-crop probe
+A deterministic geometry probe verifies that every approved layout box remains within the generated image canvas. It does not claim semantic crop quality.
 
-### Current CI
-Change Set 027 workflow was queued after commit `15c83d5ade3716b84bbece4d5e68211e6e42b488`; success is not claimed until GitHub Actions completes.
+### Capability reporting
+`LocalVisionCapabilityReport` explicitly distinguishes what the current local stack can prove from semantic capabilities that remain unavailable. `publication_grade` is false unless every required capability is genuinely present.
 
-## Production safety through Change Set 027
+## Production safety through Change Set 030
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy image sourcing/rendering: untouched.
@@ -74,14 +82,15 @@ Change Set 027 workflow was queued after commit `15c83d5ade3716b84bbece4d5e68211
 - No paid API selected.
 - No production secret/API key added.
 - No model weights or font files committed.
-- No local image backend invoked yet.
+- No local image model executed by CI.
+- Quality gates are not relaxed when semantic vision capability is unavailable.
 
-## Architecture after Change Set 027
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Runtime / Backend Readiness -> $0 Readiness Report -> LocalBackendRequestCompiler -> Local Backend -> LocalBackendResultGate / Provenance -> Generation Session -> BaseSceneVisualAcceptanceGate -> Quality-First Candidate Selection -> PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 030
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Runtime / Backend Readiness -> $0 Readiness Report -> LocalBackendRequestCompiler -> Local Backend -> LocalBackendResultGate / Provenance -> Generated Image Observation -> Independent Local/Vision Evidence Probes -> BaseSceneEvidenceExtractor -> BaseSceneVisualAcceptanceGate -> Quality-First Candidate Selection -> PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Next planned work
-1. Verify Change Set 027 CI.
-2. Add concrete optional Diffusers and ComfyUI adapter shells behind `LocalImageBackend` without automatic dependency installation.
-3. Add generated-image evidence extraction interfaces for dimensions, identity, framing, protected-region occupancy and defects.
-4. Build a single-command local readiness CLI/report for the user's own machine.
-5. Attempt the first real $0 base-scene generation only after the local machine proves compatible.
+1. Verify Change Set 030 CI.
+2. Add a single-command local readiness CLI/report covering runtime, backend and vision-inspection capability.
+3. Evaluate free/local semantic vision options for subject framing, identity similarity and defect/forbidden-visual inspection without weakening quality.
+4. Attempt the first real $0 base-scene generation only after local machine compatibility is proven.
+5. Keep paid providers as future optional extensions only.
