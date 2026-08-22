@@ -30,15 +30,37 @@ class LocalGenerationHandoffTests(unittest.TestCase):
             loaded = LocalGenerationHandoff.read(str(path))
             self.assertEqual(loaded, self.request())
             data = json.loads(path.read_text(encoding="utf-8"))
-            self.assertEqual(data["handoff_version"], "pul7sar-local-generation-v1")
+            self.assertEqual(data["handoff_version"], "pul7sar-local-generation-v2")
+            self.assertEqual(len(data["payload_sha256"]), 64)
 
-    def test_non_zero_cost_handoff_is_rejected(self):
+    def test_tampered_prompt_is_rejected_before_execution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "handoff.json"
+            data = LocalGenerationHandoff.to_dict(self.request())
+            data["prompt"] = "tampered prompt"
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "integrity check failed"):
+                LocalGenerationHandoff.read(str(path))
+
+    def test_tampered_seed_is_rejected_before_execution(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "handoff.json"
+            data = LocalGenerationHandoff.to_dict(self.request())
+            data["seed"] = 999
+            path.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "integrity check failed"):
+                LocalGenerationHandoff.read(str(path))
+
+    def test_non_zero_cost_handoff_is_rejected_even_with_recomputed_hash(self):
         with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / "handoff.json"
             data = LocalGenerationHandoff.to_dict(self.request())
             data["metadata"]["cost_mode"] = "paid"
+            payload = dict(data)
+            payload.pop("payload_sha256")
+            data["payload_sha256"] = LocalGenerationHandoff.payload_sha256(payload)
             path.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "\$0-local"):
+            with self.assertRaisesRegex(ValueError, "\\$0-local"):
                 LocalGenerationHandoff.read(str(path))
 
 
