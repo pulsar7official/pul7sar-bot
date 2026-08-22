@@ -15,25 +15,29 @@ class LocalDTypeSelectorTests(unittest.TestCase):
             metadata={"bf16_supported": bf16},
         )
 
-    def test_auto_prefers_bfloat16_when_proven(self):
+    def test_auto_selects_bfloat16_when_proven(self):
         decision = LocalDTypeSelector().select(self.runtime(True), "auto")
         self.assertEqual(decision.resolved, "bfloat16")
 
-    def test_auto_uses_float16_when_bfloat16_is_not_supported(self):
-        decision = LocalDTypeSelector().select(self.runtime(False), "auto")
-        self.assertEqual(decision.resolved, "float16")
+    def test_auto_fails_closed_when_bfloat16_is_not_supported(self):
+        with self.assertRaisesRegex(ValueError, "no native bfloat16 support"):
+            LocalDTypeSelector().select(self.runtime(False), "auto")
 
-    def test_auto_uses_conservative_float16_when_capability_unknown(self):
-        decision = LocalDTypeSelector().select(self.runtime(None), "auto")
-        self.assertEqual(decision.resolved, "float16")
+    def test_auto_fails_closed_when_bfloat16_capability_is_unknown(self):
+        with self.assertRaisesRegex(ValueError, "could not be proven"):
+            LocalDTypeSelector().select(self.runtime(None), "auto")
 
     def test_explicit_bfloat16_fails_when_not_proven(self):
-        with self.assertRaisesRegex(ValueError, "support is not proven"):
+        with self.assertRaisesRegex(ValueError, "no native bfloat16 support"):
             LocalDTypeSelector().select(self.runtime(False), "bfloat16")
 
-    def test_explicit_float16_is_allowed(self):
-        decision = LocalDTypeSelector().select(self.runtime(False), "float16")
-        self.assertEqual(decision.resolved, "float16")
+    def test_unverified_float16_request_is_rejected_for_golden_path(self):
+        with self.assertRaisesRegex(ValueError, "only auto/bfloat16"):
+            LocalDTypeSelector().select(self.runtime(True), "float16")
+
+    def test_float32_request_is_rejected_for_golden_path(self):
+        with self.assertRaisesRegex(ValueError, "only auto/bfloat16"):
+            LocalDTypeSelector().select(self.runtime(True), "float32")
 
     def test_cpu_runtime_is_rejected(self):
         runtime = RuntimeHardwareSnapshot(RuntimeKind.LOCAL_CPU, False, torch_available=True)
