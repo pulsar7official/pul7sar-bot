@@ -45,11 +45,14 @@ jobs:
           python -m py_compile engine/intelligence/classification.py
           python -m py_compile engine/intelligence/neutrality.py
           python -m py_compile engine/intelligence/visual_router.py
+          python -m py_compile engine/intelligence/perspective.py
+          python -m py_compile engine/intelligence/concept_director.py
           python -m py_compile tests/test_story_intelligence_models.py
           python -m py_compile tests/test_phase18_identity_verifier.py
           python -m py_compile tests/test_phase18_story_analyzer.py
           python -m py_compile tests/test_phase18_classification_router.py
           python -m py_compile tests/test_phase18_neutrality.py
+          python -m py_compile tests/test_phase18_perspective_concept.py
 
       - name: Run Phase 18 intelligence tests
         run: |
@@ -58,7 +61,8 @@ jobs:
             tests.test_phase18_identity_verifier \
             tests.test_phase18_story_analyzer \
             tests.test_phase18_classification_router \
-            tests.test_phase18_neutrality
+            tests.test_phase18_neutrality \
+            tests.test_phase18_perspective_concept
 
       - name: Verify production isolation
         run: |
