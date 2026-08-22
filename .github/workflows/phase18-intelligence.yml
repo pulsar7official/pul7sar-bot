@@ -56,6 +56,10 @@ jobs:
           python tools/phase18_build_golden_batch.py \
             --output-dir output/phase18_handoffs/golden-batch \
             --seeds 7007001 7007002 7007003 7007004
+      - name: Verify Golden Visual candidate batch integrity
+        run: |
+          python tools/phase18_verify_golden_batch.py \
+            --manifest output/phase18_handoffs/golden-batch/manifest.json
       - name: Upload Golden Visual GPU handoff
         uses: actions/upload-artifact@v7
         with:
