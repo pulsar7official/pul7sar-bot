@@ -8,6 +8,7 @@ from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint
 from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestCompiler
 from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
+from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_package import GenerationPackage, GenerationPackageCompiler
 from engine.intelligence.generation_provider import AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult
@@ -26,6 +27,7 @@ from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIden
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
+from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
 
 __all__ = [name for name in globals() if not name.startswith("_")]
