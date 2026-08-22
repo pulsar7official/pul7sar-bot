@@ -76,6 +76,21 @@ class LocalRuntimeProbe:
         device = torch.cuda.current_device()
         props = torch.cuda.get_device_properties(device)
         total_memory = float(props.total_memory) / (1024 ** 3)
+        bf16_supported = None
+        bf16_probe = getattr(torch.cuda, "is_bf16_supported", None)
+        if callable(bf16_probe):
+            try:
+                bf16_supported = bool(bf16_probe())
+            except Exception:
+                bf16_supported = None
+        compute_capability = None
+        capability_probe = getattr(torch.cuda, "get_device_capability", None)
+        if callable(capability_probe):
+            try:
+                major, minor = capability_probe(device)
+                compute_capability = f"{int(major)}.{int(minor)}"
+            except Exception:
+                compute_capability = None
         return RuntimeHardwareSnapshot(
             kind=RuntimeKind.LOCAL_CUDA,
             cuda_available=True,
@@ -85,6 +100,8 @@ class LocalRuntimeProbe:
             metadata={
                 "device_index": int(device),
                 "torch_version": getattr(torch, "__version__", None),
+                "bf16_supported": bf16_supported,
+                "compute_capability": compute_capability,
             },
         )
 
