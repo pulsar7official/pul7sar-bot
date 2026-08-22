@@ -35,16 +35,11 @@ class LocalModelCandidate:
 
     @property
     def capabilities(self) -> ProviderCapabilities:
-        features = {
-            ProviderFeature.TEXT_TO_IMAGE,
-            ProviderFeature.REFERENCE_IMAGE,
-        }
+        features = {ProviderFeature.TEXT_TO_IMAGE, ProviderFeature.REFERENCE_IMAGE}
         if self.supports_multi_reference:
             features.add(ProviderFeature.MULTIPLE_REFERENCES)
         if self.supports_native_negative_prompt:
             features.add(ProviderFeature.NEGATIVE_INSTRUCTIONS)
-        # PUL7SAR post-composites official assets; provider-side exact asset
-        # compositing is deliberately not required.
         return ProviderCapabilities(
             provider_id=self.provider_id,
             features=frozenset(features),
@@ -76,11 +71,12 @@ FLUX2_KLEIN_4B_LOCAL = LocalModelCandidate(
     supports_native_negative_prompt=False,
     supports_multi_reference=True,
     notes=(
-        "First zero-cost local evaluation candidate. Fully open 4B FLUX.2 klein "
-        "profile with text-to-image and multi-reference editing. Negative visual "
-        "constraints must be positively reframed by PUL7SAR before execution."
+        "First zero-cost local evaluation candidate. Apache-2.0 4B FLUX.2 klein "
+        "profile with text-to-image, editing and multi-reference support. PUL7SAR "
+        "uses a conservative 13 GB local VRAM readiness floor from current BFL "
+        "fast-generation guidance/model-card documentation; measured implementations "
+        "may vary. Negative constraints are positively reframed before execution."
     ),
 )
-
 
 ZERO_COST_LOCAL_CANDIDATES = (FLUX2_KLEIN_4B_LOCAL,)
