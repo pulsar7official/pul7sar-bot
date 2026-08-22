@@ -2,9 +2,9 @@
 """Execute one precompiled PUL7SAR FLUX.2 request on a compatible local CUDA GPU.
 
 This command does not install dependencies and does not use a paid API. It fails
-closed unless CUDA/VRAM and Diffusers readiness are proven. On success it writes
-a native aligned PNG, normalizes it to the exact platform canvas, and registers
-the exact-canvas PNG as the visual proof with full provenance.
+closed unless CUDA/VRAM and explicit Flux2KleinPipeline readiness are proven. On
+success it writes a native aligned PNG, normalizes it to the exact platform
+canvas, and registers the exact-canvas PNG as the visual proof with provenance.
 """
 
 from __future__ import annotations
@@ -14,14 +14,13 @@ import json
 from pathlib import Path
 
 from engine.intelligence.canvas_normalization import PillowPlatformCanvasNormalizer
-from engine.intelligence.flux2_klein_diffusers import build_flux2_klein_pipeline_factory
+from engine.intelligence.flux2_klein_diffusers import (
+    Flux2KleinDiffusersProbe,
+    build_flux2_klein_pipeline_factory,
+)
 from engine.intelligence.local_backend import LocalBackendReadinessGate
 from engine.intelligence.local_backend_execution import LocalBackendResultGate
-from engine.intelligence.local_diffusers_adapter import (
-    DiffusersBackendProbe,
-    DiffusersExecutionConfig,
-    DiffusersLocalBackend,
-)
+from engine.intelligence.local_diffusers_adapter import DiffusersExecutionConfig, DiffusersLocalBackend
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 from engine.intelligence.local_runtime import LocalRuntimeProbe
 from engine.intelligence.visual_proof import VisualProofArtifactWriter
@@ -53,14 +52,19 @@ def main() -> int:
         )
 
     runtime = LocalRuntimeProbe().detect()
-    backend_snapshot = DiffusersBackendProbe().probe()
+    backend_snapshot = Flux2KleinDiffusersProbe().probe()
     readiness = LocalBackendReadinessGate().evaluate(
         model=model,
         runtime=runtime,
         backend=backend_snapshot,
     )
     if not readiness.ready:
-        raise RuntimeError("local FLUX.2 execution is not ready: " + "; ".join(readiness.failures))
+        detail = ", ".join(backend_snapshot.details)
+        raise RuntimeError(
+            "local FLUX.2 execution is not ready: "
+            + "; ".join(readiness.failures)
+            + (f"; backend_details={detail}" if detail else "")
+        )
 
     backend = DiffusersLocalBackend(
         DiffusersExecutionConfig(output_dir=args.generation_dir, dtype=args.dtype),
@@ -88,6 +92,7 @@ def main() -> int:
         "provider_id": normalized.provenance.provider_id,
         "model_id": normalized.provenance.model_id,
         "backend": normalized.provenance.backend,
+        "backend_version": backend_snapshot.version,
         "seed": normalized.provenance.seed,
         "request_id": normalized.provenance.request_id,
         "native_width": request.width,
