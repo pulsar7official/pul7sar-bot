@@ -1,8 +1,9 @@
 """PUL7SAR Phase 18 story-intelligence domain.
 
 This package sits before the deterministic rendering engine. It models story
-meaning, factual safety, identity verification, editorial neutrality, and
-high-level visual routing without changing production publishing behavior.
+meaning, factual safety, identity verification, editorial neutrality, visual
+routing, concept direction, and generation authorization without changing
+production publishing behavior.
 """
 
 from engine.intelligence.classification import (
@@ -12,6 +13,12 @@ from engine.intelligence.concept_director import (
     ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept,
 )
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
+from engine.intelligence.generation_authorization import (
+    AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer,
+)
+from engine.intelligence.generation_provider import (
+    AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult,
+)
 from engine.intelligence.identity import (
     IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier,
 )
@@ -30,13 +37,15 @@ from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
 
 __all__ = [
-    "ClaimKind", "ConceptBrief", "ConceptConstraint", "ConceptDirectionError",
-    "ConceptDirector", "EditorialNeutralityGate", "EditorialRole", "EntityCandidate",
-    "EntityKind", "FactLock", "FactLockViolation", "IdentityEvidence", "IdentityPlan",
+    "AuthorizationFailure", "AuthorizedSceneGenerator", "ClaimKind", "ConceptBrief",
+    "ConceptConstraint", "ConceptDirectionError", "ConceptDirector", "EditorialNeutralityGate",
+    "EditorialRole", "EntityCandidate", "EntityKind", "FactLock", "FactLockViolation",
+    "GenerationAuthorization", "GenerationAuthorizer", "IdentityEvidence", "IdentityPlan",
     "IdentityRequirements", "IdentityStatus", "IdentityVerificationError", "IdentityVerifier",
     "LockedClaim", "LoserTreatment", "NeutralityDecision", "NeutralityViolation",
-    "PerspectiveSentiment", "ProposedConcept", "ResultPerspectives", "ResultVisualTreatment",
-    "Sentiment", "SentimentDecision", "SentimentEvidence", "SentimentProvider", "SentimentResolver",
+    "OriginalSceneProvider", "OriginalSceneRequest", "OriginalSceneResult", "PerspectiveSentiment",
+    "ProposedConcept", "ResultPerspectives", "ResultVisualTreatment", "Sentiment",
+    "SentimentDecision", "SentimentEvidence", "SentimentProvider", "SentimentResolver",
     "StoryAnalysisError", "StoryAnalyzer", "StoryBrief", "StoryClassification", "StoryClassifier",
     "StoryScope", "StoryType", "VisualFamily", "VisualFamilyRouter", "VisualIntent", "VisualRoute",
 ]
