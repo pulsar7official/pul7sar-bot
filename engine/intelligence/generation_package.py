@@ -8,7 +8,6 @@ from typing import Any, Mapping, Optional
 
 from engine.intelligence.assets import AssetBundle, AssetRole
 from engine.intelligence.layout_planner import PlannedLayout
-from engine.intelligence.layout_safety import LayoutRole
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 
 
@@ -106,12 +105,8 @@ class GenerationPackageCompiler:
                 layout_boxes[box.role.value] = {
                     "x": box.x, "y": box.y, "width": box.width, "height": box.height,
                 }
-            prompt_parts.append(
-                "Follow the supplied deterministic layout geometry exactly for protected editorial elements."
-            )
-            prompt_parts.append(
-                "Accent color for the approved number-7/pulse element: " + planned_layout.accent_hex + "."
-            )
+            prompt_parts.append("Follow the supplied deterministic layout geometry exactly for protected editorial elements.")
+            prompt_parts.append("Accent color for the approved number-7/pulse element: " + planned_layout.accent_hex + ".")
 
         prompt_parts.extend((
             "Critical visual elements must stay inside the declared platform safe area.",
@@ -120,9 +115,20 @@ class GenerationPackageCompiler:
             "Club/team names shown in artwork must remain in their approved English form unless explicit editorial copy says otherwise.",
         ))
         if social_assets:
-            prompt_parts.append(
-                "Keep the social footer compact and uncrowded: small official platform icon plus PUL7SAR handle/name only; no long URLs, email address, or dense contact row unless explicitly requested."
-            )
+            prompt_parts.append("Keep the social footer compact and uncrowded: small official platform icon plus PUL7SAR handle/name only; no long URLs, email address, or dense contact row unless explicitly requested.")
+
+        identity = specification.identity_reference
+        metadata = {
+            "dry_run": True,
+            "safe_area": dict(specification.safe_area),
+            "profile_version": specification.metadata.get("profile_version"),
+            "crop_strategy": specification.metadata.get("crop_strategy"),
+            "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
+            "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
+            "identity_required": identity is not None,
+            "identity_entity_name": identity.entity_name if identity else None,
+            "identity_reference_confidence": identity.confidence if identity else None,
+        }
 
         return GenerationPackage(
             platform=specification.platform.value,
@@ -133,12 +139,5 @@ class GenerationPackageCompiler:
             factual_constraints=specification.factual_constraints,
             layout_boxes=layout_boxes,
             accent_hex=accent_hex,
-            metadata={
-                "dry_run": True,
-                "safe_area": dict(specification.safe_area),
-                "profile_version": specification.metadata.get("profile_version"),
-                "crop_strategy": specification.metadata.get("crop_strategy"),
-                "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
-                "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
-            },
+            metadata=metadata,
         )
