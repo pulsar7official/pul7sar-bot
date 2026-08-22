@@ -1,14 +1,13 @@
 """Durable filesystem queue adapter for Phase 18 generation jobs.
 
 This adapter is intentionally dependency-free so the first production-shaped GPU
-worker can run on a single host before Redis/SQS is introduced.  State is encoded
+worker can run on a single host before Redis/SQS is introduced. State is encoded
 by directory and every claim uses an atomic rename, preventing two workers on the
 same filesystem from leasing the same queued job.
 """
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import datetime
 import json
 import os
@@ -36,7 +35,7 @@ class FilesystemGenerationJobStore:
     """Single-filesystem durable queue with atomic leasing.
 
     It is suitable for one machine or multiple worker processes sharing the same
-    mounted filesystem.  It is not presented as a distributed-database substitute;
+    mounted filesystem. It is not presented as a distributed-database substitute;
     the GenerationJobStore protocol remains backend-neutral for a later Redis/SQS
     adapter.
     """
@@ -121,13 +120,27 @@ class FilesystemGenerationJobStore:
 
     @staticmethod
     def _serialize(job: GenerationJob) -> dict[str, object]:
-        data = asdict(job)
-        data["state"] = job.state.value
-        for field in ("created_at", "updated_at", "lease_expires_at"):
-            value = getattr(job, field)
-            data[field] = value.isoformat() if value is not None else None
-        data["metadata"] = dict(job.metadata)
-        return data
+        # Build explicitly: dataclasses.asdict() deep-copies MappingProxyType and
+        # therefore breaks on the immutable metadata contract used by GenerationJob.
+        return {
+            "job_id": job.job_id,
+            "request_id": job.request_id,
+            "handoff_path": job.handoff_path,
+            "payload_sha256": job.payload_sha256,
+            "provider_id": job.provider_id,
+            "model_id": job.model_id,
+            "state": job.state.value,
+            "attempt": job.attempt,
+            "max_attempts": job.max_attempts,
+            "created_at": job.created_at.isoformat(),
+            "updated_at": job.updated_at.isoformat(),
+            "lease_owner": job.lease_owner,
+            "lease_expires_at": job.lease_expires_at.isoformat() if job.lease_expires_at else None,
+            "result_path": job.result_path,
+            "failure_code": job.failure_code,
+            "failure_detail": job.failure_detail,
+            "metadata": dict(job.metadata),
+        }
 
     @staticmethod
     def _deserialize(data: dict[str, object]) -> GenerationJob:
