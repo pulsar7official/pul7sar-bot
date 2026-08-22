@@ -78,18 +78,25 @@ PYTHONPATH=. python tools/phase18_local_readiness.py
 
 Readiness proves the installed Diffusers build exposes `Flux2KleinPipeline`; generic package import is not sufficient. Execution stops if CUDA, VRAM, backend or model-specific pipeline readiness is not proven.
 
-## Execute one real Golden Visual handoff
+## First real GPU smoke proof — candidate 1 only
+Use the same sequential batch executor that will later produce the complete four-candidate set, but limit it to the first locked candidate:
 
 ```bash
-PYTHONPATH=. python tools/phase18_flux2_execute.py \
-  --request output/phase18_handoffs/golden-batch/candidate-01-seed-7007001.json \
+PYTHONPATH=. python tools/phase18_flux2_batch_execute.py \
+  --manifest output/phase18_handoffs/golden-batch/manifest.json \
+  --limit 1 \
   --generation-dir output/phase18_generated \
   --proof-dir output/phase18_visual_proof \
-  --dtype bfloat16
+  --dtype bfloat16 \
+  --result output/phase18_visual_proof/first-candidate-execution.json
 ```
 
+`--limit 1` does not alter the four-candidate manifest. It only reduces the execution scope so the CUDA runtime, model loading, native canvas, normalization and proof registration can be proven before spending runtime on seeds 2–4.
+
+The single-request executor also writes a dedicated JSON result file for every delegated candidate. Batch control reads that file rather than parsing stdout, so normal Diffusers/Transformers progress output cannot corrupt machine-readable execution state.
+
 ## Execute the full quality batch with one command
-After one candidate proves the GPU runtime is stable, run all four sequentially:
+After candidate 1 proves the GPU runtime is stable, run all four sequentially:
 
 ```bash
 PYTHONPATH=. python tools/phase18_flux2_batch_execute.py \
@@ -100,7 +107,7 @@ PYTHONPATH=. python tools/phase18_flux2_batch_execute.py \
   --result output/phase18_visual_proof/batch-execution.json
 ```
 
-The batch executor never runs candidates in parallel. It delegates every candidate to the exact same single-request execution path, validates the returned deterministic seed, and stops immediately on the first failed candidate. This avoids VRAM contention and prevents one candidate from bypassing the normal integrity/readiness/provenance/normalization gates.
+The batch executor never runs candidates in parallel. It delegates every candidate to the exact same single-request execution path, validates returned deterministic seed/request identity, and stops immediately on the first failed candidate. This avoids VRAM contention and prevents one candidate from bypassing the normal integrity/readiness/provenance/normalization gates.
 
 The single-request executor performs, in order:
 
@@ -112,6 +119,7 @@ The single-request executor performs, in order:
 6. Validate native result provider/model/backend/request ID/seed/dimensions.
 7. Normalize native aligned canvas to the exact platform canvas.
 8. Write the real PNG and JSON provenance to `output/phase18_visual_proof/`.
+9. Persist a dedicated machine-readable executor result for robust batch orchestration.
 
 ## Build the human review template
 After the full real batch exists, build a review file from the execution report:
@@ -134,6 +142,16 @@ PYTHONPATH=. python tools/phase18_review_golden_batch.py \
 ```
 
 A candidate cannot win through score alone if it has fantasy/monument staging, fake logos/crests, pseudo-text, an invented result, cluttered collage treatment, or broken geometry/anatomy.
+
+### Strict visual approval bar
+The Golden Visual bar is intentionally higher than a merely attractive or technically successful image:
+
+- Weighted score must be **at least 8.5/10**.
+- Editorial realism, composition hierarchy and protected-zone cleanliness must each be **at least 8.0/10**.
+- A weighted score of **9.0/10 or higher** is classified as `elite` and is the target for flagship PUL7SAR visuals.
+- Any hard blocker forces `below_golden`, regardless of numeric score.
+
+This prevents a 7/10 or low-8/10 image from being promoted simply because the generation pipeline worked.
 
 ## What is recorded
 The proof metadata preserves:
@@ -158,7 +176,7 @@ A generated proof is **not automatically publication-ready**.
 The first PNG must still pass PUL7SAR's independent subject/framing, semantic-defect, forbidden-visual, protected-region and — when applicable — identity-similarity checks. The Semantic Publication Gate remains fail-closed. Golden Visual approval is an additional aesthetic gate, not a substitute for semantic safety.
 
 ## Colab execution path
-`notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb` provides the current lowest-friction free-GPU path. It checks for a GPU, installs only the Phase 18 GPU requirements, proves FLUX-specific readiness, builds and verifies the deterministic batch, generates candidate 1, and displays the real proof. Full-batch generation is intentionally opt-in after candidate 1 proves the runtime stable.
+`notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb` provides the current lowest-friction free-GPU path. It checks for a GPU, installs only the Phase 18 GPU requirements, proves FLUX-specific readiness, builds and verifies the deterministic batch, executes candidate 1 through `--limit 1`, reads the structured execution report, and displays the real proof. Full-batch generation remains intentionally opt-in after candidate 1 proves the runtime stable.
 
 ## Golden Visual benchmark
 For the first general-season proof, evaluate at minimum:
