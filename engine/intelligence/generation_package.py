@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from types import MappingProxyType
-from typing import Any, Mapping
+from typing import Any, Mapping, Optional
 
 from engine.intelligence.assets import AssetBundle, AssetRole
+from engine.intelligence.layout_planner import PlannedLayout
+from engine.intelligence.layout_safety import LayoutRole
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 
 
@@ -18,6 +20,8 @@ class GenerationPackage:
     negative_constraints: tuple[str, ...]
     asset_ids: tuple[str, ...]
     factual_constraints: tuple[str, ...]
+    layout_boxes: Mapping[str, Mapping[str, int]] = field(default_factory=dict)
+    accent_hex: Optional[str] = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
@@ -25,20 +29,41 @@ class GenerationPackage:
             value = getattr(self, name)
             if not isinstance(value, str) or not value.strip():
                 raise ValueError(f"{name} must be non-empty")
+        if self.accent_hex is not None and (
+            not isinstance(self.accent_hex, str) or not self.accent_hex.startswith("#")
+        ):
+            raise ValueError("accent_hex must be #RRGGBB or None")
+        normalized_layout = {
+            str(role): MappingProxyType(dict(box)) for role, box in dict(self.layout_boxes).items()
+        }
         object.__setattr__(self, "negative_constraints", tuple(self.negative_constraints))
         object.__setattr__(self, "asset_ids", tuple(self.asset_ids))
         object.__setattr__(self, "factual_constraints", tuple(self.factual_constraints))
+        object.__setattr__(self, "layout_boxes", MappingProxyType(normalized_layout))
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
 
 class GenerationPackageCompiler:
     """Compile a dry-run scene package without calling an image provider."""
 
-    def compile(self, specification: OriginalSceneSpecification, assets: AssetBundle) -> GenerationPackage:
+    def compile(
+        self,
+        specification: OriginalSceneSpecification,
+        assets: AssetBundle,
+        *,
+        planned_layout: Optional[PlannedLayout] = None,
+    ) -> GenerationPackage:
         if not isinstance(specification, OriginalSceneSpecification):
             raise TypeError("specification must be OriginalSceneSpecification")
         if not isinstance(assets, AssetBundle):
             raise TypeError("assets must be AssetBundle")
+        if planned_layout is not None:
+            if not isinstance(planned_layout, PlannedLayout):
+                raise TypeError("planned_layout must be PlannedLayout or None")
+            if planned_layout.profile.platform is not specification.platform:
+                raise ValueError("planned layout platform mismatch")
+            if planned_layout.profile.width != specification.width or planned_layout.profile.height != specification.height:
+                raise ValueError("planned layout canvas mismatch")
 
         assets.assert_brand_ready()
         assets.assert_team_crests_exact()
@@ -73,6 +98,21 @@ class GenerationPackageCompiler:
                 + "."
             )
 
+        layout_boxes: dict[str, dict[str, int]] = {}
+        accent_hex = None
+        if planned_layout is not None:
+            accent_hex = planned_layout.accent_hex
+            for box in planned_layout.boxes:
+                layout_boxes[box.role.value] = {
+                    "x": box.x, "y": box.y, "width": box.width, "height": box.height,
+                }
+            prompt_parts.append(
+                "Follow the supplied deterministic layout geometry exactly for protected editorial elements."
+            )
+            prompt_parts.append(
+                "Accent color for the approved number-7/pulse element: " + planned_layout.accent_hex + "."
+            )
+
         prompt_parts.extend((
             "Critical visual elements must stay inside the declared platform safe area.",
             "Use the exact supplied PUL7SAR wordmark and official team/competition marks; never redraw, reinterpret, or hallucinate them.",
@@ -91,11 +131,14 @@ class GenerationPackageCompiler:
             negative_constraints=specification.forbidden_visual_elements,
             asset_ids=tuple(asset.asset_id for asset in assets.assets),
             factual_constraints=specification.factual_constraints,
+            layout_boxes=layout_boxes,
+            accent_hex=accent_hex,
             metadata={
                 "dry_run": True,
                 "safe_area": dict(specification.safe_area),
                 "profile_version": specification.metadata.get("profile_version"),
                 "crop_strategy": specification.metadata.get("crop_strategy"),
                 "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
+                "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
             },
         )
