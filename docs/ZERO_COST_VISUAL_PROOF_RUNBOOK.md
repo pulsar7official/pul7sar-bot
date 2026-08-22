@@ -16,6 +16,11 @@ The PUL7SAR core stays environment-neutral. A compatible CUDA GPU may be a user-
 
 No BFL paid API is used by this runbook.
 
+## Tamper-proof portable handoff
+Every current GPU handoff uses `pul7sar-local-generation-v2` and contains a canonical SHA-256 over the provider, model, backend, prompt, constraints, canvas, seed, request ID, reference IDs and metadata. The executor validates this digest before any model execution. Changing the prompt, seed, dimensions, provider or `$0-local` metadata invalidates the handoff.
+
+This is intentionally separate from GitHub artifact transport integrity: PUL7SAR verifies the semantic generation payload itself.
+
 ## Why the model canvas differs from the platform canvas
 FLUX.2/Diffusers uses packed VAE latents and requires aligned image dimensions. PUL7SAR therefore keeps two canvases:
 
@@ -24,8 +29,10 @@ FLUX.2/Diffusers uses packed VAE latents and requires aligned image dimensions. 
 
 The generated PNG is deterministically center-cropped/resized back to the exact platform canvas before visual proof registration and semantic acceptance. The final platform output remains exact.
 
-## CPU/CI stage — already automated
-The normal Phase 18 GitHub workflow runs:
+## CPU/CI stage — automated
+The normal Phase 18 GitHub workflow builds both a single canonical handoff and a deterministic four-candidate quality batch.
+
+Single canonical request:
 
 ```bash
 python tools/phase18_build_golden_handoff.py \
@@ -34,11 +41,15 @@ python tools/phase18_build_golden_handoff.py \
   --request-id golden-general-season-opener-001
 ```
 
-The workflow uploads the handoff JSON as an artifact named:
+Quality-first batch:
 
-`golden-general-season-opener.json`
+```bash
+python tools/phase18_build_golden_batch.py \
+  --output-dir output/phase18_handoffs/golden-batch \
+  --seeds 7007001 7007002 7007003 7007004
+```
 
-This artifact is not an image. It is the locked request that a compatible free GPU runtime must execute.
+The batch deliberately varies only the deterministic seed. Prompt, model, platform geometry, constraints and cost policy stay identical. `manifest.json` records each candidate's request ID and SHA-256 so candidates can be compared fairly after generation.
 
 ## GPU runtime preparation
 Use Python 3 with an existing CUDA-enabled PyTorch installation. Install only the optional Phase 18 packages:
@@ -57,19 +68,21 @@ PYTHONPATH=. python tools/phase18_local_readiness.py
 
 Execution must stop if CUDA/VRAM/backend readiness is not proven.
 
-## Execute the real Golden Visual handoff
+## Execute one real Golden Visual handoff
 
 ```bash
 PYTHONPATH=. python tools/phase18_flux2_execute.py \
-  --request output/phase18_handoffs/golden-general-season-opener.json \
+  --request output/phase18_handoffs/golden-batch/candidate-01-seed-7007001.json \
   --generation-dir output/phase18_generated \
   --proof-dir output/phase18_visual_proof \
   --dtype bfloat16
 ```
 
+Repeat for the other batch candidates only after the runtime remains healthy. The selector must not favor the first seed; the purpose of the batch is visual comparison.
+
 The executor performs, in order:
 
-1. Validate handoff version and `$0-local` lock.
+1. Validate handoff version, SHA-256 and `$0-local` lock.
 2. Confirm approved FLUX.2 model/provider/backend IDs.
 3. Confirm CUDA, VRAM and Diffusers readiness.
 4. Load `Flux2KleinPipeline` locally through Diffusers.
