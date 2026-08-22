@@ -18,6 +18,8 @@ from engine.intelligence.models import ClaimKind, IdentityPlan, IdentityStatus, 
 from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatment, NeutralityDecision, NeutralityViolation, ResultVisualTreatment
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform
+from engine.intelligence.provider_capabilities import ProviderCapabilities, ProviderEligibilityDecision, ProviderEligibilityGate, ProviderFeature, ProviderRequirements
+from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
