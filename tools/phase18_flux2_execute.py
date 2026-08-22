@@ -10,54 +10,29 @@ from __future__ import annotations
 
 import argparse
 import json
-from pathlib import Path
 
 from engine.intelligence.flux2_klein_diffusers import build_flux2_klein_pipeline_factory
 from engine.intelligence.local_backend import LocalBackendReadinessGate
-from engine.intelligence.local_backend_execution import (
-    LocalBackendGenerationRequest,
-    LocalBackendResultGate,
-)
+from engine.intelligence.local_backend_execution import LocalBackendResultGate
 from engine.intelligence.local_diffusers_adapter import (
     DiffusersBackendProbe,
     DiffusersExecutionConfig,
     DiffusersLocalBackend,
 )
+from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 from engine.intelligence.local_runtime import LocalRuntimeProbe
 from engine.intelligence.visual_proof import VisualProofArtifactWriter
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
-def _request_from_json(path: str) -> LocalBackendGenerationRequest:
-    data = json.loads(Path(path).read_text(encoding="utf-8"))
-    required = (
-        "provider_id", "model_id", "backend", "prompt", "width", "height",
-        "seed", "request_id",
-    )
-    missing = [name for name in required if name not in data]
-    if missing:
-        raise ValueError("missing request fields: " + ", ".join(missing))
-    metadata = dict(data.get("metadata") or {})
-    if metadata.get("cost_mode") != "$0-local":
-        raise ValueError("execution request must be locked to $0-local mode")
-    return LocalBackendGenerationRequest(
-        provider_id=data["provider_id"],
-        model_id=data["model_id"],
-        backend=data["backend"],
-        prompt=data["prompt"],
-        native_negative_constraints=tuple(data.get("native_negative_constraints") or ()),
-        width=int(data["width"]),
-        height=int(data["height"]),
-        seed=int(data["seed"]),
-        request_id=data["request_id"],
-        reference_asset_ids=tuple(data.get("reference_asset_ids") or ()),
-        metadata=metadata,
-    )
+def _request_from_json(path: str):
+    """Compatibility wrapper used by tests and callers; enforces versioned handoff."""
+    return LocalGenerationHandoff.read(path)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Execute a real $0-local PUL7SAR FLUX.2 visual proof request")
-    parser.add_argument("--request", required=True, help="Precompiled LocalBackendGenerationRequest JSON")
+    parser.add_argument("--request", required=True, help="Versioned PUL7SAR local-generation handoff JSON")
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
     parser.add_argument("--dtype", choices=("float16", "bfloat16", "float32"), default="bfloat16")
