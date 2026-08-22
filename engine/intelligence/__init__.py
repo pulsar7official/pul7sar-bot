@@ -17,6 +17,7 @@ from engine.intelligence.generation_package import GenerationPackage, Generation
 from engine.intelligence.generation_provider import AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult
 from engine.intelligence.generation_session import AttemptDiagnostic, GenerationAttemptProvider, GenerationSessionOrchestrator, GenerationSessionResult
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
+from engine.intelligence.image_evidence_extraction import BaseSceneEvidenceExtractor, ForbiddenVisualProbe, GeneratedImageObservation, GenerationDefectProbe, IdentityVisualProbe, ImageEvidenceProbeSet, ProtectedRegionProbe, SafeCropProbe, SubjectFramingProbe
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutOrientation, LayoutRequirements, PlannedLayout
 from engine.intelligence.layout_safety import ElementBox, LayoutRole, LayoutSafetyDecision, PlatformLayoutSafetyGate
 from engine.intelligence.local_backend import LocalBackendKind, LocalBackendProbe, LocalBackendReadiness, LocalBackendReadinessGate, LocalBackendSnapshot
