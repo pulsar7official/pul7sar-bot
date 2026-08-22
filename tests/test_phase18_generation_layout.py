@@ -61,6 +61,15 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         self.assertEqual(package.accent_hex, "#DB0007")
         self.assertIn("#DB0007", package.scene_prompt)
 
+    def test_ai_base_scene_excludes_brand_and_editorial_overlays(self):
+        profile = self.registry.get(SocialPlatform.INSTAGRAM_FEED)
+        layout = self.layout_planner.plan(profile)
+        package = self.compiler.compile(self._spec(SocialPlatform.INSTAGRAM_FEED), self.assets, planned_layout=layout)
+        self.assertEqual(package.metadata["base_scene_overlay_policy"], "no_brand_or_editorial_overlays_in_ai_scene")
+        self.assertIn("Do not draw or imitate the PUL7SAR logo", package.scene_prompt)
+        self.assertIn("deterministic post-composition", package.scene_prompt)
+        self.assertNotIn("Use the exact supplied PUL7SAR wordmark", package.scene_prompt)
+
     def test_result_geometry_can_include_score_and_crest(self):
         profile = self.registry.get(SocialPlatform.FACEBOOK_FEED)
         layout = self.layout_planner.plan(
