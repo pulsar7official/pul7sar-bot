@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol
 
+from engine.intelligence.cost_policy import DevelopmentCostPolicy
 from engine.intelligence.generation_package import GenerationPackage
 from engine.intelligence.local_generation_provenance import LocalGenerationProvenance
 from engine.intelligence.local_readiness_report import LocalGenerationReadinessReport
@@ -93,10 +94,21 @@ class LocalImageBackend(Protocol):
 
 
 class LocalBackendRequestCompiler:
-    """Compile a ready PUL7SAR package into an exact local-backend request."""
+    """Compile PUL7SAR packages into exact local-backend requests.
 
-    def __init__(self, constraints: PromptConstraintCompiler | None = None) -> None:
+    `compile` is execution-local and requires proven runtime/backend readiness.
+    `compile_portable_handoff` creates the same locked request on a non-GPU host,
+    but only for a provider already proven zero-cost. The execution host must
+    independently re-check hardware/backend readiness before invoking a model.
+    """
+
+    def __init__(
+        self,
+        constraints: PromptConstraintCompiler | None = None,
+        cost_policy: DevelopmentCostPolicy | None = None,
+    ) -> None:
         self._constraints = constraints or PromptConstraintCompiler()
+        self._cost_policy = cost_policy or DevelopmentCostPolicy(zero_cost_only=True)
 
     def compile(
         self,
@@ -117,7 +129,50 @@ class LocalBackendRequestCompiler:
             raise ValueError("readiness report backend mismatch")
         if readiness.as_dict().get("cost_mode") != "$0-local":
             raise ValueError("local execution must remain in $0-local mode")
+        self._cost_policy.assert_allowed(model.economics)
+        return self._compile_locked(
+            package=package,
+            model=model,
+            backend=backend,
+            seed=seed,
+            request_id=request_id,
+            reference_asset_ids=reference_asset_ids,
+            handoff=False,
+        )
 
+    def compile_portable_handoff(
+        self,
+        *,
+        package: GenerationPackage,
+        model: LocalModelCandidate,
+        backend: str,
+        seed: int,
+        request_id: str,
+        reference_asset_ids: tuple[str, ...] = (),
+    ) -> LocalBackendGenerationRequest:
+        """Compile without local GPU readiness; execution still re-checks readiness."""
+        self._cost_policy.assert_allowed(model.economics)
+        return self._compile_locked(
+            package=package,
+            model=model,
+            backend=backend,
+            seed=seed,
+            request_id=request_id,
+            reference_asset_ids=reference_asset_ids,
+            handoff=True,
+        )
+
+    def _compile_locked(
+        self,
+        *,
+        package: GenerationPackage,
+        model: LocalModelCandidate,
+        backend: str,
+        seed: int,
+        request_id: str,
+        reference_asset_ids: tuple[str, ...],
+        handoff: bool,
+    ) -> LocalBackendGenerationRequest:
         width, height = self._canvas(package.canvas)
         if not model.supports_canvas(width, height):
             raise ValueError("requested canvas exceeds selected local model envelope")
@@ -152,6 +207,7 @@ class LocalBackendRequestCompiler:
                 "platform": package.platform,
                 "cost_mode": "$0-local",
                 "layout_boxes": {role: dict(box) for role, box in package.layout_boxes.items()},
+                "portable_handoff": handoff,
             },
         )
 
