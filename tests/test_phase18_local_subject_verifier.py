@@ -11,12 +11,10 @@ from engine.intelligence.local_subject_verifier import (
 class LocalSubjectVerifierTests(unittest.TestCase):
     def setUp(self):
         self.image = GeneratedImageObservation(
-            provider_id="local-flux",
             output_ref="/tmp/scene.png",
             width=1080,
             height=1350,
             aspect_ratio="4:5",
-            provenance={"request_id": "req-1"},
         )
         self.gate = SubjectVerificationIntegrityGate()
 
