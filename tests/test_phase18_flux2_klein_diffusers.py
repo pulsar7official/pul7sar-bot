@@ -61,7 +61,7 @@ class Flux2KleinDiffusersTests(unittest.TestCase):
         self.assertEqual(calls[0][0], "black-forest-labs/FLUX.2-klein-4B")
         self.assertEqual(calls[0][1]["torch_dtype"], "bf16")
 
-    def test_wrapper_maps_seed_and_official_inference_controls(self):
+    def test_wrapper_maps_seed_official_controls_and_metadata(self):
         pipe = _Pipe()
         wrapper = Flux2KleinPipelineWrapper(pipe, _FakeTorch, Flux2KleinInferenceConfig())
         result = wrapper(
@@ -73,11 +73,28 @@ class Flux2KleinDiffusersTests(unittest.TestCase):
             reference_asset_ids=(),
         )
         self.assertEqual(result["image"], "IMAGE")
+        self.assertEqual(result["metadata"]["pipeline"], "Flux2KleinPipeline")
+        self.assertEqual(result["metadata"]["num_inference_steps"], 4)
+        self.assertEqual(result["metadata"]["native_canvas_alignment"], 16)
         call = pipe.calls[0]
         self.assertEqual(call["guidance_scale"], 1.0)
         self.assertEqual(call["num_inference_steps"], 4)
         self.assertEqual(call["generator"].seed, 77)
         self.assertEqual(call["generator"].device, "cuda")
+
+    def test_non_aligned_native_canvas_is_rejected_before_pipeline_call(self):
+        pipe = _Pipe()
+        wrapper = Flux2KleinPipelineWrapper(pipe, _FakeTorch, Flux2KleinInferenceConfig())
+        with self.assertRaisesRegex(ValueError, "divisible by 16"):
+            wrapper(
+                prompt="scene",
+                negative_prompt=None,
+                width=1080,
+                height=1350,
+                seed=1,
+                reference_asset_ids=(),
+            )
+        self.assertEqual(pipe.calls, [])
 
     def test_native_negative_prompt_is_rejected(self):
         wrapper = Flux2KleinPipelineWrapper(_Pipe(), _FakeTorch, Flux2KleinInferenceConfig())
