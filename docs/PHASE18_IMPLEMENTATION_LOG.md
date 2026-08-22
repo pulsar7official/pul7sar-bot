@@ -11,54 +11,76 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Separates `generation_ready` from `publication_ready`.
 - A machine capable of generating is not automatically considered safe for publication.
 - Maintains `$0-local` execution mode and exposes blockers/warnings.
-- CI is tracked independently; no success is claimed in this log until observed.
+- CI Run `32588437912`: SUCCESS.
 
 ## Change Set 032 — Zero-cost semantic vision verification policy
+- Adds `engine/intelligence/vision_verification_policy.py` and tests.
+- Publication-grade local verification requires subject detection/framing, semantic defect inspection, forbidden-visual inspection, protected-region clutter, and identity similarity when a verified person is required.
+- Paid/network-dependent verification cannot silently enter `$0-local` development mode.
+- Missing capability blocks publication readiness.
 
-### Added
-- `engine/intelligence/vision_verification_policy.py`
-- `tests/test_phase18_vision_verification_policy.py`
+## Change Set 033 — Semantic publication gate
+- Adds `engine/intelligence/semantic_publication_gate.py` and tests.
+- Separates generated, base-scene accepted, semantic-verification complete, and publication-ready states.
+- Cross-checks locked identity reference IDs from the GenerationPackage against the evidence used for visual identity verification.
+- CI Run `32592258604`: SUCCESS.
 
-### Publication-grade semantic capabilities
-Current policy requires proven local zero-cost capability for:
-- subject detection
-- subject framing
-- semantic generation-defect inspection
-- forbidden-visual inspection
-- protected-region clutter
-- identity similarity when the story requires a verified person
+## Change Set 034 — Local subject/framing verifier contract
+- Adds `engine/intelligence/local_subject_verifier.py`.
+- Introduces provider-neutral subject presence, full-visibility, hero-region usability, and confidence contracts.
+- Fails closed on absent expected subject, unsafe crop/framing, unusable hero region, or low confidence.
+- Initial test fixture used obsolete `GeneratedImageObservation` fields and was corrected in commit `fef938174ffffb5e64d52b1f456e0cd59a2d80c0` to match the actual observation contract.
 
-### Quality-first rule
-- Paid verification does not silently enter current development mode.
-- Network-dependent verification does not silently enter `$0-local` mode.
-- Missing semantic capabilities block publication readiness.
-- Identity verification is conditional: identity similarity is mandatory for identity-required stories, but is not falsely required for scenes without a person identity requirement.
+## Change Set 035 — Local identity similarity contract
+- Adds `engine/intelligence/local_identity_similarity.py` and tests.
+- Uses only identity reference asset IDs already locked into the GenerationPackage.
+- The verifier may not replace, omit, or drift from those references.
+- Required-person scenes fail closed on mismatch or identity confidence below 0.90.
+- The domain remains independent of any particular face-embedding library.
 
-### Component architecture
-Partial components may contribute individual capabilities, but no partial component is treated as a complete publication-grade verifier. For example, a local face-embedding component may satisfy identity similarity while PUL7SAR's deterministic geometry layer contributes protected-region inspection. Remaining semantic capabilities must still be proven by other local/free components.
+## Change Set 036 — Local semantic safety contract
+- Adds `engine/intelligence/local_semantic_safety.py` and tests.
+- Separates generation defects and forbidden-visual detection from subject and identity checks.
+- The semantic-safety request must exactly match the package's locked forbidden-visual constraints.
+- Low confidence, semantic defects, or forbidden elements block the scene.
+- CI Run `32592908056` after subject/identity/semantic contract integration: SUCCESS.
 
-### Research note
-The first generation candidate remains FLUX.2 [klein] 4B because its 4B weights are Apache-2.0 and support local generation/editing/multi-reference. Semantic verification remains a separate concern; generation quality never substitutes for independent verification.
+## Change Set 037 — Real visual proof artifact registration
+- Adds `engine/intelligence/visual_proof.py`.
+- Adds `tools/phase18_visual_proof.py`.
+- Adds `tests/test_phase18_visual_proof.py`.
+- A visual proof can only be registered from a real existing PNG; the tool never fabricates a placeholder image.
+- PNG dimensions are read from the real file and must match LocalGenerationProvenance.
+- The registered proof writes both `<request_id>.png` and `<request_id>.json` into `output/phase18_visual_proof/`.
+- Metadata records model, provider, backend, deterministic seed, request ID, dimensions, aspect ratio, `$0-local` mode, and output reference.
+- The existing Phase 18 GitHub workflow will expose real PNGs from this directory as visual-proof artifacts.
 
-## Production safety through Change Set 032
+## Change Set 038 — Clean base-scene / deterministic-overlay separation
+- Updates `engine/intelligence/generation_package.py` and regression tests.
+- Removes contradictory prompt language that previously told the AI generator to use exact PUL7SAR/club marks even though official branding is owned by post-composition.
+- The AI prompt now explicitly generates only the clean editorial base scene.
+- PUL7SAR logo, heartbeat mark, exact club/competition crests, social icons, headline/score/footer typography, and contextual number-7/pulse treatment remain deterministic post-composition assets.
+- Non-hero layout boxes are treated as protected quiet regions for later overlays rather than instructions to paint overlays into the AI image.
+- Current CI for this final integration is tracked separately and must be green before Change Set 038 is considered closed.
+
+## Production safety through Change Set 038
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
-- Legacy image sourcing/rendering: untouched.
-- Production renderer/templates: untouched.
+- Legacy production image sourcing/rendering: untouched.
 - No paid provider connected.
 - No paid API selected.
 - No production secret/API key added.
 - No model weights or font files committed.
-- No local image model executed by CI.
+- No local image model executed by GitHub CI.
+- No fake PNG is generated to satisfy Visual Proof.
 - Missing semantic verification remains fail-closed.
 
-## Architecture after Change Set 032
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Runtime / Backend Readiness -> Unified $0 Readiness -> LocalBackendRequestCompiler -> Local Backend -> Provenance -> Generated Image -> Independent Local/Vision Probes -> Semantic Verification Policy -> BaseSceneEvidenceExtractor -> BaseSceneVisualAcceptanceGate -> Quality-First Candidate Selection -> PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 038
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Runtime / Backend Readiness -> Unified $0 Readiness -> LocalBackendRequestCompiler -> Local Backend -> Provenance -> Real PNG -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Quality-First Candidate Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Visual Proof Artifact / Platform Export`
 
-## Next planned work
-1. Verify Change Set 031/032 CI.
-2. Add concrete local subject/framing detector adapter contract.
-3. Add local identity-similarity adapter contract using verified reference assets without coupling the domain to one face library.
-4. Add local semantic defect/forbidden-visual verifier adapter contract.
-5. Build a single-command readiness entry point for the user's own machine.
-6. Attempt the first real `$0` base scene only after generation compatibility is proven; publication remains blocked until semantic verification is also proven.
+## Immediate next work
+1. Close Change Set 038 CI; repair any regression before proceeding.
+2. Build the real GPU execution handoff so the same generation request can run on a compatible local/self-hosted/temporary free GPU runtime without coupling the PUL7SAR core to that environment.
+3. Produce the first genuine `$0` base-scene PNG and register it through `phase18_visual_proof.py`.
+4. Inspect the resulting PNG against the Golden Visual benchmark; do not equate successful generation with visual acceptance.
+5. Connect concrete local zero-cost semantic verifier implementations only after licensing/runtime/quality are proven.
