@@ -42,16 +42,23 @@ jobs:
           python -m py_compile engine/intelligence/fact_lock.py
           python -m py_compile engine/intelligence/identity.py
           python -m py_compile engine/intelligence/story_analyzer.py
+          python -m py_compile engine/intelligence/classification.py
+          python -m py_compile engine/intelligence/neutrality.py
+          python -m py_compile engine/intelligence/visual_router.py
           python -m py_compile tests/test_story_intelligence_models.py
           python -m py_compile tests/test_phase18_identity_verifier.py
           python -m py_compile tests/test_phase18_story_analyzer.py
+          python -m py_compile tests/test_phase18_classification_router.py
+          python -m py_compile tests/test_phase18_neutrality.py
 
       - name: Run Phase 18 intelligence tests
         run: |
           python -m unittest -v \
             tests.test_story_intelligence_models \
             tests.test_phase18_identity_verifier \
-            tests.test_phase18_story_analyzer
+            tests.test_phase18_story_analyzer \
+            tests.test_phase18_classification_router \
+            tests.test_phase18_neutrality
 
       - name: Verify production isolation
         run: |
