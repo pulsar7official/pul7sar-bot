@@ -134,6 +134,7 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
         "request_id": item.request_id,
         "seed": item.seed,
         "weighted_score": item.scores.weighted_score,
+        "quality_tier": item.quality_tier,
         "approved": item.approved,
         "blockers": list(item.blockers.active),
         "png": generated_by_id[item.request_id]["png"],
@@ -146,6 +147,7 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
             "request_id": item.request_id,
             "seed": item.seed,
             "weighted_score": item.scores.weighted_score,
+            "quality_tier": item.quality_tier,
             "png": generated_by_id[item.request_id]["png"],
             "metadata": generated_by_id[item.request_id]["metadata"],
         }
