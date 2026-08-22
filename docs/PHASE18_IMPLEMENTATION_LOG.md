@@ -155,10 +155,19 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Adds regression tests for successful recovery, exhausted-attempt terminal failure and queue snapshots.
 - No automatic model/provider/precision downgrade is introduced during recovery.
 
+## Change Set 054 — Durable worker heartbeat and measured capacity telemetry
+- Adds `engine/intelligence/worker_telemetry.py` with immutable heartbeat/performance contracts, filesystem persistence and a raw-generation capacity estimator.
+- Adds `tests/test_phase18_worker_telemetry.py` covering persistence, fail-closed unproven capacity, successful-sample-only throughput math, validation and path safety.
+- `tools/phase18_gpu_worker.py` now writes a durable readiness heartbeat and refreshes it after every cycle.
+- Every non-idle worker cycle records observed elapsed time, GPU identity, VRAM, BF16/dtype context and outcome.
+- Throughput remains numerically `unproven` until a genuine successful GPU PNG sample exists; no synthetic benchmark is accepted.
+- Capacity output is explicitly labelled `raw_generation_only_not_publication_capacity`; semantic and Golden gates still determine publishability.
+- Detailed record: `docs/PHASE18_CHANGESET_054_WORKER_TELEMETRY.md`.
+
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 053
+## Production safety through Change Set 054
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
@@ -167,19 +176,20 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - No production secret/API key added.
 - No model weights or font files committed.
 - GitHub CPU CI does not claim to generate the FLUX image.
-- No fake PNG is generated to satisfy Visual Proof.
+- No fake PNG or fake performance sample is generated.
 - Missing semantic verification remains fail-closed.
 - Golden Visual aesthetic approval remains additional to semantic publication safety.
 - Unsupported or unproven BF16 does not trigger a silent precision downgrade.
+- Raw generation throughput is never represented as publication throughput.
 
-## Architecture after Change Set 053
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Locked FLUX Executor -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 054
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
 1. Run the enqueue + worker path on a compatible `$0` CUDA/BF16 host for candidate 1.
-2. Capture real generation latency, peak VRAM and proof metadata instead of estimating capacity.
-3. Inspect candidate 1 against semantic and strict Golden benchmarks.
-4. If stable, execute the remaining deterministic seeds through the worker path.
-5. Add durable worker heartbeat/metrics persistence before multi-host production scaling.
+2. Let Change Set 054 capture the first real latency/hardware sample and only then produce a raw generation-capacity estimate.
+3. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
+4. If stable, execute the remaining deterministic seeds through the same durable worker path.
+5. Add GPU memory/high-water telemetry where the actual runtime exposes it without weakening portability.
 6. Add a distributed queue adapter only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
 7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
