@@ -43,6 +43,7 @@ from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
+from engine.intelligence.vision_verification_policy import LOCAL_FACE_EMBEDDING_COMPONENT, LOCAL_GEOMETRY_COMPONENT, VisionVerificationCapability, VisionVerificationDecision, VisionVerifierProfile, ZeroCostVisionVerificationGate
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL, ZERO_COST_LOCAL_CANDIDATES, LocalModelCandidate
 
 __all__ = [name for name in globals() if not name.startswith("_")]
