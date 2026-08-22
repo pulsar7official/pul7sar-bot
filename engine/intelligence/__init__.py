@@ -2,8 +2,8 @@
 
 This package sits before the deterministic rendering engine. It models story
 meaning, factual safety, identity verification, editorial neutrality, visual
-routing, concept direction, and generation authorization without changing
-production publishing behavior.
+routing, concept direction, platform-aware scene specification, and generation
+authorization without changing production publishing behavior.
 """
 
 from engine.intelligence.classification import (
@@ -30,6 +30,12 @@ from engine.intelligence.neutrality import (
     ResultVisualTreatment,
 )
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
+from engine.intelligence.platform_profiles import (
+    PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform,
+)
+from engine.intelligence.scene_spec import (
+    OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler,
+)
 from engine.intelligence.sentiment import (
     SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver,
 )
@@ -43,9 +49,12 @@ __all__ = [
     "GenerationAuthorization", "GenerationAuthorizer", "IdentityEvidence", "IdentityPlan",
     "IdentityRequirements", "IdentityStatus", "IdentityVerificationError", "IdentityVerifier",
     "LockedClaim", "LoserTreatment", "NeutralityDecision", "NeutralityViolation",
-    "OriginalSceneProvider", "OriginalSceneRequest", "OriginalSceneResult", "PerspectiveSentiment",
-    "ProposedConcept", "ResultPerspectives", "ResultVisualTreatment", "Sentiment",
+    "OriginalSceneProvider", "OriginalSceneRequest", "OriginalSceneResult",
+    "OriginalSceneSpecification", "PerspectiveSentiment", "PlatformImageProfile",
+    "PlatformProfileRegistry", "ProposedConcept", "ResultPerspectives", "ResultVisualTreatment",
+    "SafeArea", "SceneIdentityReference", "SceneSpecCompiler", "Sentiment",
     "SentimentDecision", "SentimentEvidence", "SentimentProvider", "SentimentResolver",
-    "StoryAnalysisError", "StoryAnalyzer", "StoryBrief", "StoryClassification", "StoryClassifier",
-    "StoryScope", "StoryType", "VisualFamily", "VisualFamilyRouter", "VisualIntent", "VisualRoute",
+    "SocialPlatform", "StoryAnalysisError", "StoryAnalyzer", "StoryBrief", "StoryClassification",
+    "StoryClassifier", "StoryScope", "StoryType", "VisualFamily", "VisualFamilyRouter",
+    "VisualIntent", "VisualRoute",
 ]
