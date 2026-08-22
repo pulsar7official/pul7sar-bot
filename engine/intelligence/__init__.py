@@ -19,6 +19,7 @@ from engine.intelligence.generation_session import AttemptDiagnostic, Generation
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutOrientation, LayoutRequirements, PlannedLayout
 from engine.intelligence.layout_safety import ElementBox, LayoutRole, LayoutSafetyDecision, PlatformLayoutSafetyGate
+from engine.intelligence.local_runtime import LocalModelRuntimeGate, LocalRuntimeProbe, RuntimeCompatibilityDecision, RuntimeHardwareSnapshot, RuntimeKind
 from engine.intelligence.models import ClaimKind, IdentityPlan, IdentityStatus, LockedClaim, Sentiment, StoryBrief, VisualIntent
 from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatment, NeutralityDecision, NeutralityViolation, ResultVisualTreatment
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
