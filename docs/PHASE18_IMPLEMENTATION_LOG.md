@@ -2,116 +2,86 @@
 
 This document is the authoritative implementation journal for Phase 18 on the `phase18/story-intelligence` branch.
 
-## Change Sets 001–019
-Previously documented foundation: Fact Lock, StoryAnalyzer, identity verification, classification, neutrality, Visual Family routing, perspective-aware result sentiment, Concept Director, sentiment resolver, Generation Authorization, platform profiles, Original Scene Specification, exact assets, layout safety, multi-platform packages, deterministic layout, dry-run manifest, entity theme, exact brand semantics, provider capability/selection/execution, post-composition, deterministic typography/final export, and base-scene visual acceptance. Production paths remain isolated.
+## Change Sets 001–024
+Previously documented foundation: Fact Lock, StoryAnalyzer, identity verification, classification, neutrality, Visual Family routing, perspective-aware result sentiment, Concept Director, sentiment resolver, Generation Authorization, platform profiles, Original Scene Specification, exact assets, layout safety, multi-platform packages, deterministic layout, dry-run manifest, entity theme, exact brand semantics, provider capability/selection/execution, post-composition, deterministic typography/final export, base-scene visual acceptance, zero-cost policy, provider adapters, candidate selection, generation-session orchestration, first zero-cost local model profile, prompt-constraint reframing, and local runtime compatibility. Production paths remain isolated.
 
-## Change Set 020 — Zero-cost development enforcement
-- Adds `engine/intelligence/cost_policy.py`.
-- Current development execution accepts only proven zero-cost/local or genuinely free-tier providers without a required payment method.
-- Paid/unknown-cost providers remain modelable for future expansion but are not selectable in current zero-cost mode.
-- Provider selection applies cost eligibility before technical selection.
-- Quality thresholds are never relaxed to satisfy zero-cost operation.
+## Change Set 025 — Local backend readiness + generation provenance
+- Adds optional Diffusers/ComfyUI backend contracts without installing either dependency.
+- Requires proven model-runtime compatibility and an available local backend before generation is considered ready.
+- ComfyUI requires an explicit local endpoint.
+- Diffusers can be represented without becoming a hard repository dependency.
+- Adds deterministic local generation provenance: provider, model, backend, seed, request ID and output dimensions.
+- Initial contract-name mismatch was caught by CI and fixed against the canonical `RuntimeHardwareSnapshot` / `LocalModelCandidate` APIs.
+- CI after fix `32587132967`: SUCCESS.
 
-## Change Set 021 — Provider evidence adapters + quality-first candidate selection
-- Adds provider-native normalization boundary and quality-first candidate ranking.
-- Only BaseScene-gate-approved candidates can score above zero.
-- Identity, framing and protected-region cleanliness determine candidate quality; cost does not.
-- No accepted candidate -> `NO_ACCEPTABLE_SCENE`; there is no degraded fallback.
-- Adds future Social/Video architecture document.
-- CI `32585786963`: SUCCESS.
+## Change Set 026 — Machine-readable $0 local readiness report
+- Adds `engine/intelligence/local_readiness_report.py`.
+- Reports ready/blocked state, provider/model/backend, runtime kind, GPU name, proven VRAM, blockers and warnings.
+- Explicit execution mode is `$0-local`.
+- Blocked runtime/backend states remain blocked rather than triggering silent installation or paid fallback.
+- CI `32587249246`: SUCCESS.
 
-## Change Set 022 — Generation Session Orchestrator
-
-### Added
-- `engine/intelligence/generation_session.py`
-  - provider-neutral bounded generation loop
-  - provider-ID integrity
-  - candidate-count enforcement
-  - normalization through `ProviderAdapterRegistry`
-  - accumulated global candidate selection
-  - per-attempt diagnostics
-  - explicit `minimum_quality_score` above basic gate pass
-  - retry when a gate-passing image remains below the PUL7SAR quality floor
-  - no best-bad-image fallback after attempt exhaustion
-- `tests/test_phase18_generation_session.py`
-
-### CI discoveries and fixes
-The first implementation exposed two useful regression cases rather than being merged blindly:
-1. The lower-level regeneration controller stopped on `ACCEPTED` even when the session-level quality floor was not reached. Ownership was corrected: gate-pass-but-below-floor retries are controlled by the Generation Session layer.
-2. Diagnostics originally counted accepted candidates across all accumulated attempts while recording only current-attempt candidate count. This was corrected so diagnostics evaluate each attempt separately while global selection still ranks all candidates across the session.
-
-The regression test now asserts that each attempt's `accepted_count` cannot leak accumulated counts from previous attempts.
-
-### Validation
-- Final CI after both fixes: `32586498538`: SUCCESS.
-- Syntax: PASS.
-- Phase 18 tests: PASS.
-- Production isolation: PASS.
-
-## Change Set 023 — First zero-cost local image-model evaluation profile
+## Change Set 027 — Exact local backend execution boundary
 
 ### Added
-- `engine/intelligence/zero_cost_models.py`
-- `engine/intelligence/provider_prompting.py`
-- `tests/test_phase18_zero_cost_model.py`
-- `docs/ZERO_COST_IMAGE_PROVIDER_EVALUATION.md`
+- `engine/intelligence/local_backend_execution.py`
+  - `LocalBackendGenerationRequest`
+  - `LocalBackendGenerationResult`
+  - `LocalImageBackend` protocol
+  - `LocalBackendRequestCompiler`
+  - `LocalBackendResultGate`
+- `tests/test_phase18_local_backend_execution.py`
 
-### First candidate
-`black-forest-labs/FLUX.2-klein-4B`
+### Request compilation
+A local generation request can only be compiled from a readiness report with `ready=True` and `$0-local` cost mode.
 
-This is an evaluation profile only; it is not claimed to be installed or executed on the user's machine.
+The request locks:
+- provider ID
+- model ID
+- backend ID
+- final base-scene prompt
+- translated/native negative constraints
+- width/height
+- deterministic seed
+- request ID
+- verified reference asset IDs
+- platform/layout metadata
 
-The profile records:
-- local/no per-image API cost path
-- Apache-2.0 4B weights
-- text-to-image and multi-reference capability
-- conservative 13 GB VRAM runtime floor based on the official model card
-- current PUL7SAR platform canvases inside the declared 4-megapixel evaluation envelope
-- no assumption of native negative-prompt support
+For models without native negative prompts, all PUL7SAR forbidden constraints must translate completely through `PromptConstraintCompiler`; unknown constraints still fail closed.
 
-### Constraint prompting
-Official FLUX.2 guidance states that negative prompting is not supported. PUL7SAR therefore does not silently drop forbidden constraints. `PromptConstraintCompiler` deterministically reframes known constraints into positive desired scene instructions. Unknown constraints fail closed and block that provider package.
+The request explicitly instructs the backend to generate only the clean base scene. PUL7SAR branding, official crests, social icons, score typography, final headline and footer text remain outside the image model.
 
-Examples include neutrality, no humiliation, pre-signing transfer states, no invented result and restrained injury/harm treatment.
+### Result integrity
+`LocalBackendResultGate` rejects any backend result that changes:
+- provider ID
+- model ID
+- backend identity
+- request ID
+- deterministic seed
+- approved dimensions
 
-## Change Set 024 — Local runtime capability gate
+Validated output becomes `LocalGenerationProvenance` for downstream quality evidence and reproducibility.
 
-### Added
-- `engine/intelligence/local_runtime.py`
-  - `RuntimeKind`
-  - `RuntimeHardwareSnapshot`
-  - `RuntimeCompatibilityDecision`
-  - `LocalRuntimeProbe`
-  - `LocalModelRuntimeGate`
-- `tests/test_phase18_local_runtime.py`
+### Current CI
+Change Set 027 workflow was queued after commit `15c83d5ade3716b84bbece4d5e68211e6e42b488`; success is not claimed until GitHub Actions completes.
 
-### Rules
-- Local runtime probing is best-effort and does not make PyTorch a hard Phase 18 dependency.
-- Missing PyTorch/CUDA is recorded rather than crashing the domain.
-- The FLUX.2 klein 4B candidate is not automatically approved on CPU-only or unknown-VRAM hardware.
-- Unknown GPU memory fails closed.
-- VRAM below the declared candidate floor fails closed.
-- A proven CUDA runtime meeting the declared floor can pass the compatibility gate.
-
-### Validation
-- CI `32586567250`: SUCCESS.
-
-## Production safety through Change Set 024
+## Production safety through Change Set 027
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy image sourcing/rendering: untouched.
 - Production renderer/templates: untouched.
 - No paid provider connected.
-- No BFL paid API selected.
+- No paid API selected.
 - No production secret/API key added.
-- No model weights or font files committed to the repository.
+- No model weights or font files committed.
+- No local image backend invoked yet.
 
-## Architecture after Change Set 024
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Provider Eligibility -> Local Runtime Compatibility -> Execution Plan -> Provider Prompt Constraint Compilation -> Generation Session -> Provider Adapter -> BaseSceneVisualAcceptanceGate -> Quality-First Candidate Selection -> PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 027
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Runtime / Backend Readiness -> $0 Readiness Report -> LocalBackendRequestCompiler -> Local Backend -> LocalBackendResultGate / Provenance -> Generation Session -> BaseSceneVisualAcceptanceGate -> Quality-First Candidate Selection -> PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Next planned work
-1. Add an optional local backend contract for Diffusers/ComfyUI without making either a hard repository dependency.
-2. Build an install/runtime readiness report rather than silently installing heavy model dependencies.
-3. Add local output-file provenance and deterministic seed/session metadata.
-4. Build evidence extraction interfaces for identity/framing/protected-region/defect probes from actual generated images.
-5. Only after runtime readiness is proven should the first real local image generation be attempted.
+1. Verify Change Set 027 CI.
+2. Add concrete optional Diffusers and ComfyUI adapter shells behind `LocalImageBackend` without automatic dependency installation.
+3. Add generated-image evidence extraction interfaces for dimensions, identity, framing, protected-region occupancy and defects.
+4. Build a single-command local readiness CLI/report for the user's own machine.
+5. Attempt the first real $0 base-scene generation only after the local machine proves compatible.
