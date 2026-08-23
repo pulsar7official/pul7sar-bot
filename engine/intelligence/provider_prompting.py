@@ -54,6 +54,12 @@ class PromptConstraintCompiler:
         "no image-within-image composition": (
             "Keep all visual information inside the same coherent physical scene rather than placing secondary pictures or framed scenes inside the main image."
         ),
+        "no malformed football pitch geometry": (
+            "Render regulation association-football pitch geometry with straight perspective-consistent touchlines and goal lines, exactly one halfway line, exactly one circular centre circle centered on the halfway line, a correctly placed centre mark, two coherent penalty areas and goal areas aligned with the two goals, and physically plausible corner arcs."
+        ),
+        "no duplicate, missing, warped, or invented field markings": (
+            "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective."
+        ),
     }
 
     def compile(
