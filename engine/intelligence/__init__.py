@@ -63,8 +63,10 @@ from engine.intelligence.local_vision_inspectors import FailClosedForbiddenVisua
 from engine.intelligence.models import ClaimKind, IdentityPlan, IdentityStatus, LockedClaim, Sentiment, StoryBrief, VisualIntent
 from engine.intelligence.neutrality import EditorialNeutralityGate, LoserTreatment, NeutralityDecision, NeutralityViolation, ResultVisualTreatment
 from engine.intelligence.perspective import EditorialRole, PerspectiveSentiment, ResultPerspectives
+from engine.intelligence.phase18_pipeline_coordinator import Phase18PipelineCoordinator, Phase18PipelineDecision
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SafeArea, SocialPlatform
 from engine.intelligence.post_composition import AssetIntegrityRecord, CompositionElement, CompositionQualityDecision, CompositionRole, PostCompositionPlan, PostCompositionPlanner, PostCompositionQualityGate
+from engine.intelligence.preproduction_integrity import ExactSlotConsensusRequirement, PreproductionIntegrityDecision, PreproductionIntegrityGate
 from engine.intelligence.provider_adapter import AdapterMismatchError, ProviderAdapterRegistry, ProviderEvidenceAdapter, ProviderRawGeneration
 from engine.intelligence.provider_capabilities import ProviderCapabilities, ProviderEligibilityDecision, ProviderEligibilityGate, ProviderFeature, ProviderRequirements
 from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep, ProviderExecutionPlan, ProviderExecutionPlanner
@@ -79,11 +81,14 @@ from engine.intelligence.semantic_publication_gate import SemanticPublicationDec
 from engine.intelligence.semantic_visual_verdict import InspectionState, SemanticCheck, SemanticVisualVerdict, SemanticVisualVerdictGate
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
+from engine.intelligence.source_consensus import SourceConsensusDecision, SourceConsensusGuard, SourceConsensusStatus, SourceFactObservation
 from engine.intelligence.sport_visual_rules import SportSurface, SportVisualRule, SportVisualRuleRegistry
 from engine.intelligence.sports_fact_schema import EventFactSchema, EventFactSchemaRegistry, FactSchemaValidation
+from engine.intelligence.sports_story_integrity import SportsStoryIntegrityGuard, StoryIntegrityDecision
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.story_dominant_entity import DominantEntityReason, StoryDominantEntity, StoryDominantEntityResolver
 from engine.intelligence.story_event_resolver import StoryEventResolver
+from engine.intelligence.story_state_integrity import StoryRevisionAction, StoryStateDecision, StoryStateIntegrityGuard
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
