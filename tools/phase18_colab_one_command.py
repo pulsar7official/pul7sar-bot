@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """One-command Colab entrypoint for PUL7SAR Phase 18 Golden Hybrid v5.
 
-The critical semantic rule is stage separation: prove semantic-inspector runtime
-compatibility before spending GPU time, inspect the FLUX base before sport
-geometry is added, then inspect the deterministic hybrid surface for
-physical/perspective integration. Deterministic geometry is never mistaken for
-forbidden model-generated geometry.
+The runner separates two outcomes deliberately:
+- publication-grade semantic QA stays fail-closed;
+- an engineering visual proof may still be composed and displayed when the local
+  semantic inspector is unavailable or crashes, so development does not become
+  an endless runtime-debug loop.
+
+Engineering fallback never sets publication_ready=true and never claims semantic
+or Golden quality approval.
 """
 from __future__ import annotations
 
@@ -76,9 +79,8 @@ def _display(path: Path) -> bool:
 def _verdict_payload(verdict: SemanticVisualVerdict, *, approved: bool, failures: tuple[str, ...], stage: str) -> dict[str, object]:
     names = (
         "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
-        "exact_numbers_absent", "generated_sport_geometry_absent",
-        "single_scene", "severe_defects_absent", "subject_framing_valid",
-        "sport_geometry_alignment_valid",
+        "exact_numbers_absent", "generated_sport_geometry_absent", "single_scene",
+        "severe_defects_absent", "subject_framing_valid", "sport_geometry_alignment_valid",
     )
     return {
         "stage": stage,
@@ -135,7 +137,7 @@ def _require_semantic_runtime_ready() -> dict[str, object]:
     return payload
 
 
-def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
+def _base_png_from_latest() -> tuple[dict[str, object], Path]:
     if not LATEST.is_file():
         raise RuntimeError("COLAB_RUNNER_SUMMARY_MISSING")
     base = json.loads(LATEST.read_text(encoding="utf-8"))
@@ -151,7 +153,67 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
         base_png = ROOT / base_png
     if not base_png.is_file():
         raise RuntimeError("BASE_PNG_DOES_NOT_EXIST")
+    return base, base_png
 
+
+def _compose_engineering_proof(candidate: int, *, semantic_blocker: str) -> dict[str, object]:
+    """Display deterministic hybrid proof without pretending semantic approval."""
+    _, base_png = _base_png_from_latest()
+    HYBRID_DIR.mkdir(parents=True, exist_ok=True)
+    output = HYBRID_DIR / f"candidate-{candidate:02d}-golden-hybrid-v5-engineering.png"
+    receipt = FootballHybridComposer().compose_file(
+        base_path=str(base_png),
+        output_path=str(output),
+        camera_preset=FootballCameraPreset.HIGH_WIDE_CENTRAL,
+    )
+    artifact_integrity = HybridArtifactIntegrityGate().validate_football(receipt)
+    if not artifact_integrity.valid:
+        raise RuntimeError("HYBRID_ARTIFACT_INTEGRITY_FAILED: " + ", ".join(artifact_integrity.failures))
+
+    payload = {
+        "status": "GOLDEN_HYBRID_ENGINEERING_PROOF",
+        "candidate": candidate,
+        "base_png": str(base_png),
+        "hybrid_png": str(output),
+        "deterministic_geometry_applied": True,
+        "generated_pitch_markings_replaced": receipt.generated_pitch_markings_replaced,
+        "surface_opacity": receipt.surface_opacity,
+        "artifact_integrity": {
+            "valid": artifact_integrity.valid,
+            "failures": list(artifact_integrity.failures),
+            "input_sha256": receipt.input_sha256,
+            "output_sha256": receipt.output_sha256,
+        },
+        "semantic_visual_inspection": {
+            "status": "SEMANTIC_QA_BLOCKED",
+            "approved": False,
+            "blocker": semantic_blocker[:2000],
+        },
+        "visual_inspection": {
+            "status": "ENGINEERING_PROOF_ONLY",
+            "engineering_proof_allowed": True,
+            "automatic_visual_qa_ready": False,
+            "publication_visual_gate_ready": False,
+        },
+        "hybrid_quality": {
+            "approved": False,
+            "blockers": ["semantic_qa_not_complete", "manual_visual_review_required"],
+        },
+        "dynamic_brand_applied": False,
+        "typography_applied": False,
+        "publication_ready": False,
+        "next_gate": "manual engineering review; semantic QA must pass before any publication claim",
+    }
+    receipt_path = HYBRID_DIR / f"candidate-{candidate:02d}-golden-hybrid-v5-engineering-receipt.json"
+    receipt_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    payload["displayed_inline"] = _display(output)
+    print("\n=== ENGINEERING VISUAL PROOF — SEMANTIC QA REMAINS BLOCKED ===")
+    print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    return payload
+
+
+def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
+    _, base_png = _base_png_from_latest()
     if semantic_mode != "qwen":
         raise RuntimeError("SEMANTIC_LAYER_EVIDENCE_REQUIRED_BEFORE_HYBRID_COMPOSITION")
 
@@ -161,9 +223,6 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
     hybrid_verdict = None
     semantic_complete = False
     layer_plan = _golden_layer_plan()
-
-    # Recheck immediately before inference as a defense-in-depth guarantee. The
-    # same readiness gate also runs before the FLUX base runner in main().
     semantic_report["runtime_readiness"] = _require_semantic_runtime_ready()
 
     try:
@@ -301,6 +360,7 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--semantic-inspection", choices=("none", "qwen"), default="qwen")
+    parser.add_argument("--strict-semantic", action="store_true", help="Fail instead of displaying engineering proof when semantic QA is unavailable")
     args = parser.parse_args()
 
     branch = _branch()
@@ -315,11 +375,19 @@ def main() -> int:
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
 
+    semantic_preflight_error: str | None = None
     if not args.prepare_only:
         if args.semantic_inspection != "qwen":
-            raise RuntimeError("SEMANTIC_LAYER_EVIDENCE_REQUIRED_BEFORE_GPU_GENERATION")
-        print("3/13 Proving Qwen/Pillow semantic runtime compatibility before GPU generation...")
-        _require_semantic_runtime_ready()
+            semantic_preflight_error = "SEMANTIC_INSPECTION_DISABLED"
+        else:
+            print("3/13 Proving Qwen/Pillow semantic runtime compatibility before GPU generation...")
+            try:
+                _require_semantic_runtime_ready()
+            except RuntimeError as exc:
+                if args.strict_semantic:
+                    raise
+                semantic_preflight_error = str(exc)
+                print("WARNING: semantic QA unavailable; continuing to engineering-proof mode only.")
     else:
         print("3/13 Semantic runtime preflight deferred because --prepare-only was requested.")
 
@@ -344,7 +412,22 @@ def main() -> int:
     print("11/13 Merging stage-specific semantic evidence...")
     print("12/13 Running receipt-backed Hybrid Visual QA...")
     print("13/13 Reporting blockers and displaying hybrid proof...")
-    _compose_hybrid(args.candidate, args.semantic_inspection)
+
+    if semantic_preflight_error:
+        _compose_engineering_proof(args.candidate, semantic_blocker=semantic_preflight_error)
+        return 0
+
+    try:
+        _compose_hybrid(args.candidate, args.semantic_inspection)
+    except RuntimeError as exc:
+        text = str(exc)
+        semantic_related = any(token in text for token in (
+            "SEMANTIC_", "semantic inspection", "Qwen", "qwen", "BASE_SCENE_LAYER_GATE_BLOCKED",
+        ))
+        if args.strict_semantic or not semantic_related:
+            raise
+        print("WARNING: semantic QA did not complete; displaying engineering proof instead.")
+        _compose_engineering_proof(args.candidate, semantic_blocker=text)
     return 0
 
 
