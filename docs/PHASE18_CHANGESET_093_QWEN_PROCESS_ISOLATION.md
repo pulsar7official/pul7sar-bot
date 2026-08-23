@@ -19,11 +19,12 @@ Change Set 093 isolates each Qwen semantic inspection stage in a fresh spawned P
   - the child uses the same model, image limit, deterministic generation, semantic schema and evidence contract as before;
   - model/CUDA memory is reclaimed when the child exits, so base-scene and hybrid-surface inspection do not retain one long-lived Qwen pipeline on a T4;
   - verifier ID advanced to `qwen2.5-vl-3b-local-v5-isolated-t4` so evidence from the isolated runtime cannot be confused with earlier verifier builds;
-  - after CI detected two semantic-equivalent prompt wording changes, the existing regression-locked phrases `exact pitch/court/rink markings` and `Deterministic pitch markings are expected` were restored without changing inspection logic.
+  - after CI detected semantic-equivalent prompt wording drift, the existing regression-locked phrases for `model-generated` exact `pitch/court/rink` markings and `Deterministic pitch markings are expected` were restored without weakening inspection logic.
 
 ## Tested
-- Initial CI Run `32653096283` passed syntax and all new process-isolation tests but failed two existing Qwen stage tests because their exact regression-locked prompt phrases had been reworded. The failure was limited to those text assertions; the isolation tests themselves passed.
-- The prompt wording was restored on the Phase 18 branch and a replacement verification run was started. This document does not claim CI success until that run completes successfully.
+- Initial CI Run `32653096283` passed syntax and all new process-isolation tests but exposed regression-locked Qwen prompt wording drift.
+- Follow-up Run `32653213680` reduced the issue to one remaining legacy `model-generated` wording marker; the new process-isolation tests continued to pass.
+- Final code verification Run `32653277453` (run 1276): **SUCCESS**. All 649 discover-based Phase 18 tests passed, followed by completion audit, production isolation, Golden Hybrid v5 handoff/batch build, batch integrity verification and current-contract assertions. CPU CI correctly produced no fake visual proof.
 
 ## Deleted
 Nothing.
