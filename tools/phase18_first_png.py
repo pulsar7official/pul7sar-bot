@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""Prepare and execute the first genuine Phase 18 Golden Visual PNG in one command.
+
+This command is intentionally an orchestration wrapper around existing trusted
+boundaries. It does not add a new image-generation implementation and does not
+weaken any gate. On a compatible GPU host it:
+
+1. builds the deterministic Golden batch if needed,
+2. verifies the complete batch SHA-256/canvas/cost contract,
+3. proves CUDA + FLUX.2 Klein + native BF16 readiness,
+4. prepares/reuses exactly one candidate-1 durable smoke job,
+5. executes one normal GPU-worker cycle,
+6. verifies that the durable job ended in `succeeded` and points to a real PNG.
+
+On a CPU/incompatible host it fails before enqueueing work and prints the existing
+readiness diagnostics. No placeholder PNG is ever created.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import subprocess
+import sys
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from engine.intelligence.generation_job_store import FilesystemGenerationJobStore
+from engine.intelligence.generation_jobs import GenerationJobState
+from engine.intelligence.golden_smoke import (
+    DEFAULT_SMOKE_JOB_ID,
+    load_first_candidate,
+    prepare_smoke_job,
+    smoke_status_payload,
+)
+from tools.phase18_build_golden_batch import build_batch
+from tools.phase18_verify_golden_batch import verify_batch
+
+
+def _run_readiness(repository_root: Path) -> dict[str, object]:
+    command = [sys.executable, str(repository_root / "tools" / "phase18_local_readiness.py")]
+    completed = subprocess.run(
+        command,
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    try:
+        payload = json.loads(completed.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            "GPU readiness command did not emit valid JSON: " + (completed.stderr or completed.stdout)[-2000:]
+        ) from exc
+    if completed.returncode != 0 or payload.get("golden_generation_ready") is not True:
+        raise RuntimeError("GOLDEN_GPU_NOT_READY\n" + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    return payload
+
+
+def _run_worker_once(
+    *,
+    repository_root: Path,
+    worker_id: str,
+    queue_root: str,
+    telemetry_root: str,
+    generation_dir: str,
+    proof_dir: str,
+    timeout_seconds: int,
+) -> subprocess.CompletedProcess[str]:
+    command = [
+        sys.executable,
+        str(repository_root / "tools" / "phase18_gpu_worker.py"),
+        "--worker-id", worker_id,
+        "--queue-root", queue_root,
+        "--telemetry-root", telemetry_root,
+        "--repository-root", str(repository_root),
+        "--generation-dir", generation_dir,
+        "--proof-dir", proof_dir,
+        "--timeout-seconds", str(timeout_seconds),
+        "--once",
+    ]
+    return subprocess.run(
+        command,
+        cwd=repository_root,
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=timeout_seconds + 120,
+    )
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate the first genuine PUL7SAR Phase 18 Golden PNG")
+    parser.add_argument("--repository-root", default=str(ROOT))
+    parser.add_argument("--batch-dir", default="output/phase18_handoffs/golden-batch")
+    parser.add_argument("--queue-root", default="output/phase18_generation_queue")
+    parser.add_argument("--telemetry-root", default="output/phase18_worker_telemetry")
+    parser.add_argument("--generation-dir", default="output/phase18_generated")
+    parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
+    parser.add_argument("--job-id", default=DEFAULT_SMOKE_JOB_ID)
+    parser.add_argument("--worker-id", default="golden-smoke-worker-01")
+    parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--timeout-seconds", type=int, default=1800)
+    args = parser.parse_args()
+
+    repository_root = Path(args.repository_root).resolve()
+    if not (repository_root / "engine" / "intelligence").is_dir():
+        raise RuntimeError("repository-root does not contain the Phase 18 intelligence engine")
+    if args.max_attempts <= 0:
+        raise ValueError("max-attempts must be positive")
+    if args.timeout_seconds <= 0:
+        raise ValueError("timeout-seconds must be positive")
+
+    batch_dir = Path(args.batch_dir)
+    if not batch_dir.is_absolute():
+        batch_dir = repository_root / batch_dir
+    manifest_path = batch_dir / "manifest.json"
+    if not manifest_path.is_file():
+        build_batch(str(batch_dir))
+    integrity = verify_batch(str(manifest_path))
+    candidate = load_first_candidate(manifest_path)
+
+    # Critical ordering: prove the host can execute the quality-locked path before
+    # mutating the durable queue. An incompatible CPU host leaves no queued job.
+    readiness = _run_readiness(repository_root)
+
+    queue_root = Path(args.queue_root)
+    if not queue_root.is_absolute():
+        queue_root = repository_root / queue_root
+    store = FilesystemGenerationJobStore(queue_root)
+    preparation = prepare_smoke_job(
+        store=store,
+        candidate=candidate,
+        job_id=args.job_id,
+        max_attempts=args.max_attempts,
+    )
+
+    if preparation.job.state is GenerationJobState.SUCCEEDED:
+        png = Path(preparation.job.result_path or "")
+        if not png.is_absolute():
+            png = repository_root / png
+        if not png.is_file() or png.suffix.lower() != ".png":
+            raise RuntimeError("existing succeeded smoke job does not point to a real PNG")
+        print(json.dumps({
+            "status": "FIRST_REAL_GOLDEN_PNG_ALREADY_EXISTS",
+            "png": str(png),
+            "integrity": integrity,
+            "readiness": readiness,
+            "job": smoke_status_payload(preparation),
+        }, ensure_ascii=False, indent=2, sort_keys=True))
+        return 0
+
+    if preparation.job.state in {GenerationJobState.LEASED, GenerationJobState.RUNNING}:
+        raise RuntimeError("candidate 1 smoke job is already active on a worker; refusing competing execution")
+
+    completed = _run_worker_once(
+        repository_root=repository_root,
+        worker_id=args.worker_id,
+        queue_root=str(queue_root),
+        telemetry_root=args.telemetry_root,
+        generation_dir=args.generation_dir,
+        proof_dir=args.proof_dir,
+        timeout_seconds=args.timeout_seconds,
+    )
+    final_job = store.get(args.job_id)
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "GPU worker smoke cycle failed\nstdout:\n"
+            + completed.stdout[-4000:]
+            + "\nstderr:\n"
+            + completed.stderr[-4000:]
+        )
+    if final_job is None or final_job.state is not GenerationJobState.SUCCEEDED or not final_job.result_path:
+        detail = {
+            "worker_stdout_tail": completed.stdout[-4000:],
+            "worker_stderr_tail": completed.stderr[-4000:],
+            "final_job_state": final_job.state.value if final_job else None,
+            "failure_code": final_job.failure_code if final_job else None,
+            "failure_detail": final_job.failure_detail if final_job else None,
+        }
+        raise RuntimeError("worker returned without a successful real PNG job:\n" + json.dumps(detail, ensure_ascii=False, indent=2))
+
+    png = Path(final_job.result_path)
+    if not png.is_absolute():
+        png = repository_root / png
+    if not png.is_file() or png.suffix.lower() != ".png":
+        raise RuntimeError("successful smoke job result is not an existing PNG")
+
+    print(json.dumps({
+        "status": "FIRST_REAL_GOLDEN_PNG_GENERATED",
+        "png": str(png),
+        "job_id": final_job.job_id,
+        "request_id": final_job.request_id,
+        "attempt": final_job.attempt,
+        "payload_sha256": final_job.payload_sha256,
+        "integrity": integrity,
+        "readiness": {
+            "golden_generation_ready": readiness.get("golden_generation_ready"),
+            "recommended_dtype": readiness.get("recommended_dtype"),
+            "runtime": readiness.get("runtime"),
+        },
+        "worker_stdout_tail": completed.stdout[-4000:],
+        "publication_ready": False,
+        "publication_note": "Real generation success still requires semantic verification and Golden quality review.",
+    }, ensure_ascii=False, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
