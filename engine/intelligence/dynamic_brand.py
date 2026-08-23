@@ -1,0 +1,70 @@
+"""Deterministic dynamic-brand policy for PUL7SAR Phase 18.
+
+PUL7SAR is not a diffusion-generated logo. The brand has stable geometry and a
+contextual accent state. The default accent for the 7/pulse is PUL7SAR red;
+verified hero/entity palette evidence may replace that accent when the story has
+one unambiguous visual hero. Ambiguous multi-entity stories fail back to red.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional
+
+from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityThemeResolver
+
+
+class BrandAccentReason(str, Enum):
+    DEFAULT_GENERAL = "default_general"
+    VERIFIED_HERO = "verified_hero"
+    AMBIGUOUS_HERO = "ambiguous_hero"
+    LOW_CONFIDENCE = "low_confidence"
+    PALETTE_UNAVAILABLE = "palette_unavailable"
+
+
+@dataclass(frozen=True)
+class StoryHeroEvidence:
+    entity_name: str
+    confidence: float
+    is_unambiguous: bool
+    palette: Optional[EntityPaletteEvidence] = None
+
+    def __post_init__(self) -> None:
+        if not self.entity_name.strip():
+            raise ValueError("entity_name is required")
+        if not 0.0 <= float(self.confidence) <= 1.0:
+            raise ValueError("confidence must be between 0 and 1")
+
+
+@dataclass(frozen=True)
+class DynamicBrandDecision:
+    accent_hex: str
+    reason: BrandAccentReason
+    hero_entity: Optional[str]
+    contextual: bool
+    structure_locked: bool = True
+    generator_may_draw_brand: bool = False
+    tint_scope: tuple[str, ...] = ("seven", "pulse")
+
+
+class DynamicBrandResolver:
+    """Resolve the accent state without ever changing the brand structure."""
+
+    def __init__(self, *, hero_confidence_floor: float = 0.85, palette_confidence_floor: float = 0.80):
+        self.hero_confidence_floor = hero_confidence_floor
+        self._themes = EntityThemeResolver(minimum_confidence=palette_confidence_floor)
+
+    def resolve(self, hero: Optional[StoryHeroEvidence]) -> DynamicBrandDecision:
+        default = EntityThemeResolver.PUL7SAR_RED
+        if hero is None:
+            return DynamicBrandDecision(default, BrandAccentReason.DEFAULT_GENERAL, None, False)
+        if not hero.is_unambiguous:
+            return DynamicBrandDecision(default, BrandAccentReason.AMBIGUOUS_HERO, None, False)
+        if hero.confidence < self.hero_confidence_floor:
+            return DynamicBrandDecision(default, BrandAccentReason.LOW_CONFIDENCE, None, False)
+        if hero.palette is None:
+            return DynamicBrandDecision(default, BrandAccentReason.PALETTE_UNAVAILABLE, hero.entity_name, False)
+        theme = self._themes.resolve(hero.palette)
+        if not theme.verified:
+            return DynamicBrandDecision(default, BrandAccentReason.LOW_CONFIDENCE, hero.entity_name, False)
+        return DynamicBrandDecision(theme.accent_hex, BrandAccentReason.VERIFIED_HERO, hero.entity_name, True)
