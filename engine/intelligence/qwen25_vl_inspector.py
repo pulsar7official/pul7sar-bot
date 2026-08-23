@@ -191,7 +191,7 @@ Fail readable_text_absent for generated readable/pseudo-readable lettering.
 Fail platform_brand_absent for platform wordmark, 7/pulse imitation or platform-like branding.
 Fail fake_entity_marks_absent for invented team/federation/league/competition crests.
 Fail exact_numbers_absent for score/date/fee/standing/record graphics.
-Fail generated_sport_geometry_absent when the model visibly drew exact field/court/rink markings or tactical geometry that belongs to a deterministic layer; vague turf/floor may pass.
+Fail generated_sport_geometry_absent when the model visibly drew exact pitch/court/rink markings or tactical geometry that belongs to a deterministic layer; vague turf/floor may pass.
 For sport_geometry_alignment_valid return pass=true with detail 'not applicable at base stage' unless illegal exact geometry exists.
 """
         return common + """
@@ -200,7 +200,7 @@ Fail readable_text_absent only for generated/pseudo text surviving from the base
 Fail platform_brand_absent if generated platform branding survived.
 Fail fake_entity_marks_absent if invented entity marks survived.
 Fail exact_numbers_absent if generated exact editorial-number graphics survived.
-The deterministic pitch markings are expected now: fail generated_sport_geometry_absent only for a second/conflicting generated set.
+Deterministic pitch markings are expected now: fail generated_sport_geometry_absent only for a second/conflicting generated set.
 Pass sport_geometry_alignment_valid only when the final surface has plausible proportions, depth/vanishing perspective and physical integration with the stadium; fail pasted-on, floating, implausibly wide/short/long or conflicting perspective.
 """
 
