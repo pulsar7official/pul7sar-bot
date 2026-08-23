@@ -1,19 +1,10 @@
 #!/usr/bin/env python3
 """One-command Colab entrypoint for PUL7SAR Phase 18 Golden Hybrid v5.
 
-Flow:
-1. verify protected branch,
-2. fast-forward from GitHub,
-3. discover/run all Phase 18 CPU tests,
-4. generate/reuse exactly one atmosphere-only FLUX candidate,
-5. replace the reserved football surface with deterministic 105m x 68m geometry,
-6. verify composition receipt/file hashes,
-7. run local Qwen semantic visual inspection after FLUX exits by default,
-8. require no generated exact numbers / model-owned sport geometry leakage,
-9. require semantic pitch/stadium perspective alignment,
-10. run receipt-backed HybridVisualQualityGate and report blockers.
-
-The command never equates PNG generation with publication readiness.
+The critical semantic rule is stage separation: inspect the FLUX base before
+sport geometry is added, then inspect the deterministic hybrid surface for
+physical/perspective integration. Deterministic geometry is never mistaken for
+forbidden model-generated geometry.
 """
 from __future__ import annotations
 
@@ -40,7 +31,7 @@ from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner
 from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInspectionPolicy
 from engine.intelligence.hybrid_visual_quality_gate import HybridVisualQualityGate
 from engine.intelligence.local_vision_inspectors import LocalVisionCapabilityReport, detect_local_vision_capabilities
-from engine.intelligence.qwen25_vl_inspector import Qwen25VLInspectionError, Qwen25VLSemanticInspector
+from engine.intelligence.qwen25_vl_inspector import Qwen25VLInspectionError, Qwen25VLSemanticInspector, SemanticInspectionStage
 from engine.intelligence.semantic_inspector_readiness import Qwen25VLReadinessProbe
 from engine.intelligence.semantic_visual_verdict import SemanticVisualVerdict, SemanticVisualVerdictGate
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
@@ -80,74 +71,38 @@ def _display(path: Path) -> bool:
         return False
 
 
-def _semantic_payload(output: Path, mode: str) -> tuple[dict[str, object], LocalVisionCapabilityReport, SemanticVisualVerdict | None]:
-    base_caps = detect_local_vision_capabilities()
-    if mode == "none":
-        return {"mode": "none", "status": "SEMANTIC_INSPECTION_NOT_REQUESTED", "approved": False}, base_caps, None
-
-    readiness = Qwen25VLReadinessProbe().inspect()
-    if not readiness.ready:
-        return {
-            "mode": "qwen2.5-vl-3b-local",
-            "status": "SEMANTIC_INSPECTOR_RUNTIME_NOT_READY",
-            "approved": False,
-            "readiness_failures": list(readiness.failures),
-            "transformers_version": readiness.transformers_version,
-            "torch_version": readiness.torch_version,
-            "cuda_available": readiness.cuda_available,
-        }, base_caps, None
-
-    try:
-        verdict = Qwen25VLSemanticInspector().inspect_file(str(output), expected_subject=None)
-        approved, failures = SemanticVisualVerdictGate().evaluate(
-            verdict,
-            identity_required=False,
-            geometry_alignment_required=True,
-            exact_numbers_absence_required=True,
-            generated_sport_geometry_absence_required=True,
-            minimum_confidence=0.85,
-        )
-        names = (
-            "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
-            "exact_numbers_absent", "generated_sport_geometry_absent",
-            "single_scene", "severe_defects_absent", "subject_framing_valid",
-            "sport_geometry_alignment_valid",
-        )
-        checks = {
+def _verdict_payload(verdict: SemanticVisualVerdict, *, approved: bool, failures: tuple[str, ...], stage: str) -> dict[str, object]:
+    names = (
+        "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
+        "exact_numbers_absent", "generated_sport_geometry_absent",
+        "single_scene", "severe_defects_absent", "subject_framing_valid",
+        "sport_geometry_alignment_valid",
+    )
+    return {
+        "stage": stage,
+        "status": "SEMANTIC_VISUAL_INSPECTION_COMPLETE",
+        "verifier_id": verdict.verifier_id,
+        "approved": approved,
+        "failures": list(failures),
+        "checks": {
             name: {
                 "state": getattr(verdict, name).state.value,
                 "confidence": getattr(verdict, name).confidence,
                 "detail": getattr(verdict, name).detail,
             }
             for name in names
-        }
-        semantic_capable = verdict.complete_non_identity
-        caps = LocalVisionCapabilityReport(
-            png_observation=base_caps.png_observation,
-            protected_region_clutter=base_caps.protected_region_clutter,
-            semantic_subject_framing=semantic_capable,
-            identity_similarity=False,
-            semantic_defect_detection=semantic_capable,
-            forbidden_visual_detection=semantic_capable,
-        )
-        return {
-            "mode": "qwen2.5-vl-3b-local",
-            "status": "SEMANTIC_VISUAL_INSPECTION_COMPLETE",
-            "verifier_id": verdict.verifier_id,
-            "approved": approved,
-            "geometry_alignment_required": True,
-            "exact_numbers_absence_required": True,
-            "generated_sport_geometry_absence_required": True,
-            "failures": list(failures),
-            "checks": checks,
-        }, caps, verdict
-    except (Qwen25VLInspectionError, FileNotFoundError, RuntimeError) as exc:
-        return {
-            "mode": "qwen2.5-vl-3b-local",
-            "status": "SEMANTIC_VISUAL_INSPECTION_FAILED",
-            "approved": False,
-            "error": str(exc),
-        }, base_caps, None
+        },
+    }
+
+
+def _merge_flags(*items: VisualInspectionFlags) -> VisualInspectionFlags:
+    return VisualInspectionFlags(
+        generated_text_detected=any(x.generated_text_detected for x in items),
+        generated_brand_detected=any(x.generated_brand_detected for x in items),
+        generated_fake_logo_detected=any(x.generated_fake_logo_detected for x in items),
+        severe_anatomy_or_object_defect=any(x.severe_anatomy_or_object_defect for x in items),
+        collage_or_split_scene_detected=any(x.collage_or_split_scene_detected for x in items),
+    )
 
 
 def _golden_layer_plan():
@@ -179,6 +134,43 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
     if not base_png.is_file():
         raise RuntimeError("BASE_PNG_DOES_NOT_EXIST")
 
+    base_caps = detect_local_vision_capabilities()
+    semantic_report: dict[str, object] = {"mode": semantic_mode}
+    base_verdict = None
+    hybrid_verdict = None
+    semantic_complete = False
+
+    inspector = None
+    if semantic_mode == "qwen":
+        readiness = Qwen25VLReadinessProbe().inspect()
+        semantic_report["runtime_readiness"] = {
+            "ready": readiness.ready,
+            "failures": list(readiness.failures),
+            "model_id": readiness.model_id,
+            "transformers_version": readiness.transformers_version,
+            "torch_version": readiness.torch_version,
+            "cuda_available": readiness.cuda_available,
+        }
+        if readiness.ready:
+            try:
+                inspector = Qwen25VLSemanticInspector()
+                base_verdict = inspector.inspect_file(str(base_png), expected_subject=None, stage=SemanticInspectionStage.BASE_SCENE)
+                base_ok, base_failures = SemanticVisualVerdictGate().evaluate(
+                    base_verdict,
+                    identity_required=False,
+                    geometry_alignment_required=False,
+                    exact_numbers_absence_required=True,
+                    generated_sport_geometry_absence_required=True,
+                    minimum_confidence=0.85,
+                )
+                semantic_report["base_scene"] = _verdict_payload(base_verdict, approved=base_ok, failures=base_failures, stage="base_scene")
+            except (Qwen25VLInspectionError, FileNotFoundError, RuntimeError) as exc:
+                semantic_report["base_scene"] = {"status": "SEMANTIC_VISUAL_INSPECTION_FAILED", "approved": False, "error": str(exc)}
+        else:
+            semantic_report["base_scene"] = {"status": "SEMANTIC_INSPECTOR_RUNTIME_NOT_READY", "approved": False}
+    else:
+        semantic_report["base_scene"] = {"status": "SEMANTIC_INSPECTION_NOT_REQUESTED", "approved": False}
+
     HYBRID_DIR.mkdir(parents=True, exist_ok=True)
     output = HYBRID_DIR / f"candidate-{candidate:02d}-golden-hybrid-v5.png"
     receipt = FootballHybridComposer().compose_file(
@@ -190,9 +182,37 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
     if not artifact_integrity.valid:
         raise RuntimeError("HYBRID_ARTIFACT_INTEGRITY_FAILED: " + ", ".join(artifact_integrity.failures))
 
-    semantic, capabilities, verdict = _semantic_payload(output, semantic_mode)
+    if inspector is not None:
+        try:
+            hybrid_verdict = inspector.inspect_file(str(output), expected_subject=None, stage=SemanticInspectionStage.HYBRID_SURFACE)
+            hybrid_ok, hybrid_failures = SemanticVisualVerdictGate().evaluate(
+                hybrid_verdict,
+                identity_required=False,
+                geometry_alignment_required=True,
+                exact_numbers_absence_required=True,
+                generated_sport_geometry_absence_required=True,
+                minimum_confidence=0.85,
+            )
+            semantic_report["hybrid_surface"] = _verdict_payload(hybrid_verdict, approved=hybrid_ok, failures=hybrid_failures, stage="hybrid_surface")
+            semantic_complete = bool(base_verdict and base_verdict.complete_non_identity and hybrid_verdict.complete_non_identity)
+        except (Qwen25VLInspectionError, FileNotFoundError, RuntimeError) as exc:
+            semantic_report["hybrid_surface"] = {"status": "SEMANTIC_VISUAL_INSPECTION_FAILED", "approved": False, "error": str(exc)}
+    else:
+        semantic_report["hybrid_surface"] = {"status": "SEMANTIC_INSPECTION_NOT_AVAILABLE", "approved": False}
+
+    capabilities = LocalVisionCapabilityReport(
+        png_observation=base_caps.png_observation,
+        protected_region_clutter=base_caps.protected_region_clutter,
+        semantic_subject_framing=semantic_complete,
+        identity_similarity=False,
+        semantic_defect_detection=semantic_complete,
+        forbidden_visual_detection=semantic_complete,
+    )
     inspection = HybridVisualInspectionPolicy().evaluate(capabilities, identity_required=False)
-    flags = verdict.to_flags() if verdict is not None else VisualInspectionFlags()
+    flags = _merge_flags(
+        base_verdict.to_flags() if base_verdict else VisualInspectionFlags(),
+        hybrid_verdict.to_flags() if hybrid_verdict else VisualInspectionFlags(),
+    )
     evidence = HybridVisualEvidenceBuilder().build(
         inspection=flags,
         football_receipt=receipt,
@@ -220,7 +240,7 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
         "surface_opacity": receipt.surface_opacity,
         "dynamic_brand_applied": evidence.exact_brand_asset_applied,
         "typography_applied": evidence.exact_typography_applied,
-        "semantic_visual_inspection": semantic,
+        "semantic_visual_inspection": semantic_report,
         "visual_inspection": {
             "status": inspection.status,
             "engineering_proof_allowed": inspection.engineering_proof_allowed,
@@ -228,10 +248,7 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
             "publication_visual_gate_ready": inspection.publication_visual_gate_ready,
             "missing_capabilities": list(inspection.missing_capabilities),
         },
-        "hybrid_quality": {
-            "approved": hybrid_quality.approved,
-            "blockers": list(hybrid_quality.blockers),
-        },
+        "hybrid_quality": {"approved": hybrid_quality.approved, "blockers": list(hybrid_quality.blockers)},
         "publication_ready": False,
         "next_gate": "approved dynamic brand geometry + deterministic typography + Golden quality + final publication readiness",
     }
@@ -254,15 +271,13 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/10 Updating protected Phase 18 branch...")
+    print("1/11 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
-
-    print("2/10 Discovering and running all Phase 18 CPU validation...")
+    print("2/11 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
-
-    print("3/10 Entering locked atmosphere-only Golden runner...")
+    print("3/11 Entering locked atmosphere-only Golden runner...")
     command = [sys.executable, str(ROOT / "tools" / "phase18_colab_runner.py"), "--candidate", str(args.candidate), "--skip-targeted-tests"]
     if args.force:
         command.append("--force")
@@ -274,13 +289,14 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/10 Replacing generated surface with deterministic regulation football geometry...")
-    print("5/10 Verifying deterministic composition artifact hashes and receipt...")
-    print("6/10 Checking local semantic-inspector runtime readiness...")
-    print("7/10 Running semantic visual inspection...")
-    print("8/10 Verifying generated text/number/geometry leakage and pitch/stadium alignment...")
-    print("9/10 Running receipt-backed Hybrid Visual QA...")
-    print("10/10 Reporting blockers and displaying hybrid proof...")
+    print("4/11 Checking semantic-inspector runtime readiness...")
+    print("5/11 Inspecting FLUX base for forbidden text/brand/numbers/generated sport geometry...")
+    print("6/11 Replacing surface with deterministic regulation football geometry...")
+    print("7/11 Verifying deterministic composition artifact hashes and receipt...")
+    print("8/11 Inspecting hybrid pitch/stadium perspective integration...")
+    print("9/11 Merging stage-specific semantic evidence...")
+    print("10/11 Running receipt-backed Hybrid Visual QA...")
+    print("11/11 Reporting blockers and displaying hybrid proof...")
     _compose_hybrid(args.candidate, args.semantic_inspection)
     return 0
 
