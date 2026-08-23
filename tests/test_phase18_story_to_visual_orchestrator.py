@@ -62,6 +62,12 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertIn("service boxes", joined)
         self.assertNotIn("penalty areas", joined)
 
+    def test_padel_now_has_explicit_sport_geometry_policy(self):
+        decision = self.engine.decide(self.story(sport="padel"))
+        joined = " ".join(decision.sport_geometry_requirements)
+        self.assertIn("glass", joined)
+        self.assertIn("net", joined)
+
     def test_generated_branding_and_exact_data_remain_forbidden(self):
         decision = self.engine.decide(self.story())
         forbidden = set(decision.plan.forbidden_generated_elements)
@@ -71,7 +77,7 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertIn("club crests", forbidden)
 
     def test_unknown_sport_fails_safe_to_generic_exact_overlay_risks(self):
-        decision = self.engine.decide(self.story(sport="padel"))
+        decision = self.engine.decide(self.story(sport="sepaktakraw"))
         self.assertIn("generated text", decision.high_risk_generated_elements)
         self.assertIn("generated logos", decision.high_risk_generated_elements)
 
