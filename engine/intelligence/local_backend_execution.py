@@ -182,6 +182,10 @@ class LocalBackendRequestCompiler:
         if "pul7sar" in lowered or "pulsar" in lowered:
             raise ValueError("local generation prompt leaked the protected platform name")
 
+        hybrid_contract = bool(package.metadata.get("hybrid_base_scene_contract"))
+        reserved_content = tuple(package.metadata.get("reserved_base_scene_content") or ())
+        generated_geometry_allowed = not any("sport_surface_geometry" in str(item) for item in reserved_content)
+
         return LocalBackendGenerationRequest(
             provider_id=model.provider_id,
             model_id=model.model_id,
@@ -204,6 +208,12 @@ class LocalBackendRequestCompiler:
                 "canvas_normalization_required": (generation_width, generation_height) != (target_width, target_height),
                 "brand_name_redacted_from_generation_prompt": True,
                 "generated_branding_allowed": False,
+                "composition_grammar": package.metadata.get("composition_grammar", "single_continuous_scene"),
+                "hybrid_base_scene_contract": hybrid_contract,
+                "reserved_base_scene_content": reserved_content,
+                "generated_sport_geometry_allowed": generated_geometry_allowed,
+                "hybrid_surface_replacement_required": hybrid_contract and not generated_geometry_allowed,
+                "base_scene_overlay_policy": package.metadata.get("base_scene_overlay_policy"),
             },
         )
 
@@ -217,26 +227,3 @@ class LocalBackendRequestCompiler:
         if width <= 0 or height <= 0:
             raise ValueError("canvas dimensions must be positive")
         return width, height
-
-
-class LocalBackendResultGate:
-    """Reject backend output that changes the approved native generation request."""
-
-    def validate(
-        self,
-        request: LocalBackendGenerationRequest,
-        result: LocalBackendGenerationResult,
-    ) -> LocalGenerationProvenance:
-        if result.provider_id != request.provider_id:
-            raise ValueError("local backend changed provider_id")
-        if result.model_id != request.model_id:
-            raise ValueError("local backend changed model_id")
-        if result.backend != request.backend:
-            raise ValueError("local backend changed backend identity")
-        if result.request_id != request.request_id:
-            raise ValueError("local backend changed request_id")
-        if result.seed != request.seed:
-            raise ValueError("local backend changed deterministic seed")
-        if (result.width, result.height) != (request.width, request.height):
-            raise ValueError("local backend returned unexpected native output dimensions")
-        return result.provenance
