@@ -1,8 +1,9 @@
 """Pillow renderer for deterministic regulation football-pitch overlays.
 
 The renderer consumes the projective geometry plan; it never asks a generative
-model to draw lines, circles or pitch proportions. Pillow is imported lazily so
-CPU-only policy tests do not require image dependencies at import time.
+model to draw lines, circles, penalty/corner arcs or exact pitch proportions.
+Pillow is imported lazily so CPU-only policy tests do not require image
+dependencies at import time.
 """
 from __future__ import annotations
 
@@ -17,11 +18,12 @@ class FootballPitchRenderStyle:
     line_rgba: tuple[int, int, int, int] = (245, 245, 245, 235)
     surface_rgba: tuple[int, int, int, int] = (25, 92, 45, 220)
     line_width_px: int = 5
+    mark_radius_px: int = 4
     fill_surface: bool = True
 
     def __post_init__(self) -> None:
-        if self.line_width_px <= 0:
-            raise ValueError("line_width_px must be positive")
+        if self.line_width_px <= 0 or self.mark_radius_px <= 0:
+            raise ValueError("line_width_px and mark_radius_px must be positive")
         for name in ("line_rgba", "surface_rgba"):
             value = getattr(self, name)
             if len(value) != 4 or any(not isinstance(ch, int) or not 0 <= ch <= 255 for ch in value):
@@ -55,8 +57,13 @@ class PillowFootballPitchRenderer:
         if render_style.fill_surface:
             draw.polygon(destination_corners, fill=render_style.surface_rgba)
 
-        for marking in self._planner.project_markings(destination_corners):
+        markings = self._planner.project_all_markings(destination_corners)
+        for marking in markings.polylines:
             draw.line(marking.points, fill=render_style.line_rgba, width=render_style.line_width_px, joint="curve")
+        r = render_style.mark_radius_px
+        for mark in markings.points:
+            x, y = mark.point
+            draw.ellipse((x - r, y - r, x + r, y + r), fill=render_style.line_rgba)
 
         if output_path is not None:
             target = Path(output_path)
