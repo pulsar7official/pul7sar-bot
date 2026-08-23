@@ -14,7 +14,7 @@ class HybridArtifactIntegrityGateTests(unittest.TestCase):
     def setUp(self):
         self.gate = HybridArtifactIntegrityGate()
 
-    def test_real_composition_receipt_validates(self):
+    def test_real_composition_receipt_validates_without_synthetic_stripes(self):
         try:
             from PIL import Image
         except ImportError:
@@ -25,6 +25,27 @@ class HybridArtifactIntegrityGateTests(unittest.TestCase):
             out = root / "out.png"
             Image.new("RGB", (640, 800), (20, 20, 20)).save(base)
             receipt = FootballHybridComposer().compose_file(base_path=str(base), output_path=str(out))
+            self.assertFalse(receipt.mowing_stripes_applied)
+            decision = self.gate.validate_football(receipt)
+            self.assertTrue(decision.valid)
+            self.assertEqual(decision.failures, ())
+
+    def test_optional_striped_composition_also_validates(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow unavailable")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.png"
+            out = root / "out.png"
+            Image.new("RGB", (640, 800), (20, 20, 20)).save(base)
+            receipt = FootballHybridComposer().compose_file(
+                base_path=str(base),
+                output_path=str(out),
+                stripe_opacity=24,
+            )
+            self.assertTrue(receipt.mowing_stripes_applied)
             decision = self.gate.validate_football(receipt)
             self.assertTrue(decision.valid)
             self.assertEqual(decision.failures, ())
