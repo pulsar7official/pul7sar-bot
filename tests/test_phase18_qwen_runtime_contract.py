@@ -30,9 +30,11 @@ class QwenRuntimeContractTests(unittest.TestCase):
     def test_colab_bootstrap_exists_and_repairs_before_runner(self):
         text = Path("tools/phase18_colab_bootstrap.py").read_text(encoding="utf-8")
         self.assertIn("--force-reinstall", text)
-        self.assertIn("Pillow==11.3.0", text)
-        self.assertIn("transformers==4.56.2", text)
+        self.assertIn('VERIFIED_PILLOW = "11.3.0"', text)
+        self.assertIn('VERIFIED_TRANSFORMERS = "4.56.2"', text)
         self.assertIn("phase18_colab_one_command.py", text)
+        self.assertLess(text.index("_repair_runtime()"), text.index("_fresh_process_probe()"))
+        self.assertLess(text.index("_fresh_process_probe()"), text.index("phase18_colab_one_command.py"))
 
 
 if __name__ == "__main__":
