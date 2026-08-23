@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Build a deterministic quality-first batch of Golden Visual GPU handoffs.
+"""Build a deterministic quality-first batch of Golden Hybrid v5 handoffs.
 
-The batch deliberately varies only the seed. Prompt, platform, model, layout and
-cost policy remain identical so later visual comparison is meaningful.
+Only the seed varies. Atmosphere generation is compared under identical hybrid
+ownership rules; exact football geometry and PUL7SAR branding are not generated.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -28,7 +27,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
 
     candidates: list[dict[str, object]] = []
     for index, seed in enumerate(seeds, start=1):
-        request_id = f"golden-general-season-opener-v4-{index:03d}"
+        request_id = f"golden-season-opener-hybrid-v5-{index:03d}"
         request = build_request(seed=seed, request_id=request_id)
         filename = f"candidate-{index:02d}-seed-{seed}.json"
         path = target / filename
@@ -49,14 +48,17 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         })
 
     manifest = {
-        "manifest_version": "pul7sar-golden-batch-v4",
+        "manifest_version": "pul7sar-golden-batch-v5",
         "benchmark": GOLDEN_BENCHMARK_ID,
         "cost_mode": "$0-local",
         "composition_grammar": "single_continuous_scene",
-        "sport_geometry": "association_football_regulation_pitch",
+        "sport_geometry": "deterministic_football_pitch_projective_v1",
+        "generated_sport_geometry_allowed": False,
+        "hybrid_surface_replacement_required": True,
+        "football_camera_preset": "high_wide_central",
         "generated_branding_allowed": False,
-        "brand_composition_policy": "exact_assets_only_after_generation",
-        "selection_rule": "quality-first; compare visual quality after identical semantic gates, never select by seed order",
+        "brand_composition_policy": "dynamic_deterministic_after_generation",
+        "selection_rule": "quality-first; compare atmosphere/base-scene quality after identical hybrid ownership gates, never select by seed order",
         "candidates": candidates,
     }
     manifest_path = target / "manifest.json"
@@ -65,19 +67,20 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build a deterministic PUL7SAR Golden Visual candidate batch")
+    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Hybrid v5 candidate batch")
     parser.add_argument("--output-dir", default="output/phase18_handoffs/golden-batch")
     parser.add_argument("--seeds", nargs="*", type=int, default=list(DEFAULT_SEEDS))
     args = parser.parse_args()
     manifest = build_batch(args.output_dir, tuple(args.seeds))
     print(json.dumps({
-        "status": "GOLDEN_BATCH_READY",
+        "status": "GOLDEN_HYBRID_BATCH_READY",
         "benchmark": manifest["benchmark"],
         "output_dir": args.output_dir,
         "candidate_count": len(manifest["candidates"]),
         "cost_mode": manifest["cost_mode"],
         "composition_grammar": manifest["composition_grammar"],
         "sport_geometry": manifest["sport_geometry"],
+        "generated_sport_geometry_allowed": manifest["generated_sport_geometry_allowed"],
         "generated_branding_allowed": manifest["generated_branding_allowed"],
     }, ensure_ascii=False, indent=2))
     return 0
