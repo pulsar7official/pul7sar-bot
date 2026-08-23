@@ -2,8 +2,8 @@
 
 This is the handoff boundary between CPU-side Story-to-Visual intelligence and
 actual generation/composition. It records exactly which layer is generative,
-which geometry renderer is required, which dynamic brand state was selected and
-what must be verified before export.
+which geometry renderer is required, which dynamic brand state was selected,
+why that entity owns the 7/pulse accent, and what must be verified before export.
 """
 from __future__ import annotations
 
@@ -27,6 +27,8 @@ class VisualExecutionPlan:
     football_camera_preset: Optional[FootballCameraPreset]
     dynamic_brand_accent_hex: str
     dynamic_brand_reason: str
+    dominant_entity: Optional[str]
+    story_dominance_reason: Optional[str]
     layer_sources: tuple[tuple[str, str], ...]
     hard_verification_requirements: tuple[str, ...]
 
@@ -72,6 +74,8 @@ class VisualExecutionPlanCompiler:
             football_camera_preset=camera,
             dynamic_brand_accent_hex=planning.brand.accent_hex,
             dynamic_brand_reason=planning.brand.reason.value,
+            dominant_entity=planning.brand.hero_entity,
+            story_dominance_reason=planning.brand.story_dominance_reason,
             layer_sources=tuple((layer.name, layer.source.value) for layer in planning.layers.layers),
             hard_verification_requirements=tuple(requirements),
         )
