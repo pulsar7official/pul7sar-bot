@@ -1,17 +1,15 @@
 """Optional zero-cost local semantic inspector using Qwen2.5-VL-3B-Instruct.
 
-This adapter is intentionally lazy: importing Phase 18 never downloads or loads
-model weights. A caller must explicitly invoke `inspect_file`. FLUX generation
-and semantic inspection are expected to run sequentially so the T4 can release
-one model before loading the other.
-
-The model is not used for factual extraction. It answers a fixed visual-QA
-schema about the already-generated image. Identity similarity remains a separate
-specialized gate.
+The inspector has explicit stages. A generative base scene is inspected for
+forbidden generated text/branding/numbers/sport geometry before deterministic
+composition. The hybrid surface is inspected separately for physical alignment
+and visual coherence after exact geometry has been applied. This prevents the
+verifier from mistaking deterministic geometry for forbidden generated geometry.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 import json
 from pathlib import Path
 from typing import Any
@@ -19,11 +17,16 @@ from typing import Any
 from engine.intelligence.semantic_visual_verdict import InspectionState, SemanticCheck, SemanticVisualVerdict
 
 MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-VERIFIER_ID = "qwen2.5-vl-3b-local-v2"
+VERIFIER_ID = "qwen2.5-vl-3b-local-v3"
 
 
 class Qwen25VLInspectionError(RuntimeError):
     pass
+
+
+class SemanticInspectionStage(str, Enum):
+    BASE_SCENE = "base_scene"
+    HYBRID_SURFACE = "hybrid_surface"
 
 
 @dataclass(frozen=True)
@@ -34,8 +37,6 @@ class Qwen25VLConfig:
 
 
 class Qwen25VLSemanticInspector:
-    """Ask a local VLM for constrained, machine-readable visual QA evidence."""
-
     def __init__(self, config: Qwen25VLConfig | None = None) -> None:
         self.config = config or Qwen25VLConfig()
         self._pipeline = None
@@ -68,24 +69,38 @@ class Qwen25VLSemanticInspector:
         return self._pipeline
 
     @staticmethod
-    def _instruction(expected_subject: str | None) -> str:
+    def _instruction(expected_subject: str | None, stage: SemanticInspectionStage) -> str:
         subject = expected_subject.strip() if isinstance(expected_subject, str) and expected_subject.strip() else "none"
-        return f"""You are a strict sports-editorial visual QA inspector. Inspect only the supplied image. Do not infer facts outside the pixels.
+        common = f"""You are a strict sports-editorial visual QA inspector. Inspect only the supplied image. Do not infer facts outside the pixels.
 Expected hero subject: {subject}.
 Return ONE JSON object only, with exactly these keys:
 readable_text_absent, platform_brand_absent, fake_entity_marks_absent, exact_numbers_absent, generated_sport_geometry_absent, single_scene, severe_defects_absent, subject_framing_valid, sport_geometry_alignment_valid.
 Each value must be an object with keys: pass (boolean), confidence (number 0..1), detail (short string).
-Rules:
-- readable_text_absent=false if obvious generated readable or pseudo-readable lettering appears in the clean base scene.
-- platform_brand_absent=false if any PUL7SAR-like/platform wordmark, seven/pulse imitation, or logo-like platform branding appears.
-- fake_entity_marks_absent=false if obviously invented team, federation, league or competition crests/marks appear.
-- exact_numbers_absent=false if score-like numerals, dates, fees, standings values, record values or other editorial exact-number graphics appear in the generative base scene. Incidental jersey numbers inside a natural athlete depiction are not editorial exact-number graphics.
-- generated_sport_geometry_absent=false if the generative base scene visibly owns exact field/court/rink markings or diagram geometry that should instead be supplied by a deterministic layer. Natural vague turf/floor/arena texture without exact markings may pass.
+General rules:
 - single_scene=false for collage, split-screen, tiled, multi-panel or image-within-image composition.
 - severe_defects_absent=false for major malformed anatomy, impossible objects, gross perspective failures, duplicated structural objects or visually broken sport elements.
 - subject_framing_valid=true when expected subject is none and the scene has a usable editorial focal hierarchy; when supplied, require the subject to be usable and not badly cropped/occluded.
-- sport_geometry_alignment_valid=true only when any visible final playing-surface geometry is physically plausible and coherent with the surrounding arena perspective. If no exact playing-surface geometry is visible, pass with detail saying not materially present.
-Be conservative. If uncertain, lower confidence rather than pretending certainty."""
+Be conservative. If uncertain, lower confidence rather than pretending certainty.
+"""
+        if stage is SemanticInspectionStage.BASE_SCENE:
+            return common + """
+Inspection stage: GENERATIVE BASE SCENE BEFORE DETERMINISTIC COMPOSITION.
+- readable_text_absent=false if obvious generated readable or pseudo-readable lettering appears.
+- platform_brand_absent=false if any platform wordmark, 7/pulse imitation or logo-like platform branding appears.
+- fake_entity_marks_absent=false if invented team/federation/league/competition crests or marks appear.
+- exact_numbers_absent=false if score-like numerals, dates, fees, standings values, record values or other editorial exact-number graphics appear. Incidental natural jersey numbers are not editorial graphics.
+- generated_sport_geometry_absent=false if the model visibly drew exact field/court/rink markings or tactical diagram geometry that belongs to a deterministic layer. Plain/vague turf or floor may pass.
+- sport_geometry_alignment_valid should PASS with detail 'not applicable at base stage' unless the base illegally contains exact sport geometry; in that illegal case it should FAIL too.
+"""
+        return common + """
+Inspection stage: HYBRID SURFACE AFTER DETERMINISTIC SPORT GEOMETRY COMPOSITION, BEFORE FINAL BRAND/TYPOGRAPHY.
+- readable_text_absent=false only for generated/pseudo text still surviving from the base scene.
+- platform_brand_absent=false if generated platform branding survived from the base scene.
+- fake_entity_marks_absent=false if invented team/competition marks survived from the base scene.
+- exact_numbers_absent=false if generated exact editorial-number graphics survived from the base scene.
+- generated_sport_geometry_absent is NOT a judgment about the visible final pitch itself; deterministic pitch markings are expected now. PASS this check unless there is clearly a second/conflicting set of generated markings outside or through the deterministic surface.
+- sport_geometry_alignment_valid=true only when the visible final playing surface has plausible proportions, depth direction and vanishing perspective and appears physically integrated with the stadium/arena. FAIL if the field looks pasted on, implausibly wide/short/long, floats, conflicts with stands/ground plane, or has impossible perspective.
+"""
 
     @staticmethod
     def _extract_text(output: Any) -> str:
@@ -140,7 +155,15 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
         confidence = max(0.0, min(1.0, float(confidence)))
         return SemanticCheck(InspectionState.PASS if passed else InspectionState.FAIL, confidence, detail)
 
-    def inspect_file(self, image_path: str, *, expected_subject: str | None = None) -> SemanticVisualVerdict:
+    def inspect_file(
+        self,
+        image_path: str,
+        *,
+        expected_subject: str | None = None,
+        stage: SemanticInspectionStage = SemanticInspectionStage.BASE_SCENE,
+    ) -> SemanticVisualVerdict:
+        if not isinstance(stage, SemanticInspectionStage):
+            raise TypeError("stage must be SemanticInspectionStage")
         path = Path(image_path)
         if not path.is_file():
             raise FileNotFoundError(image_path)
@@ -151,7 +174,7 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             raise Qwen25VLInspectionError(f"cannot decode inspection image: {exc}") from exc
 
         pipe = self._load()
-        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": self._instruction(expected_subject)}]}]
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": self._instruction(expected_subject, stage)}]}]
         try:
             output = pipe(text=messages, images=[image], max_new_tokens=self.config.max_new_tokens, return_full_text=False)
         except Exception as exc:
@@ -159,7 +182,7 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
 
         data = self._json_object(self._extract_text(output))
         return SemanticVisualVerdict(
-            verifier_id=VERIFIER_ID,
+            verifier_id=f"{VERIFIER_ID}:{stage.value}",
             readable_text_absent=self._check(data, "readable_text_absent"),
             platform_brand_absent=self._check(data, "platform_brand_absent"),
             fake_entity_marks_absent=self._check(data, "fake_entity_marks_absent"),
