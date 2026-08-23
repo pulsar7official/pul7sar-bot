@@ -29,6 +29,8 @@ DEFAULT_PROOF_DIR = "output/phase18_visual_proof"
 DEFAULT_SUMMARY = "output/phase18_colab/latest.json"
 TARGETED_TEST_MODULES = (
     "tests.test_phase18_unified_scene_policy",
+    "tests.test_phase18_golden_batch",
+    "tests.test_phase18_golden_smoke",
     "tests.test_phase18_verify_golden_batch",
     "tests.test_phase18_flux2_execute_command",
     "tests.test_phase18_colab_runner",
