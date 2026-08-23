@@ -6,21 +6,25 @@ composition. The hybrid surface is inspected separately for physical alignment
 and visual coherence after exact geometry has been applied.
 
 The Colab/T4 profile is deliberately conservative: inspection images are resized
-for semantic QA and generation is capped to a short JSON answer. The semantic
-verifier is a QA component, not an image-detail preservation path.
+for semantic QA and generation is capped to a short JSON answer. Qwen inference
+runs in a fresh spawned subprocess by default so CUDA/model memory is reclaimed
+between semantic stages and a native crash/kill becomes an explicit inspection
+failure instead of taking down the Golden orchestration process.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
 import json
+import multiprocessing
 from pathlib import Path
+import tempfile
 from typing import Any
 
 from engine.intelligence.semantic_visual_verdict import InspectionState, SemanticCheck, SemanticVisualVerdict
 
 MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-VERIFIER_ID = "qwen2.5-vl-3b-local-v4-t4"
+VERIFIER_ID = "qwen2.5-vl-3b-local-v5-isolated-t4"
 
 
 class Qwen25VLInspectionError(RuntimeError):
@@ -38,6 +42,99 @@ class Qwen25VLConfig:
     max_new_tokens: int = 256
     minimum_self_confidence: float = 0.85
     max_image_edge: int = 768
+    process_isolation: bool = True
+    process_timeout_seconds: int = 300
+
+
+def _check_to_payload(check: SemanticCheck | None) -> dict[str, Any] | None:
+    if check is None:
+        return None
+    return {"state": check.state.value, "confidence": float(check.confidence), "detail": check.detail}
+
+
+def _check_from_payload(value: Any) -> SemanticCheck | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise Qwen25VLInspectionError("isolated semantic check payload is malformed")
+    try:
+        return SemanticCheck(
+            InspectionState(str(value["state"])),
+            float(value["confidence"]),
+            str(value.get("detail") or "")[:500],
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise Qwen25VLInspectionError("isolated semantic check payload is invalid") from exc
+
+
+def _verdict_to_payload(verdict: SemanticVisualVerdict) -> dict[str, Any]:
+    return {
+        "verifier_id": verdict.verifier_id,
+        "readable_text_absent": _check_to_payload(verdict.readable_text_absent),
+        "platform_brand_absent": _check_to_payload(verdict.platform_brand_absent),
+        "fake_entity_marks_absent": _check_to_payload(verdict.fake_entity_marks_absent),
+        "single_scene": _check_to_payload(verdict.single_scene),
+        "severe_defects_absent": _check_to_payload(verdict.severe_defects_absent),
+        "subject_framing_valid": _check_to_payload(verdict.subject_framing_valid),
+        "sport_geometry_alignment_valid": _check_to_payload(verdict.sport_geometry_alignment_valid),
+        "identity_valid": _check_to_payload(verdict.identity_valid),
+        "exact_numbers_absent": _check_to_payload(verdict.exact_numbers_absent),
+        "generated_sport_geometry_absent": _check_to_payload(verdict.generated_sport_geometry_absent),
+    }
+
+
+def _verdict_from_payload(value: Any) -> SemanticVisualVerdict:
+    if not isinstance(value, dict):
+        raise Qwen25VLInspectionError("isolated semantic verdict payload is malformed")
+    try:
+        return SemanticVisualVerdict(
+            verifier_id=str(value["verifier_id"]),
+            readable_text_absent=_check_from_payload(value["readable_text_absent"]),  # type: ignore[arg-type]
+            platform_brand_absent=_check_from_payload(value["platform_brand_absent"]),  # type: ignore[arg-type]
+            fake_entity_marks_absent=_check_from_payload(value["fake_entity_marks_absent"]),  # type: ignore[arg-type]
+            single_scene=_check_from_payload(value["single_scene"]),  # type: ignore[arg-type]
+            severe_defects_absent=_check_from_payload(value["severe_defects_absent"]),  # type: ignore[arg-type]
+            subject_framing_valid=_check_from_payload(value["subject_framing_valid"]),  # type: ignore[arg-type]
+            sport_geometry_alignment_valid=_check_from_payload(value.get("sport_geometry_alignment_valid")),
+            identity_valid=_check_from_payload(value.get("identity_valid")),
+            exact_numbers_absent=_check_from_payload(value.get("exact_numbers_absent")),
+            generated_sport_geometry_absent=_check_from_payload(value.get("generated_sport_geometry_absent")),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise Qwen25VLInspectionError("isolated semantic verdict payload is invalid") from exc
+
+
+def _isolated_inspection_worker(
+    config_payload: dict[str, Any],
+    image_path: str,
+    expected_subject: str | None,
+    stage_value: str,
+    result_path: str,
+) -> None:
+    """Child-process entrypoint; writes only normalized JSON evidence to disk."""
+    try:
+        config = Qwen25VLConfig(
+            model_id=str(config_payload["model_id"]),
+            max_new_tokens=int(config_payload["max_new_tokens"]),
+            minimum_self_confidence=float(config_payload["minimum_self_confidence"]),
+            max_image_edge=int(config_payload["max_image_edge"]),
+            process_isolation=False,
+            process_timeout_seconds=int(config_payload["process_timeout_seconds"]),
+        )
+        inspector = Qwen25VLSemanticInspector(config)
+        verdict = inspector._inspect_file_inprocess(
+            image_path,
+            expected_subject=expected_subject,
+            stage=SemanticInspectionStage(stage_value),
+        )
+        payload: dict[str, Any] = {"status": "ok", "verdict": _verdict_to_payload(verdict)}
+    except BaseException as exc:  # child must persist a bounded failure receipt before exiting
+        payload = {
+            "status": "error",
+            "error_type": exc.__class__.__name__,
+            "error": str(exc)[:2000],
+        }
+    Path(result_path).write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True), encoding="utf-8")
 
 
 class Qwen25VLSemanticInspector:
@@ -94,7 +191,7 @@ Fail readable_text_absent for generated readable/pseudo-readable lettering.
 Fail platform_brand_absent for platform wordmark, 7/pulse imitation or platform-like branding.
 Fail fake_entity_marks_absent for invented team/federation/league/competition crests.
 Fail exact_numbers_absent for score/date/fee/standing/record graphics.
-Fail generated_sport_geometry_absent when exact pitch/court/rink markings or tactical geometry are visibly model-generated; vague turf/floor may pass.
+Fail generated_sport_geometry_absent when the model visibly drew exact field/court/rink markings or tactical geometry that belongs to a deterministic layer; vague turf/floor may pass.
 For sport_geometry_alignment_valid return pass=true with detail 'not applicable at base stage' unless illegal exact geometry exists.
 """
         return common + """
@@ -103,7 +200,7 @@ Fail readable_text_absent only for generated/pseudo text surviving from the base
 Fail platform_brand_absent if generated platform branding survived.
 Fail fake_entity_marks_absent if invented entity marks survived.
 Fail exact_numbers_absent if generated exact editorial-number graphics survived.
-Deterministic pitch markings are expected now: fail generated_sport_geometry_absent only for a second/conflicting generated set.
+The deterministic pitch markings are expected now: fail generated_sport_geometry_absent only for a second/conflicting generated set.
 Pass sport_geometry_alignment_valid only when the final surface has plausible proportions, depth/vanishing perspective and physical integration with the stadium; fail pasted-on, floating, implausibly wide/short/long or conflicting perspective.
 """
 
@@ -160,15 +257,13 @@ Pass sport_geometry_alignment_valid only when the final surface has plausible pr
         confidence = max(0.0, min(1.0, float(confidence)))
         return SemanticCheck(InspectionState.PASS if passed else InspectionState.FAIL, confidence, detail)
 
-    def inspect_file(
+    def _inspect_file_inprocess(
         self,
         image_path: str,
         *,
         expected_subject: str | None = None,
         stage: SemanticInspectionStage = SemanticInspectionStage.BASE_SCENE,
     ) -> SemanticVisualVerdict:
-        if not isinstance(stage, SemanticInspectionStage):
-            raise TypeError("stage must be SemanticInspectionStage")
         path = Path(image_path)
         if not path.is_file():
             raise FileNotFoundError(image_path)
@@ -207,4 +302,73 @@ Pass sport_geometry_alignment_valid only when the final surface has plausible pr
             exact_numbers_absent=self._check(data, "exact_numbers_absent"),
             generated_sport_geometry_absent=self._check(data, "generated_sport_geometry_absent"),
             identity_valid=None,
+        )
+
+    def _inspect_file_isolated(
+        self,
+        image_path: str,
+        *,
+        expected_subject: str | None,
+        stage: SemanticInspectionStage,
+    ) -> SemanticVisualVerdict:
+        timeout = max(30, int(self.config.process_timeout_seconds))
+        config_payload = {
+            "model_id": self.config.model_id,
+            "max_new_tokens": self.config.max_new_tokens,
+            "minimum_self_confidence": self.config.minimum_self_confidence,
+            "max_image_edge": self.config.max_image_edge,
+            "process_timeout_seconds": timeout,
+        }
+        with tempfile.TemporaryDirectory(prefix="pul7sar-qwen-") as temp:
+            result_path = Path(temp) / "semantic-result.json"
+            context = multiprocessing.get_context("spawn")
+            process = context.Process(
+                target=_isolated_inspection_worker,
+                args=(config_payload, image_path, expected_subject, stage.value, str(result_path)),
+                daemon=False,
+            )
+            process.start()
+            process.join(timeout)
+            if process.is_alive():
+                process.terminate()
+                process.join(10)
+                raise Qwen25VLInspectionError(f"semantic inspection subprocess timed out after {timeout}s")
+            if process.exitcode != 0:
+                raise Qwen25VLInspectionError(
+                    f"semantic inspection subprocess exited abnormally with code {process.exitcode}"
+                )
+            if not result_path.is_file():
+                raise Qwen25VLInspectionError("semantic inspection subprocess produced no result receipt")
+            try:
+                payload = json.loads(result_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as exc:
+                raise Qwen25VLInspectionError("semantic inspection subprocess result is unreadable") from exc
+            if not isinstance(payload, dict) or payload.get("status") != "ok":
+                error_type = str(payload.get("error_type") or "unknown") if isinstance(payload, dict) else "unknown"
+                error = str(payload.get("error") or "unknown failure") if isinstance(payload, dict) else "unknown failure"
+                raise Qwen25VLInspectionError(f"isolated semantic inspection failed: {error_type}:{error}")
+            return _verdict_from_payload(payload.get("verdict"))
+
+    def inspect_file(
+        self,
+        image_path: str,
+        *,
+        expected_subject: str | None = None,
+        stage: SemanticInspectionStage = SemanticInspectionStage.BASE_SCENE,
+    ) -> SemanticVisualVerdict:
+        if not isinstance(stage, SemanticInspectionStage):
+            raise TypeError("stage must be SemanticInspectionStage")
+        path = Path(image_path)
+        if not path.is_file():
+            raise FileNotFoundError(image_path)
+        if self.config.process_isolation:
+            return self._inspect_file_isolated(
+                image_path,
+                expected_subject=expected_subject,
+                stage=stage,
+            )
+        return self._inspect_file_inprocess(
+            image_path,
+            expected_subject=expected_subject,
+            stage=stage,
         )
