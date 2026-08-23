@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 """Verify a Golden Visual handoff batch without CUDA or model downloads.
 
-This command is the transport/preflight boundary between CI and a GPU runtime.
-It validates the manifest, every handoff SHA-256, request/seed/model identity,
-zero-cost policy, canvas contract, composition grammar, sport geometry,
-brand-exclusion policy, and one-to-one file coverage before expensive model
-loading begins.
+v5 validates hybrid ownership: diffusion must not own exact football geometry or
+PUL7SAR branding, and deterministic pitch replacement must be required.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -23,6 +19,7 @@ SUPPORTED_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v2",
     "pul7sar-golden-batch-v3",
     "pul7sar-golden-batch-v4",
+    "pul7sar-golden-batch-v5",
 }
 
 
@@ -34,17 +31,30 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         raise ValueError("unsupported Golden Visual batch manifest version")
     if manifest.get("cost_mode") != "$0-local":
         raise ValueError("Golden Visual batch must remain locked to $0-local")
-    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
+
+    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"}:
         if manifest.get("composition_grammar") != "single_continuous_scene":
-            raise ValueError("Golden Visual v2+ batch must lock the single_continuous_scene composition grammar")
+            raise ValueError("Golden Visual v2+ batch must lock single_continuous_scene")
     if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
         if manifest.get("sport_geometry") != "association_football_regulation_pitch":
-            raise ValueError("Golden Visual v3+ batch must lock regulation association-football pitch geometry")
+            raise ValueError("Golden Visual v3/v4 must lock regulation pitch geometry")
     if manifest_version == "pul7sar-golden-batch-v4":
         if manifest.get("generated_branding_allowed") is not False:
-            raise ValueError("Golden Visual v4 batch must forbid generated platform branding")
+            raise ValueError("Golden Visual v4 must forbid generated platform branding")
         if manifest.get("brand_composition_policy") != "exact_assets_only_after_generation":
-            raise ValueError("Golden Visual v4 batch must lock exact post-generation branding")
+            raise ValueError("Golden Visual v4 must lock exact post-generation branding")
+    if manifest_version == "pul7sar-golden-batch-v5":
+        expected = {
+            "sport_geometry": "deterministic_football_pitch_projective_v1",
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": True,
+            "football_camera_preset": "high_wide_central",
+            "generated_branding_allowed": False,
+            "brand_composition_policy": "dynamic_deterministic_after_generation",
+        }
+        failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
+        if failures:
+            raise ValueError("Golden Hybrid v5 contract mismatch: " + "; ".join(failures))
 
     candidates = manifest.get("candidates")
     if not isinstance(candidates, list) or not candidates:
@@ -94,13 +104,13 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             raise ValueError(f"candidate {request_id} escaped $0-local mode")
 
         prompt = request.prompt.casefold()
-        if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
+        if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"}:
             required_prompt_markers = (
                 "one single continuous full-bleed editorial image",
                 "never use collage, montage, split-screen, grid, diptych, triptych",
             )
             if any(marker not in prompt for marker in required_prompt_markers):
-                raise ValueError(f"candidate {request_id} is missing the v2+ unified-scene prompt lock")
+                raise ValueError(f"candidate {request_id} is missing the unified-scene prompt lock")
         if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
             geometry_markers = (
                 "regulation association-football pitch geometry",
@@ -109,7 +119,7 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
                 "do not duplicate the halfway line or centre circle",
             )
             if any(marker not in prompt for marker in geometry_markers):
-                raise ValueError(f"candidate {request_id} is missing the v3+ football-geometry prompt lock")
+                raise ValueError(f"candidate {request_id} is missing the legacy v3/v4 geometry lock")
         if manifest_version == "pul7sar-golden-batch-v4":
             branding_markers = (
                 "zero pul7sar lettering",
@@ -118,7 +128,17 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
                 "exact branding and typography are added only by deterministic post-composition",
             )
             if any(marker not in prompt for marker in branding_markers):
-                raise ValueError(f"candidate {request_id} is missing the v4 brand-exclusion prompt lock")
+                raise ValueError(f"candidate {request_id} is missing the v4 brand-exclusion lock")
+        if manifest_version == "pul7sar-golden-batch-v5":
+            hybrid_markers = (
+                "unmarked neutral sport-surface region reserved for deterministic overlay",
+                "no field/court/rink lines",
+                "the exact surface will be replaced by deterministic code after generation",
+                "zero pul7sar lettering",
+                "never spell pul7sar, pulsar, or any approximation",
+            )
+            if any(marker not in prompt for marker in hybrid_markers):
+                raise ValueError(f"candidate {request_id} is missing the Golden Hybrid v5 ownership lock")
 
         target_width = request.metadata.get("target_width")
         target_height = request.metadata.get("target_height")
@@ -153,6 +173,8 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         "manifest_version": manifest_version,
         "composition_grammar": manifest.get("composition_grammar", "legacy_unspecified"),
         "sport_geometry": manifest.get("sport_geometry", "legacy_unspecified"),
+        "generated_sport_geometry_allowed": manifest.get("generated_sport_geometry_allowed", "legacy_unspecified"),
+        "hybrid_surface_replacement_required": manifest.get("hybrid_surface_replacement_required", "legacy_unspecified"),
         "generated_branding_allowed": manifest.get("generated_branding_allowed", "legacy_unspecified"),
         "brand_composition_policy": manifest.get("brand_composition_policy", "legacy_unspecified"),
         "cost_mode": "$0-local",
