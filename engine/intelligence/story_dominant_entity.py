@@ -6,8 +6,8 @@ Examples: match winner, destination club in a completed transfer, champion,
 qualifier, or the team that eliminated an opponent.
 
 The resolver never parses prose to guess a winner. It consumes explicit fact
-slots / normalized machine statuses. When dominance is not objective, it returns
-None and Dynamic Brand falls back to PUL7SAR red.
+slots / normalized machine statuses. When dominance is not objective or final,
+it returns None and Dynamic Brand falls back to PUL7SAR red.
 """
 from __future__ import annotations
 
@@ -45,13 +45,17 @@ class StoryDominantEntity:
 
 
 class StoryDominantEntityResolver:
-    """Choose contextual-brand owner only from explicit verified event semantics."""
+    """Choose contextual-brand owner only from explicit verified final semantics."""
 
+    _TRANSFER_FINAL = {"confirmed", "official", "completed", "signed"}
+    _RESULT_FINAL = {"completed", "final", "full_time", "finished"}
     _SUBJECT_WIN = {"subject_win", "subject_won", "winner_subject"}
     _OPPONENT_WIN = {"opponent_win", "opponent_won", "winner_opponent"}
     _DRAW = {"draw", "tied", "level"}
     _TITLE_WON = {"champion", "title_won", "confirmed_champion"}
     _QUALIFIED = {"qualified", "qualification_confirmed", "advanced"}
+    _ELIMINATED = {"eliminated", "elimination_confirmed", "knocked_out"}
+    _AWARD_WON = {"won", "winner", "awarded", "confirmed_winner"}
     _APPOINTED = {"appointed", "appointment_confirmed"}
     _CONTRACT_CONFIRMED = {"renewed", "extended", "contract_confirmed"}
 
@@ -80,15 +84,13 @@ class StoryDominantEntityResolver:
         values = {str(key): value for key, value in dict(facts).items() if value is not None and value != ""}
 
         if event is EditorialEvent.TRANSFER_CONFIRMED:
+            status = self._status(values.get("confirmation_status", ""))
             destination = values.get("destination")
-            if destination:
+            if status in self._TRANSFER_FINAL and destination:
                 return StoryDominantEntity(self._text(destination), DominantEntityReason.TRANSFER_DESTINATION, confidence)
             return None
 
         if event is EditorialEvent.RESULT:
-            explicit = values.get("winner_entity")
-            if explicit:
-                return StoryDominantEntity(self._text(explicit), DominantEntityReason.RESULT_WINNER, confidence)
             status = self._status(values.get("result_status", ""))
             if status in self._DRAW:
                 return None
@@ -96,34 +98,48 @@ class StoryDominantEntityResolver:
                 return StoryDominantEntity(self._text(values["subject"]), DominantEntityReason.RESULT_WINNER, confidence)
             if status in self._OPPONENT_WIN and values.get("opponent"):
                 return StoryDominantEntity(self._text(values["opponent"]), DominantEntityReason.RESULT_WINNER, confidence)
+            if status not in self._RESULT_FINAL:
+                return None
+            explicit = values.get("winner_entity")
+            if explicit:
+                return StoryDominantEntity(self._text(explicit), DominantEntityReason.RESULT_WINNER, confidence)
             return None
 
         if event is EditorialEvent.TROPHY:
+            status = self._status(values.get("title_status", ""))
+            if status not in self._TITLE_WON:
+                return None
             explicit = values.get("champion_entity")
             if explicit:
                 return StoryDominantEntity(self._text(explicit), DominantEntityReason.TROPHY_CHAMPION, confidence)
-            if self._status(values.get("title_status", "")) in self._TITLE_WON and values.get("subject"):
+            if values.get("subject"):
                 return StoryDominantEntity(self._text(values["subject"]), DominantEntityReason.TROPHY_CHAMPION, confidence)
             return None
 
         if event is EditorialEvent.QUALIFICATION:
+            status = self._status(values.get("qualification_status", ""))
+            if status not in self._QUALIFIED:
+                return None
             explicit = values.get("qualified_entity")
             if explicit:
                 return StoryDominantEntity(self._text(explicit), DominantEntityReason.QUALIFIED_ENTITY, confidence)
-            if self._status(values.get("qualification_status", "")) in self._QUALIFIED and values.get("subject"):
+            if values.get("subject"):
                 return StoryDominantEntity(self._text(values["subject"]), DominantEntityReason.QUALIFIED_ENTITY, confidence)
             return None
 
         if event is EditorialEvent.ELIMINATION:
+            status = self._status(values.get("elimination_status", ""))
+            if status not in self._ELIMINATED:
+                return None
             explicit = values.get("eliminating_entity")
             if explicit:
                 return StoryDominantEntity(self._text(explicit), DominantEntityReason.ELIMINATING_ENTITY, confidence)
-            # `subject` is the eliminated side in this schema; never color the
-            # brand from it unless the actual eliminating side is explicitly known.
             return None
 
-        if event is EditorialEvent.AWARD and values.get("subject"):
-            return StoryDominantEntity(self._text(values["subject"]), DominantEntityReason.AWARD_RECIPIENT, confidence)
+        if event is EditorialEvent.AWARD:
+            if self._status(values.get("award_status", "")) in self._AWARD_WON and values.get("subject"):
+                return StoryDominantEntity(self._text(values["subject"]), DominantEntityReason.AWARD_RECIPIENT, confidence)
+            return None
 
         if event is EditorialEvent.RECORD and values.get("subject"):
             return StoryDominantEntity(self._text(values["subject"]), DominantEntityReason.RECORD_HOLDER, confidence)
