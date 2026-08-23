@@ -2,7 +2,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from engine.intelligence.football_hybrid_composer import FootballHybridComposer, FootballHybridCompositionReceipt
+from engine.intelligence.football_hybrid_composer import (
+    TEXTURE_PRESERVING_COMPOSITION_MODE,
+    FootballHybridComposer,
+    FootballHybridCompositionReceipt,
+)
 from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
 
 
@@ -41,7 +45,7 @@ class HybridArtifactIntegrityGateTests(unittest.TestCase):
             self.assertFalse(decision.valid)
             self.assertIn("hybrid_artifact_sha256_mismatch", decision.failures)
 
-    def test_non_opaque_surface_receipt_is_rejected(self):
+    def test_opaque_legacy_surface_receipt_is_rejected(self):
         receipt = FootballHybridCompositionReceipt(
             status="FOOTBALL_HYBRID_SURFACE_COMPOSED",
             input_path="missing-a.png",
@@ -50,10 +54,29 @@ class HybridArtifactIntegrityGateTests(unittest.TestCase):
             camera_preset="high_wide_central",
             deterministic_geometry_applied=True,
             generated_pitch_markings_replaced=True,
-            surface_opacity=200,
+            surface_opacity=255,
+            composition_mode=TEXTURE_PRESERVING_COMPOSITION_MODE,
+            source_texture_preserved=True,
         )
         decision = self.gate.validate_football(receipt)
-        self.assertIn("surface_replacement_not_opaque", decision.failures)
+        self.assertIn("surface_normalization_opacity_out_of_range", decision.failures)
+
+    def test_non_texture_preserving_receipt_is_rejected(self):
+        receipt = FootballHybridCompositionReceipt(
+            status="FOOTBALL_HYBRID_SURFACE_COMPOSED",
+            input_path="missing-a.png",
+            output_path="missing-b.png",
+            canvas="1080x1350",
+            camera_preset="high_wide_central",
+            deterministic_geometry_applied=True,
+            generated_pitch_markings_replaced=True,
+            surface_opacity=54,
+            composition_mode="opaque_pitch_replacement_v0",
+            source_texture_preserved=False,
+        )
+        decision = self.gate.validate_football(receipt)
+        self.assertIn("unexpected_football_composition_mode", decision.failures)
+        self.assertIn("source_pitch_texture_not_preserved", decision.failures)
 
 
 if __name__ == "__main__":
