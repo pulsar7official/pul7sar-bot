@@ -49,8 +49,8 @@ class ColabEngineeringFallbackTests(unittest.TestCase):
 
             class FakeIntegrityGate:
                 def validate_football(self, value):
-                    self_value = value
-                    self.assertIsNotNone if False else None
+                    if value is not receipt:
+                        raise AssertionError("unexpected receipt")
                     return integrity
 
             with (
