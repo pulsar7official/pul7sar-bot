@@ -1,39 +1,54 @@
 #!/usr/bin/env python3
-"""Build the first portable PUL7SAR Golden Visual generation handoff.
+"""Build the current PUL7SAR Golden Visual hybrid base-scene handoff.
 
-This is a deterministic non-person identity benchmark for the first real GPU
-proof. It exercises the actual platform/layout/generation package path and writes
-no image; the resulting JSON is later executed by `phase18_flux2_execute.py` on
-a compatible $0-local GPU runtime.
+Golden v5 deliberately stops asking diffusion to draw exact football markings or
+PUL7SAR branding. The model owns stadium atmosphere and an unmarked reserved
+surface plane; regulation pitch geometry is composited deterministically after
+GPU generation.
 """
-
 from __future__ import annotations
 
 import argparse
 import json
 
-from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, AssetTreatment
+from engine.intelligence.assets import AssetBundle
 from engine.intelligence.generation_package import GenerationPackageCompiler
+from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContractCompiler
+from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner
 from engine.intelligence.local_backend_execution import LocalBackendRequestCompiler
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 from engine.intelligence.models import Sentiment
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification
+from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
+from engine.intelligence.story_visual_editorial import EditorialEvent, StoryVisualEditorialEngine
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
-GOLDEN_BENCHMARK_ID = "golden-visual-general-season-opener-v4"
+GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-hybrid-v5"
 
 
 def build_request(*, seed: int, request_id: str):
     platform = SocialPlatform.INSTAGRAM_FEED
     profile = PlatformProfileRegistry().get(platform)
     layout = DeterministicLayoutPlanner().plan(profile, entity_accent_hex="#E10600")
-    assets = AssetBundle((
-        AssetReference("pul7sar-wordmark", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT),
-        AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT),
-    ))
+
+    editorial = StoryVisualEditorialEngine().plan(
+        event=EditorialEvent.PREVIEW,
+        sport="football",
+        story_core="verified general football season-opening anticipation",
+        editorial_angle="the major domestic football season is returning",
+        headline_short="The season returns",
+        confidence=1.0,
+    )
+    sport_rule = SportVisualRuleRegistry().get("football")
+    layers = HybridVisualLayerPlanner().plan(editorial, sport_rule)
+    base_contract = HybridBaseSceneContractCompiler().compile(layers)
+
+    # No fixed PUL7SAR raster logo is required for base generation. Dynamic brand
+    # geometry/color is a later deterministic layer.
+    assets = AssetBundle(())
     specification = OriginalSceneSpecification(
         platform=platform,
         width=profile.width,
@@ -47,60 +62,64 @@ def build_request(*, seed: int, request_id: str):
         },
         family="general_world",
         concept=(
-            "European football season opener expressed as one unified premium editorial stadium world: "
-            "the feeling of the major leagues returning, captured in a single continuous scene with one dominant visual hierarchy"
+            "premium European football season-opening anticipation inside one continuous elite stadium world, "
+            "with the stadium atmosphere as the generative hero and a clean reserved pitch plane for later exact geometry"
         ),
         subject=None,
         identity_reference=None,
         environment=(
-            "one photorealistic elite European association-football stadium at dusk with continuous architecture, floodlights, realistic "
-            "supporter atmosphere and one regulation football pitch. The playing surface must be structurally authentic: straight touchlines "
-            "and goal lines, exactly one halfway line, exactly one centre circle centered on that halfway line, one centre mark, two aligned penalty "
-            "areas, two aligned goal areas, two goals on the goal lines, physically plausible corner arcs, and all white markings obeying the same "
-            "camera perspective. Advertising boards, screens, banners and sponsor surfaces must remain neutral and unbranded with no readable words, "
-            "logos or pseudo-text. Evoke England, Spain, Italy, Germany and France only through harmonized environmental mood, crowd energy, lighting "
-            "nuance and football culture inside the same physical stadium world, never as separate league zones, pictures, or repeated player frames"
+            "one photorealistic elite European football stadium at dusk, coherent architecture, floodlights, realistic supporter atmosphere, "
+            "deep stands and cinematic air. A broad grass-colored playing-surface plane may occupy the lower-middle frame but it must remain plain, "
+            "unmarked and visually simple because PUL7SAR code will replace that entire region with regulation pitch geometry after generation. "
+            "Advertising boards, screens, banners and sponsor surfaces must be visually neutral with no readable words, numerals, logos or pseudo-text"
         ),
         composition=(
-            "single full-bleed cinematic magazine-cover composition with one uninterrupted camera view, one coherent vanishing point, strong "
-            "foreground-to-background depth, one main focal axis across the pitch and elegant negative space for later exact PUL7SAR headline and "
-            "branding in deterministic post-composition; the generated base scene itself must contain no PUL7SAR wordmark, no number-7 logo treatment, "
-            "no pulse mark, no platform name and no generated lettering. The entire canvas must read instantly as one photograph-like editorial artwork. "
-            "The pitch itself must read immediately as one physically correct regulation association-football field rather than an approximate or decorative field graphic"
+            "single full-bleed cinematic magazine-cover composition from a high wide central lower-stand/endline-oriented camera. Preserve a clear "
+            "symmetrical trapezoidal surface region extending from the lower foreground toward the middle distance, suitable for deterministic projective "
+            "pitch replacement. Keep one coherent vanishing direction, strong foreground-to-background depth and clean overlay space. Do not paint any "
+            "football markings into the reserved surface plane"
         ),
         camera_direction=(
-            "premium wide-to-medium sports editorial lens from a low touchline or lower-stand perspective, realistic stadium depth, controlled "
-            "highlights, subtle atmospheric separation, perspective-correct field geometry and no artificial framing devices"
+            "high wide central stadium camera with the long axis of the reserved playing surface receding into depth; no extreme fisheye, no tilted horizon, "
+            "no low touchline distortion and no artificial framing devices"
         ),
         emotional_mood=Sentiment.ANTICIPATORY.value,
-        palette_strategy="PUL7SAR premium red accent with natural stadium blacks, graphite, grass and floodlight whites",
+        palette_strategy="premium dark stadium atmosphere, natural floodlight whites and restrained contextual red accents outside the reserved surface plane",
         factual_constraints=(
-            "the European domestic league season is approaching rather than already decided",
-            "the scene is general and must not imply a result, champion, transfer, or specific real-person claim",
-            "the visible playing surface must be a physically plausible regulation association-football pitch",
-            "all exact PUL7SAR branding must be absent from AI generation and added later by deterministic composition",
+            "the domestic football season is approaching rather than already decided",
+            "the scene is general and must not imply a result, champion, transfer or specific real-person claim",
+            "exact football geometry is not generated and will be applied deterministically after generation",
+            "all PUL7SAR branding and typography remain absent from AI generation",
         ),
         forbidden_visual_elements=(
             "no invented result",
             "no collage or multi-panel layout",
-            "no split-screen, grid, diptych, triptych, or contact-sheet framing",
+            "no split-screen, grid, diptych, triptych or contact-sheet framing",
             "no image-within-image composition",
-            "no malformed football pitch geometry",
-            "no duplicate, missing, warped, or invented field markings",
-            "no generated branding, wordmarks, readable text, or pseudo-text",
+            "no football pitch markings in the reserved surface plane",
+            "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines",
+            "no generated branding, wordmarks, readable text, numerals or pseudo-text",
         ),
         metadata={
             "benchmark": GOLDEN_BENCHMARK_ID,
             "composition_grammar": "single_continuous_scene",
-            "sport_geometry": "association_football_regulation_pitch",
+            "sport_geometry": "deterministic_football_pitch_projective_v1",
+            "generated_sport_geometry_allowed": False,
             "generated_branding_allowed": False,
-            "brand_composition_policy": "exact_assets_only_after_generation",
-            "visual_failure_addressed": (
-                "first proof produced a four-panel collage; second proof produced malformed football pitch markings and an incorrect generated PUL7SAR wordmark"
+            "brand_composition_policy": "dynamic_deterministic_after_generation",
+            "hybrid_surface_replacement_required": True,
+            "football_camera_preset": "high_wide_central",
+            "visual_failures_addressed": (
+                "collage composition, malformed generated pitch proportions/markings, and incorrect generated PUL7SAR wordmark"
             ),
         },
     )
-    package = GenerationPackageCompiler().compile(specification, assets, planned_layout=layout)
+    package = GenerationPackageCompiler().compile(
+        specification,
+        assets,
+        planned_layout=layout,
+        base_scene_contract=base_contract,
+    )
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
         model=FLUX2_KLEIN_4B_LOCAL,
@@ -111,15 +130,15 @@ def build_request(*, seed: int, request_id: str):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Visual #0 portable FLUX.2 handoff")
-    parser.add_argument("--output", default="output/phase18_handoffs/golden-general-season-opener.json")
+    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Hybrid v5 portable FLUX.2 handoff")
+    parser.add_argument("--output", default="output/phase18_handoffs/golden-season-opener-hybrid-v5.json")
     parser.add_argument("--seed", type=int, default=7007001)
-    parser.add_argument("--request-id", default="golden-general-season-opener-v4-001")
+    parser.add_argument("--request-id", default="golden-season-opener-hybrid-v5-001")
     args = parser.parse_args()
     request = build_request(seed=args.seed, request_id=args.request_id)
     output = LocalGenerationHandoff.write(request, args.output)
     print(json.dumps({
-        "status": "GOLDEN_HANDOFF_READY",
+        "status": "GOLDEN_HYBRID_HANDOFF_READY",
         "benchmark": GOLDEN_BENCHMARK_ID,
         "output": output,
         "model": request.model_id,
@@ -127,6 +146,8 @@ def main() -> int:
         "canvas": f"{request.width}x{request.height}",
         "cost_mode": request.metadata["cost_mode"],
         "portable_handoff": request.metadata["portable_handoff"],
+        "generated_sport_geometry_allowed": False,
+        "hybrid_surface_replacement_required": True,
     }, ensure_ascii=False, indent=2))
     return 0
 
