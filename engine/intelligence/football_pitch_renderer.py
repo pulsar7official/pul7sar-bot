@@ -1,9 +1,9 @@
 """Pillow renderer for deterministic regulation football-pitch overlays.
 
-The renderer consumes the projective geometry plan; it never asks a generative
+The renderer consumes projective world geometry; it never asks a generative
 model to draw lines, circles, penalty/corner arcs or exact pitch proportions.
-Pillow is imported lazily so CPU-only policy tests do not require image
-dependencies at import time.
+It may also paint subtle deterministic mowing bands so replacing a malformed
+generated pitch still produces a credible editorial surface.
 """
 from __future__ import annotations
 
@@ -16,15 +16,20 @@ from engine.intelligence.football_pitch_projection import FootballPitchProjectio
 @dataclass(frozen=True)
 class FootballPitchRenderStyle:
     line_rgba: tuple[int, int, int, int] = (245, 245, 245, 235)
-    surface_rgba: tuple[int, int, int, int] = (25, 92, 45, 220)
+    surface_rgba: tuple[int, int, int, int] = (25, 92, 45, 255)
+    alternate_surface_rgba: tuple[int, int, int, int] = (29, 102, 49, 255)
     line_width_px: int = 5
     mark_radius_px: int = 4
     fill_surface: bool = True
+    mowing_stripes: bool = True
+    stripe_count: int = 10
 
     def __post_init__(self) -> None:
         if self.line_width_px <= 0 or self.mark_radius_px <= 0:
             raise ValueError("line_width_px and mark_radius_px must be positive")
-        for name in ("line_rgba", "surface_rgba"):
+        if self.stripe_count < 2:
+            raise ValueError("stripe_count must be >= 2")
+        for name in ("line_rgba", "surface_rgba", "alternate_surface_rgba"):
             value = getattr(self, name)
             if len(value) != 4 or any(not isinstance(ch, int) or not 0 <= ch <= 255 for ch in value):
                 raise ValueError(f"{name} must be four 0..255 integers")
@@ -33,6 +38,25 @@ class FootballPitchRenderStyle:
 class PillowFootballPitchRenderer:
     def __init__(self, planner: FootballPitchProjectionPlanner | None = None) -> None:
         self._planner = planner or FootballPitchProjectionPlanner()
+
+    def _paint_surface(self, draw, *, destination_corners, style: FootballPitchRenderStyle) -> None:
+        if not style.fill_surface:
+            return
+        draw.polygon(destination_corners, fill=style.surface_rgba)
+        if not style.mowing_stripes:
+            return
+
+        geometry = self._planner.geometry
+        projector = self._planner.projector(destination_corners)
+        strip = geometry.length_m / style.stripe_count
+        for index in range(style.stripe_count):
+            if index % 2 == 0:
+                continue
+            x1 = index * strip
+            x2 = (index + 1) * strip
+            world = ((x1, 0.0), (x2, 0.0), (x2, geometry.width_m), (x1, geometry.width_m))
+            polygon = tuple(projector.project(point) for point in world)
+            draw.polygon(polygon, fill=style.alternate_surface_rgba)
 
     def render_overlay(
         self,
@@ -54,8 +78,7 @@ class PillowFootballPitchRenderer:
         layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
         draw = ImageDraw.Draw(layer)
 
-        if render_style.fill_surface:
-            draw.polygon(destination_corners, fill=render_style.surface_rgba)
+        self._paint_surface(draw, destination_corners=destination_corners, style=render_style)
 
         markings = self._planner.project_all_markings(destination_corners)
         for marking in markings.polylines:
