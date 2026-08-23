@@ -116,12 +116,12 @@ Hybrid v5 already has a base-scene semantic execution gate that requires model-g
 - No paid provider, secret, model weights, font files, fake PNG or fabricated benchmark was added.
 
 ### Test state
-- New/updated CPU regression tests have been committed and GitHub Actions is expected to run on the branch HEAD. Do not treat this Change Set as CI-green until a successful workflow run is observed.
-- No GPU visual result is claimed by this change.
+- GitHub Actions Run `32659343371` (run 1310): **SUCCESS** on the Change Set 095 branch HEAD.
+- Phase 18 CPU verification completed successfully; no fake GPU visual proof was generated.
+- The texture-preservation and legacy opaque-surface rejection regressions are part of the validated branch test suite.
 
 ### Remaining work
-1. Confirm Phase 18 CPU CI succeeds on the Change Set 095 HEAD.
-2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
-3. Visually inspect whether the deterministic pitch now reads as photographed turf with integrated regulation geometry rather than a graphic board.
-4. If Candidate 1 still fails, adjust only evidence-backed pitch placement/tint/line styling or the generative atmosphere contract; do not relax fact/identity/semantic/publication gates.
-5. Resolve and SHA-lock the approved PUL7SAR logo bytes before final publication composition.
+1. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
+2. Visually inspect whether the deterministic pitch now reads as photographed turf with integrated regulation geometry rather than a graphic board.
+3. If Candidate 1 still fails, adjust only evidence-backed pitch placement/tint/line styling or the generative atmosphere contract; do not relax fact/identity/semantic/publication gates.
+4. Resolve and SHA-lock the approved PUL7SAR logo bytes before final publication composition.
