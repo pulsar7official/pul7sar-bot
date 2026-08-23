@@ -3,8 +3,8 @@
 
 This command is the transport/preflight boundary between CI and a GPU runtime.
 It validates the manifest, every v2 handoff SHA-256, request/seed/model identity,
-zero-cost policy, canvas contract, composition grammar, and one-to-one file
-coverage before expensive model loading begins.
+zero-cost policy, canvas contract, composition grammar, sport geometry, and
+one-to-one file coverage before expensive model loading begins.
 """
 
 from __future__ import annotations
@@ -17,7 +17,11 @@ from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
-SUPPORTED_MANIFEST_VERSIONS = {"pul7sar-golden-batch-v1", "pul7sar-golden-batch-v2"}
+SUPPORTED_MANIFEST_VERSIONS = {
+    "pul7sar-golden-batch-v1",
+    "pul7sar-golden-batch-v2",
+    "pul7sar-golden-batch-v3",
+}
 
 
 def verify_batch(manifest_path: str) -> dict[str, object]:
@@ -28,8 +32,12 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         raise ValueError("unsupported Golden Visual batch manifest version")
     if manifest.get("cost_mode") != "$0-local":
         raise ValueError("Golden Visual batch must remain locked to $0-local")
-    if manifest_version == "pul7sar-golden-batch-v2" and manifest.get("composition_grammar") != "single_continuous_scene":
-        raise ValueError("Golden Visual v2 batch must lock the single_continuous_scene composition grammar")
+    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3"}:
+        if manifest.get("composition_grammar") != "single_continuous_scene":
+            raise ValueError("Golden Visual v2+ batch must lock the single_continuous_scene composition grammar")
+    if manifest_version == "pul7sar-golden-batch-v3":
+        if manifest.get("sport_geometry") != "association_football_regulation_pitch":
+            raise ValueError("Golden Visual v3 batch must lock regulation association-football pitch geometry")
     candidates = manifest.get("candidates")
     if not isinstance(candidates, list) or not candidates:
         raise ValueError("Golden Visual batch manifest contains no candidates")
@@ -76,14 +84,25 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             raise ValueError(f"unexpected backend for {request_id}")
         if request.metadata.get("cost_mode") != "$0-local":
             raise ValueError(f"candidate {request_id} escaped $0-local mode")
-        if manifest_version == "pul7sar-golden-batch-v2":
-            prompt = request.prompt.casefold()
+
+        prompt = request.prompt.casefold()
+        if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3"}:
             required_prompt_markers = (
                 "one single continuous full-bleed editorial image",
                 "never use collage, montage, split-screen, grid, diptych, triptych",
             )
             if any(marker not in prompt for marker in required_prompt_markers):
-                raise ValueError(f"candidate {request_id} is missing the v2 unified-scene prompt lock")
+                raise ValueError(f"candidate {request_id} is missing the v2+ unified-scene prompt lock")
+        if manifest_version == "pul7sar-golden-batch-v3":
+            geometry_markers = (
+                "regulation association-football pitch geometry",
+                "exactly one halfway line",
+                "exactly one circular centre circle",
+                "do not duplicate the halfway line or centre circle",
+            )
+            if any(marker not in prompt for marker in geometry_markers):
+                raise ValueError(f"candidate {request_id} is missing the v3 football-geometry prompt lock")
+
         target_width = request.metadata.get("target_width")
         target_height = request.metadata.get("target_height")
         expected_target = item.get("target_canvas")
@@ -116,6 +135,7 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         "status": "GOLDEN_BATCH_INTEGRITY_VERIFIED",
         "manifest_version": manifest_version,
         "composition_grammar": manifest.get("composition_grammar", "legacy_unspecified"),
+        "sport_geometry": manifest.get("sport_geometry", "legacy_unspecified"),
         "cost_mode": "$0-local",
         "candidate_count": len(verified),
         "candidates": verified,
