@@ -45,6 +45,8 @@ class SemanticVisualVerdict:
     subject_framing_valid: SemanticCheck
     sport_geometry_alignment_valid: SemanticCheck | None = None
     identity_valid: SemanticCheck | None = None
+    exact_numbers_absent: SemanticCheck | None = None
+    generated_sport_geometry_absent: SemanticCheck | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.verifier_id, str) or not self.verifier_id.strip():
