@@ -223,10 +223,20 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - No files deleted; no production path or quality/safety gate weakened.
 - Detailed record: `docs/PHASE18_CHANGESET_067_COLAB_SHA_PREFLIGHT.md`.
 
-## Current verified Golden Visual state
-A genuine Phase 18 PNG has been generated on a Google Colab Tesla T4 using the locked FLUX.2 Klein BF16 path with sequential CPU offload. That first v1 proof is retained as technical evidence but is visually rejected as a Golden candidate because it produced a four-panel collage. The current benchmark is v2 and explicitly locks `single_continuous_scene`; Change Set 067 now guarantees that the next Colab result is bound to the exact current v2 handoff SHA before reuse or acceptance as a fresh technical proof. A v2 PNG has not yet been generated, so no Golden-quality claim is made.
+## Change Set 068 — Golden v2 smoke compatibility and CI regression repair
+- Full CI Run `32629494120` exposed remaining v1-only assumptions after the v2 Visual Intelligence migration: the Golden smoke coordinator rejected `pul7sar-golden-batch-v2`, the batch regression still asserted v1, and smoke tests still expected the old v1 request ID.
+- `engine/intelligence/golden_smoke.py` now explicitly supports v1 historical evidence and the current v2 manifest; v2 additionally requires `composition_grammar=single_continuous_scene` and a unified-scene prompt marker before candidate 1 may enter the durable smoke queue.
+- `tests/test_phase18_golden_batch.py` now locks the current v2 manifest/composition grammar and verifies the generated prompt contains the unified-scene marker.
+- `tests/test_phase18_golden_smoke.py` now expects `golden-general-season-opener-v2-001`, retains SHA/cost/job/terminal-failure checks, and adds fail-closed v2 composition-grammar drift coverage.
+- The Colab targeted CPU preflight now also includes the Golden batch and Golden smoke modules so this migration class of regression is caught before GPU time is spent.
+- GitHub Actions Run `32629634107`: SUCCESS after the core v2 compatibility repair; syntax, full Phase 18 tests, production isolation, Golden v2 handoff build, four-candidate batch build and integrity verification all passed.
+- No runtime/test files deleted and no production path or quality/safety gate weakened.
+- Detailed record: `docs/PHASE18_CHANGESET_068_GOLDEN_V2_SMOKE_COMPAT.md`.
 
-## Production safety through Change Set 067
+## Current verified Golden Visual state
+A genuine Phase 18 PNG has been generated on a Google Colab Tesla T4 using the locked FLUX.2 Klein BF16 path with sequential CPU offload. That first v1 proof remains valid technical evidence but is visually rejected as a Golden candidate because it produced a four-panel collage. The current benchmark is v2 and explicitly locks `single_continuous_scene`. The complete CPU/CI preparation path is now v2-compatible and green, and Colab result reuse is bound to the exact handoff SHA. A genuine v2 candidate-1 PNG has not yet been executed, so no v2 Golden-quality claim is made.
+
+## Production safety through Change Set 068
 - `main`: untouched by Phase 18 development changes.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -244,15 +254,16 @@ A genuine Phase 18 PNG has been generated on a Google Colab Tesla T4 using the l
 - Low-VRAM mitigation changes memory placement only; it does not weaken model, dtype, prompt, seed, canvas, factual, identity, semantic or visual-quality constraints.
 - Unified-scene Visual Intelligence changes composition semantics only; exact logos, PUL7SAR branding and typography remain deterministic post-composition assets.
 - Colab automation is branch-locked and cannot silently update or run against `main`.
-- Colab durable-result reuse now requires the exact current handoff SHA-256 and `$0-local` contract; stale legacy output cannot be treated as a current v2 proof.
+- Colab durable-result reuse requires the exact current handoff SHA-256 and `$0-local` contract; stale legacy output cannot be treated as a current v2 proof.
+- Golden v2 smoke queue entry additionally requires the unified single-scene grammar instead of merely accepting the manifest version.
 
-## Architecture after Change Set 067
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v2 [single_continuous_scene] -> Colab CPU Regression Preflight -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Human/Automated Semantic Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 068
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v2 [single_continuous_scene] -> Colab CPU Regression Preflight [unified-scene + batch + smoke + SHA] -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Human/Automated Semantic Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Pull Change Set 067 into the active Colab T4 checkout.
-2. Run `tools/phase18_colab_runner.py --update --candidate 1`; its targeted CPU regression preflight now runs automatically before GPU execution.
-3. Execute only v2 candidate 1; do not spend GPU time on candidates 2–4 until the new unified-scene direction is visually judged.
+1. Pull Change Sets 067–068 into the active Colab T4 checkout.
+2. Run `PYTHONPATH=. python tools/phase18_colab_runner.py --update --candidate 1`; the expanded targeted CPU regression preflight runs automatically before GPU execution.
+3. Execute only v2 candidate 1; do not spend GPU time on candidates 2–4 until the unified-scene direction is visually judged.
 4. Judge the fresh SHA-bound v2 PNG specifically for removal of collage/panel structure, editorial hierarchy, realism, protected-zone cleanliness and overall PUL7SAR direction.
 5. If v2 candidate 1 is directionally correct, run the remaining deterministic seeds sequentially and apply the strict Golden scorecard.
 6. Use observed successful runtimes and memory telemetry—not theoretical throughput—to size the future production GPU worker pool.
