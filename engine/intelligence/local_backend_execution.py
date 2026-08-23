@@ -87,6 +87,34 @@ class LocalImageBackend(Protocol):
     def generate(self, request: LocalBackendGenerationRequest) -> LocalBackendGenerationResult: ...
 
 
+class LocalBackendResultGate:
+    """Require the local backend to preserve every locked execution identity field."""
+
+    def validate(
+        self,
+        request: LocalBackendGenerationRequest,
+        result: LocalBackendGenerationResult,
+    ) -> LocalGenerationProvenance:
+        if not isinstance(request, LocalBackendGenerationRequest):
+            raise TypeError("request must be LocalBackendGenerationRequest")
+        if not isinstance(result, LocalBackendGenerationResult):
+            raise TypeError("result must be LocalBackendGenerationResult")
+
+        locked = (
+            ("provider_id", request.provider_id, result.provider_id),
+            ("model_id", request.model_id, result.model_id),
+            ("backend", request.backend, result.backend),
+            ("seed", request.seed, result.seed),
+            ("request_id", request.request_id, result.request_id),
+            ("width", request.width, result.width),
+            ("height", request.height, result.height),
+        )
+        drift = [name for name, expected, actual in locked if expected != actual]
+        if drift:
+            raise ValueError("local backend result drifted from locked request: " + ", ".join(drift))
+        return result.provenance
+
+
 class LocalBackendRequestCompiler:
     """Compile exact local-backend requests while keeping brand tokens out of diffusion."""
 
