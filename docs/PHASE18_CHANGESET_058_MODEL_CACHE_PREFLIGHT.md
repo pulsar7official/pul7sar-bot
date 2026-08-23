@@ -33,6 +33,10 @@ Remove a non-GPU failure mode from the first genuine Golden Visual run. A host m
   - Adds a pre-generation model-cache step after GPU dependencies are installed and before Golden readiness/generation.
   - Verifies the receipt remains `$0-local` and points to the exact approved model ID.
   - Preserves the same self-hosted CUDA/BF16 labels, explicit confirmation token and publication gating.
+- `tests/test_phase18_gpu_smoke_workflow.py`
+  - Locks the model-prefetch step into regression coverage.
+  - Requires prefetch to occur before model-specific readiness and before the first-PNG command.
+  - Keeps the workflow self-hosted, BF16-locked and free of paid-provider secrets.
 
 ### Deleted
 None.
