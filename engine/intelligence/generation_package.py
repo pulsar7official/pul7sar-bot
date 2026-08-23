@@ -7,6 +7,7 @@ from types import MappingProxyType
 from typing import Any, Mapping, Optional
 
 from engine.intelligence.assets import AssetBundle, AssetRole
+from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContract
 from engine.intelligence.layout_planner import PlannedLayout
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 
@@ -43,7 +44,13 @@ class GenerationPackage:
 
 
 class GenerationPackageCompiler:
-    """Compile approved scene state while preserving identity provenance."""
+    """Compile approved base-scene state while preserving exact-layer ownership.
+
+    Base generation must not depend on a fixed PUL7SAR raster logo asset because
+    Phase 18 branding is deterministic and dynamic. Brand readiness is checked
+    later by the post/dynamic-brand composition layer, not before atmosphere
+    generation.
+    """
 
     def compile(
         self,
@@ -51,11 +58,14 @@ class GenerationPackageCompiler:
         assets: AssetBundle,
         *,
         planned_layout: Optional[PlannedLayout] = None,
+        base_scene_contract: Optional[HybridBaseSceneContract] = None,
     ) -> GenerationPackage:
         if not isinstance(specification, OriginalSceneSpecification):
             raise TypeError("specification must be OriginalSceneSpecification")
         if not isinstance(assets, AssetBundle):
             raise TypeError("assets must be AssetBundle")
+        if base_scene_contract is not None and not isinstance(base_scene_contract, HybridBaseSceneContract):
+            raise TypeError("base_scene_contract must be HybridBaseSceneContract or None")
         if planned_layout is not None:
             if not isinstance(planned_layout, PlannedLayout):
                 raise TypeError("planned_layout must be PlannedLayout or None")
@@ -64,7 +74,8 @@ class GenerationPackageCompiler:
             if planned_layout.profile.width != specification.width or planned_layout.profile.height != specification.height:
                 raise ValueError("planned layout canvas mismatch")
 
-        assets.assert_brand_ready()
+        # Team/competition/identity assets still remain exact. PUL7SAR branding
+        # itself is intentionally not required for the base-scene request.
         assets.assert_team_crests_exact()
         social_assets = assets.by_role(AssetRole.SOCIAL_ICON)
         identity_assets = assets.by_role(AssetRole.VERIFIED_IDENTITY_REFERENCE)
@@ -139,9 +150,11 @@ class GenerationPackageCompiler:
             "Generate only the clean photographic/editorial base scene. Do not draw or imitate the PUL7SAR logo, heartbeat mark, number 7, wordmark, club/team crests, competition marks, social icons, headline typography, score typography, footer text, watermark, signature, or any other editorial overlay.",
             "The AI base scene must contain zero PUL7SAR lettering and zero generated PUL7SAR branding. Never spell PUL7SAR, PULSAR, or any approximation of the platform name anywhere in the scene. Never invent a substitute wordmark, stylized seven, pulse mark, or platform badge.",
             "Keep stadium advertising boards, banners, screens, kit sponsors, and environmental signage visually neutral and unbranded with no legible words, letters, numerals, pseudo-text, fake logos, or readable sponsor marks. Exact branding and typography are added only by deterministic post-composition.",
-            "Official marks, PUL7SAR branding, the contextual number-7/pulse tint, and all final editorial typography are deterministic post-composition assets and must remain absent from the AI base scene.",
+            "Official marks, PUL7SAR branding, the contextual number-7/pulse tint, and all final editorial typography are deterministic post-composition layers and must remain absent from the AI base scene.",
             "If a club/team identity is visually implied through kit or environment, keep it editorially plausible without inventing unreadable pseudo-logos or fake text.",
         ))
+        if base_scene_contract is not None:
+            prompt_parts.append(base_scene_contract.prompt_suffix)
         if social_assets:
             prompt_parts.append(
                 "Reserve a compact, visually quiet footer zone for a later small platform icon plus PUL7SAR handle; do not render that footer yourself."
@@ -155,9 +168,12 @@ class GenerationPackageCompiler:
             "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
             "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
             "base_scene_overlay_policy": "no_brand_or_editorial_overlays_in_ai_scene",
+            "brand_source": "deterministic_dynamic_brand_layer",
             "generated_branding_allowed": False,
             "composition_grammar": "single_continuous_scene",
             "multi_panel_layout_allowed": False,
+            "hybrid_base_scene_contract": base_scene_contract is not None,
+            "reserved_base_scene_content": base_scene_contract.reserved_content if base_scene_contract else (),
             "identity_required": identity is not None,
             "identity_entity_name": identity.entity_name if identity else None,
             "identity_reference_confidence": identity.confidence if identity else None,
