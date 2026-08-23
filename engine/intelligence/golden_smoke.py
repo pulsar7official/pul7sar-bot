@@ -1,7 +1,8 @@
 """Fail-closed coordinator for genuine Golden Visual GPU smoke runs.
 
 v5 coordinates an atmosphere-only generative candidate whose football surface
-is replaced deterministically after generation.
+is replaced deterministically after generation. The image-model prompt must not
+contain the protected platform-name token.
 """
 from __future__ import annotations
 
@@ -13,7 +14,6 @@ from typing import Any
 from engine.intelligence.generation_job_store import FilesystemGenerationJobStore
 from engine.intelligence.generation_jobs import GenerationJob, GenerationJobState
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
-
 
 SUPPORTED_GOLDEN_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v1",
@@ -112,11 +112,15 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
             "unmarked neutral sport-surface region reserved for deterministic overlay",
             "no field/court/rink lines",
             "the exact surface will be replaced by deterministic code after generation",
-            "zero pul7sar lettering",
-            "never spell pul7sar, pulsar, or any approximation",
+            "fully unbranded",
+            "platform names",
         )
         if any(marker not in prompt for marker in hybrid_markers):
             raise ValueError("candidate 1 v5 handoff is missing hybrid ownership prompt lock")
+        if "pul7sar" in prompt or "pulsar" in prompt:
+            raise ValueError("candidate 1 v5 handoff leaked protected platform name")
+        if request.metadata.get("brand_name_redacted_from_generation_prompt") is not True:
+            raise ValueError("candidate 1 v5 handoff is missing brand-name redaction attestation")
 
 
 def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
