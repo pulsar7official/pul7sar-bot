@@ -18,9 +18,8 @@ from typing import Any
 
 from engine.intelligence.semantic_visual_verdict import InspectionState, SemanticCheck, SemanticVisualVerdict
 
-
 MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-VERIFIER_ID = "qwen2.5-vl-3b-local-v1"
+VERIFIER_ID = "qwen2.5-vl-3b-local-v2"
 
 
 class Qwen25VLInspectionError(RuntimeError):
@@ -30,7 +29,7 @@ class Qwen25VLInspectionError(RuntimeError):
 @dataclass(frozen=True)
 class Qwen25VLConfig:
     model_id: str = MODEL_ID
-    max_new_tokens: int = 512
+    max_new_tokens: int = 640
     minimum_self_confidence: float = 0.85
 
 
@@ -74,16 +73,18 @@ class Qwen25VLSemanticInspector:
         return f"""You are a strict sports-editorial visual QA inspector. Inspect only the supplied image. Do not infer facts outside the pixels.
 Expected hero subject: {subject}.
 Return ONE JSON object only, with exactly these keys:
-readable_text_absent, platform_brand_absent, fake_entity_marks_absent, single_scene, severe_defects_absent, subject_framing_valid, sport_geometry_alignment_valid.
+readable_text_absent, platform_brand_absent, fake_entity_marks_absent, exact_numbers_absent, generated_sport_geometry_absent, single_scene, severe_defects_absent, subject_framing_valid, sport_geometry_alignment_valid.
 Each value must be an object with keys: pass (boolean), confidence (number 0..1), detail (short string).
 Rules:
-- readable_text_absent=false if any obvious generated readable/pseudo-readable lettering or numerals appear where the clean base scene should be unbranded.
-- platform_brand_absent=false if any obvious platform wordmark/logo-like branding appears.
-- fake_entity_marks_absent=false if obviously invented team/competition crests or logo-like marks appear.
-- single_scene=false for collage, split-screen, tiled, multi-panel, image-within-image composition.
-- severe_defects_absent=false for major malformed anatomy, impossible objects, gross perspective failures, duplicated structural objects, or visually broken sport scene elements.
-- subject_framing_valid=true when the expected subject is none and the scene has a usable editorial focal hierarchy; when an expected subject is supplied, require that subject to be clearly usable and not badly cropped/occluded.
-- sport_geometry_alignment_valid=true only if the visible playing surface has physically plausible proportions and its plane, perspective, horizon/vanishing direction and connection to the surrounding stadium/arena look coherent. False if the field appears pasted in, too wide/short, skewed against the stadium, floating, or impossible even when its internal markings are mathematically correct.
+- readable_text_absent=false if obvious generated readable or pseudo-readable lettering appears in the clean base scene.
+- platform_brand_absent=false if any PUL7SAR-like/platform wordmark, seven/pulse imitation, or logo-like platform branding appears.
+- fake_entity_marks_absent=false if obviously invented team, federation, league or competition crests/marks appear.
+- exact_numbers_absent=false if score-like numerals, dates, fees, standings values, record values or other editorial exact-number graphics appear in the generative base scene. Incidental jersey numbers inside a natural athlete depiction are not editorial exact-number graphics.
+- generated_sport_geometry_absent=false if the generative base scene visibly owns exact field/court/rink markings or diagram geometry that should instead be supplied by a deterministic layer. Natural vague turf/floor/arena texture without exact markings may pass.
+- single_scene=false for collage, split-screen, tiled, multi-panel or image-within-image composition.
+- severe_defects_absent=false for major malformed anatomy, impossible objects, gross perspective failures, duplicated structural objects or visually broken sport elements.
+- subject_framing_valid=true when expected subject is none and the scene has a usable editorial focal hierarchy; when supplied, require the subject to be usable and not badly cropped/occluded.
+- sport_geometry_alignment_valid=true only when any visible final playing-surface geometry is physically plausible and coherent with the surrounding arena perspective. If no exact playing-surface geometry is visible, pass with detail saying not materially present.
 Be conservative. If uncertain, lower confidence rather than pretending certainty."""
 
     @staticmethod
@@ -96,10 +97,8 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             generated = output.get("generated_text")
             if isinstance(generated, list):
                 for item in reversed(generated):
-                    if isinstance(item, dict):
-                        content = item.get("content")
-                        if isinstance(content, str):
-                            return content
+                    if isinstance(item, dict) and isinstance(item.get("content"), str):
+                        return item["content"]
             for key in ("text", "content"):
                 if isinstance(output.get(key), str):
                     return output[key]
@@ -152,25 +151,13 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             raise Qwen25VLInspectionError(f"cannot decode inspection image: {exc}") from exc
 
         pipe = self._load()
-        messages = [{
-            "role": "user",
-            "content": [
-                {"type": "image"},
-                {"type": "text", "text": self._instruction(expected_subject)},
-            ],
-        }]
+        messages = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": self._instruction(expected_subject)}]}]
         try:
-            output = pipe(
-                text=messages,
-                images=[image],
-                max_new_tokens=self.config.max_new_tokens,
-                return_full_text=False,
-            )
+            output = pipe(text=messages, images=[image], max_new_tokens=self.config.max_new_tokens, return_full_text=False)
         except Exception as exc:
             raise Qwen25VLInspectionError(f"semantic inspection inference failed: {exc}") from exc
 
-        text = self._extract_text(output)
-        data = self._json_object(text)
+        data = self._json_object(self._extract_text(output))
         return SemanticVisualVerdict(
             verifier_id=VERIFIER_ID,
             readable_text_absent=self._check(data, "readable_text_absent"),
@@ -180,5 +167,7 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             severe_defects_absent=self._check(data, "severe_defects_absent"),
             subject_framing_valid=self._check(data, "subject_framing_valid"),
             sport_geometry_alignment_valid=self._check(data, "sport_geometry_alignment_valid"),
+            exact_numbers_absent=self._check(data, "exact_numbers_absent"),
+            generated_sport_geometry_absent=self._check(data, "generated_sport_geometry_absent"),
             identity_valid=None,
         )
