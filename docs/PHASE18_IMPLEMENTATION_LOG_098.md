@@ -115,8 +115,9 @@ Once Candidate 1 exists, the next uncertainty is whether deterministic pitch pla
 - No paid provider, secret, model weights, font files, fake PNG, or fabricated benchmark was added.
 
 ### Test state
-- Regression tests were added for the new Colab pitch-review path.
-- A new GitHub Actions result for the Change Set 099 code/test head must be observed before this log can claim CI success.
+- GitHub Actions Run `32671679688` (run 1360): **SUCCESS** on the Change Set 099 head.
+- Syntax check, discover-based Phase 18 validation, completion audit, production isolation, Golden Hybrid v5 handoff build, four-candidate batch build, batch integrity verification, and the current v5 contract assertion all passed.
+- Visual-proof upload remained skipped because CPU CI did not fabricate a GPU PNG.
 - No GPU result is claimed by this change.
 
 ### Remaining work
