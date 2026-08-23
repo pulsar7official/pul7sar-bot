@@ -37,6 +37,9 @@ jobs:
         run: |
           python tools/phase18_cpu_validate.py
           python -m unittest -v tests.test_story_intelligence_models
+      - name: Run Phase 18 completion audit
+        run: |
+          python tools/phase18_completion_audit.py
       - name: Verify production isolation
         run: |
           python - <<'PY'
