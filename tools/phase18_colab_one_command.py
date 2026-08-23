@@ -9,8 +9,8 @@ Flow:
 5. replace the reserved football surface with deterministic 105m x 68m geometry,
 6. verify composition receipt/file hashes,
 7. optionally run local Qwen semantic visual inspection after FLUX exits,
-8. run receipt-backed HybridVisualQualityGate,
-9. report remaining publication blockers and display the proof.
+8. require semantic pitch/stadium perspective alignment for the Golden proof,
+9. run receipt-backed HybridVisualQualityGate and report blockers.
 
 The command never equates PNG generation with publication readiness.
 """
@@ -89,7 +89,12 @@ def _semantic_payload(
 
     try:
         verdict = Qwen25VLSemanticInspector().inspect_file(str(output), expected_subject=None)
-        approved, failures = SemanticVisualVerdictGate().evaluate(verdict, identity_required=False, minimum_confidence=0.85)
+        approved, failures = SemanticVisualVerdictGate().evaluate(
+            verdict,
+            identity_required=False,
+            geometry_alignment_required=True,
+            minimum_confidence=0.85,
+        )
         checks = {
             name: {
                 "state": getattr(verdict, name).state.value,
@@ -99,6 +104,7 @@ def _semantic_payload(
             for name in (
                 "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
                 "single_scene", "severe_defects_absent", "subject_framing_valid",
+                "sport_geometry_alignment_valid",
             )
         }
         semantic_capable = verdict.complete_non_identity
@@ -115,6 +121,7 @@ def _semantic_payload(
             "status": "SEMANTIC_VISUAL_INSPECTION_COMPLETE",
             "verifier_id": verdict.verifier_id,
             "approved": approved,
+            "geometry_alignment_required": True,
             "failures": list(failures),
             "checks": checks,
         }, caps, verdict
@@ -123,6 +130,7 @@ def _semantic_payload(
             "mode": "qwen2.5-vl-3b-local",
             "status": "SEMANTIC_VISUAL_INSPECTION_FAILED",
             "approved": False,
+            "geometry_alignment_required": True,
             "error": str(exc),
         }, base_caps, None
 
@@ -231,15 +239,15 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/8 Updating protected Phase 18 branch...")
+    print("1/9 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
 
-    print("2/8 Discovering and running all Phase 18 CPU validation...")
+    print("2/9 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
 
-    print("3/8 Entering locked atmosphere-only Golden runner...")
+    print("3/9 Entering locked atmosphere-only Golden runner...")
     command = [
         sys.executable,
         str(ROOT / "tools" / "phase18_colab_runner.py"),
@@ -256,11 +264,12 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/8 Replacing generated surface with deterministic regulation football geometry...")
-    print("5/8 Verifying deterministic composition artifact hashes and receipt...")
-    print("6/8 Running/reporting semantic visual inspection according to selected mode...")
-    print("7/8 Running receipt-backed Hybrid Visual QA...")
-    print("8/8 Reporting blockers and displaying hybrid proof...")
+    print("4/9 Replacing generated surface with deterministic regulation football geometry...")
+    print("5/9 Verifying deterministic composition artifact hashes and receipt...")
+    print("6/9 Running/reporting semantic visual inspection according to selected mode...")
+    print("7/9 Verifying football pitch/stadium perspective alignment...")
+    print("8/9 Running receipt-backed Hybrid Visual QA...")
+    print("9/9 Reporting blockers and displaying hybrid proof...")
     _compose_hybrid(args.candidate, args.semantic_inspection)
     return 0
 
