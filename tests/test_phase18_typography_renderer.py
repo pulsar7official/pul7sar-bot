@@ -18,6 +18,10 @@ class TypographyRendererTests(unittest.TestCase):
             align=TextAlign.LEFT,
         )
 
+    def test_arabic_script_is_detected_for_complex_shaping(self):
+        self.assertTrue(PillowTypographyRenderer._contains_arabic("ريال مدريد يحسم الصفقة"))
+        self.assertFalse(PillowTypographyRenderer._contains_arabic("Real Madrid signs player"))
+
     def test_layout_font_id_must_match_approved_font(self):
         with self.assertRaisesRegex(ValueError, "font_id"):
             PillowTypographyRenderer().render_on_file(
