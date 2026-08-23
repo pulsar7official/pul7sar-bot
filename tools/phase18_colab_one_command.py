@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """One-command Colab entrypoint for PUL7SAR Phase 18 Golden Hybrid v5.
 
-The critical semantic rule is stage separation: inspect the FLUX base before
-sport geometry is added, then inspect the deterministic hybrid surface for
+The critical semantic rule is stage separation: prove semantic-inspector runtime
+compatibility before spending GPU time, inspect the FLUX base before sport
+geometry is added, then inspect the deterministic hybrid surface for
 physical/perspective integration. Deterministic geometry is never mistaken for
 forbidden model-generated geometry.
 """
@@ -119,6 +120,21 @@ def _golden_layer_plan():
     return HybridVisualLayerPlanner().plan(editorial, SportVisualRuleRegistry().get("football"))
 
 
+def _require_semantic_runtime_ready() -> dict[str, object]:
+    readiness = Qwen25VLReadinessProbe().inspect()
+    payload: dict[str, object] = {
+        "ready": readiness.ready,
+        "failures": list(readiness.failures),
+        "model_id": readiness.model_id,
+        "transformers_version": readiness.transformers_version,
+        "torch_version": readiness.torch_version,
+        "cuda_available": readiness.cuda_available,
+    }
+    if not readiness.ready:
+        raise RuntimeError("SEMANTIC_INSPECTOR_RUNTIME_NOT_READY: " + "; ".join(readiness.failures))
+    return payload
+
+
 def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
     if not LATEST.is_file():
         raise RuntimeError("COLAB_RUNNER_SUMMARY_MISSING")
@@ -146,17 +162,9 @@ def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
     semantic_complete = False
     layer_plan = _golden_layer_plan()
 
-    readiness = Qwen25VLReadinessProbe().inspect()
-    semantic_report["runtime_readiness"] = {
-        "ready": readiness.ready,
-        "failures": list(readiness.failures),
-        "model_id": readiness.model_id,
-        "transformers_version": readiness.transformers_version,
-        "torch_version": readiness.torch_version,
-        "cuda_available": readiness.cuda_available,
-    }
-    if not readiness.ready:
-        raise RuntimeError("SEMANTIC_INSPECTOR_RUNTIME_NOT_READY: " + "; ".join(readiness.failures))
+    # Recheck immediately before inference as a defense-in-depth guarantee. The
+    # same readiness gate also runs before the FLUX base runner in main().
+    semantic_report["runtime_readiness"] = _require_semantic_runtime_ready()
 
     try:
         inspector = Qwen25VLSemanticInspector()
@@ -300,13 +308,22 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/12 Updating protected Phase 18 branch...")
+    print("1/13 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
-    print("2/12 Discovering and running all Phase 18 CPU validation...")
+    print("2/13 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
-    print("3/12 Entering locked atmosphere-only Golden runner...")
+
+    if not args.prepare_only:
+        if args.semantic_inspection != "qwen":
+            raise RuntimeError("SEMANTIC_LAYER_EVIDENCE_REQUIRED_BEFORE_GPU_GENERATION")
+        print("3/13 Proving Qwen/Pillow semantic runtime compatibility before GPU generation...")
+        _require_semantic_runtime_ready()
+    else:
+        print("3/13 Semantic runtime preflight deferred because --prepare-only was requested.")
+
+    print("4/13 Entering locked atmosphere-only Golden runner...")
     command = [sys.executable, str(ROOT / "tools" / "phase18_colab_runner.py"), "--candidate", str(args.candidate), "--skip-targeted-tests"]
     if args.force:
         command.append("--force")
@@ -318,15 +335,15 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/12 Checking semantic-inspector runtime readiness...")
-    print("5/12 Inspecting FLUX base for forbidden text/brand/numbers/generated sport geometry...")
-    print("6/12 Enforcing complete semantic layer ownership before composition...")
-    print("7/12 Replacing surface with deterministic regulation football geometry...")
-    print("8/12 Verifying deterministic composition artifact hashes and receipt...")
-    print("9/12 Inspecting hybrid pitch/stadium perspective integration...")
-    print("10/12 Merging stage-specific semantic evidence...")
-    print("11/12 Running receipt-backed Hybrid Visual QA...")
-    print("12/12 Reporting blockers and displaying hybrid proof...")
+    print("5/13 Rechecking semantic runtime immediately before visual inspection...")
+    print("6/13 Inspecting FLUX base for forbidden text/brand/numbers/generated sport geometry...")
+    print("7/13 Enforcing complete semantic layer ownership before composition...")
+    print("8/13 Replacing surface with deterministic regulation football geometry...")
+    print("9/13 Verifying deterministic composition artifact hashes and receipt...")
+    print("10/13 Inspecting hybrid pitch/stadium perspective integration...")
+    print("11/13 Merging stage-specific semantic evidence...")
+    print("12/13 Running receipt-backed Hybrid Visual QA...")
+    print("13/13 Reporting blockers and displaying hybrid proof...")
     _compose_hybrid(args.candidate, args.semantic_inspection)
     return 0
 
