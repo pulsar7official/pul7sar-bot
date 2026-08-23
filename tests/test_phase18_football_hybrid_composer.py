@@ -2,7 +2,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from engine.intelligence.football_hybrid_composer import FootballHybridComposer
+from engine.intelligence.football_hybrid_composer import (
+    DEFAULT_SURFACE_OPACITY,
+    TEXTURE_PRESERVING_COMPOSITION_MODE,
+    FootballHybridComposer,
+)
 from engine.intelligence.football_pitch_placement import FootballCameraPreset, FootballPitchPlacementPlanner
 
 
@@ -23,7 +27,7 @@ class FootballPitchPlacementTests(unittest.TestCase):
 
 
 class FootballHybridComposerTests(unittest.TestCase):
-    def test_composer_writes_real_png_and_receipt(self):
+    def test_composer_writes_real_png_and_texture_preserving_receipt(self):
         try:
             from PIL import Image
         except ImportError:
@@ -38,13 +42,55 @@ class FootballHybridComposerTests(unittest.TestCase):
             self.assertEqual(receipt.status, "FOOTBALL_HYBRID_SURFACE_COMPOSED")
             self.assertTrue(receipt.deterministic_geometry_applied)
             self.assertTrue(receipt.generated_pitch_markings_replaced)
-            self.assertEqual(receipt.surface_opacity, 255)
+            self.assertEqual(receipt.surface_opacity, DEFAULT_SURFACE_OPACITY)
+            self.assertLess(receipt.surface_opacity, 255)
+            self.assertEqual(receipt.composition_mode, TEXTURE_PRESERVING_COMPOSITION_MODE)
+            self.assertTrue(receipt.source_texture_preserved)
             self.assertEqual(len(receipt.input_sha256), 64)
             self.assertEqual(len(receipt.output_sha256), 64)
             self.assertNotEqual(receipt.input_sha256, receipt.output_sha256)
             with Image.open(output) as image:
                 self.assertEqual(image.size, (640, 800))
                 self.assertEqual(image.format, "PNG")
+
+    def test_surface_normalisation_preserves_underlying_pixel_variation(self):
+        try:
+            from PIL import Image, ImageDraw
+        except ImportError:
+            self.skipTest("Pillow unavailable")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.png"
+            output = root / "hybrid.png"
+            image = Image.new("RGB", (640, 800), (35, 95, 45))
+            draw = ImageDraw.Draw(image)
+            # Two visibly different turf patches inside the high-wide pitch polygon.
+            draw.rectangle((250, 500, 310, 560), fill=(18, 55, 28))
+            draw.rectangle((330, 500, 390, 560), fill=(78, 145, 82))
+            image.save(base)
+
+            FootballHybridComposer().compose_file(base_path=str(base), output_path=str(output))
+            with Image.open(output).convert("RGB") as composed:
+                dark = composed.getpixel((280, 530))
+                light = composed.getpixel((360, 530))
+                self.assertNotEqual(dark, light)
+                self.assertGreater(sum(light) - sum(dark), 25)
+
+    def test_opaque_tactical_board_surface_is_rejected_at_api_boundary(self):
+        with tempfile.TemporaryDirectory() as temp:
+            try:
+                from PIL import Image
+            except ImportError:
+                self.skipTest("Pillow unavailable")
+            root = Path(temp)
+            base = root / "base.png"
+            Image.new("RGB", (640, 800), (30, 30, 30)).save(base)
+            with self.assertRaisesRegex(ValueError, "surface_opacity"):
+                FootballHybridComposer().compose_file(
+                    base_path=str(base),
+                    output_path=str(root / "out.png"),
+                    surface_opacity=255,
+                )
 
     def test_missing_base_file_fails_closed(self):
         with tempfile.TemporaryDirectory() as temp:
