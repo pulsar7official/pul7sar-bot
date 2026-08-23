@@ -155,10 +155,19 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - No prompt, seed, canvas, provider/model identity, Fact Lock, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
 - Detailed record: `docs/PHASE18_CHANGESET_060_INTEGRATED_FIRST_PNG_PREFLIGHT.md`.
 
+## Change Set 061 — Tamper-evident GPU evidence manifest
+- Adds `engine/intelligence/golden_evidence_bundle.py` to hash the first real PNG, first-PNG result and explicit supporting receipts with SHA-256.
+- Requires the generation result to keep `publication_ready=false`, validates a non-empty PNG signature, and rejects evidence paths outside the repository.
+- Adds `tools/phase18_build_gpu_evidence_manifest.py` and CPU-safe regression tests for hashing, fake-PNG rejection, publication-gate preservation, path confinement and receipt deduplication.
+- Updates `.github/workflows/phase18-gpu-smoke.yml` to build the compact evidence index after real-PNG verification and before GitHub artifact upload.
+- Adds GPU-host qualification evidence to the uploaded artifact scope so the first genuine proof can be audited from hardware qualification through result bytes.
+- The manifest is evidence integrity only; it cannot confer semantic safety, identity validity, Golden quality or publication readiness.
+- Detailed record: `docs/PHASE18_CHANGESET_061_GPU_EVIDENCE_MANIFEST.md`.
+
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 060
+## Production safety through Change Set 061
 - `main`: untouched by Phase 18 development changes.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -172,18 +181,19 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Golden Visual approval remains additional to semantic publication safety.
 - Unsupported/unproven BF16 does not trigger a silent precision downgrade.
 - Raw generation throughput is never represented as publication throughput.
-- First-PNG orchestration now qualifies hardware before model download and proves hardware/cache/runtime readiness before enqueueing.
+- First-PNG orchestration qualifies hardware before model download and proves hardware/cache/runtime readiness before enqueueing.
 - Model caching does not imply GPU readiness or publication readiness.
 - GPU host qualification does not imply model/backend/generation/publication readiness.
+- GPU evidence hashing does not imply semantic or visual approval.
 
-## Architecture after Change Set 060
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Integrated Golden Smoke Preflight [GPU Host Qualification -> Approved Model Cache/Prefetch -> FLUX/BF16 Readiness] -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 061
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Integrated Golden Smoke Preflight [GPU Host Qualification -> Approved Model Cache/Prefetch -> FLUX/BF16 Readiness] -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Tamper-Evident GPU Evidence Manifest -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Attach/provide a real NVIDIA CUDA host and run the now self-contained `tools/phase18_first_png.py`; it will qualify hardware before download or queue mutation.
+1. Attach/provide a real NVIDIA CUDA host and run the self-contained `tools/phase18_first_png.py`; it will qualify hardware before download or queue mutation.
 2. Require host `eligible=true`, cache `ready=true`, `$0-local`, and `golden_generation_ready=true` before any durable job exists.
-3. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification and model-cache receipts.
-4. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
+3. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification, model-cache/readiness receipts and the new SHA-256 evidence manifest.
+4. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success and evidence integrity alone are not acceptance.
 5. If stable, execute remaining deterministic seeds through the same worker path and compute capacity only from observed successful samples.
 6. Add distributed queue infrastructure only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
 7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
