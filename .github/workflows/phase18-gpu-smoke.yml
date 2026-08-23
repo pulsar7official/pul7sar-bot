@@ -20,7 +20,7 @@ jobs:
     # Deliberately self-hosted. This workflow must never silently consume a paid
     # hosted GPU runner. Attach these labels only to a CUDA/BF16-capable PUL7SAR host.
     runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       PYTHONPATH: .
       PUL7SAR_PHASE18_COST_MODE: $0-local
@@ -48,6 +48,7 @@ jobs:
           test "$(git branch --show-current)" = "phase18/story-intelligence"
           test -f engine/intelligence/golden_smoke.py
           test -f tools/phase18_first_png.py
+          test -f tools/phase18_prefetch_flux2.py
           if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 3
@@ -76,6 +77,26 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -r requirements-phase18-gpu.txt
+
+      - name: Prove and cache the exact approved FLUX model snapshot
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_prefetch_flux2.py \
+            --receipt output/phase18_gpu_smoke/model-cache.json \
+            | tee output/phase18_gpu_smoke/model-cache-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("output/phase18_gpu_smoke/model-cache.json").read_text(encoding="utf-8"))
+          if payload.get("ready") is not True:
+              raise SystemExit("approved FLUX model cache is not ready")
+          if payload.get("model_id") != "black-forest-labs/FLUX.2-klein-4B":
+              raise SystemExit("unexpected model snapshot in Phase 18 cache receipt")
+          if payload.get("cost_mode") != "$0-local":
+              raise SystemExit("model prefetch escaped the Phase 18 zero-cost execution mode")
+          PY
 
       - name: Record model-specific Golden readiness
         shell: bash
