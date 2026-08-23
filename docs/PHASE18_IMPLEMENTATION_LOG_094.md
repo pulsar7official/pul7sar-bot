@@ -1,6 +1,6 @@
 # PUL7SAR Phase 18 — Implementation Log Continuation
 
-This is the authoritative continuation record for Change Sets 094–095 on `phase18/story-intelligence`. It supplements `docs/PHASE18_IMPLEMENTATION_LOG.md`; no production branch is modified.
+This is the authoritative continuation record for Change Sets 094–096 on `phase18/story-intelligence`. It supplements `docs/PHASE18_IMPLEMENTATION_LOG.md`; no production branch is modified.
 
 ## Change Set 094 — Pre-FLUX Qwen model-cache qualification
 
@@ -125,3 +125,72 @@ Hybrid v5 already has a base-scene semantic execution gate that requires model-g
 2. Visually inspect whether the deterministic pitch now reads as photographed turf with integrated regulation geometry rather than a graphic board.
 3. If Candidate 1 still fails, adjust only evidence-backed pitch placement/tint/line styling or the generative atmosphere contract; do not relax fact/identity/semantic/publication gates.
 4. Resolve and SHA-lock the approved PUL7SAR logo bytes before final publication composition.
+
+## Change Set 096 — Photographic turf preservation
+
+### Branch review before change
+- Repository: `pulsar7official/pul7sar-bot`.
+- Target branch: `phase18/story-intelligence` only.
+- Comparison with `main`: `diverged`, 717 commits ahead and 64 behind at review time.
+- Pre-change branch head: `d84db1d6a511cb75a4b24a0f9de089ad7798708e`.
+- `main` was not modified, merged, or force-updated.
+- Change Set 095 CPU CI was already green (`32659343371`).
+- Genuine Candidate 1 under the latest Hybrid v5 texture-preserving architecture remains unexecuted on GPU.
+
+### Why this change was necessary
+Change Set 095 removed the opaque flat-green tactical-board surface, but the default composition still added ten synthetic mowing bands at alpha 24. Those bands were geometrically harmless yet visually unnecessary. They could still make the final pitch feel designed or diagrammatic rather than photographed.
+
+PUL7SAR's Golden target benefits from preserving the base image's natural grass texture, mowing pattern, wear, light gradients, and stadium atmosphere. Deterministic code should own the exact regulation markings and a restrained colour normalization, not repaint photographic turf detail unless a future approved visual recipe explicitly requires it.
+
+### Added
+- `docs/PHASE18_CHANGESET_096_PHOTOGRAPHIC_TURF_PRESERVATION.md`.
+- Regression coverage that proves the default Golden composition does not synthesize mowing stripes.
+- Regression coverage that proves mowing stripes remain an explicit opt-in styling parameter.
+- Integrity regression coverage for both the default stripe-free path and an explicit striped variant.
+
+### Modified
+- `engine/intelligence/football_hybrid_composer.py`
+  - `DEFAULT_STRIPE_OPACITY` changed from 24 to 0.
+  - `mowing_stripes_applied` defaults to false.
+  - Default Golden composition now preserves photographed grass/mowing detail instead of synthesizing ten extra bands.
+  - Optional `stripe_opacity` remains available only when explicitly requested.
+  - Regulation lines, marks and arcs remain deterministic and projective.
+  - Surface-normalization opacity remains constrained to 24..96; opaque legacy 255 remains blocked.
+- `engine/intelligence/hybrid_artifact_integrity.py`
+  - Synthetic mowing stripes are no longer an integrity requirement.
+  - Texture-preserving composition mode, source-texture preservation, deterministic geometry ownership, safe opacity and SHA-256 replay remain mandatory.
+- `tests/test_phase18_football_hybrid_composer.py`
+  - Default stripe-free assertions added.
+  - Explicit stripe opt-in test added.
+  - Existing photographic-texture preservation and opaque-surface rejection remain.
+- `tests/test_phase18_hybrid_artifact_integrity.py`
+  - Stripe-free default composition must validate.
+  - Explicit striped composition must also validate.
+  - Tampered, opaque and non-texture-preserving receipts remain rejected.
+
+### Deleted
+- Nothing.
+
+### Gates and invariants unchanged
+- `main` / `main.py`: untouched.
+- Fact Lock, identity verification, sentiment and neutrality: unchanged.
+- `$0-local`: unchanged.
+- FLUX.2 Klein 4B, BF16, seeds/canvases, guidance/steps: unchanged.
+- Base semantic layer ownership remains mandatory for the quality path.
+- SemanticPublicationGate remains mandatory for publication.
+- Golden thresholds remain 8.5 minimum / 9.0+ elite; hard blockers still override score.
+- Generated PUL7SAR branding remains forbidden in AI generation.
+- Exact PUL7SAR logo bytes/checksum remain unresolved, so final publication composition remains blocked.
+- No paid provider, secret, model weights, font files, fake PNG or fabricated benchmark was added.
+
+### Test state
+- New/updated CPU regression tests have been committed on the Phase 18 branch.
+- GitHub Actions must complete before Change Set 096 is called CI-green.
+- No GPU visual result is claimed by this change.
+
+### Remaining work
+1. Confirm full Phase 18 CPU CI on the Change Set 096 head.
+2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
+3. Visually inspect whether the pitch now reads as photographic turf with deterministic regulation markings rather than a graphic surface.
+4. If Candidate 1 still fails, tune only evidence-backed placement, surface normalization, or line styling; do not relax factual, identity, semantic-publication, or Golden-quality gates.
+5. Resolve and SHA-lock the user-approved PUL7SAR logo asset before final publication composition.
