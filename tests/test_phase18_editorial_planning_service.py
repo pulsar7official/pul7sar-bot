@@ -3,6 +3,7 @@ import unittest
 from engine.intelligence.editorial_angle_selector import EditorialAngleCandidate
 from engine.intelligence.editorial_headline_grammar import HeadlineTone
 from engine.intelligence.editorial_planning_service import EditorialPlanningService
+from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityThemeResolver
 from engine.intelligence.hybrid_layer_planner import LayerSource
 from engine.intelligence.story_visual_editorial import EditorialEvent, ProductionMode
 
@@ -25,6 +26,9 @@ class EditorialPlanningServiceTests(unittest.TestCase):
         data.update(kwargs)
         return EditorialAngleCandidate(**data)
 
+    def palette(self, name, color):
+        return EntityPaletteEvidence(name, color, 0.98, "verified_registry")
+
     def test_selects_angle_and_builds_copy_visual_and_layers_together(self):
         result = self.service.plan(
             sport="football",
@@ -37,6 +41,67 @@ class EditorialPlanningServiceTests(unittest.TestCase):
         self.assertEqual(result.decision.plan.production_mode, ProductionMode.HYBRID)
         self.assertEqual(result.layers.by_name("sport_surface_geometry").source, LayerSource.DETERMINISTIC)
         self.assertEqual(result.layers.by_name("pul7sar_brand").source, LayerSource.VERIFIED_ASSET)
+
+    def test_match_winner_controls_7_and_pulse_even_with_two_teams(self):
+        candidate = self.candidate("result", secondary_subjects=("Chelsea",))
+        result = self.service.plan(
+            sport="football",
+            candidates=(candidate,),
+            verified_facts={
+                "subject": "Arsenal",
+                "opponent": "Chelsea",
+                "result_status": "completed",
+                "winner_entity": "Chelsea",
+                "score": "1-2",
+            },
+            entity_palettes={
+                "Arsenal": self.palette("Arsenal", "#E30613"),
+                "Chelsea": self.palette("Chelsea", "#034694"),
+            },
+        )
+        self.assertEqual(result.brand.hero_entity, "Chelsea")
+        self.assertEqual(result.brand.accent_hex, "#034694")
+        self.assertTrue(result.brand.contextual)
+
+    def test_confirmed_transfer_destination_controls_brand_not_origin(self):
+        candidate = self.candidate(
+            "transfer",
+            event=EditorialEvent.TRANSFER_CONFIRMED,
+            primary_subject="Player X",
+            secondary_subjects=("Origin FC", "Destination FC"),
+            story_core="confirmed transfer",
+            fact_phrase="ينضم رسميا",
+        )
+        result = self.service.plan(
+            sport="football",
+            candidates=(candidate,),
+            verified_facts={
+                "subject": "Player X",
+                "origin": "Origin FC",
+                "destination": "Destination FC",
+                "confirmation_status": "confirmed",
+            },
+            entity_palettes={
+                "Origin FC": self.palette("Origin FC", "#FFAA00"),
+                "Destination FC": self.palette("Destination FC", "#1122CC"),
+            },
+        )
+        self.assertEqual(result.brand.hero_entity, "Destination FC")
+        self.assertEqual(result.brand.accent_hex, "#1122CC")
+
+    def test_draw_between_two_teams_falls_back_to_default_red(self):
+        candidate = self.candidate("draw", secondary_subjects=("Chelsea",))
+        result = self.service.plan(
+            sport="football",
+            candidates=(candidate,),
+            verified_facts={"subject": "Arsenal", "opponent": "Chelsea", "result_status": "draw"},
+            entity_palettes={
+                "Arsenal": self.palette("Arsenal", "#E30613"),
+                "Chelsea": self.palette("Chelsea", "#034694"),
+            },
+        )
+        self.assertEqual(result.brand.accent_hex, EntityThemeResolver.PUL7SAR_RED)
+        self.assertFalse(result.brand.contextual)
 
     def test_visually_safer_angle_can_be_selected(self):
         complex_angle = self.candidate(
