@@ -3,6 +3,7 @@ import unittest
 from pathlib import Path
 
 from engine.intelligence.football_hybrid_composer import (
+    DEFAULT_STRIPE_OPACITY,
     DEFAULT_SURFACE_OPACITY,
     TEXTURE_PRESERVING_COMPOSITION_MODE,
     FootballHybridComposer,
@@ -46,6 +47,8 @@ class FootballHybridComposerTests(unittest.TestCase):
             self.assertLess(receipt.surface_opacity, 255)
             self.assertEqual(receipt.composition_mode, TEXTURE_PRESERVING_COMPOSITION_MODE)
             self.assertTrue(receipt.source_texture_preserved)
+            self.assertFalse(receipt.mowing_stripes_applied)
+            self.assertEqual(DEFAULT_STRIPE_OPACITY, 0)
             self.assertEqual(len(receipt.input_sha256), 64)
             self.assertEqual(len(receipt.output_sha256), 64)
             self.assertNotEqual(receipt.input_sha256, receipt.output_sha256)
@@ -75,6 +78,27 @@ class FootballHybridComposerTests(unittest.TestCase):
                 light = composed.getpixel((360, 530))
                 self.assertNotEqual(dark, light)
                 self.assertGreater(sum(light) - sum(dark), 25)
+
+    def test_mowing_stripes_are_explicit_opt_in_only(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow unavailable")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.png"
+            Image.new("RGB", (640, 800), (35, 95, 45)).save(base)
+            default_receipt = FootballHybridComposer().compose_file(
+                base_path=str(base),
+                output_path=str(root / "default.png"),
+            )
+            striped_receipt = FootballHybridComposer().compose_file(
+                base_path=str(base),
+                output_path=str(root / "striped.png"),
+                stripe_opacity=24,
+            )
+            self.assertFalse(default_receipt.mowing_stripes_applied)
+            self.assertTrue(striped_receipt.mowing_stripes_applied)
 
     def test_opaque_tactical_board_surface_is_rejected_at_api_boundary(self):
         with tempfile.TemporaryDirectory() as temp:
