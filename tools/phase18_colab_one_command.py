@@ -8,8 +8,8 @@ Flow:
 4. generate/reuse exactly one atmosphere-only FLUX candidate,
 5. replace the reserved football surface with deterministic 105m x 68m geometry,
 6. verify composition receipt/file hashes,
-7. report actual local visual-inspection capability,
-8. display the hybrid proof.
+7. optionally run local Qwen semantic visual inspection after FLUX exits,
+8. report readiness and display the hybrid proof.
 
 The command never equates PNG generation with publication readiness.
 """
@@ -34,7 +34,9 @@ from engine.intelligence.football_hybrid_composer import FootballHybridComposer
 from engine.intelligence.football_pitch_placement import FootballCameraPreset
 from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
 from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInspectionPolicy
-from engine.intelligence.local_vision_inspectors import detect_local_vision_capabilities
+from engine.intelligence.local_vision_inspectors import LocalVisionCapabilityReport, detect_local_vision_capabilities
+from engine.intelligence.qwen25_vl_inspector import Qwen25VLInspectionError, Qwen25VLSemanticInspector
+from engine.intelligence.semantic_visual_verdict import SemanticVisualVerdictGate
 
 
 def _env() -> dict[str, str]:
@@ -72,7 +74,54 @@ def _display(path: Path) -> bool:
         return False
 
 
-def _compose_hybrid(candidate: int) -> dict[str, object]:
+def _semantic_payload(output: Path, mode: str) -> tuple[dict[str, object], LocalVisionCapabilityReport]:
+    base_caps = detect_local_vision_capabilities()
+    if mode == "none":
+        return {"mode": "none", "status": "SEMANTIC_INSPECTION_NOT_REQUESTED", "approved": False}, base_caps
+
+    try:
+        verdict = Qwen25VLSemanticInspector().inspect_file(str(output), expected_subject=None)
+        approved, failures = SemanticVisualVerdictGate().evaluate(verdict, identity_required=False, minimum_confidence=0.85)
+        checks = {
+            name: {
+                "state": getattr(verdict, name).state.value,
+                "confidence": getattr(verdict, name).confidence,
+                "detail": getattr(verdict, name).detail,
+            }
+            for name in (
+                "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
+                "single_scene", "severe_defects_absent", "subject_framing_valid",
+            )
+        }
+        # Capability is considered present only when the verifier returned every
+        # required semantic check. Approval is a separate question.
+        semantic_capable = verdict.complete_non_identity
+        caps = LocalVisionCapabilityReport(
+            png_observation=base_caps.png_observation,
+            protected_region_clutter=base_caps.protected_region_clutter,
+            semantic_subject_framing=semantic_capable,
+            identity_similarity=False,
+            semantic_defect_detection=semantic_capable,
+            forbidden_visual_detection=semantic_capable,
+        )
+        return {
+            "mode": "qwen2.5-vl-3b-local",
+            "status": "SEMANTIC_VISUAL_INSPECTION_COMPLETE",
+            "verifier_id": verdict.verifier_id,
+            "approved": approved,
+            "failures": list(failures),
+            "checks": checks,
+        }, caps
+    except (Qwen25VLInspectionError, FileNotFoundError, RuntimeError) as exc:
+        return {
+            "mode": "qwen2.5-vl-3b-local",
+            "status": "SEMANTIC_VISUAL_INSPECTION_FAILED",
+            "approved": False,
+            "error": str(exc),
+        }, base_caps
+
+
+def _compose_hybrid(candidate: int, semantic_mode: str) -> dict[str, object]:
     if not LATEST.is_file():
         raise RuntimeError("COLAB_RUNNER_SUMMARY_MISSING")
     base = json.loads(LATEST.read_text(encoding="utf-8"))
@@ -100,7 +149,7 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
     if not artifact_integrity.valid:
         raise RuntimeError("HYBRID_ARTIFACT_INTEGRITY_FAILED: " + ", ".join(artifact_integrity.failures))
 
-    capabilities = detect_local_vision_capabilities()
+    semantic, capabilities = _semantic_payload(output, semantic_mode)
     inspection = HybridVisualInspectionPolicy().evaluate(capabilities, identity_required=False)
 
     receipt_path = HYBRID_DIR / f"candidate-{candidate:02d}-golden-hybrid-v5-receipt.json"
@@ -121,6 +170,7 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
         "surface_opacity": receipt.surface_opacity,
         "dynamic_brand_applied": False,
         "typography_applied": False,
+        "semantic_visual_inspection": semantic,
         "visual_inspection": {
             "status": inspection.status,
             "engineering_proof_allowed": inspection.engineering_proof_allowed,
@@ -129,7 +179,7 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
             "missing_capabilities": list(inspection.missing_capabilities),
         },
         "publication_ready": False,
-        "next_gate": "semantic visual inspection capability + approved dynamic brand geometry + typography + final hybrid QA",
+        "next_gate": "approved dynamic brand geometry + deterministic typography + receipt-backed final Hybrid/Golden QA",
     }
     receipt_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     payload["displayed_inline"] = _display(output)
@@ -142,6 +192,7 @@ def main() -> int:
     parser.add_argument("--candidate", type=int, default=1)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--prepare-only", action="store_true")
+    parser.add_argument("--semantic-inspection", choices=("none", "qwen"), default="none")
     args = parser.parse_args()
 
     branch = _branch()
@@ -149,15 +200,15 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/6 Updating protected Phase 18 branch...")
+    print("1/7 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
 
-    print("2/6 Discovering and running all Phase 18 CPU validation...")
+    print("2/7 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
 
-    print("3/6 Entering locked atmosphere-only Golden runner...")
+    print("3/7 Entering locked atmosphere-only Golden runner...")
     command = [
         sys.executable,
         str(ROOT / "tools" / "phase18_colab_runner.py"),
@@ -174,10 +225,11 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/6 Replacing generated surface with deterministic regulation football geometry...")
-    print("5/6 Verifying deterministic composition artifact hashes and receipt...")
-    print("6/6 Reporting visual-inspection capability and displaying hybrid proof...")
-    _compose_hybrid(args.candidate)
+    print("4/7 Replacing generated surface with deterministic regulation football geometry...")
+    print("5/7 Verifying deterministic composition artifact hashes and receipt...")
+    print("6/7 Running/reporting semantic visual inspection according to selected mode...")
+    print("7/7 Reporting readiness and displaying hybrid proof...")
+    _compose_hybrid(args.candidate, args.semantic_inspection)
     return 0
 
 
