@@ -2,6 +2,8 @@
 
 Prevents stale/tampered PNGs or receipts from being reused as evidence for a
 newer visual candidate. The receipt must still match the actual files on disk.
+The current football contract is texture-preserving: exact geometry is owned by
+code without painting an opaque tactical-board surface over the source image.
 """
 from __future__ import annotations
 
@@ -9,7 +11,10 @@ from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 
-from engine.intelligence.football_hybrid_composer import FootballHybridCompositionReceipt
+from engine.intelligence.football_hybrid_composer import (
+    FootballHybridCompositionReceipt,
+    TEXTURE_PRESERVING_COMPOSITION_MODE,
+)
 
 
 @dataclass(frozen=True)
@@ -43,9 +48,13 @@ class HybridArtifactIntegrityGate:
         if not receipt.deterministic_geometry_applied:
             failures.append("deterministic_geometry_not_applied")
         if not receipt.generated_pitch_markings_replaced:
-            failures.append("generated_pitch_markings_not_replaced")
-        if receipt.surface_opacity != 255:
-            failures.append("surface_replacement_not_opaque")
+            failures.append("deterministic_markings_not_authoritative")
+        if receipt.composition_mode != TEXTURE_PRESERVING_COMPOSITION_MODE:
+            failures.append("unexpected_football_composition_mode")
+        if not receipt.source_texture_preserved:
+            failures.append("source_pitch_texture_not_preserved")
+        if not 24 <= receipt.surface_opacity <= 96:
+            failures.append("surface_normalization_opacity_out_of_range")
         if not receipt.mowing_stripes_applied:
             failures.append("deterministic_surface_texture_missing")
 
