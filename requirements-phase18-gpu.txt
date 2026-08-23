@@ -8,4 +8,5 @@ diffusers>=0.39.0
 transformers
 accelerate
 safetensors
+huggingface_hub
 Pillow
