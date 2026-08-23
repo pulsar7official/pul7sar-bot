@@ -181,12 +181,42 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Adds explicit `offload_mode` result metadata (`sequential_cpu`, `model_cpu`, or `none`) so real evidence can distinguish the memory strategy used.
 - Preserves the exact approved model, BF16 dtype, deterministic seed, prompt, native/target canvas, guidance scale, four-step inference path, `$0-local` policy and all semantic/Golden publication gates.
 - Extends `tests/test_phase18_flux2_klein_diffusers.py` to verify sequential preference, model-offload fallback and emitted offload metadata.
+- Targeted Colab regression after pull: `8 passed`.
 - `main` and production publishing paths remain untouched.
 
-## Current verified Golden Visual batch
-The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies. A genuine PNG is still not claimed because the first T4 execution reached real FLUX.2 inference but exhausted CUDA memory before image completion; Change Set 063 adds the low-VRAM sequential-offload retry path.
+## Change Set 064 — First genuine T4 PNG proof
+- Retrying the exact candidate-1 Golden handoff after Change Set 063 completed successfully on the Colab Tesla T4.
+- Result status: `REAL_VISUAL_PROOF_GENERATED`.
+- Locked seed remained `7007001`; model remained `black-forest-labs/FLUX.2-klein-4B`; dtype remained BF16; native canvas remained `1088x1360`; target canvas remained `1080x1350`; cost mode remained `$0-local`.
+- Observed execution time was approximately 252.7 seconds on this T4 sample.
+- The proof establishes real inference and image persistence, not semantic safety, Golden-quality acceptance, production throughput, or publication readiness.
+- Human inspection exposed a visual-composition failure: the general multi-league concept was rendered as a four-panel football collage.
 
-## Production safety through Change Set 063
+## Change Set 065 — Unified-scene Visual Intelligence correction
+- Corrects the root prompt/scene grammar that allowed the first proof to become a collage instead of merely patching one seed.
+- `VisualFamilyRouter` now routes general-world stories toward a single unified editorial scene with one focal hierarchy and continuous perspective.
+- `GenerationPackageCompiler` now imposes one full-bleed physical world, one coherent camera perspective and one lighting system, and explicitly prohibits collage, montage, split-screen, grids, diptych/triptych/contact-sheet, tiled panels, framed windows, image-within-image composition, seams and panel borders.
+- `PromptConstraintCompiler` adds deterministic positive reframes for the new composition constraints so FLUX-like providers cannot silently drop them.
+- Golden benchmark advances to `golden-visual-general-season-opener-v2`; the old `five visual zones` language is removed and league breadth is integrated inside one stadium world.
+- Golden batch advances to `pul7sar-golden-batch-v2` with `composition_grammar=single_continuous_scene` and v2 request IDs.
+- Batch verification remains backward-aware for v1 but makes the v2 composition grammar and prompt lock fail-closed.
+- Adds `tests/test_phase18_unified_scene_policy.py`.
+- Detailed record: `docs/PHASE18_CHANGESET_064_066_COLAB_VISUAL_INTELLIGENCE.md`.
+
+## Change Set 066 — Semi-automatic Colab Golden runner
+- Adds `tools/phase18_colab_runner.py` so future Colab loops do not require manual readiness/build/verify/execute/display commands.
+- Refuses to operate outside `phase18/story-intelligence` and optional update is restricted to `git pull --ff-only`.
+- Always rebuilds and verifies the current Golden batch so stale handoffs from an older Visual Intelligence policy are not silently reused.
+- Re-checks Golden GPU readiness, executes one selected candidate through the locked FLUX executor, verifies manifest/result seed and request identity, requires a real PNG, writes a durable Colab summary, and keeps `publication_ready=false`.
+- When invoked with IPython `%run`, it attempts to display the resulting PNG inline automatically.
+- Reuses a matching successful candidate unless `--force` is explicitly requested.
+- Adds `tests/test_phase18_colab_runner.py`.
+- Detailed record: `docs/PHASE18_CHANGESET_064_066_COLAB_VISUAL_INTELLIGENCE.md`.
+
+## Current verified Golden Visual state
+A genuine Phase 18 PNG has now been generated on a Google Colab Tesla T4 using the locked FLUX.2 Klein BF16 path with sequential CPU offload. The first v1 proof is retained as technical evidence but is visually rejected as a Golden candidate because it produced a four-panel collage. The current benchmark is v2 and explicitly locks `single_continuous_scene`; v2 candidate generation must be re-run before any Golden-quality claim.
+
+## Production safety through Change Set 066
 - `main`: untouched by Phase 18 development changes.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -200,21 +230,19 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Golden Visual approval remains additional to semantic publication safety.
 - Unsupported/unproven BF16 does not trigger a silent precision downgrade.
 - Raw generation throughput is never represented as publication throughput.
-- First-PNG orchestration qualifies hardware before model download and proves hardware/cache/runtime readiness before enqueueing.
-- Model caching does not imply GPU readiness or publication readiness.
-- GPU host qualification does not imply model/backend/generation/publication readiness.
-- GPU evidence hashing does not imply semantic or visual approval.
-- GPU evidence replay verification does not imply semantic, identity, Golden-quality, or publication approval.
-- T4 low-VRAM mitigation changes memory placement only; it does not weaken model, dtype, prompt, seed, canvas, factual, identity, semantic or visual-quality constraints.
+- GPU host qualification, model caching, evidence hashing and evidence replay do not independently imply publication readiness.
+- Low-VRAM mitigation changes memory placement only; it does not weaken model, dtype, prompt, seed, canvas, factual, identity, semantic or visual-quality constraints.
+- Unified-scene Visual Intelligence changes composition semantics only; exact logos, PUL7SAR branding and typography remain deterministic post-composition assets.
+- Colab automation is branch-locked and cannot silently update or run against `main`.
 
-## Architecture after Change Set 063
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Integrated Golden Smoke Preflight [GPU Host Qualification -> Approved Model Cache/Prefetch -> FLUX/BF16 Readiness] -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + Sequential-CPU-Offload Low-VRAM Path + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Tamper-Evident GPU Evidence Manifest -> Evidence Replay Verification -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 066
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v2 [single_continuous_scene] -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Human/Automated Semantic Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Pull Change Set 063 into the active Colab T4 checkout and run targeted FLUX wrapper tests before another GPU attempt.
-2. Retry candidate 1 with the exact locked handoff; verify runtime metadata reports `offload_mode=sequential_cpu` if the installed Diffusers pipeline exposes the method.
-3. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification, model-cache/readiness receipts, SHA-256 evidence manifest, and replay-verification receipt.
-4. If T4 still OOMs under sequential offload, classify 14.56-GiB T4 as below the proven Golden runtime floor instead of weakening the locked canvas or BF16 benchmark; move the same handoff to a larger compatible GPU.
-5. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success and evidence integrity alone are not acceptance.
-6. If stable, execute remaining deterministic seeds through the same worker path and compute capacity only from observed successful samples.
+1. Pull Change Sets 064–066 into the active Colab T4 checkout.
+2. Run the new CPU-safe targeted tests for unified-scene policy and Colab runner before spending GPU time.
+3. Execute v2 candidate 1 through `tools/phase18_colab_runner.py`; do not generate candidates 2–4 yet.
+4. Judge the new real PNG specifically for removal of collage/panel structure, editorial hierarchy, realism, protected-zone cleanliness and overall PUL7SAR direction.
+5. If v2 candidate 1 is directionally correct, run the remaining deterministic seeds sequentially and apply the strict Golden scorecard.
+6. Use observed successful runtimes and memory telemetry—not theoretical throughput—to size the future production GPU worker pool.
 7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
