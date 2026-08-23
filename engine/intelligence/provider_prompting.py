@@ -67,7 +67,7 @@ class PromptConstraintCompiler:
             "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective."
         ),
         "no football pitch markings in the reserved surface plane": (
-            "Keep the reserved playing-surface region plain, grass-colored and completely unmarked so deterministic PUL7SAR geometry can replace it after generation."
+            "Keep the reserved playing-surface region plain, grass-colored and completely unmarked so deterministic geometry can replace it after generation."
         ),
         "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines": (
             "Show no painted football markings in the reserved surface region: no centre circle, halfway line, penalty or goal areas, touchlines, goal lines, arcs or decorative field diagrams."
