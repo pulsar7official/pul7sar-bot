@@ -2,7 +2,7 @@
 """Build the current PUL7SAR Golden Visual hybrid base-scene handoff.
 
 Golden v5 deliberately stops asking diffusion to draw exact football markings or
-PUL7SAR branding. The model owns stadium atmosphere and an unmarked reserved
+platform branding. The model owns stadium atmosphere and an unmarked reserved
 surface plane; regulation pitch geometry is composited deterministically after
 GPU generation.
 """
@@ -46,7 +46,7 @@ def build_request(*, seed: int, request_id: str):
     layers = HybridVisualLayerPlanner().plan(editorial, sport_rule)
     base_contract = HybridBaseSceneContractCompiler().compile(layers)
 
-    # No fixed PUL7SAR raster logo is required for base generation. Dynamic brand
+    # No fixed raster logo is required for base generation. Dynamic brand
     # geometry/color is a later deterministic layer.
     assets = AssetBundle(())
     specification = OriginalSceneSpecification(
@@ -70,7 +70,7 @@ def build_request(*, seed: int, request_id: str):
         environment=(
             "one photorealistic elite European football stadium at dusk, coherent architecture, floodlights, realistic supporter atmosphere, "
             "deep stands and cinematic air. A broad grass-colored playing-surface plane may occupy the lower-middle frame but it must remain plain, "
-            "unmarked and visually simple because PUL7SAR code will replace that entire region with regulation pitch geometry after generation. "
+            "unmarked and visually simple because deterministic code will replace that entire region with regulation pitch geometry after generation. "
             "Advertising boards, screens, banners and sponsor surfaces must be visually neutral with no readable words, numerals, logos or pseudo-text"
         ),
         composition=(
@@ -89,7 +89,7 @@ def build_request(*, seed: int, request_id: str):
             "the domestic football season is approaching rather than already decided",
             "the scene is general and must not imply a result, champion, transfer or specific real-person claim",
             "exact football geometry is not generated and will be applied deterministically after generation",
-            "all PUL7SAR branding and typography remain absent from AI generation",
+            "all platform branding and typography remain absent from AI generation",
         ),
         forbidden_visual_elements=(
             "no invented result",
@@ -110,7 +110,7 @@ def build_request(*, seed: int, request_id: str):
             "hybrid_surface_replacement_required": True,
             "football_camera_preset": "high_wide_central",
             "visual_failures_addressed": (
-                "collage composition, malformed generated pitch proportions/markings, and incorrect generated PUL7SAR wordmark"
+                "collage composition, malformed generated pitch proportions/markings, and incorrect generated platform wordmark"
             ),
         },
     )
