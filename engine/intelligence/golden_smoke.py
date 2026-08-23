@@ -1,13 +1,8 @@
-"""Fail-closed coordinator for the first genuine Golden Visual GPU smoke run.
+"""Fail-closed coordinator for genuine Golden Visual GPU smoke runs.
 
-The coordinator deliberately does not generate an image by itself. It validates
-one deterministic candidate from the locked Golden batch, creates/reuses exactly
-one durable generation job, and leaves real execution to the existing GPU worker.
-This keeps the first-PNG path operationally simple without bypassing the queue,
-SHA-256 handoff integrity, BF16/CUDA readiness, semantic gates, or Golden quality
-review.
+v5 coordinates an atmosphere-only generative candidate whose football surface
+is replaced deterministically after generation.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -25,6 +20,7 @@ SUPPORTED_GOLDEN_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v2",
     "pul7sar-golden-batch-v3",
     "pul7sar-golden-batch-v4",
+    "pul7sar-golden-batch-v5",
 }
 GOLDEN_COST_MODE = "$0-local"
 DEFAULT_SMOKE_JOB_ID = "golden-smoke-candidate-01"
@@ -51,17 +47,13 @@ class GoldenSmokePreparation:
 
 def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None:
     if manifest_version in {
-        "pul7sar-golden-batch-v2",
-        "pul7sar-golden-batch-v3",
-        "pul7sar-golden-batch-v4",
+        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"
     } and data.get("composition_grammar") != "single_continuous_scene":
         raise ValueError("Golden smoke v2+ requires single_continuous_scene composition grammar")
 
-    if manifest_version in {
-        "pul7sar-golden-batch-v3",
-        "pul7sar-golden-batch-v4",
-    } and data.get("sport_geometry") != "association_football_regulation_pitch":
-        raise ValueError("Golden smoke v3+ requires regulation association-football pitch geometry")
+    if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
+        if data.get("sport_geometry") != "association_football_regulation_pitch":
+            raise ValueError("Golden smoke v3/v4 requires regulation association-football pitch geometry")
 
     if manifest_version == "pul7sar-golden-batch-v4":
         if data.get("generated_branding_allowed") is not False:
@@ -69,13 +61,24 @@ def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None
         if data.get("brand_composition_policy") != "exact_assets_only_after_generation":
             raise ValueError("Golden smoke v4 requires exact-assets-only post-generation branding")
 
+    if manifest_version == "pul7sar-golden-batch-v5":
+        expected = {
+            "sport_geometry": "deterministic_football_pitch_projective_v1",
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": True,
+            "football_camera_preset": "high_wide_central",
+            "generated_branding_allowed": False,
+            "brand_composition_policy": "dynamic_deterministic_after_generation",
+        }
+        failures = [f"{key}={data.get(key)!r}" for key, value in expected.items() if data.get(key) != value]
+        if failures:
+            raise ValueError("Golden smoke v5 hybrid policy mismatch: " + "; ".join(failures))
+
 
 def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
     prompt = request.prompt.casefold()
     if manifest_version in {
-        "pul7sar-golden-batch-v2",
-        "pul7sar-golden-batch-v3",
-        "pul7sar-golden-batch-v4",
+        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"
     }:
         unified_markers = (
             "one single continuous full-bleed editorial image",
@@ -84,10 +87,7 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
         if any(marker not in prompt for marker in unified_markers):
             raise ValueError("candidate 1 v2+ handoff is missing unified-scene prompt lock")
 
-    if manifest_version in {
-        "pul7sar-golden-batch-v3",
-        "pul7sar-golden-batch-v4",
-    }:
+    if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
         geometry_markers = (
             "regulation association-football pitch geometry",
             "exactly one halfway line",
@@ -95,7 +95,7 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
             "do not duplicate the halfway line or centre circle",
         )
         if any(marker not in prompt for marker in geometry_markers):
-            raise ValueError("candidate 1 v3+ handoff is missing regulation-pitch prompt lock")
+            raise ValueError("candidate 1 v3/v4 handoff is missing regulation-pitch prompt lock")
 
     if manifest_version == "pul7sar-golden-batch-v4":
         branding_markers = (
@@ -107,9 +107,19 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
         if any(marker not in prompt for marker in branding_markers):
             raise ValueError("candidate 1 v4 handoff is missing generated-brand exclusion prompt lock")
 
+    if manifest_version == "pul7sar-golden-batch-v5":
+        hybrid_markers = (
+            "unmarked neutral sport-surface region reserved for deterministic overlay",
+            "no field/court/rink lines",
+            "the exact surface will be replaced by deterministic code after generation",
+            "zero pul7sar lettering",
+            "never spell pul7sar, pulsar, or any approximation",
+        )
+        if any(marker not in prompt for marker in hybrid_markers):
+            raise ValueError("candidate 1 v5 handoff is missing hybrid ownership prompt lock")
+
 
 def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
-    """Load and cross-check candidate 1 from a deterministic Golden batch."""
     path = Path(manifest_path)
     data = json.loads(path.read_text(encoding="utf-8"))
     manifest_version = data.get("manifest_version")
@@ -172,18 +182,9 @@ def _same_locked_identity(job: GenerationJob, candidate: GoldenSmokeCandidate) -
 
 
 def prepare_smoke_job(
-    *,
-    store: FilesystemGenerationJobStore,
-    candidate: GoldenSmokeCandidate,
-    job_id: str = DEFAULT_SMOKE_JOB_ID,
-    max_attempts: int = 3,
+    *, store: FilesystemGenerationJobStore, candidate: GoldenSmokeCandidate,
+    job_id: str = DEFAULT_SMOKE_JOB_ID, max_attempts: int = 3,
 ) -> GoldenSmokePreparation:
-    """Create or safely reuse the deterministic candidate-1 smoke job.
-
-    Reuse is allowed only when every locked identity field is identical. A prior
-    terminal failure is never silently reset because that would bypass bounded
-    retry semantics; callers must investigate or explicitly choose a new job ID.
-    """
     existing = store.get(job_id)
     if existing is not None:
         if not _same_locked_identity(existing, candidate):
@@ -204,7 +205,7 @@ def prepare_smoke_job(
             "candidate": candidate.candidate,
             "seed": candidate.seed,
             "cost_mode": GOLDEN_COST_MODE,
-            "smoke_role": "first-genuine-golden-png",
+            "smoke_role": "golden-hybrid-atmosphere-base",
             "manifest_path": str(candidate.manifest_path),
         },
     )
