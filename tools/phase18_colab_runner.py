@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -43,6 +44,24 @@ from tools.phase18_build_golden_batch import build_batch
 from tools.phase18_verify_golden_batch import verify_batch
 
 
+def _subprocess_env(cwd: Path) -> dict[str, str]:
+    """Return a deterministic subprocess environment rooted at the checkout.
+
+    Colab/IPython can import Phase 18 modules in the parent process while a child
+    Python process launched from `tools/` still fails with `No module named
+    engine`. Every runner subprocess therefore receives the repository root at
+    the front of PYTHONPATH. Existing user PYTHONPATH entries are preserved.
+    """
+    env = os.environ.copy()
+    root = str(cwd.resolve())
+    existing = env.get("PYTHONPATH", "")
+    parts = [item for item in existing.split(os.pathsep) if item]
+    if root not in parts:
+        parts.insert(0, root)
+    env["PYTHONPATH"] = os.pathsep.join(parts)
+    return env
+
+
 def _run(
     command: list[str],
     *,
@@ -56,6 +75,7 @@ def _run(
         text=True,
         capture_output=capture,
         check=check,
+        env=_subprocess_env(cwd),
     )
 
 
@@ -238,6 +258,8 @@ def main() -> int:
         "benchmark": manifest.get("benchmark"),
         "manifest_version": manifest.get("manifest_version"),
         "composition_grammar": manifest.get("composition_grammar"),
+        "sport_geometry": manifest.get("sport_geometry"),
+        "branding_policy": manifest.get("branding_policy"),
         "candidate": args.candidate,
         "seed": selected.get("seed"),
         "request_id": selected.get("request_id"),
@@ -294,7 +316,12 @@ def main() -> int:
 
     print("=== PUL7SAR COLAB GPU EXECUTION ===")
     print(f"branch={branch} head={head} candidate={args.candidate} seed={selected.get('seed')}")
-    print(f"benchmark={manifest.get('benchmark')} composition={manifest.get('composition_grammar')}")
+    print(
+        "benchmark=" + str(manifest.get("benchmark"))
+        + " composition=" + str(manifest.get("composition_grammar"))
+        + " geometry=" + str(manifest.get("sport_geometry"))
+        + " branding=" + str(manifest.get("branding_policy"))
+    )
     print("Streaming the locked FLUX executor below; generation may take several minutes on a T4.")
     completed = _run(command, cwd=root, capture=False)
     if completed.returncode != 0:
