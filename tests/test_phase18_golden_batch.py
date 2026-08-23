@@ -27,8 +27,14 @@ class GoldenVisualBatchTests(unittest.TestCase):
                 self.assertEqual(request.metadata["cost_mode"], "$0-local")
                 prompt = request.prompt.casefold()
                 self.assertIn("one single continuous full-bleed editorial image", prompt)
-                self.assertIn("unmarked neutral sport-surface region reserved for deterministic overlay", prompt)
+                self.assertIn("reserved surface region plain and unmarked", prompt)
                 self.assertIn("exact surface will be replaced by deterministic code", prompt)
+                self.assertTrue(request.metadata["hybrid_base_scene_contract"])
+                self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
+                self.assertTrue(request.metadata["hybrid_surface_replacement_required"])
+                self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
+                self.assertNotIn("pul7sar", prompt)
+                self.assertNotIn("pulsar", prompt)
 
     def test_manifest_is_written_and_matches_returned_structure(self):
         with tempfile.TemporaryDirectory() as temp:
