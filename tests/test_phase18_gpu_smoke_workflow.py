@@ -50,6 +50,18 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("output/phase18_visual_proof/**", self.text)
         self.assertIn("output/phase18_worker_telemetry/**", self.text)
 
+    def test_builds_and_replays_evidence_before_upload(self):
+        self.assertIn("tools/phase18_build_gpu_evidence_manifest.py", self.text)
+        self.assertIn("tools/phase18_verify_gpu_evidence_manifest.py", self.text)
+        self.assertIn("evidence-manifest.json", self.text)
+        self.assertIn("evidence-verification.json", self.text)
+        self.assertIn("GOLDEN_GPU_EVIDENCE_VERIFIED", self.text)
+        build = self.text.index("python tools/phase18_build_gpu_evidence_manifest.py")
+        verify = self.text.index("python tools/phase18_verify_gpu_evidence_manifest.py")
+        upload = self.text.index("uses: actions/upload-artifact@v4")
+        self.assertLess(build, verify)
+        self.assertLess(verify, upload)
+
     def test_zero_cost_mode_and_no_provider_secret_are_embedded(self):
         self.assertIn("PUL7SAR_PHASE18_COST_MODE: $0-local", self.text)
         lowered = self.text.casefold()
