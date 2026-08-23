@@ -39,6 +39,9 @@ class FootballHybridComposerTests(unittest.TestCase):
             self.assertTrue(receipt.deterministic_geometry_applied)
             self.assertTrue(receipt.generated_pitch_markings_replaced)
             self.assertEqual(receipt.surface_opacity, 255)
+            self.assertEqual(len(receipt.input_sha256), 64)
+            self.assertEqual(len(receipt.output_sha256), 64)
+            self.assertNotEqual(receipt.input_sha256, receipt.output_sha256)
             with Image.open(output) as image:
                 self.assertEqual(image.size, (640, 800))
                 self.assertEqual(image.format, "PNG")
