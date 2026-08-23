@@ -2,8 +2,8 @@
 
 The renderer consumes projective world geometry; it never asks a generative
 model to draw lines, circles, penalty/corner arcs or exact pitch proportions.
-It may also paint subtle deterministic mowing bands so replacing a malformed
-generated pitch still produces a credible editorial surface.
+The optional surface colour normalisation can be feathered inward at the pitch
+boundary so the deterministic layer does not read as a hard-edged pasted panel.
 """
 from __future__ import annotations
 
@@ -23,12 +23,15 @@ class FootballPitchRenderStyle:
     fill_surface: bool = True
     mowing_stripes: bool = True
     stripe_count: int = 10
+    surface_feather_px: int = 0
 
     def __post_init__(self) -> None:
         if self.line_width_px <= 0 or self.mark_radius_px <= 0:
             raise ValueError("line_width_px and mark_radius_px must be positive")
         if self.stripe_count < 2:
             raise ValueError("stripe_count must be >= 2")
+        if not isinstance(self.surface_feather_px, int) or not 0 <= self.surface_feather_px <= 64:
+            raise ValueError("surface_feather_px must be an integer between 0 and 64")
         for name in ("line_rgba", "surface_rgba", "alternate_surface_rgba"):
             value = getattr(self, name)
             if len(value) != 4 or any(not isinstance(ch, int) or not 0 <= ch <= 255 for ch in value):
@@ -39,10 +42,33 @@ class PillowFootballPitchRenderer:
     def __init__(self, planner: FootballPitchProjectionPlanner | None = None) -> None:
         self._planner = planner or FootballPitchProjectionPlanner()
 
-    def _paint_surface(self, draw, *, destination_corners, style: FootballPitchRenderStyle) -> None:
+    def _paint_surface(self, layer, *, destination_corners, style: FootballPitchRenderStyle) -> None:
         if not style.fill_surface:
             return
-        draw.polygon(destination_corners, fill=style.surface_rgba)
+        try:
+            from PIL import Image, ImageChops, ImageDraw, ImageFilter
+        except ImportError as exc:
+            raise RuntimeError("Pillow is required for deterministic pitch rendering") from exc
+
+        draw = ImageDraw.Draw(layer)
+        if style.surface_feather_px > 0:
+            # Blur the pitch mask, then clip it back to the hard polygon. This
+            # creates an inward-only feather: no green tint can bleed into the
+            # stands or surrounding scene, while the pitch edge loses the
+            # tactical-board cutout appearance.
+            hard_mask = Image.new("L", layer.size, 0)
+            mask_draw = ImageDraw.Draw(hard_mask)
+            mask_draw.polygon(destination_corners, fill=255)
+            blurred = hard_mask.filter(ImageFilter.GaussianBlur(radius=style.surface_feather_px))
+            feathered = ImageChops.multiply(hard_mask, blurred)
+            alpha_value = style.surface_rgba[3]
+            alpha = feathered.point(lambda value: (value * alpha_value) // 255)
+            tint = Image.new("RGBA", layer.size, (*style.surface_rgba[:3], 255))
+            tint.putalpha(alpha)
+            layer.alpha_composite(tint)
+        else:
+            draw.polygon(destination_corners, fill=style.surface_rgba)
+
         if not style.mowing_stripes:
             return
 
@@ -76,9 +102,9 @@ class PillowFootballPitchRenderer:
             raise ValueError("canvas_size must be positive")
         render_style = style or FootballPitchRenderStyle()
         layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-        draw = ImageDraw.Draw(layer)
 
-        self._paint_surface(draw, destination_corners=destination_corners, style=render_style)
+        self._paint_surface(layer, destination_corners=destination_corners, style=render_style)
+        draw = ImageDraw.Draw(layer)
 
         markings = self._planner.project_all_markings(destination_corners)
         for marking in markings.polylines:
