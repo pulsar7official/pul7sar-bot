@@ -28,7 +28,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
 
     candidates: list[dict[str, object]] = []
     for index, seed in enumerate(seeds, start=1):
-        request_id = f"golden-general-season-opener-v3-{index:03d}"
+        request_id = f"golden-general-season-opener-v4-{index:03d}"
         request = build_request(seed=seed, request_id=request_id)
         filename = f"candidate-{index:02d}-seed-{seed}.json"
         path = target / filename
@@ -49,11 +49,13 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         })
 
     manifest = {
-        "manifest_version": "pul7sar-golden-batch-v3",
+        "manifest_version": "pul7sar-golden-batch-v4",
         "benchmark": GOLDEN_BENCHMARK_ID,
         "cost_mode": "$0-local",
         "composition_grammar": "single_continuous_scene",
         "sport_geometry": "association_football_regulation_pitch",
+        "generated_branding_allowed": False,
+        "brand_composition_policy": "exact_assets_only_after_generation",
         "selection_rule": "quality-first; compare visual quality after identical semantic gates, never select by seed order",
         "candidates": candidates,
     }
@@ -76,6 +78,7 @@ def main() -> int:
         "cost_mode": manifest["cost_mode"],
         "composition_grammar": manifest["composition_grammar"],
         "sport_geometry": manifest["sport_geometry"],
+        "generated_branding_allowed": manifest["generated_branding_allowed"],
     }, ensure_ascii=False, indent=2))
     return 0
 
