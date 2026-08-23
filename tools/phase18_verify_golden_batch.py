@@ -2,7 +2,8 @@
 """Verify a Golden Visual handoff batch without CUDA or model downloads.
 
 v5 validates hybrid ownership: diffusion must not own exact football geometry or
-PUL7SAR branding, and deterministic pitch replacement must be required.
+platform branding, deterministic pitch replacement is required, and the actual
+image-model prompt must not contain the protected platform-name token.
 """
 from __future__ import annotations
 
@@ -12,7 +13,6 @@ from pathlib import Path
 
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
-
 
 SUPPORTED_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v1",
@@ -134,11 +134,16 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
                 "unmarked neutral sport-surface region reserved for deterministic overlay",
                 "no field/court/rink lines",
                 "the exact surface will be replaced by deterministic code after generation",
-                "zero pul7sar lettering",
-                "never spell pul7sar, pulsar, or any approximation",
+                "fully unbranded",
+                "platform names",
+                "exact branding and typography can be added later by deterministic post-composition",
             )
             if any(marker not in prompt for marker in hybrid_markers):
                 raise ValueError(f"candidate {request_id} is missing the Golden Hybrid v5 ownership lock")
+            if "pul7sar" in prompt or "pulsar" in prompt:
+                raise ValueError(f"candidate {request_id} leaked protected platform name into v5 generation prompt")
+            if request.metadata.get("brand_name_redacted_from_generation_prompt") is not True:
+                raise ValueError(f"candidate {request_id} did not attest brand-name prompt redaction")
 
         target_width = request.metadata.get("target_width")
         target_height = request.metadata.get("target_height")
