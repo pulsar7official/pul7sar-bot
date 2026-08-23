@@ -33,12 +33,18 @@ class _Result:
 
 
 class _Pipe:
-    def __init__(self):
+    def __init__(self, *, sequential=True):
         self.offloaded = False
+        self.sequential_offloaded = False
         self.calls = []
+        if not sequential:
+            self.enable_sequential_cpu_offload = None
 
     def enable_model_cpu_offload(self):
         self.offloaded = True
+
+    def enable_sequential_cpu_offload(self):
+        self.sequential_offloaded = True
 
     def __call__(self, **kwargs):
         self.calls.append(kwargs)
@@ -69,7 +75,7 @@ class Flux2KleinDiffusersTests(unittest.TestCase):
         self.assertFalse(snapshot.available)
         self.assertIn("Flux2KleinPipeline-missing", snapshot.details)
 
-    def test_factory_uses_locked_model_dtype_and_cpu_offload(self):
+    def test_factory_prefers_sequential_cpu_offload(self):
         pipe = _Pipe()
         calls = []
 
@@ -83,13 +89,33 @@ class Flux2KleinDiffusersTests(unittest.TestCase):
         )
         wrapper = factory("black-forest-labs/FLUX.2-klein-4B", "bfloat16")
         self.assertIsInstance(wrapper, Flux2KleinPipelineWrapper)
-        self.assertTrue(pipe.offloaded)
+        self.assertTrue(pipe.sequential_offloaded)
+        self.assertFalse(pipe.offloaded)
         self.assertEqual(calls[0][0], "black-forest-labs/FLUX.2-klein-4B")
         self.assertEqual(calls[0][1]["torch_dtype"], "bf16")
 
+    def test_factory_falls_back_to_model_cpu_offload(self):
+        pipe = _Pipe(sequential=False)
+
+        def loader(model_id, **kwargs):
+            return pipe
+
+        factory = build_flux2_klein_pipeline_factory(
+            pipeline_loader=loader,
+            torch_module=_FakeTorch,
+        )
+        factory("black-forest-labs/FLUX.2-klein-4B", "bfloat16")
+        self.assertTrue(pipe.offloaded)
+        self.assertFalse(pipe.sequential_offloaded)
+
     def test_wrapper_maps_seed_official_controls_and_metadata(self):
         pipe = _Pipe()
-        wrapper = Flux2KleinPipelineWrapper(pipe, _FakeTorch, Flux2KleinInferenceConfig())
+        wrapper = Flux2KleinPipelineWrapper(
+            pipe,
+            _FakeTorch,
+            Flux2KleinInferenceConfig(),
+            offload_mode="sequential_cpu",
+        )
         result = wrapper(
             prompt="premium sports scene",
             negative_prompt=None,
@@ -101,6 +127,7 @@ class Flux2KleinDiffusersTests(unittest.TestCase):
         self.assertEqual(result["image"], "IMAGE")
         self.assertEqual(result["metadata"]["pipeline"], "Flux2KleinPipeline")
         self.assertEqual(result["metadata"]["num_inference_steps"], 4)
+        self.assertEqual(result["metadata"]["offload_mode"], "sequential_cpu")
         self.assertEqual(result["metadata"]["native_canvas_alignment"], 16)
         call = pipe.calls[0]
         self.assertEqual(call["guidance_scale"], 1.0)
