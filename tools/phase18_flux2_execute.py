@@ -15,10 +15,13 @@ change precision when BF16 support is unavailable.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 from pathlib import Path
+import time
 
 from engine.intelligence.canvas_normalization import PillowPlatformCanvasNormalizer
+from engine.intelligence.cuda_memory import CudaPeakMemoryTracker
 from engine.intelligence.flux2_klein_diffusers import (
     Flux2KleinDiffusersProbe,
     build_flux2_klein_pipeline_factory,
@@ -72,6 +75,11 @@ def execute_request(
         )
 
     dtype_decision = LocalDTypeSelector().select(runtime, dtype)
+    memory_tracker = CudaPeakMemoryTracker()
+    peak_counters_reset = memory_tracker.reset()
+    execution_started_at = datetime.now(timezone.utc)
+    execution_started_monotonic = time.monotonic()
+
     backend = DiffusersLocalBackend(
         DiffusersExecutionConfig(output_dir=generation_dir, dtype=dtype_decision.resolved),
         build_flux2_klein_pipeline_factory(),
@@ -90,6 +98,11 @@ def execute_request(
         png_path=normalized.output_ref,
         provenance=normalized.provenance,
     )
+
+    execution_seconds = time.monotonic() - execution_started_monotonic
+    execution_finished_at = datetime.now(timezone.utc)
+    memory = memory_tracker.capture()
+
     return {
         "status": "REAL_VISUAL_PROOF_GENERATED",
         "png": artifact.png_path,
@@ -112,6 +125,17 @@ def execute_request(
         "gpu_vram_gb": runtime.gpu_vram_gb,
         "bf16_supported": runtime.metadata.get("bf16_supported"),
         "compute_capability": runtime.metadata.get("compute_capability"),
+        "execution_started_at": execution_started_at.isoformat(),
+        "execution_finished_at": execution_finished_at.isoformat(),
+        "execution_seconds": execution_seconds,
+        "cuda_memory_available": memory.available,
+        "cuda_peak_counters_reset": peak_counters_reset,
+        "cuda_device_index": memory.device_index,
+        "cuda_peak_allocated_gb": memory.peak_allocated_gb,
+        "cuda_peak_reserved_gb": memory.peak_reserved_gb,
+        "cuda_current_allocated_gb": memory.current_allocated_gb,
+        "cuda_current_reserved_gb": memory.current_reserved_gb,
+        "cuda_memory_blocker": memory.blocker,
         "cost_mode": "$0-local",
     }
 
