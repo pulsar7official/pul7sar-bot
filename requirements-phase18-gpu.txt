@@ -1,19 +1,19 @@
-# Optional dependencies for real Phase 18 local/free-GPU visual proof execution.
-# PyTorch is intentionally not pinned/installed here because CUDA wheels depend on
-# the execution environment (Colab/self-hosted GPU). The runtime gate verifies it.
-# Diffusers 0.39.0+ exposes the FLUX.2 API family used by the Golden runner.
-# Qwen2.5-VL is kept on the verified Transformers 4.x public API line. A blind
-# major-version upgrade is not allowed in the Golden runtime because it can change
-# multimodal import behavior independently of our code.
+# Reproducible optional dependencies for real Phase 18 local/free-GPU visual proof.
 #
-# Colab currently ships Pillow 11.x. Upgrading Pillow in-place to 12.x in a live
-# notebook can leave an incoherent PIL package/module state (for example an
-# ImageDraw/ImageText import looking for PIL._typing._Ink from a different
-# installed generation). Keep Pillow on the verified 11.x line for Phase 18 so
-# the one-command path does not damage the runtime before Qwen readiness runs.
-diffusers>=0.39.0
-transformers>=4.52.1,<5.0.0
-accelerate
-safetensors
-huggingface_hub
-Pillow>=11.3.0,<12.0.0
+# PyTorch is intentionally not pinned here: Colab supplies the CUDA build and
+# Phase 18 proves CUDA/BF16 support at runtime instead of replacing torch.
+#
+# The semantic stack IS pinned. A live Colab notebook can become internally
+# inconsistent when Pillow is upgraded across a major release while modules are
+# already imported. The verified Phase 18 Python 3.13 Colab baseline is Pillow
+# 11.3.0 + Transformers 4.56.2. Keep both exact until a deliberate compatibility
+# qualification updates this lock.
+#
+# Diffusers is constrained to the verified FLUX.2-capable line. Other libraries
+# are bounded to avoid accidental future major-version drift.
+diffusers>=0.39.0,<0.41.0
+transformers==4.56.2
+accelerate>=1.10.0,<2.0.0
+safetensors>=0.6.0,<1.0.0
+huggingface_hub>=0.34.0,<2.0.0
+Pillow==11.3.0
