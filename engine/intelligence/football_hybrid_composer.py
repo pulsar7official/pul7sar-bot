@@ -8,7 +8,9 @@ Earlier engineering proofs used an opaque flat-green replacement surface. That
 proved geometry but looked like a tactical board pasted into the stadium. The
 current compositor keeps the underlying photographic turf visible, adds only a
 subtle deterministic colour normalisation, then draws regulation markings in
-projective perspective.
+projective perspective. Synthetic mowing stripes are disabled by default so the
+base image keeps its photographed grass texture and light variation; they remain
+an explicit opt-in styling control only.
 """
 from __future__ import annotations
 
@@ -22,7 +24,7 @@ from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle
 
 TEXTURE_PRESERVING_COMPOSITION_MODE = "texture_preserving_pitch_overlay_v1"
 DEFAULT_SURFACE_OPACITY = 54
-DEFAULT_STRIPE_OPACITY = 24
+DEFAULT_STRIPE_OPACITY = 0
 
 
 @dataclass(frozen=True)
@@ -35,7 +37,7 @@ class FootballHybridCompositionReceipt:
     deterministic_geometry_applied: bool
     generated_pitch_markings_replaced: bool
     surface_opacity: int
-    mowing_stripes_applied: bool = True
+    mowing_stripes_applied: bool = False
     input_sha256: str = ""
     output_sha256: str = ""
     composition_mode: str = TEXTURE_PRESERVING_COMPOSITION_MODE
