@@ -52,6 +52,7 @@ class GoldenVisualBlockers:
     invented_result_or_winner: bool = False
     cluttered_collage: bool = False
     broken_geometry_or_anatomy: bool = False
+    broken_sport_surface_geometry: bool = False
 
     @property
     def active(self) -> tuple[str, ...]:
@@ -86,12 +87,6 @@ class GoldenVisualEvaluation:
 
     @property
     def quality_tier(self) -> str:
-        """Expose the visual bar without weakening approval semantics.
-
-        `elite` is the 9+ target for flagship visuals. `golden` meets the strict
-        publication benchmark. Everything else remains below the PUL7SAR Golden
-        Visual bar even if it is technically valid.
-        """
         if not self.approved:
             return "below_golden"
         if self.scores.weighted_score >= ELITE_TARGET:
