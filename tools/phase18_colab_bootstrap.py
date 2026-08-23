@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Repair/qualify Colab, then launch Golden Hybrid v5.
+"""Repair/qualify Colab, prefetch semantic weights, then launch Golden Hybrid v5.
 
 Semantic QA is desirable but is not allowed to trap development in a retry loop.
 The bootstrap repairs the verified runtime and probes it in a fresh interpreter.
-CUDA remains mandatory because FLUX needs the GPU. Semantic-stack probe failures
-are reported, but the protected runner is still launched in engineering-proof
-mode; publication remains fail-closed inside that runner.
+When that semantic runtime is coherent it also proves/downloads the exact local
+Qwen snapshot *before* FLUX spends GPU time. If semantic preparation fails and
+strict mode is not requested, the protected runner is launched in explicit
+engineering-proof mode; publication remains fail-closed inside that runner.
 """
 from __future__ import annotations
 
@@ -81,6 +82,17 @@ if not payload["semantic_ready"]:
     return completed.returncode == 0
 
 
+def _prefetch_semantic_model() -> bool:
+    """Prepare exact Qwen weights before FLUX generation; never performs inference."""
+    completed = _run([
+        sys.executable,
+        str(ROOT / "tools" / "phase18_prefetch_qwen.py"),
+        "--receipt",
+        "output/phase18_gpu_smoke/qwen-model-cache.json",
+    ], check=False)
+    return completed.returncode == 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="PUL7SAR Phase 18 Colab self-repair + Golden Hybrid v5 bootstrap")
     parser.add_argument("--candidate", type=int, default=1)
@@ -92,26 +104,42 @@ def main() -> int:
 
     print("=== PUL7SAR PHASE 18 — COLAB BOOTSTRAP ===", flush=True)
     if not args.skip_repair:
-        print("1/3 Repairing the exact verified semantic runtime...", flush=True)
+        print("1/4 Repairing the exact verified semantic runtime...", flush=True)
         _repair_runtime()
     else:
-        print("1/3 Runtime repair skipped by explicit request.", flush=True)
+        print("1/4 Runtime repair skipped by explicit request.", flush=True)
 
-    print("2/3 Probing Pillow/Qwen/CUDA in a fresh interpreter...", flush=True)
+    print("2/4 Probing Pillow/Qwen/CUDA in a fresh interpreter...", flush=True)
     semantic_ready = _fresh_process_probe()
     if semantic_ready:
         print("PHASE18_COLAB_RUNTIME_READY", flush=True)
     else:
-        print("PHASE18_SEMANTIC_RUNTIME_DEGRADED: continuing to engineering-proof mode; publication remains blocked.", flush=True)
+        print("PHASE18_SEMANTIC_RUNTIME_DEGRADED: publication semantic QA is unavailable.", flush=True)
         if args.strict_semantic:
             raise RuntimeError("SEMANTIC_RUNTIME_REQUIRED_BY_STRICT_MODE")
 
-    print("3/3 Launching protected Golden Hybrid v5 runner in a fresh interpreter...", flush=True)
+    semantic_mode = args.semantic_inspection if semantic_ready else "none"
+    if semantic_ready:
+        print("3/4 Proving/caching exact Qwen semantic weights before FLUX GPU generation...", flush=True)
+        semantic_model_ready = _prefetch_semantic_model()
+        if not semantic_model_ready:
+            print(
+                "PHASE18_QWEN_MODEL_CACHE_DEGRADED: continuing in engineering-proof mode; "
+                "publication remains blocked.",
+                flush=True,
+            )
+            if args.strict_semantic:
+                raise RuntimeError("SEMANTIC_MODEL_CACHE_REQUIRED_BY_STRICT_MODE")
+            semantic_mode = "none"
+    else:
+        print("3/4 Qwen model prefetch skipped because semantic runtime is degraded.", flush=True)
+
+    print("4/4 Launching protected Golden Hybrid v5 runner in a fresh interpreter...", flush=True)
     command = [
         sys.executable,
         str(ROOT / "tools" / "phase18_colab_one_command.py"),
         "--candidate", str(args.candidate),
-        "--semantic-inspection", args.semantic_inspection,
+        "--semantic-inspection", semantic_mode,
     ]
     if args.force:
         command.append("--force")
