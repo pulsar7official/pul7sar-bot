@@ -51,6 +51,7 @@ jobs:
           test -f tools/phase18_first_png.py
           test -f tools/phase18_prefetch_flux2.py
           test -f tools/phase18_build_gpu_evidence_manifest.py
+          test -f tools/phase18_verify_gpu_evidence_manifest.py
           if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 3
@@ -156,6 +157,24 @@ jobs:
             --include output/phase18_gpu_host/qualification.json \
             --output output/phase18_gpu_smoke/evidence-manifest.json \
             | tee output/phase18_gpu_smoke/evidence-manifest-console.json
+
+      - name: Replay evidence integrity before artifact upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_gpu_evidence_manifest.py \
+            --manifest output/phase18_gpu_smoke/evidence-manifest.json \
+            --receipt output/phase18_gpu_smoke/evidence-verification.json \
+            | tee output/phase18_gpu_smoke/evidence-verification-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("output/phase18_gpu_smoke/evidence-verification.json").read_text(encoding="utf-8"))
+          if receipt.get("status") != "GOLDEN_GPU_EVIDENCE_VERIFIED":
+              raise SystemExit("Golden GPU evidence replay verification did not pass")
+          if receipt.get("publication_ready") is not False:
+              raise SystemExit("Evidence verification must not self-authorize publication")
+          PY
 
       - name: Upload genuine Golden smoke evidence
         if: always()
