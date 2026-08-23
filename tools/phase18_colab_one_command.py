@@ -7,8 +7,9 @@ Flow:
 3. discover/run all Phase 18 CPU tests,
 4. generate/reuse exactly one atmosphere-only FLUX candidate,
 5. replace the reserved football surface with deterministic 105m x 68m geometry,
-6. report actual local visual-inspection capability,
-7. display the hybrid proof.
+6. verify composition receipt/file hashes,
+7. report actual local visual-inspection capability,
+8. display the hybrid proof.
 
 The command never equates PNG generation with publication readiness.
 """
@@ -31,6 +32,7 @@ if str(ROOT) not in sys.path:
 
 from engine.intelligence.football_hybrid_composer import FootballHybridComposer
 from engine.intelligence.football_pitch_placement import FootballCameraPreset
+from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
 from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInspectionPolicy
 from engine.intelligence.local_vision_inspectors import detect_local_vision_capabilities
 
@@ -94,6 +96,9 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
         output_path=str(output),
         camera_preset=FootballCameraPreset.HIGH_WIDE_CENTRAL,
     )
+    artifact_integrity = HybridArtifactIntegrityGate().validate_football(receipt)
+    if not artifact_integrity.valid:
+        raise RuntimeError("HYBRID_ARTIFACT_INTEGRITY_FAILED: " + ", ".join(artifact_integrity.failures))
 
     capabilities = detect_local_vision_capabilities()
     inspection = HybridVisualInspectionPolicy().evaluate(capabilities, identity_required=False)
@@ -105,6 +110,12 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
         "base_png": str(base_png),
         "hybrid_png": str(output),
         "geometry_receipt": receipt.__dict__,
+        "artifact_integrity": {
+            "valid": artifact_integrity.valid,
+            "failures": list(artifact_integrity.failures),
+            "input_sha256": receipt.input_sha256,
+            "output_sha256": receipt.output_sha256,
+        },
         "deterministic_geometry_applied": receipt.deterministic_geometry_applied,
         "generated_pitch_markings_replaced": receipt.generated_pitch_markings_replaced,
         "surface_opacity": receipt.surface_opacity,
@@ -138,15 +149,15 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/5 Updating protected Phase 18 branch...")
+    print("1/6 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
 
-    print("2/5 Discovering and running all Phase 18 CPU validation...")
+    print("2/6 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
 
-    print("3/5 Entering locked atmosphere-only Golden runner...")
+    print("3/6 Entering locked atmosphere-only Golden runner...")
     command = [
         sys.executable,
         str(ROOT / "tools" / "phase18_colab_runner.py"),
@@ -163,8 +174,9 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/5 Replacing generated surface with deterministic regulation football geometry...")
-    print("5/5 Reporting visual-inspection capability and displaying hybrid proof...")
+    print("4/6 Replacing generated surface with deterministic regulation football geometry...")
+    print("5/6 Verifying deterministic composition artifact hashes and receipt...")
+    print("6/6 Reporting visual-inspection capability and displaying hybrid proof...")
     _compose_hybrid(args.candidate)
     return 0
 
