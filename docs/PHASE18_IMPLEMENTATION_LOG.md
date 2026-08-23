@@ -145,10 +145,20 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Qualification is deliberately narrower than generation/publication readiness: it does not claim model-cache, Diffusers, PNG, semantic-safety or Golden-quality success.
 - Detailed record: `docs/PHASE18_CHANGESET_059_GPU_HOST_QUALIFICATION.md`.
 
+## Change Set 060 — Integrated first-PNG fail-closed preflight
+- Updates `tools/phase18_first_png.py` so the direct one-command path now incorporates the newer Change Set 059 GPU-host qualification and Change Set 058 exact-model cache preflight before Golden readiness and before durable queue mutation.
+- Host qualification must return `eligible=true`; incompatible hardware fails before model-weight download.
+- Model cache/prefetch must return `ready=true` and remain `$0-local`; paid-provider drift is terminal.
+- Adds repository-scoped host-qualification and model-cache evidence receipts to the first-PNG result payload.
+- Adds configurable positive `--minimum-free-gib` while keeping the conservative 30 GiB default.
+- Adds `tests/test_phase18_first_png_preflight.py` covering strict preflight ordering, non-eligible hosts, nonzero qualification failure, cache readiness/cost lock, disk-headroom forwarding and repository-scoped evidence paths.
+- No prompt, seed, canvas, provider/model identity, Fact Lock, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
+- Detailed record: `docs/PHASE18_CHANGESET_060_INTEGRATED_FIRST_PNG_PREFLIGHT.md`.
+
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 059
+## Production safety through Change Set 060
 - `main`: untouched by Phase 18 development changes.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -162,19 +172,18 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Golden Visual approval remains additional to semantic publication safety.
 - Unsupported/unproven BF16 does not trigger a silent precision downgrade.
 - Raw generation throughput is never represented as publication throughput.
-- First-PNG orchestration fails before enqueueing if Golden GPU readiness is not proven.
+- First-PNG orchestration now qualifies hardware before model download and proves hardware/cache/runtime readiness before enqueueing.
 - Model caching does not imply GPU readiness or publication readiness.
 - GPU host qualification does not imply model/backend/generation/publication readiness.
 
-## Architecture after Change Set 059
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Golden GPU Host Qualification -> Approved Model Cache Preflight -> One-Command Smoke Coordinator -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 060
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Integrated Golden Smoke Preflight [GPU Host Qualification -> Approved Model Cache/Prefetch -> FLUX/BF16 Readiness] -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Attach/provide a real NVIDIA CUDA host, run `tools/phase18_qualify_gpu_host.py`, and require `eligible: true` before proceeding.
-2. On a qualified host, run approved model cache preflight/prefetch and FLUX-specific/BF16 readiness.
-3. Run the manual `Phase 18 GPU Golden Smoke` workflow with confirmation `RUN_PHASE18_GOLDEN_GPU`, or execute `tools/phase18_first_png.py` directly on the host.
-4. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification and model-cache receipts.
-5. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
-6. If stable, execute remaining deterministic seeds through the same worker path and compute capacity only from observed successful samples.
-7. Add distributed queue infrastructure only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
-8. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
+1. Attach/provide a real NVIDIA CUDA host and run the now self-contained `tools/phase18_first_png.py`; it will qualify hardware before download or queue mutation.
+2. Require host `eligible=true`, cache `ready=true`, `$0-local`, and `golden_generation_ready=true` before any durable job exists.
+3. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification and model-cache receipts.
+4. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
+5. If stable, execute remaining deterministic seeds through the same worker path and compute capacity only from observed successful samples.
+6. Add distributed queue infrastructure only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
+7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
