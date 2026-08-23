@@ -93,6 +93,22 @@ class PostCompositionTests(unittest.TestCase):
         )
         self.assertTrue(self.gate.evaluate(self.package, self.assets, plan).allowed)
 
+    def test_missing_declared_logo_checksum_fails_closed(self):
+        assets = AssetBundle((
+            AssetReference("pul7sar-logo", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT),
+            AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT),
+        ))
+        plan = self.planner.compile(self.package, assets)
+        decision = self.gate.evaluate(self.package, assets, plan)
+        self.assertFalse(decision.allowed)
+        self.assertIn("missing valid declared checksum for PUL7SAR logo: pul7sar-logo", decision.failures)
+
+    def test_missing_runtime_logo_integrity_record_fails_closed(self):
+        plan = self.planner.compile(self.package, self.assets, integrity_records=(AssetIntegrityRecord("arsenal-crest", "b" * 64),))
+        decision = self.gate.evaluate(self.package, self.assets, plan)
+        self.assertFalse(decision.allowed)
+        self.assertIn("missing integrity record for PUL7SAR logo: pul7sar-logo", decision.failures)
+
     def test_checksum_mismatch_fails_closed(self):
         plan = self.planner.compile(
             self.package,
@@ -133,7 +149,7 @@ class PostCompositionTests(unittest.TestCase):
         self.assertFalse(self.gate.evaluate(self.package, self.assets, plan).allowed)
 
     def test_platform_or_canvas_mismatch_fails(self):
-        plan = self.planner.compile(self.package, self.assets)
+        plan = self.planner.compile(self.package, self.assets, integrity_records=(AssetIntegrityRecord("pul7sar-logo", "a" * 64),))
         bad = PostCompositionPlan("x_feed", plan.canvas, plan.elements, plan.integrity_records)
         self.assertFalse(self.gate.evaluate(self.package, self.assets, bad).allowed)
 
