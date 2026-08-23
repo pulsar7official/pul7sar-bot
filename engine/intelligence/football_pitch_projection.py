@@ -6,7 +6,6 @@ instead of asking diffusion to invent perspective geometry.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Iterable
 
 from engine.intelligence.football_pitch_geometry import FootballPitchGeometry
 
@@ -19,6 +18,12 @@ class ProjectedPolyline:
     role: str
     points: tuple[Point, ...]
     closed: bool = False
+
+
+@dataclass(frozen=True)
+class ProjectedPoint:
+    role: str
+    point: Point
 
 
 def _solve_linear_system(matrix: list[list[float]], values: list[float]) -> list[float]:
@@ -56,8 +61,7 @@ class PerspectiveProjector:
             values.append(u)
             rows.append([0, 0, 0, x, y, 1, -v * x, -v * y])
             values.append(v)
-        solution = _solve_linear_system(rows, values)
-        return cls(tuple(solution))
+        return cls(tuple(_solve_linear_system(rows, values)))
 
     def project(self, point: Point) -> Point:
         x, y = point
@@ -69,6 +73,12 @@ class PerspectiveProjector:
             (h11 * x + h12 * y + h13) / denominator,
             (h21 * x + h22 * y + h23) / denominator,
         )
+
+
+@dataclass(frozen=True)
+class ProjectedFootballMarkings:
+    polylines: tuple[ProjectedPolyline, ...]
+    points: tuple[ProjectedPoint, ...]
 
 
 class FootballPitchProjectionPlanner:
@@ -84,9 +94,30 @@ class FootballPitchProjectionPlanner:
     def _rect_points(x: float, y: float, width: float, height: float) -> tuple[Point, ...]:
         return ((x, y), (x + width, y), (x + width, y + height), (x, y + height), (x, y))
 
-    def project_markings(self, destination_corners: tuple[Point, Point, Point, Point], *, circle_samples: int = 72) -> tuple[ProjectedPolyline, ...]:
+    @staticmethod
+    def _sample_arc(cx: float, cy: float, radius: float, start_degrees: float, end_degrees: float, samples: int) -> tuple[Point, ...]:
+        import math
+        start = math.radians(start_degrees)
+        end = math.radians(end_degrees)
+        return tuple(
+            (
+                cx + radius * math.cos(start + (end - start) * i / (samples - 1)),
+                cy + radius * math.sin(start + (end - start) * i / (samples - 1)),
+            )
+            for i in range(samples)
+        )
+
+    def project_all_markings(
+        self,
+        destination_corners: tuple[Point, Point, Point, Point],
+        *,
+        circle_samples: int = 72,
+        arc_samples: int = 32,
+    ) -> ProjectedFootballMarkings:
         if circle_samples < 24:
             raise ValueError("circle_samples must be >= 24")
+        if arc_samples < 8:
+            raise ValueError("arc_samples must be >= 8")
         import math
 
         p = self.projector(destination_corners)
@@ -106,4 +137,12 @@ class FootballPitchProjectionPlanner:
             )
             points = tuple(p.project(point) for point in world) + (p.project(world[0]),)
             output.append(ProjectedPolyline(circle.role, points, closed=True))
-        return tuple(output)
+        for arc in self.geometry.arcs():
+            world = self._sample_arc(arc.cx, arc.cy, arc.radius, arc.start_degrees, arc.end_degrees, arc_samples)
+            output.append(ProjectedPolyline(arc.role, tuple(p.project(point) for point in world), closed=False))
+        points = tuple(ProjectedPoint(mark.role, p.project((mark.x, mark.y))) for mark in self.geometry.points())
+        return ProjectedFootballMarkings(tuple(output), points)
+
+    def project_markings(self, destination_corners: tuple[Point, Point, Point, Point], *, circle_samples: int = 72) -> tuple[ProjectedPolyline, ...]:
+        """Backward-compatible polyline-only view used by existing callers."""
+        return self.project_all_markings(destination_corners, circle_samples=circle_samples).polylines
