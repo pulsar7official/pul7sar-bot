@@ -21,6 +21,15 @@ class StoryDominantEntityResolverTests(unittest.TestCase):
         self.assertEqual(result.entity_name, "Club B")
         self.assertEqual(result.reason, DominantEntityReason.TRANSFER_DESTINATION)
 
+    def test_unresolved_transfer_does_not_get_destination_color(self):
+        result = self.resolve(EditorialEvent.TRANSFER_CONFIRMED, {
+            "subject": "Player X",
+            "origin": "Club A",
+            "destination": "Club B",
+            "confirmation_status": "pending",
+        })
+        self.assertIsNone(result)
+
     def test_match_winner_entity_wins_even_with_two_clubs(self):
         result = self.resolve(EditorialEvent.RESULT, {
             "subject": "Club A",
@@ -41,6 +50,12 @@ class StoryDominantEntityResolverTests(unittest.TestCase):
     def test_draw_has_no_dominant_entity(self):
         result = self.resolve(EditorialEvent.RESULT, {
             "subject": "Club A", "opponent": "Club B", "result_status": "draw"
+        })
+        self.assertIsNone(result)
+
+    def test_non_final_result_does_not_use_declared_winner(self):
+        result = self.resolve(EditorialEvent.RESULT, {
+            "subject": "Club A", "opponent": "Club B", "result_status": "live", "winner_entity": "Club A"
         })
         self.assertIsNone(result)
 
@@ -71,7 +86,7 @@ class StoryDominantEntityResolverTests(unittest.TestCase):
 
     def test_trophy_champion_can_be_explicit(self):
         result = self.resolve(EditorialEvent.TROPHY, {
-            "subject": "Club A", "competition": "Cup", "title_status": "confirmed", "champion_entity": "Club A"
+            "subject": "Club A", "competition": "Cup", "title_status": "confirmed_champion", "champion_entity": "Club A"
         })
         self.assertEqual(result.entity_name, "Club A")
 
