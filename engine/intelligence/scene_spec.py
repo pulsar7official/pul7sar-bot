@@ -102,7 +102,7 @@ class SceneSpecCompiler:
         "player_stories": "editorial portrait framing with sport-authentic posture",
         "serious_news": "restrained documentary-style framing",
         "organization": "balanced institutional composition",
-        "general_world": "wide premium editorial montage with balanced multi-subject hierarchy",
+        "general_world": "wide premium editorial framing in one continuous physical scene with one coherent perspective and one dominant visual hierarchy",
     }
 
     def compile(
