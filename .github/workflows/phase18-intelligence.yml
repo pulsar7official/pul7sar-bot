@@ -3,9 +3,9 @@ name: Phase 18 Story Intelligence Verification
 on:
   push:
     branches: ['phase18/**']
-    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
   pull_request:
-    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/ZERO_COST_VISUAL_PROOF_RUNBOOK.md', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
   workflow_dispatch:
 
 permissions:
