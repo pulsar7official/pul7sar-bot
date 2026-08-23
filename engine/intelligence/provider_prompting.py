@@ -60,6 +60,9 @@ class PromptConstraintCompiler:
         "no duplicate, missing, warped, or invented field markings": (
             "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective."
         ),
+        "no generated branding, wordmarks, readable text, or pseudo-text": (
+            "Render a clean unbranded photographic base scene with no legible words, letters, numerals, platform names, sponsor writing, logos, wordmarks, watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually neutral so all exact branding and typography can be added later by deterministic post-composition."
+        ),
     }
 
     def compile(
