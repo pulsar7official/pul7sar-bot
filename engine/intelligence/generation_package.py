@@ -82,6 +82,15 @@ class GenerationPackageCompiler:
             f"Composition: {specification.composition}.",
             f"Camera: {specification.camera_direction}.",
             f"Mood: {specification.emotional_mood}.",
+            (
+                "Composition grammar: one single continuous full-bleed editorial image, one physical world, one coherent camera perspective, "
+                "and one unified lighting system across the entire canvas. Regional, tactical, institutional, or narrative variety must be integrated "
+                "inside that same scene rather than represented as separate pictures."
+            ),
+            (
+                "Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, comic-panel, tiled-photo, framed-window, "
+                "or image-within-image composition. Never divide the canvas with seams, borders, panel lines, or separate photographic zones."
+            ),
         ]
         if specification.subject:
             prompt_parts.append(f"Hero subject: {specification.subject}.")
@@ -144,6 +153,8 @@ class GenerationPackageCompiler:
             "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
             "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
             "base_scene_overlay_policy": "no_brand_or_editorial_overlays_in_ai_scene",
+            "composition_grammar": "single_continuous_scene",
+            "multi_panel_layout_allowed": False,
             "identity_required": identity is not None,
             "identity_entity_name": identity.entity_name if identity else None,
             "identity_reference_confidence": identity.confidence if identity else None,
