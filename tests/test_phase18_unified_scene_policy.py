@@ -35,16 +35,18 @@ class UnifiedScenePolicyTests(unittest.TestCase):
         self.assertIn("one single continuous full-bleed editorial image", prompt)
         self.assertIn("never use collage, montage, split-screen, grid, diptych, triptych", prompt)
         self.assertNotIn("five visual zones", prompt)
-        self.assertIn("unmarked neutral sport-surface region reserved for deterministic overlay", prompt)
+        self.assertIn("reserved surface region plain and unmarked", prompt)
         self.assertIn("no field/court/rink lines", prompt)
         self.assertIn("the exact surface will be replaced by deterministic code after generation", prompt)
         self.assertNotIn("exactly one halfway line", prompt)
         self.assertIn("fully unbranded", prompt)
         self.assertIn("platform names", prompt)
-        self.assertNotIn("pul7sar", prompt)
-        self.assertNotIn("pulsar", prompt)
+        self.assertNotIn("pul7sar", prompt); self.assertNotIn("pulsar", prompt)
         self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
         self.assertFalse(request.metadata["generated_branding_allowed"])
+        self.assertTrue(request.metadata["hybrid_base_scene_contract"])
+        self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
+        self.assertTrue(request.metadata["hybrid_surface_replacement_required"])
         self.assertEqual(request.native_negative_constraints, ())
 
     def test_golden_v5_batch_round_trip_verifies_hybrid_geometry_and_brand_policy(self):
@@ -69,31 +71,25 @@ class UnifiedScenePolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             build_batch(temp, seeds=(7007001,))
             manifest_path = Path(temp) / "manifest.json"
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-            payload["composition_grammar"] = "multi_panel"
+            payload = json.loads(manifest_path.read_text(encoding="utf-8")); payload["composition_grammar"] = "multi_panel"
             manifest_path.write_text(json.dumps(payload), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "single_continuous_scene"):
-                verify_batch(str(manifest_path))
+            with self.assertRaisesRegex(ValueError, "single_continuous_scene"): verify_batch(str(manifest_path))
 
     def test_v5_verifier_rejects_generated_pitch_geometry_permission(self):
         with tempfile.TemporaryDirectory() as temp:
             build_batch(temp, seeds=(7007001,))
             manifest_path = Path(temp) / "manifest.json"
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-            payload["generated_sport_geometry_allowed"] = True
+            payload = json.loads(manifest_path.read_text(encoding="utf-8")); payload["generated_sport_geometry_allowed"] = True
             manifest_path.write_text(json.dumps(payload), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "Golden Hybrid v5 contract mismatch"):
-                verify_batch(str(manifest_path))
+            with self.assertRaisesRegex(ValueError, "Golden Hybrid v5 contract mismatch"): verify_batch(str(manifest_path))
 
     def test_v5_verifier_rejects_generated_branding_permission(self):
         with tempfile.TemporaryDirectory() as temp:
             build_batch(temp, seeds=(7007001,))
             manifest_path = Path(temp) / "manifest.json"
-            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-            payload["generated_branding_allowed"] = True
+            payload = json.loads(manifest_path.read_text(encoding="utf-8")); payload["generated_branding_allowed"] = True
             manifest_path.write_text(json.dumps(payload), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "Golden Hybrid v5 contract mismatch"):
-                verify_batch(str(manifest_path))
+            with self.assertRaisesRegex(ValueError, "Golden Hybrid v5 contract mismatch"): verify_batch(str(manifest_path))
 
 
 if __name__ == "__main__":
