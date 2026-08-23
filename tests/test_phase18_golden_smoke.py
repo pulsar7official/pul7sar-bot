@@ -7,12 +7,7 @@ import unittest
 
 from engine.intelligence.generation_job_store import FilesystemGenerationJobStore
 from engine.intelligence.generation_jobs import GenerationJobState
-from engine.intelligence.golden_smoke import (
-    DEFAULT_SMOKE_JOB_ID,
-    load_first_candidate,
-    prepare_smoke_job,
-    smoke_status_payload,
-)
+from engine.intelligence.golden_smoke import DEFAULT_SMOKE_JOB_ID, load_first_candidate, prepare_smoke_job, smoke_status_payload
 from tools.phase18_build_golden_batch import build_batch
 
 
@@ -28,7 +23,7 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             candidate = load_first_candidate(manifest)
             self.assertEqual(candidate.candidate, 1)
             self.assertEqual(candidate.seed, 7007001)
-            self.assertEqual(candidate.request_id, "golden-general-season-opener-v4-001")
+            self.assertEqual(candidate.request_id, "golden-season-opener-hybrid-v5-001")
             self.assertEqual(len(candidate.payload_sha256), 64)
             self.assertTrue(candidate.handoff_path.is_file())
 
@@ -47,10 +42,10 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["cost_mode"] = "paid-api"
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "zero|0-local|cost"):
+            with self.assertRaisesRegex(ValueError, "0-local"):
                 load_first_candidate(manifest)
 
-    def test_v4_manifest_requires_unified_scene_grammar(self) -> None:
+    def test_v5_manifest_requires_unified_scene_grammar(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -59,31 +54,40 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "single_continuous_scene"):
                 load_first_candidate(manifest)
 
-    def test_v4_manifest_requires_regulation_pitch_geometry(self) -> None:
+    def test_v5_manifest_forbids_generated_pitch_geometry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
-            data["sport_geometry"] = "decorative_pitch"
+            data["generated_sport_geometry_allowed"] = True
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "regulation association-football pitch geometry"):
+            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
                 load_first_candidate(manifest)
 
-    def test_v4_manifest_forbids_generated_branding(self) -> None:
+    def test_v5_manifest_requires_deterministic_pitch_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["hybrid_surface_replacement_required"] = False
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
+                load_first_candidate(manifest)
+
+    def test_v5_manifest_forbids_generated_branding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["generated_branding_allowed"] = True
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "generated platform branding"):
+            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
                 load_first_candidate(manifest)
 
-    def test_v4_manifest_requires_exact_post_generation_branding(self) -> None:
+    def test_v5_manifest_requires_dynamic_deterministic_branding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["brand_composition_policy"] = "generated_wordmark"
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "exact-assets-only"):
+            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
                 load_first_candidate(manifest)
 
     def test_prepare_creates_exactly_one_durable_smoke_job(self) -> None:
@@ -93,7 +97,6 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             store = FilesystemGenerationJobStore(root / "queue")
             first = prepare_smoke_job(store=store, candidate=candidate)
             second = prepare_smoke_job(store=store, candidate=candidate)
-
             self.assertTrue(first.created)
             self.assertFalse(second.created)
             self.assertTrue(second.reusable_existing)
