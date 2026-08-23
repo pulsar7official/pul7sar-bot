@@ -182,10 +182,20 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Adds `tests/test_phase18_golden_smoke.py` covering SHA drift, cost-mode drift, durable single-job semantics, identity mismatch and terminal-failure refusal.
 - Detailed record: `docs/PHASE18_CHANGESET_056_ONE_COMMAND_FIRST_PNG.md`.
 
+## Change Set 057 — Self-hosted GPU Golden smoke workflow
+- Adds `.github/workflows/phase18-gpu-smoke.yml`, a manual workflow targeting only explicitly labelled self-hosted Linux/x64/CUDA/BF16 PUL7SAR runners.
+- Requires an explicit `RUN_PHASE18_GOLDEN_GPU` confirmation token and checks out `phase18/story-intelligence` directly.
+- Proves CUDA-enabled PyTorch is already present before installing optional Phase 18 GPU dependencies; it never replaces PyTorch automatically.
+- Reuses the existing model-specific readiness gate and the locked one-command first-PNG path rather than introducing a second generation implementation.
+- Verifies the generated artifact has a real PNG signature and that generation success still reports `publication_ready=false`.
+- Uploads readiness, real visual proof, generated image, queue state, handoffs and worker telemetry as a GitHub artifact for inspection.
+- Adds `tests/test_phase18_gpu_smoke_workflow.py` to keep the workflow manual, branch-isolated, self-hosted, BF16-locked, zero-cost and free of embedded provider secrets.
+- Detailed record: `docs/PHASE18_CHANGESET_057_SELF_HOSTED_GPU_SMOKE.md`.
+
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 056
+## Production safety through Change Set 057
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
@@ -201,15 +211,17 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Unsupported or unproven BF16 does not trigger a silent precision downgrade.
 - Raw generation throughput is never represented as publication throughput.
 - First-PNG orchestration fails before enqueueing if Golden GPU readiness is not proven.
+- The GPU workflow uses only a self-hosted runner label set; no hosted/premium GPU runner or paid image API is selected.
 
-## Architecture after Change Set 056
+## Architecture after Change Set 057
 `Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> One-Command Smoke Coordinator -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Execute `PYTHONPATH=. python tools/phase18_first_png.py` on a compatible `$0` CUDA/BF16 host.
-2. Capture the first genuine PNG together with latency and CUDA high-water memory from Change Set 055.
-3. Use only observed successful samples to calculate raw generation capacity and determine whether latency or VRAM is the primary worker bottleneck.
-4. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
-5. If stable, execute the remaining deterministic seeds through the same durable worker path.
-6. Add a distributed queue adapter only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
-7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
+1. Attach or otherwise provide a compatible NVIDIA CUDA/BF16 host with sufficient VRAM to the Phase 18 worker path; for GitHub orchestration it must carry labels `gpu`, `cuda`, `bf16`, `pul7sar-phase18` in addition to standard self-hosted Linux/x64 labels.
+2. Execute the manual `Phase 18 GPU Golden Smoke` workflow with confirmation token `RUN_PHASE18_GOLDEN_GPU`, or run the same `tools/phase18_first_png.py` command directly on the host.
+3. Capture the first genuine PNG together with latency and CUDA high-water memory from Change Set 055.
+4. Use only observed successful samples to calculate raw generation capacity and determine whether latency or VRAM is the primary worker bottleneck.
+5. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
+6. If stable, execute the remaining deterministic seeds through the same durable worker path.
+7. Add a distributed queue adapter only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
+8. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
