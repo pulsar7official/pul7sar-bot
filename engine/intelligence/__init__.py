@@ -10,6 +10,9 @@ from engine.intelligence.classification import EntityCandidate, EntityKind, Stor
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
 from engine.intelligence.cost_policy import BillingClass, CostPolicyDecision, DevelopmentCostPolicy, ProviderEconomics
 from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestCompiler
+from engine.intelligence.dynamic_brand import BrandAccentReason, DynamicBrandDecision, DynamicBrandResolver, StoryHeroEvidence
+from engine.intelligence.dynamic_brand_contrast import BrandContrastPlan, DynamicBrandContrastResolver, contrast_ratio, relative_luminance
+from engine.intelligence.dynamic_brand_geometry import DynamicBrandGeometryRecipe, DynamicBrandGeometryRegistry
 from engine.intelligence.editorial_angle_selector import EditorialAngleCandidate, EditorialAngleScore, EditorialAngleSelection, VisualAwareEditorialAngleSelector
 from engine.intelligence.editorial_copy_builder import EditorialCopyBuilder, EditorialCopyDecision, EditorialCopyInput
 from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGrammar, HeadlineDecision, HeadlineInput, HeadlineTone
@@ -21,7 +24,9 @@ from engine.intelligence.fact_locked_editorial_adapter import FactLockedEditoria
 from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
 from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, Flux2KleinInferenceConfig, Flux2KleinPipelineWrapper, build_flux2_klein_pipeline_factory
 from engine.intelligence.flux_worker_executor import Flux2SubprocessConfig, Flux2SubprocessLockedExecutor
+from engine.intelligence.football_hybrid_composer import FootballHybridComposer, FootballHybridCompositionReceipt
 from engine.intelligence.football_pitch_geometry import ArcMark, CircleMark, FootballPitchGeometry, LineSegment, PointMark, RectMark
+from engine.intelligence.football_pitch_placement import FootballCameraPreset, FootballPitchPlacement, FootballPitchPlacementPlanner
 from engine.intelligence.football_pitch_projection import FootballPitchProjectionPlanner, PerspectiveProjector, ProjectedFootballMarkings, ProjectedPoint, ProjectedPolyline
 from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle, PillowFootballPitchRenderer
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
@@ -33,6 +38,8 @@ from engine.intelligence.generation_session import AttemptDiagnostic, Generation
 from engine.intelligence.generation_worker import GenerationJobStore, GenerationWorkerService, LockedGenerationExecutor, WorkerCycleResult, WorkerExecutionResult
 from engine.intelligence.geometry_capabilities import DeterministicGeometryCapabilityRegistry, GeometryCapability, GeometryCapabilityStatus
 from engine.intelligence.golden_visual_quality import ELITE_TARGET, GOLDEN_CORE_FLOOR, GOLDEN_WEIGHTED_FLOOR, GoldenVisualBlockers, GoldenVisualEvaluation, GoldenVisualQualitySelector, GoldenVisualScores, GoldenVisualSelection
+from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContract, HybridBaseSceneContractCompiler
+from engine.intelligence.hybrid_evidence_builder import HybridVisualEvidenceBuilder, VisualInspectionFlags
 from engine.intelligence.hybrid_layer_planner import HybridLayerPlan, HybridVisualLayerPlanner, LayerSource, VisualLayer
 from engine.intelligence.hybrid_visual_quality_gate import HybridVisualEvidence, HybridVisualQualityDecision, HybridVisualQualityGate
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
@@ -73,6 +80,7 @@ from engine.intelligence.story_event_resolver import StoryEventResolver
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
+from engine.intelligence.visual_execution_plan import VisualExecutionPlan, VisualExecutionPlanCompiler
 from engine.intelligence.visual_layer_qa import HybridLayerQualityGate, LayerLeakageEvidence, LayerQADecision
 from engine.intelligence.visual_proof import VisualProofArtifact, VisualProofArtifactWriter
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
