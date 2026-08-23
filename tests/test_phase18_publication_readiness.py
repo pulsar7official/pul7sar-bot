@@ -1,6 +1,7 @@
 import unittest
 
 from engine.intelligence.final_export import ExportAuthorization
+from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityDecision
 from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInspectionDecision
 from engine.intelligence.hybrid_visual_quality_gate import HybridVisualQualityDecision
 from engine.intelligence.publication_readiness import PublicationReadinessEvidence, PublicationReadinessGate
@@ -15,6 +16,7 @@ class PublicationReadinessGateTests(unittest.TestCase):
     def good(self):
         return PublicationReadinessEvidence(
             premortem=VisualPremortemDecision(PremortemAction.PROCEED, True, True, FailureScenarioReport(()), (), ()),
+            artifact_integrity=HybridArtifactIntegrityDecision(True, ()),
             inspection=HybridVisualInspectionDecision("AUTO_VISUAL_QA_READY", True, True, True, ()),
             hybrid_quality=HybridVisualQualityDecision(True, ()),
             semantic_publication_approved=True,
@@ -27,10 +29,25 @@ class PublicationReadinessGateTests(unittest.TestCase):
         self.assertTrue(decision.ready)
         self.assertEqual(decision.status, "PUBLICATION_READY")
 
+    def test_tampered_artifact_blocks_publication(self):
+        evidence = self.good()
+        evidence = PublicationReadinessEvidence(
+            premortem=evidence.premortem,
+            artifact_integrity=HybridArtifactIntegrityDecision(False, ("hybrid_artifact_sha256_mismatch",)),
+            inspection=evidence.inspection,
+            hybrid_quality=evidence.hybrid_quality,
+            semantic_publication_approved=True,
+            golden_visual_approved=True,
+            export_authorization=evidence.export_authorization,
+        )
+        decision = self.gate.evaluate(evidence)
+        self.assertIn("artifact_integrity:hybrid_artifact_sha256_mismatch", decision.blockers)
+
     def test_png_or_hybrid_quality_alone_is_not_enough(self):
         evidence = self.good()
         evidence = PublicationReadinessEvidence(
             premortem=evidence.premortem,
+            artifact_integrity=evidence.artifact_integrity,
             inspection=HybridVisualInspectionDecision(
                 "VISUAL_QA_CAPABILITY_INCOMPLETE", True, False, False, ("forbidden_visual_detection",)
             ),
@@ -47,6 +64,7 @@ class PublicationReadinessGateTests(unittest.TestCase):
         evidence = self.good()
         evidence = PublicationReadinessEvidence(
             premortem=evidence.premortem,
+            artifact_integrity=evidence.artifact_integrity,
             inspection=evidence.inspection,
             hybrid_quality=evidence.hybrid_quality,
             semantic_publication_approved=True,
@@ -60,6 +78,7 @@ class PublicationReadinessGateTests(unittest.TestCase):
         evidence = self.good()
         evidence = PublicationReadinessEvidence(
             premortem=evidence.premortem,
+            artifact_integrity=evidence.artifact_integrity,
             inspection=evidence.inspection,
             hybrid_quality=evidence.hybrid_quality,
             semantic_publication_approved=True,
