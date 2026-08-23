@@ -52,28 +52,31 @@ class SemanticVisualVerdict:
         if not isinstance(self.verifier_id, str) or not self.verifier_id.strip():
             raise ValueError("verifier_id is required")
 
-    @property
-    def complete_non_identity(self) -> bool:
-        checks = (
+    def _non_identity_checks(self) -> tuple[SemanticCheck, ...]:
+        checks = [
             self.readable_text_absent,
             self.platform_brand_absent,
             self.fake_entity_marks_absent,
             self.single_scene,
             self.severe_defects_absent,
             self.subject_framing_valid,
-        )
-        return all(item.state is not InspectionState.NOT_INSPECTED for item in checks)
+        ]
+        for optional in (
+            self.sport_geometry_alignment_valid,
+            self.exact_numbers_absent,
+            self.generated_sport_geometry_absent,
+        ):
+            if optional is not None:
+                checks.append(optional)
+        return tuple(checks)
+
+    @property
+    def complete_non_identity(self) -> bool:
+        return all(item.state is not InspectionState.NOT_INSPECTED for item in self._non_identity_checks())
 
     @property
     def approved_non_identity(self) -> bool:
-        checks = (
-            self.readable_text_absent,
-            self.platform_brand_absent,
-            self.fake_entity_marks_absent,
-            self.single_scene,
-            self.severe_defects_absent,
-            self.subject_framing_valid,
-        )
+        checks = self._non_identity_checks()
         return self.complete_non_identity and all(item.state is InspectionState.PASS for item in checks)
 
     def to_flags(self) -> VisualInspectionFlags:
@@ -81,8 +84,13 @@ class SemanticVisualVerdict:
         severe = self.severe_defects_absent.state is InspectionState.FAIL
         if self.sport_geometry_alignment_valid is not None:
             severe = severe or self.sport_geometry_alignment_valid.state is InspectionState.FAIL
+        generated_text = self.readable_text_absent.state is InspectionState.FAIL
+        if self.exact_numbers_absent is not None:
+            generated_text = generated_text or self.exact_numbers_absent.state is InspectionState.FAIL
+        if self.generated_sport_geometry_absent is not None:
+            severe = severe or self.generated_sport_geometry_absent.state is InspectionState.FAIL
         return VisualInspectionFlags(
-            generated_text_detected=self.readable_text_absent.state is InspectionState.FAIL,
+            generated_text_detected=generated_text,
             generated_brand_detected=self.platform_brand_absent.state is InspectionState.FAIL,
             generated_fake_logo_detected=self.fake_entity_marks_absent.state is InspectionState.FAIL,
             severe_anatomy_or_object_defect=severe,
@@ -97,6 +105,8 @@ class SemanticVisualVerdictGate:
         *,
         identity_required: bool,
         geometry_alignment_required: bool = False,
+        exact_numbers_absence_required: bool = False,
+        generated_sport_geometry_absence_required: bool = False,
         minimum_confidence: float = 0.85,
     ) -> tuple[bool, tuple[str, ...]]:
         if not isinstance(verdict, SemanticVisualVerdict):
@@ -116,6 +126,14 @@ class SemanticVisualVerdictGate:
             if verdict.sport_geometry_alignment_valid is None:
                 return False, ("sport_geometry_alignment_not_inspected",)
             checks["sport_geometry_alignment_valid"] = verdict.sport_geometry_alignment_valid
+        if exact_numbers_absence_required:
+            if verdict.exact_numbers_absent is None:
+                return False, ("exact_numbers_absence_not_inspected",)
+            checks["exact_numbers_absent"] = verdict.exact_numbers_absent
+        if generated_sport_geometry_absence_required:
+            if verdict.generated_sport_geometry_absent is None:
+                return False, ("generated_sport_geometry_absence_not_inspected",)
+            checks["generated_sport_geometry_absent"] = verdict.generated_sport_geometry_absent
         if identity_required:
             if verdict.identity_valid is None:
                 return False, ("identity_not_inspected",)
