@@ -1,9 +1,4 @@
-"""Execution contracts for zero-cost local image backends.
-
-This module defines the exact request/result boundary for Diffusers/ComfyUI-like
-local backends. It does not install model weights or invoke any backend itself.
-"""
-
+"""Execution contracts for zero-cost local image backends."""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -89,17 +84,11 @@ class LocalBackendGenerationResult:
 
 class LocalImageBackend(Protocol):
     backend_id: str
-
     def generate(self, request: LocalBackendGenerationRequest) -> LocalBackendGenerationResult: ...
 
 
 class LocalBackendRequestCompiler:
-    """Compile PUL7SAR packages into exact local-backend requests.
-
-    The destination canvas belongs to PUL7SAR. The native model canvas may need
-    alignment (FLUX.2 currently uses 16-pixel alignment), so a request records
-    both canvases and downstream normalization restores the exact platform size.
-    """
+    """Compile exact local-backend requests while keeping brand tokens out of diffusion."""
 
     def __init__(
         self,
@@ -149,7 +138,6 @@ class LocalBackendRequestCompiler:
         request_id: str,
         reference_asset_ids: tuple[str, ...] = (),
     ) -> LocalBackendGenerationRequest:
-        """Compile without local GPU readiness; execution still re-checks readiness."""
         self._cost_policy.assert_allowed(model.economics)
         return self._compile_locked(
             package=package,
@@ -187,14 +175,18 @@ class LocalBackendRequestCompiler:
         if compiled.positive_instructions:
             prompt_parts.append("Mandatory visual treatment: " + " ".join(compiled.positive_instructions))
         prompt_parts.append(
-            "Generate only the clean base scene. Do not render PUL7SAR branding, club crests, social icons, final headline typography, score typography, or footer text into the image."
+            "Generate only the clean base scene. Do not render platform branding, club crests, social icons, final headline typography, score typography, or footer text into the image."
         )
+        prompt = " ".join(prompt_parts)
+        lowered = prompt.casefold()
+        if "pul7sar" in lowered or "pulsar" in lowered:
+            raise ValueError("local generation prompt leaked the protected platform name")
 
         return LocalBackendGenerationRequest(
             provider_id=model.provider_id,
             model_id=model.model_id,
             backend=backend,
-            prompt=" ".join(prompt_parts),
+            prompt=prompt,
             native_negative_constraints=compiled.native_negative_constraints,
             width=generation_width,
             height=generation_height,
@@ -210,6 +202,8 @@ class LocalBackendRequestCompiler:
                 "target_height": target_height,
                 "generation_alignment": model.generation_alignment,
                 "canvas_normalization_required": (generation_width, generation_height) != (target_width, target_height),
+                "brand_name_redacted_from_generation_prompt": True,
+                "generated_branding_allowed": False,
             },
         )
 
