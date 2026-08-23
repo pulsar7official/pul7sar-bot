@@ -26,6 +26,7 @@ class HybridArtifactIntegrityGateTests(unittest.TestCase):
             Image.new("RGB", (640, 800), (20, 20, 20)).save(base)
             receipt = FootballHybridComposer().compose_file(base_path=str(base), output_path=str(out))
             self.assertFalse(receipt.mowing_stripes_applied)
+            self.assertGreater(receipt.surface_feather_px, 0)
             decision = self.gate.validate_football(receipt)
             self.assertTrue(decision.valid)
             self.assertEqual(decision.failures, ())
@@ -65,6 +66,23 @@ class HybridArtifactIntegrityGateTests(unittest.TestCase):
             decision = self.gate.validate_football(receipt)
             self.assertFalse(decision.valid)
             self.assertIn("hybrid_artifact_sha256_mismatch", decision.failures)
+
+    def test_hard_edge_surface_receipt_is_rejected(self):
+        receipt = FootballHybridCompositionReceipt(
+            status="FOOTBALL_HYBRID_SURFACE_COMPOSED",
+            input_path="missing-a.png",
+            output_path="missing-b.png",
+            canvas="1080x1350",
+            camera_preset="high_wide_central",
+            deterministic_geometry_applied=True,
+            generated_pitch_markings_replaced=True,
+            surface_opacity=54,
+            composition_mode=TEXTURE_PRESERVING_COMPOSITION_MODE,
+            source_texture_preserved=True,
+            surface_feather_px=0,
+        )
+        decision = self.gate.validate_football(receipt)
+        self.assertIn("surface_boundary_feather_out_of_range", decision.failures)
 
     def test_opaque_legacy_surface_receipt_is_rejected(self):
         receipt = FootballHybridCompositionReceipt(
