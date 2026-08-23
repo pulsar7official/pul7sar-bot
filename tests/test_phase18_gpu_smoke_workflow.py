@@ -29,6 +29,17 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertNotIn("pip install torch", self.text)
         self.assertNotIn("pip3 install torch", self.text)
 
+    def test_prefetches_exact_model_before_readiness_and_generation(self):
+        self.assertIn("tools/phase18_prefetch_flux2.py", self.text)
+        self.assertIn("model-cache.json", self.text)
+        self.assertIn("black-forest-labs/FLUX.2-klein-4B", self.text)
+        self.assertIn("$0-local", self.text)
+        prefetch = self.text.index("python tools/phase18_prefetch_flux2.py")
+        readiness = self.text.index("python tools/phase18_local_readiness.py")
+        generation = self.text.index("python tools/phase18_first_png.py")
+        self.assertLess(prefetch, readiness)
+        self.assertLess(readiness, generation)
+
     def test_uses_the_locked_first_png_path_and_uploads_evidence(self):
         self.assertIn("tools/phase18_first_png.py", self.text)
         self.assertIn("phase18_local_readiness.py", self.text)
