@@ -14,6 +14,7 @@ from engine.intelligence.editorial_angle_selector import EditorialAngleCandidate
 from engine.intelligence.editorial_copy_builder import EditorialCopyBuilder, EditorialCopyDecision, EditorialCopyInput
 from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGrammar, HeadlineDecision, HeadlineInput, HeadlineTone
 from engine.intelligence.editorial_planning_service import EditorialPlanningResult, EditorialPlanningService
+from engine.intelligence.editorial_visual_authorization import EditorialVisualAuthorization, EditorialVisualAuthorizationGate, VisualProductionAction
 from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
 from engine.intelligence.fact_locked_editorial_adapter import FactLockedEditorialAdapter, FactLockedEditorialFacts
@@ -22,6 +23,7 @@ from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, 
 from engine.intelligence.flux_worker_executor import Flux2SubprocessConfig, Flux2SubprocessLockedExecutor
 from engine.intelligence.football_pitch_geometry import ArcMark, CircleMark, FootballPitchGeometry, LineSegment, PointMark, RectMark
 from engine.intelligence.football_pitch_projection import FootballPitchProjectionPlanner, PerspectiveProjector, ProjectedFootballMarkings, ProjectedPoint, ProjectedPolyline
+from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle, PillowFootballPitchRenderer
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_job_store import FilesystemGenerationJobStore, LeaseRecoverySummary, QueueSnapshot
 from engine.intelligence.generation_jobs import GenerationJob, GenerationJobState, GenerationWorkerCapabilities
@@ -29,8 +31,10 @@ from engine.intelligence.generation_package import GenerationPackage, Generation
 from engine.intelligence.generation_provider import AuthorizedSceneGenerator, OriginalSceneProvider, OriginalSceneRequest, OriginalSceneResult
 from engine.intelligence.generation_session import AttemptDiagnostic, GenerationAttemptProvider, GenerationSessionOrchestrator, GenerationSessionResult
 from engine.intelligence.generation_worker import GenerationJobStore, GenerationWorkerService, LockedGenerationExecutor, WorkerCycleResult, WorkerExecutionResult
+from engine.intelligence.geometry_capabilities import DeterministicGeometryCapabilityRegistry, GeometryCapability, GeometryCapabilityStatus
 from engine.intelligence.golden_visual_quality import ELITE_TARGET, GOLDEN_CORE_FLOOR, GOLDEN_WEIGHTED_FLOOR, GoldenVisualBlockers, GoldenVisualEvaluation, GoldenVisualQualitySelector, GoldenVisualScores, GoldenVisualSelection
 from engine.intelligence.hybrid_layer_planner import HybridLayerPlan, HybridVisualLayerPlanner, LayerSource, VisualLayer
+from engine.intelligence.hybrid_visual_quality_gate import HybridVisualEvidence, HybridVisualQualityDecision, HybridVisualQualityGate
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
 from engine.intelligence.image_evidence_extraction import BaseSceneEvidenceExtractor, ForbiddenVisualProbe, GeneratedImageObservation, GenerationDefectProbe, IdentityVisualProbe, ImageEvidenceProbeSet, ProtectedRegionProbe, SafeCropProbe, SubjectFramingProbe
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutOrientation, LayoutRequirements, PlannedLayout
@@ -57,6 +61,7 @@ from engine.intelligence.provider_capabilities import ProviderCapabilities, Prov
 from engine.intelligence.provider_execution import ExecutionStage, ExecutionStep, ProviderExecutionPlan, ProviderExecutionPlanner
 from engine.intelligence.provider_prompting import CompiledProviderConstraints, ConstraintPromptMode, PromptConstraintCompiler
 from engine.intelligence.provider_selection import ProviderSelection, ProviderSelector
+from engine.intelligence.scene_complexity_policy import SceneComplexityDecision, SceneComplexityPolicy, SurfaceVisibility
 from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIdentityReference, SceneSpecCompiler
 from engine.intelligence.semantic_publication_gate import SemanticPublicationDecision, SemanticPublicationGate
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
