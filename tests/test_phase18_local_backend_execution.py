@@ -54,21 +54,15 @@ class LocalBackendExecutionTests(unittest.TestCase):
 
     def test_portable_handoff_can_be_compiled_without_local_gpu_readiness(self):
         request = LocalBackendRequestCompiler().compile_portable_handoff(
-            package=self.package,
-            model=FLUX2_KLEIN_4B_LOCAL,
-            backend="diffusers",
-            seed=7008,
-            request_id="portable-001",
+            package=self.package, model=FLUX2_KLEIN_4B_LOCAL, backend="diffusers", seed=7008, request_id="portable-001",
         )
         self.assertEqual(request.seed, 7008)
         self.assertTrue(request.metadata["portable_handoff"])
         self.assertEqual(request.metadata["cost_mode"], "$0-local")
-        self.assertEqual(request.width % 16, 0)
-        self.assertEqual(request.height % 16, 0)
+        self.assertEqual(request.width % 16, 0); self.assertEqual(request.height % 16, 0)
 
     def test_execution_local_request_is_not_marked_portable(self):
-        request = self.request()
-        self.assertFalse(request.metadata["portable_handoff"])
+        self.assertFalse(self.request().metadata["portable_handoff"])
 
     def test_flux_constraints_are_reframed_not_dropped(self):
         request = self.request()
@@ -78,67 +72,41 @@ class LocalBackendExecutionTests(unittest.TestCase):
 
     def test_request_explicitly_keeps_official_assets_out_of_base_scene(self):
         request = self.request()
-        self.assertIn("Do not render PUL7SAR branding", request.prompt)
-        self.assertIn("club crests", request.prompt)
+        lowered = request.prompt.casefold()
+        self.assertIn("do not render platform branding", lowered)
+        self.assertIn("club crests", lowered)
+        self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
+        self.assertNotIn("pul7sar", lowered)
+        self.assertNotIn("pulsar", lowered)
 
     def test_not_ready_report_blocks_generation_request(self):
         blocked = LocalGenerationReadinessReport(
-            ready=False,
-            provider_id=self.readiness.provider_id,
-            model_id=self.readiness.model_id,
-            backend="diffusers",
-            runtime_kind="local_cpu",
-            gpu_name=None,
-            gpu_vram_gb=None,
-            blockers=("CUDA unavailable",),
-            warnings=(),
+            ready=False, provider_id=self.readiness.provider_id, model_id=self.readiness.model_id,
+            backend="diffusers", runtime_kind="local_cpu", gpu_name=None, gpu_vram_gb=None,
+            blockers=("CUDA unavailable",), warnings=(),
         )
         with self.assertRaises(ValueError):
-            LocalBackendRequestCompiler().compile(
-                package=self.package,
-                model=FLUX2_KLEIN_4B_LOCAL,
-                readiness=blocked,
-                backend="diffusers",
-                seed=1,
-                request_id="blocked",
-            )
+            LocalBackendRequestCompiler().compile(package=self.package, model=FLUX2_KLEIN_4B_LOCAL, readiness=blocked, backend="diffusers", seed=1, request_id="blocked")
 
     def test_result_gate_preserves_exact_provenance(self):
         request = self.request()
         result = LocalBackendGenerationResult(
-            provider_id=request.provider_id,
-            model_id=request.model_id,
-            backend=request.backend,
-            output_ref="file:///tmp/base.png",
-            width=request.width,
-            height=request.height,
-            seed=request.seed,
-            request_id=request.request_id,
-            metadata={"backend_version": "test"},
+            provider_id=request.provider_id, model_id=request.model_id, backend=request.backend,
+            output_ref="file:///tmp/base.png", width=request.width, height=request.height, seed=request.seed,
+            request_id=request.request_id, metadata={"backend_version": "test"},
         )
         provenance = LocalBackendResultGate().validate(request, result)
-        self.assertEqual(provenance.seed, 7007)
-        self.assertEqual(provenance.request_id, "pul7sar-local-001")
+        self.assertEqual(provenance.seed, 7007); self.assertEqual(provenance.request_id, "pul7sar-local-001")
 
     def test_backend_cannot_change_seed(self):
         request = self.request()
-        result = LocalBackendGenerationResult(
-            request.provider_id, request.model_id, request.backend,
-            "file:///tmp/base.png", request.width, request.height,
-            request.seed + 1, request.request_id,
-        )
-        with self.assertRaises(ValueError):
-            LocalBackendResultGate().validate(request, result)
+        result = LocalBackendGenerationResult(request.provider_id, request.model_id, request.backend, "file:///tmp/base.png", request.width, request.height, request.seed + 1, request.request_id)
+        with self.assertRaises(ValueError): LocalBackendResultGate().validate(request, result)
 
     def test_backend_cannot_change_dimensions(self):
         request = self.request()
-        result = LocalBackendGenerationResult(
-            request.provider_id, request.model_id, request.backend,
-            "file:///tmp/base.png", 1024, 1024,
-            request.seed, request.request_id,
-        )
-        with self.assertRaises(ValueError):
-            LocalBackendResultGate().validate(request, result)
+        result = LocalBackendGenerationResult(request.provider_id, request.model_id, request.backend, "file:///tmp/base.png", 1024, 1024, request.seed, request.request_id)
+        with self.assertRaises(ValueError): LocalBackendResultGate().validate(request, result)
 
 
 if __name__ == "__main__":
