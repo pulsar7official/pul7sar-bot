@@ -2,7 +2,8 @@
 
 v5 coordinates an atmosphere-only generative candidate whose football surface
 is replaced deterministically after generation. The image-model prompt must not
-contain the protected platform-name token.
+contain the protected platform-name token. Hybrid ownership is proven primarily
+from structured request metadata rather than brittle English prompt wording.
 """
 from __future__ import annotations
 
@@ -16,11 +17,8 @@ from engine.intelligence.generation_jobs import GenerationJob, GenerationJobStat
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 
 SUPPORTED_GOLDEN_MANIFEST_VERSIONS = {
-    "pul7sar-golden-batch-v1",
-    "pul7sar-golden-batch-v2",
-    "pul7sar-golden-batch-v3",
-    "pul7sar-golden-batch-v4",
-    "pul7sar-golden-batch-v5",
+    "pul7sar-golden-batch-v1", "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3",
+    "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5",
 }
 GOLDEN_COST_MODE = "$0-local"
 DEFAULT_SMOKE_JOB_ID = "golden-smoke-candidate-01"
@@ -46,21 +44,15 @@ class GoldenSmokePreparation:
 
 
 def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None:
-    if manifest_version in {
-        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"
-    } and data.get("composition_grammar") != "single_continuous_scene":
+    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"} and data.get("composition_grammar") != "single_continuous_scene":
         raise ValueError("Golden smoke v2+ requires single_continuous_scene composition grammar")
-
-    if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
-        if data.get("sport_geometry") != "association_football_regulation_pitch":
-            raise ValueError("Golden smoke v3/v4 requires regulation association-football pitch geometry")
-
+    if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"} and data.get("sport_geometry") != "association_football_regulation_pitch":
+        raise ValueError("Golden smoke v3/v4 requires regulation association-football pitch geometry")
     if manifest_version == "pul7sar-golden-batch-v4":
         if data.get("generated_branding_allowed") is not False:
             raise ValueError("Golden smoke v4 requires generated platform branding to remain forbidden")
         if data.get("brand_composition_policy") != "exact_assets_only_after_generation":
             raise ValueError("Golden smoke v4 requires exact-assets-only post-generation branding")
-
     if manifest_version == "pul7sar-golden-batch-v5":
         expected = {
             "sport_geometry": "deterministic_football_pitch_projective_v1",
@@ -77,9 +69,7 @@ def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None
 
 def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
     prompt = request.prompt.casefold()
-    if manifest_version in {
-        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"
-    }:
+    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"}:
         unified_markers = (
             "one single continuous full-bleed editorial image",
             "never use collage, montage, split-screen, grid, diptych, triptych",
@@ -89,18 +79,15 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
 
     if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
         geometry_markers = (
-            "regulation association-football pitch geometry",
-            "exactly one halfway line",
-            "exactly one circular centre circle",
-            "do not duplicate the halfway line or centre circle",
+            "regulation association-football pitch geometry", "exactly one halfway line",
+            "exactly one circular centre circle", "do not duplicate the halfway line or centre circle",
         )
         if any(marker not in prompt for marker in geometry_markers):
             raise ValueError("candidate 1 v3/v4 handoff is missing regulation-pitch prompt lock")
 
     if manifest_version == "pul7sar-golden-batch-v4":
         branding_markers = (
-            "zero pul7sar lettering",
-            "never spell pul7sar, pulsar, or any approximation",
+            "zero pul7sar lettering", "never spell pul7sar, pulsar, or any approximation",
             "no legible words, letters, numerals, pseudo-text, fake logos",
             "exact branding and typography are added only by deterministic post-composition",
         )
@@ -108,19 +95,31 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
             raise ValueError("candidate 1 v4 handoff is missing generated-brand exclusion prompt lock")
 
     if manifest_version == "pul7sar-golden-batch-v5":
-        hybrid_markers = (
-            "unmarked neutral sport-surface region reserved for deterministic overlay",
+        # Prompt prose can evolve. These markers prove intent without requiring a
+        # single frozen English sentence. Exact ownership is asserted below from
+        # structured metadata that is integrity-hashed inside the handoff.
+        semantic_markers = (
+            "reserved surface region plain and unmarked",
             "no field/court/rink lines",
             "the exact surface will be replaced by deterministic code after generation",
             "fully unbranded",
             "platform names",
         )
-        if any(marker not in prompt for marker in hybrid_markers):
-            raise ValueError("candidate 1 v5 handoff is missing hybrid ownership prompt lock")
+        if any(marker not in prompt for marker in semantic_markers):
+            raise ValueError("candidate 1 v5 handoff is missing semantic hybrid prompt safeguards")
         if "pul7sar" in prompt or "pulsar" in prompt:
             raise ValueError("candidate 1 v5 handoff leaked protected platform name")
-        if request.metadata.get("brand_name_redacted_from_generation_prompt") is not True:
-            raise ValueError("candidate 1 v5 handoff is missing brand-name redaction attestation")
+        expected_metadata = {
+            "brand_name_redacted_from_generation_prompt": True,
+            "generated_branding_allowed": False,
+            "composition_grammar": "single_continuous_scene",
+            "hybrid_base_scene_contract": True,
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": True,
+        }
+        failures = [f"{key}={request.metadata.get(key)!r}" for key, value in expected_metadata.items() if request.metadata.get(key) != value]
+        if failures:
+            raise ValueError("candidate 1 v5 structured ownership contract mismatch: " + "; ".join(failures))
 
 
 def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
@@ -132,21 +131,18 @@ def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
     if data.get("cost_mode") != GOLDEN_COST_MODE:
         raise ValueError("Golden smoke path requires $0-local cost mode")
     _assert_manifest_policy(data, manifest_version)
-
     candidates = data.get("candidates")
     if not isinstance(candidates, list) or not candidates:
         raise ValueError("Golden batch has no candidates")
     first = next((item for item in candidates if isinstance(item, dict) and item.get("candidate") == 1), None)
     if first is None:
         raise ValueError("Golden batch is missing candidate 1")
-
     handoff_name = first.get("handoff")
     if not isinstance(handoff_name, str) or not handoff_name.strip():
         raise ValueError("candidate 1 is missing handoff path")
     handoff_path = path.parent / handoff_name
     if not handoff_path.is_file():
         raise FileNotFoundError(f"candidate 1 handoff does not exist: {handoff_path}")
-
     request = LocalGenerationHandoff.read(str(handoff_path))
     raw_handoff = json.loads(handoff_path.read_text(encoding="utf-8"))
     actual_sha = raw_handoff.get("payload_sha256")
@@ -162,33 +158,14 @@ def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
     if request.metadata.get("cost_mode") != GOLDEN_COST_MODE:
         raise ValueError("candidate 1 handoff escaped $0-local cost mode")
     _assert_handoff_prompt_policy(request, manifest_version)
-
-    return GoldenSmokeCandidate(
-        manifest_path=path,
-        handoff_path=handoff_path,
-        candidate=1,
-        seed=request.seed,
-        request_id=request.request_id,
-        payload_sha256=actual_sha,
-        provider_id=request.provider_id,
-        model_id=request.model_id,
-    )
+    return GoldenSmokeCandidate(path, handoff_path, 1, request.seed, request.request_id, actual_sha, request.provider_id, request.model_id)
 
 
 def _same_locked_identity(job: GenerationJob, candidate: GoldenSmokeCandidate) -> bool:
-    return (
-        job.request_id == candidate.request_id
-        and Path(job.handoff_path) == candidate.handoff_path
-        and job.payload_sha256 == candidate.payload_sha256
-        and job.provider_id == candidate.provider_id
-        and job.model_id == candidate.model_id
-    )
+    return job.request_id == candidate.request_id and Path(job.handoff_path) == candidate.handoff_path and job.payload_sha256 == candidate.payload_sha256 and job.provider_id == candidate.provider_id and job.model_id == candidate.model_id
 
 
-def prepare_smoke_job(
-    *, store: FilesystemGenerationJobStore, candidate: GoldenSmokeCandidate,
-    job_id: str = DEFAULT_SMOKE_JOB_ID, max_attempts: int = 3,
-) -> GoldenSmokePreparation:
+def prepare_smoke_job(*, store: FilesystemGenerationJobStore, candidate: GoldenSmokeCandidate, job_id: str = DEFAULT_SMOKE_JOB_ID, max_attempts: int = 3) -> GoldenSmokePreparation:
     existing = store.get(job_id)
     if existing is not None:
         if not _same_locked_identity(existing, candidate):
@@ -196,22 +173,10 @@ def prepare_smoke_job(
         if existing.state is GenerationJobState.TERMINAL_FAILED:
             raise RuntimeError("candidate 1 smoke job is terminal_failed; investigate before creating a new job")
         return GoldenSmokePreparation(job=existing, created=False, reusable_existing=True)
-
     job = GenerationJob(
-        job_id=job_id,
-        request_id=candidate.request_id,
-        handoff_path=str(candidate.handoff_path),
-        payload_sha256=candidate.payload_sha256,
-        provider_id=candidate.provider_id,
-        model_id=candidate.model_id,
-        max_attempts=max_attempts,
-        metadata={
-            "candidate": candidate.candidate,
-            "seed": candidate.seed,
-            "cost_mode": GOLDEN_COST_MODE,
-            "smoke_role": "golden-hybrid-atmosphere-base",
-            "manifest_path": str(candidate.manifest_path),
-        },
+        job_id=job_id, request_id=candidate.request_id, handoff_path=str(candidate.handoff_path), payload_sha256=candidate.payload_sha256,
+        provider_id=candidate.provider_id, model_id=candidate.model_id, max_attempts=max_attempts,
+        metadata={"candidate": candidate.candidate, "seed": candidate.seed, "cost_mode": GOLDEN_COST_MODE, "smoke_role": "golden-hybrid-atmosphere-base", "manifest_path": str(candidate.manifest_path)},
     )
     store.enqueue(job)
     return GoldenSmokePreparation(job=job, created=True, reusable_existing=False)
@@ -220,16 +185,8 @@ def prepare_smoke_job(
 def smoke_status_payload(preparation: GoldenSmokePreparation) -> dict[str, Any]:
     job = preparation.job
     return {
-        "status": "SMOKE_JOB_PREPARED",
-        "job_id": job.job_id,
-        "job_state": job.state.value,
-        "request_id": job.request_id,
-        "payload_sha256": job.payload_sha256,
-        "provider_id": job.provider_id,
-        "model_id": job.model_id,
-        "created": preparation.created,
-        "reusable_existing": preparation.reusable_existing,
-        "attempt": job.attempt,
-        "max_attempts": job.max_attempts,
-        "cost_mode": job.metadata.get("cost_mode"),
+        "status": "SMOKE_JOB_PREPARED", "job_id": job.job_id, "job_state": job.state.value, "request_id": job.request_id,
+        "payload_sha256": job.payload_sha256, "provider_id": job.provider_id, "model_id": job.model_id,
+        "created": preparation.created, "reusable_existing": preparation.reusable_existing, "attempt": job.attempt,
+        "max_attempts": job.max_attempts, "cost_mode": job.metadata.get("cost_mode"),
     }
