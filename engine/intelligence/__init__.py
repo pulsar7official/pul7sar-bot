@@ -10,7 +10,10 @@ from engine.intelligence.classification import EntityCandidate, EntityKind, Stor
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
 from engine.intelligence.cost_policy import BillingClass, CostPolicyDecision, DevelopmentCostPolicy, ProviderEconomics
 from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestCompiler
+from engine.intelligence.editorial_angle_selector import EditorialAngleCandidate, EditorialAngleScore, EditorialAngleSelection, VisualAwareEditorialAngleSelector
+from engine.intelligence.editorial_copy_builder import EditorialCopyBuilder, EditorialCopyDecision, EditorialCopyInput
 from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGrammar, HeadlineDecision, HeadlineInput, HeadlineTone
+from engine.intelligence.editorial_planning_service import EditorialPlanningResult, EditorialPlanningService
 from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
 from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
@@ -24,6 +27,7 @@ from engine.intelligence.generation_provider import AuthorizedSceneGenerator, Or
 from engine.intelligence.generation_session import AttemptDiagnostic, GenerationAttemptProvider, GenerationSessionOrchestrator, GenerationSessionResult
 from engine.intelligence.generation_worker import GenerationJobStore, GenerationWorkerService, LockedGenerationExecutor, WorkerCycleResult, WorkerExecutionResult
 from engine.intelligence.golden_visual_quality import ELITE_TARGET, GOLDEN_CORE_FLOOR, GOLDEN_WEIGHTED_FLOOR, GoldenVisualBlockers, GoldenVisualEvaluation, GoldenVisualQualitySelector, GoldenVisualScores, GoldenVisualSelection
+from engine.intelligence.hybrid_layer_planner import HybridLayerPlan, HybridVisualLayerPlanner, LayerSource, VisualLayer
 from engine.intelligence.identity import IdentityEvidence, IdentityRequirements, IdentityVerificationError, IdentityVerifier
 from engine.intelligence.image_evidence_extraction import BaseSceneEvidenceExtractor, ForbiddenVisualProbe, GeneratedImageObservation, GenerationDefectProbe, IdentityVisualProbe, ImageEvidenceProbeSet, ProtectedRegionProbe, SafeCropProbe, SubjectFramingProbe
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutOrientation, LayoutRequirements, PlannedLayout
@@ -56,6 +60,7 @@ from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, 
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.sport_visual_rules import SportSurface, SportVisualRule, SportVisualRuleRegistry
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
+from engine.intelligence.story_event_resolver import StoryEventResolver
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
