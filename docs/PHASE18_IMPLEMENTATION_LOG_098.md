@@ -56,13 +56,13 @@ The previous proof showed that pitch integration quality can fail even when dete
 - No paid provider, secret, model weights, font files, fake PNG, or fabricated benchmark was added.
 
 ### Test state
-- New CPU regression coverage is committed on the Phase 18 branch.
-- Full GitHub Actions verification must complete before Change Set 098 is called CI-green.
+- GitHub Actions Run `32668842873` (run 1346): **SUCCESS** on the code/test head containing the Change Set 098 diagnostic builder, CLI, and regression tests.
+- The full Phase 18 verification workflow completed successfully on that code/test head.
+- Documentation-only commits after the verified code/test head do not alter runtime behavior.
 - No GPU visual result is claimed by this change.
 
 ### Remaining work
-1. Confirm full Phase 18 CPU CI on the Change Set 098 head.
-2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
-3. If the genuine base passes semantic layer ownership, build the pitch diagnostic matrix against that exact base PNG before generating any additional seed.
-4. Use the diagnostic evidence to choose or refine pitch placement, tint, feather, or line styling without weakening factual, identity, semantic-publication, or Golden-quality gates.
-5. Resolve and SHA-lock the approved PUL7SAR logo asset before final publication composition.
+1. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
+2. If the genuine base passes semantic layer ownership, build the pitch diagnostic matrix against that exact base PNG before generating any additional seed.
+3. Use the diagnostic evidence to choose or refine pitch placement, tint, feather, or line styling without weakening factual, identity, semantic-publication, or Golden-quality gates.
+4. Resolve and SHA-lock the approved PUL7SAR logo asset before final publication composition.
