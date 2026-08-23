@@ -21,7 +21,10 @@ class SemanticVisualVerdictTests(unittest.TestCase):
             single_scene=self.check(),
             severe_defects_absent=self.check(),
             subject_framing_valid=self.check(),
+            sport_geometry_alignment_valid=None,
             identity_valid=None,
+            exact_numbers_absent=None,
+            generated_sport_geometry_absent=None,
         )
         data.update(kwargs)
         return SemanticVisualVerdict(**data)
@@ -52,6 +55,45 @@ class SemanticVisualVerdictTests(unittest.TestCase):
         approved, failures = SemanticVisualVerdictGate().evaluate(self.verdict(), identity_required=True)
         self.assertFalse(approved)
         self.assertEqual(failures, ("identity_not_inspected",))
+
+    def test_geometry_alignment_required_needs_explicit_check(self):
+        approved, failures = SemanticVisualVerdictGate().evaluate(
+            self.verdict(), identity_required=False, geometry_alignment_required=True
+        )
+        self.assertFalse(approved)
+        self.assertEqual(failures, ("sport_geometry_alignment_not_inspected",))
+
+    def test_bad_geometry_alignment_becomes_severe_hybrid_failure(self):
+        verdict = self.verdict(
+            sport_geometry_alignment_valid=self.check(InspectionState.FAIL, 0.98)
+        )
+        self.assertFalse(verdict.approved_non_identity)
+        self.assertTrue(verdict.to_flags().severe_anatomy_or_object_defect)
+        approved, failures = SemanticVisualVerdictGate().evaluate(
+            verdict, identity_required=False, geometry_alignment_required=True
+        )
+        self.assertFalse(approved)
+        self.assertIn("sport_geometry_alignment_valid:failed", failures)
+
+    def test_optional_geometry_check_not_inspected_makes_completeness_false(self):
+        verdict = self.verdict(
+            sport_geometry_alignment_valid=self.check(InspectionState.NOT_INSPECTED, 0.0)
+        )
+        self.assertFalse(verdict.complete_non_identity)
+
+    def test_exact_numbers_and_generated_geometry_can_be_required_independently(self):
+        verdict = self.verdict(
+            exact_numbers_absent=self.check(),
+            generated_sport_geometry_absent=self.check(),
+        )
+        approved, failures = SemanticVisualVerdictGate().evaluate(
+            verdict,
+            identity_required=False,
+            exact_numbers_absence_required=True,
+            generated_sport_geometry_absence_required=True,
+        )
+        self.assertTrue(approved)
+        self.assertEqual(failures, ())
 
 
 if __name__ == "__main__":
