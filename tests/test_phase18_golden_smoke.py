@@ -1,0 +1,122 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+import tempfile
+import unittest
+
+from engine.intelligence.generation_job_store import FilesystemGenerationJobStore
+from engine.intelligence.generation_jobs import GenerationJobState
+from engine.intelligence.golden_smoke import (
+    DEFAULT_SMOKE_JOB_ID,
+    load_first_candidate,
+    prepare_smoke_job,
+    smoke_status_payload,
+)
+from tools.phase18_build_golden_batch import build_batch
+
+
+class GoldenSmokeCoordinatorTests(unittest.TestCase):
+    def _build(self, root: Path) -> Path:
+        batch_dir = root / "batch"
+        build_batch(str(batch_dir))
+        return batch_dir / "manifest.json"
+
+    def test_load_first_candidate_cross_checks_locked_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            candidate = load_first_candidate(manifest)
+            self.assertEqual(candidate.candidate, 1)
+            self.assertEqual(candidate.seed, 7007001)
+            self.assertEqual(candidate.request_id, "golden-general-season-opener-001")
+            self.assertEqual(len(candidate.payload_sha256), 64)
+            self.assertTrue(candidate.handoff_path.is_file())
+
+    def test_manifest_sha_drift_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["candidates"][0]["payload_sha256"] = "0" * 64
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SHA"):
+                load_first_candidate(manifest)
+
+    def test_non_zero_cost_manifest_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["cost_mode"] = "paid-api"
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "zero|0-local|cost"):
+                load_first_candidate(manifest)
+
+    def test_prepare_creates_exactly_one_durable_smoke_job(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = load_first_candidate(self._build(root))
+            store = FilesystemGenerationJobStore(root / "queue")
+            first = prepare_smoke_job(store=store, candidate=candidate)
+            second = prepare_smoke_job(store=store, candidate=candidate)
+
+            self.assertTrue(first.created)
+            self.assertFalse(second.created)
+            self.assertTrue(second.reusable_existing)
+            self.assertEqual(first.job.job_id, DEFAULT_SMOKE_JOB_ID)
+            self.assertEqual(first.job.state, GenerationJobState.QUEUED)
+            self.assertEqual(store.snapshot().pending, 1)
+            self.assertEqual(first.job.metadata["cost_mode"], "$0-local")
+
+    def test_existing_job_with_different_locked_identity_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = self._build(root)
+            candidate = load_first_candidate(manifest)
+            store = FilesystemGenerationJobStore(root / "queue")
+            prepared = prepare_smoke_job(store=store, candidate=candidate)
+            stored = store.get(prepared.job.job_id)
+            self.assertIsNotNone(stored)
+            mutated = stored.__class__(
+                **{
+                    **{name: getattr(stored, name) for name in stored.__dataclass_fields__},
+                    "payload_sha256": "f" * 64,
+                }
+            )
+            store.save(mutated)
+            with self.assertRaisesRegex(ValueError, "identity"):
+                prepare_smoke_job(store=store, candidate=candidate)
+
+    def test_terminal_failure_is_not_silently_requeued(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = load_first_candidate(self._build(root))
+            store = FilesystemGenerationJobStore(root / "queue")
+            prepared = prepare_smoke_job(store=store, candidate=candidate)
+            job = prepared.job.transition(
+                GenerationJobState.LEASED,
+                lease_owner="worker",
+                lease_expires_at=prepared.job.updated_at,
+            )
+            job = job.transition(
+                GenerationJobState.TERMINAL_FAILED,
+                failure_code="hard_failure",
+                failure_detail="do not retry",
+            )
+            store.save(job)
+            with self.assertRaisesRegex(RuntimeError, "terminal_failed"):
+                prepare_smoke_job(store=store, candidate=candidate)
+
+    def test_status_payload_is_explicit_about_job_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            candidate = load_first_candidate(self._build(root))
+            store = FilesystemGenerationJobStore(root / "queue")
+            prepared = prepare_smoke_job(store=store, candidate=candidate)
+            payload = smoke_status_payload(prepared)
+            self.assertEqual(payload["status"], "SMOKE_JOB_PREPARED")
+            self.assertEqual(payload["request_id"], candidate.request_id)
+            self.assertEqual(payload["payload_sha256"], candidate.payload_sha256)
+            self.assertEqual(payload["cost_mode"], "$0-local")
+
+
+if __name__ == "__main__":
+    unittest.main()
