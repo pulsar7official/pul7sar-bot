@@ -28,8 +28,15 @@ The Pillow upper bound is intentional for the current Colab path. It prevents th
 
 The readiness probe still downloads no model weights and remains fail-closed.
 
+### Semantic readiness moved ahead of GPU generation
+`tools/phase18_colab_one_command.py` now proves Qwen/Pillow semantic-runtime readiness before entering the FLUX atmosphere/base-scene runner during a full execution. This closes the observed ordering defect where an incompatible semantic runtime could be discovered only after GPU time had already been spent producing a base image.
+
+The same readiness gate is checked again immediately before semantic inspection as defense in depth. `--prepare-only` may still defer semantic readiness because it does not perform GPU generation or claim a visual proof. A full run cannot select `--semantic-inspection none` to bypass the gate.
+
 ### Regression coverage
 `tests/test_phase18_qwen_runtime_contract.py` now asserts both compatibility bounds and the Pillow-coherence checks, in addition to preserving the public Transformers API and documented `image-text-to-text` pipeline contract.
+
+`tests/test_phase18_colab_semantic_preflight_order.py` asserts that semantic-runtime preflight appears before the Golden GPU runner, that full execution cannot disable Qwen evidence, and that readiness is rechecked before visual inspection.
 
 ## Safety invariants preserved
 
@@ -41,4 +48,4 @@ The readiness probe still downloads no model weights and remains fail-closed.
 - No fake PNG, fake semantic result or fake performance evidence is produced.
 
 ## Remaining execution blocker
-A fresh compatible Colab/CUDA runtime must install the locked dependency range and pass `Qwen25VLReadinessProbe` before the latest Golden Hybrid v5 Candidate 1 can be semantically inspected and deterministically composed. A previous live notebook already contaminated by an in-place Pillow major upgrade may require a runtime restart; Phase 18 must report that incompatibility rather than attempt to work around it by disabling Qwen.
+A fresh compatible Colab/CUDA runtime must install the locked dependency range and pass `Qwen25VLReadinessProbe` before the latest Golden Hybrid v5 Candidate 1 is allowed to spend GPU time and later advance to semantic inspection/deterministic composition. A previous live notebook already contaminated by an in-place Pillow major upgrade may require a runtime restart; Phase 18 must report that incompatibility rather than attempt to work around it by disabling Qwen.
