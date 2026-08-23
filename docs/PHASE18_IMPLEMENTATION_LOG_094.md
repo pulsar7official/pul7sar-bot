@@ -1,6 +1,6 @@
 # PUL7SAR Phase 18 — Implementation Log Continuation
 
-This is the authoritative continuation record for Change Set 094 on `phase18/story-intelligence`. It supplements `docs/PHASE18_IMPLEMENTATION_LOG.md`; no production branch is modified.
+This is the authoritative continuation record for Change Sets 094–095 on `phase18/story-intelligence`. It supplements `docs/PHASE18_IMPLEMENTATION_LOG.md`; no production branch is modified.
 
 ## Change Set 094 — Pre-FLUX Qwen model-cache qualification
 
@@ -60,3 +60,68 @@ This is the authoritative continuation record for Change Set 094 on `phase18/sto
 2. Inspect the resulting FLUX base, deterministic football pitch integration, and hybrid surface. If Qwen fails, only the engineering proof may be reviewed; publication remains false.
 3. Do not spend GPU on seeds 2–4 until Candidate 1 is visually reviewed.
 4. Resolve and SHA-lock the approved PUL7SAR logo bytes before any final publication composition can pass.
+
+## Change Set 095 — Texture-preserving deterministic football composition
+
+### Branch review before change
+- Repository/branch reviewed before edits: `pulsar7official/pul7sar-bot` / `phase18/story-intelligence`.
+- Comparison with `main`: `diverged`, 706 commits ahead and 59 behind at review time.
+- `main` was not modified, merged or force-updated.
+- Genuine latest-architecture Candidate 1 remains unexecuted on GPU.
+
+### Why this change was necessary
+The previous real engineering proof demonstrated that the deterministic football geometry was being rendered as an opaque flat-green surface (`surface_opacity=255`). That preserved geometry correctness but destroyed photographic turf texture and made the pitch look like a tactical board pasted into the stadium. This was a hard visual-quality failure even though the geometry receipt was valid.
+
+Hybrid v5 already has a base-scene semantic execution gate that requires model-generated exact football geometry to be absent before composition. Therefore the compositor no longer needs to obliterate the photographed turf to remove generated markings. It can preserve photographic texture while retaining deterministic ownership of the exact visible markings.
+
+### Added
+- `docs/PHASE18_CHANGESET_095_TEXTURE_PRESERVING_FOOTBALL_COMPOSITION.md`.
+- New receipt contract markers in `FootballHybridCompositionReceipt`:
+  - `composition_mode=texture_preserving_pitch_overlay_v1`
+  - `source_texture_preserved=true`
+- New compositor opacity validation that rejects attempts to restore an opaque tactical-board surface.
+- Regression coverage proving source pixel variation survives composition.
+
+### Modified
+- `engine/intelligence/football_hybrid_composer.py`
+  - Replaced opaque flat-green surface replacement with source-texture-preserving colour normalisation.
+  - Default green normalisation alpha is 54; deterministic mowing tint alpha is 24.
+  - Exact football lines/marks/arcs remain projected and rendered by code.
+  - Public API rejects surface opacity outside 24..96, including legacy 255.
+- `engine/intelligence/hybrid_artifact_integrity.py`
+  - Requires the current texture-preserving composition mode.
+  - Requires `source_texture_preserved=true`.
+  - Rejects opacity outside 24..96 and still replays input/output SHA-256.
+- `tests/test_phase18_football_hybrid_composer.py`
+  - Updated receipt assertions.
+  - Added photographic-texture preservation regression.
+  - Added opaque-surface rejection regression.
+- `tests/test_phase18_hybrid_artifact_integrity.py`
+  - Added legacy opaque and non-texture-preserving receipt rejection.
+- `tests/test_phase18_hybrid_evidence_builder.py`
+  - Geometry completion now requires the hash-valid current texture-preserving receipt rather than the old opaque replacement contract.
+
+### Deleted
+- Nothing.
+
+### Gates and invariants unchanged
+- `main` / `main.py`: untouched.
+- Fact Lock, identity verification, sentiment and neutrality: unchanged.
+- `$0-local`: unchanged.
+- FLUX.2 Klein 4B, BF16, seeds/canvases, guidance/steps: unchanged.
+- Base semantic layer ownership gate remains mandatory for the quality path.
+- SemanticPublicationGate remains mandatory for publication.
+- Golden thresholds remain 8.5 minimum / 9.0+ elite; hard blockers still override score.
+- Exact PUL7SAR logo integrity remains unresolved and final publication composition remains blocked.
+- No paid provider, secret, model weights, font files, fake PNG or fabricated benchmark was added.
+
+### Test state
+- New/updated CPU regression tests have been committed and GitHub Actions is expected to run on the branch HEAD. Do not treat this Change Set as CI-green until a successful workflow run is observed.
+- No GPU visual result is claimed by this change.
+
+### Remaining work
+1. Confirm Phase 18 CPU CI succeeds on the Change Set 095 HEAD.
+2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
+3. Visually inspect whether the deterministic pitch now reads as photographed turf with integrated regulation geometry rather than a graphic board.
+4. If Candidate 1 still fails, adjust only evidence-backed pitch placement/tint/line styling or the generative atmosphere contract; do not relax fact/identity/semantic/publication gates.
+5. Resolve and SHA-lock the approved PUL7SAR logo bytes before final publication composition.
