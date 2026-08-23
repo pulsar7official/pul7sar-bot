@@ -1,6 +1,6 @@
 # PUL7SAR Phase 18 — Implementation Log
 
-This document is the authoritative implementation journal for Phase 18 on the `phase18/story-intelligence` branch.
+This document is the authoritative implementation journal for Phase 18 on the `phase18/story-intelligence` branch. Phase 18 remains isolated from `main` and production publishing paths unless a future explicit merge is approved.
 
 ## Change Sets 001–030 — Intelligence and generation foundation
 Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity verification, classification, neutrality, Visual Family routing, Concept Director, sentiment, Generation Authorization, platform profiles, scene specification, exact assets, deterministic layout, dry-run manifest, theme/brand semantics, provider capability/selection/execution, post-composition, typography/final export, base-scene acceptance, zero-cost policy, provider adapters, candidate selection, generation-session orchestration, zero-cost local model profile, prompt-constraint reframing, runtime compatibility, local backend readiness/provenance, readiness report, execution boundary, optional Diffusers/ComfyUI shells, evidence extraction, and fail-closed local image inspectors. Production paths remain isolated.
@@ -19,39 +19,19 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Cross-checks locked identity references against visual verification evidence.
 - CI Run `32592258604`: SUCCESS.
 
-## Change Set 034 — Local subject/framing verifier
-- Adds provider-neutral subject presence, full visibility, hero-region usability and confidence contracts.
-- Fails closed on absent subject, unsafe crop/framing or low confidence.
-
-## Change Set 035 — Local identity similarity contract
-- Uses only identity reference IDs already locked into the GenerationPackage.
-- Required-person scenes fail closed on mismatch or identity confidence below 0.90.
-
-## Change Set 036 — Local semantic safety contract
-- Separates generation defects/forbidden visuals from subject and identity checks.
-- CI Run `32592908056`: SUCCESS.
-
-## Change Set 037 — Real visual-proof registration
-- Registers only real existing PNGs and validates dimensions against generation provenance.
-- Never fabricates a placeholder proof.
-
-## Change Set 038 — Clean base scene / deterministic overlay separation
-- The image model generates only the editorial base scene.
-- Exact logos, crests, social marks and typography remain deterministic post-composition assets.
+## Change Sets 034–038 — Local semantic/identity verification and exact-overlay separation
+- Adds local subject/framing verification, identity-similarity contracts, semantic-safety contracts and real PNG proof registration.
+- Required-person scenes fail closed on missing/mismatched identity evidence.
+- Exact logos, crests, social marks and typography are deterministic post-composition assets and must not be hallucinated by the image model.
 
 ## Change Set 039 — Real FLUX.2 Klein local execution
 - Adds concrete Diffusers `Flux2KleinPipeline` execution for `black-forest-labs/FLUX.2-klein-4B`.
 - Apache-2.0, `$0-local`, deterministic seed, guidance 1.0, four inference steps.
 - No paid BFL API is connected.
 
-## Change Set 040 — Exact platform canvas normalization
+## Change Sets 040–042 — Exact canvas, portable GPU handoff and cryptographic integrity
 - Generates Instagram feed at aligned `1088x1360`, then deterministically normalizes to exact `1080x1350`.
-
-## Change Set 041 — Portable GPU generation handoff
-- CPU/CI compiles exact provider/model/prompt/seed/canvas without claiming GPU readiness.
-- GPU execution independently re-checks CUDA, VRAM and backend readiness.
-
-## Change Set 042 — Cryptographic handoff integrity
+- CPU/CI compiles provider/model/prompt/seed/canvas without claiming GPU readiness.
 - Handoff schema `pul7sar-local-generation-v2` protects provider, model, prompt, constraints, canvas, seed, request ID, references and metadata with canonical SHA-256.
 
 ## Change Set 043 — Quality-first Golden batch
@@ -59,212 +39,146 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Manifest locks native/target canvas, request IDs and payload hashes.
 - CI Run `32594690472`: SUCCESS.
 
-## Change Set 044 — Sequential GPU batch executor
-- Executes candidates sequentially through the same locked single-request path and stops on first failure.
-
-## Change Set 045 — Explicit Golden Visual scorecard
-- Separates safety from aesthetics.
-- Hard blockers include fantasy staging, fake logos/crests, pseudo-text, invented results, clutter and broken geometry/anatomy.
-
-## Change Set 046 — FLUX-specific Diffusers readiness
-- Proves installed Diffusers exposes `Flux2KleinPipeline`; generic package import is insufficient.
-
-## Change Set 047 — Strict Golden approval floor
-- Weighted minimum `8.5/10`; critical core dimensions `8.0/10`; `9.0+` is `elite`.
-- Hard blockers override score.
-- CI Run `32595997677`: SUCCESS.
-
-## Change Set 048 — Durable executor result channel
-- GPU executor persists structured JSON instead of requiring stdout parsing.
-- CI Run `32596095005`: SUCCESS.
-
-## Change Set 049 — Production-equivalent candidate-1 smoke path
-- Adds `--limit 1` without altering the four-candidate manifest.
-- CI Run `32596245628`: SUCCESS.
-
-## Change Set 050 — CUDA-aware Golden BF16 verification
-- Locks Golden generation to proven native BF16; no silent FP16 downgrade.
-- CI Run `32596910115`: SUCCESS.
-- Notebook CI Run `32596936433`: SUCCESS.
-- Runbook CI Run `32596975853`: SUCCESS.
+## Change Sets 044–050 — Sequential execution, Golden quality and BF16 lock
+- Executes candidates sequentially through the same locked single-request path.
+- Golden Visual quality is separate from semantic safety; hard blockers override aesthetic score.
+- Weighted Golden minimum is `8.5/10`, critical core floor `8.0/10`, `9.0+` is `elite`.
+- Durable executor result JSON replaces stdout parsing.
+- Golden generation is locked to proven native BF16 with no silent FP16 downgrade.
+- CI Runs include `32595997677`, `32596095005`, `32596245628`, `32596910115`, `32596936433`, `32596975853`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_050_GPU_DTYPE.md`.
 
-## Change Set 051 — Provider-neutral generation jobs and GPU worker
-- Adds durable job identity, bounded attempts, lease ownership/expiry, capability matching, result identity checks, retryability and terminal failure semantics.
-
-## Change Set 052 — Durable filesystem queue + locked FLUX worker adapter
-- Adds `FilesystemGenerationJobStore`, FLUX worker adapter, enqueue command and GPU worker command.
-- Fixes immutable metadata serialization and makes handoff-integrity failure terminal.
+## Change Sets 051–053 — Durable generation jobs, worker queue and recovery
+- Adds provider-neutral generation jobs, bounded attempts, leases, worker capability matching and result identity checks.
+- Adds `FilesystemGenerationJobStore`, locked FLUX worker adapter, enqueue command and GPU worker command.
+- Handoff-integrity failure is terminal; expired leases can be recovered without resetting attempt history.
 - Detailed record: `docs/PHASE18_CHANGESET_051_052_GPU_AUTOMATION.md`.
-
-## Change Set 053 — Dead-worker recovery and queue telemetry
-- Recovers expired leased/running jobs without resetting attempt history.
-- Exhausted jobs become terminal; queue snapshots expose state counts.
 
 ## Change Set 054 — Durable heartbeat and measured capacity telemetry
 - Persists worker readiness/heartbeat and real execution timing.
-- Throughput remains `unproven` until a genuine successful GPU PNG exists.
-- Raw generation capacity is never represented as publication capacity.
+- Throughput remains `unproven` until genuine successful GPU generation exists; raw generation capacity is never publication capacity.
 - Detailed record: `docs/PHASE18_CHANGESET_054_WORKER_TELEMETRY.md`.
 
 ## Change Set 055 — CUDA high-water memory telemetry
 - Adds optional PyTorch CUDA peak-memory instrumentation and executor timing.
-- Missing counters remain unavailable rather than becoming fake zeros.
+- Missing counters remain unavailable rather than fake zeros.
 - Detailed record: `docs/PHASE18_CHANGESET_055_CUDA_MEMORY_TELEMETRY.md`.
 
 ## Change Set 056 — One-command first genuine Golden PNG
 - Adds `engine/intelligence/golden_smoke.py` and `tools/phase18_first_png.py`.
-- Composes Golden batch verification, CUDA/FLUX/BF16 readiness, durable enqueue, one normal worker cycle and real-PNG existence validation.
-- Incompatible hosts fail before queue mutation.
-- Generation success remains `publication_ready=false` pending semantic and Golden review.
+- Composes Golden batch verification, CUDA/FLUX/BF16 readiness, durable enqueue, one normal worker cycle and real-PNG validation.
+- Incompatible hosts fail before queue mutation; generation success remains `publication_ready=false` pending semantic and Golden review.
 - CI Run `32611296349`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_056_ONE_COMMAND_FIRST_PNG.md`.
 
 ## Change Set 057 — Self-hosted GPU Golden smoke workflow
-- Adds `.github/workflows/phase18-gpu-smoke.yml` for manually confirmed, explicitly labelled self-hosted Linux/x64/CUDA/BF16 runners.
-- Reuses the locked one-command path and uploads real evidence as a GitHub artifact.
-- Does not install/replace PyTorch automatically and embeds no paid-provider secret.
+- Adds `.github/workflows/phase18-gpu-smoke.yml` for manually confirmed self-hosted Linux/x64/CUDA/BF16 runners.
+- Reuses the locked one-command path and uploads genuine evidence only; no paid-provider secret is embedded.
 - Detailed record: `docs/PHASE18_CHANGESET_057_SELF_HOSTED_GPU_SMOKE.md`.
 
 ## Change Set 058 — Fail-closed model-cache preflight
-- Adds `engine/intelligence/model_cache.py` with explicit cached/uncached qualification and conservative disk-headroom checks.
-- Adds `tools/phase18_prefetch_flux2.py` to prove or download only the approved `black-forest-labs/FLUX.2-klein-4B` open-weight snapshot before GPU generation.
-- Writes a machine-readable cache receipt containing provider/model/license/cost mode, cache path, apparent snapshot size and qualification evidence.
-- Adds `tests/test_phase18_model_cache.py` covering cached eligibility, insufficient/sufficient disk, unknown-space fail-closed behavior and input validation.
-- Strengthens `tests/test_phase18_gpu_smoke_workflow.py` to require model prefetch before model-specific readiness and before the first-PNG command.
-- Makes `huggingface_hub` an explicit GPU-side dependency.
-- Updates the self-hosted GPU smoke workflow to prefetch/verify the exact model before Golden readiness and generation, avoiding wasted GPU time on first-run storage/download failures.
-- No prompt, seed, canvas, factual, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
+- Adds exact `black-forest-labs/FLUX.2-klein-4B` cache qualification/prefetch with conservative disk-headroom checks and `$0-local` receipt.
+- `huggingface_hub` becomes an explicit GPU-side dependency.
 - Detailed record: `docs/PHASE18_CHANGESET_058_MODEL_CACHE_PREFLIGHT.md`.
 
-## Change Set 059 — Fail-closed Golden GPU host qualification
-- Adds `engine/intelligence/gpu_host_qualification.py` to turn observed runtime facts into a deterministic eligibility receipt before queue mutation or model generation.
-- Requires local CUDA runtime, CUDA-enabled PyTorch, proven GPU identity, at least the model-declared VRAM floor, explicit native BF16 support, and observable CUDA compute capability.
-- Adds `tools/phase18_qualify_gpu_host.py`, a read-only JSON qualification command that installs/downloads nothing and calls no paid API.
-- Adds CPU-safe regression coverage for a qualified host plus insufficient VRAM, unknown BF16, missing compute capability and CPU-only rejection cases.
-- Qualification is deliberately narrower than generation/publication readiness: it does not claim model-cache, Diffusers, PNG, semantic-safety or Golden-quality success.
+## Change Set 059 — Fail-closed GPU host qualification
+- Requires local CUDA, CUDA-enabled PyTorch, proven GPU identity, required VRAM, explicit native BF16 support and observable compute capability before generation.
+- Adds read-only `tools/phase18_qualify_gpu_host.py`.
 - Detailed record: `docs/PHASE18_CHANGESET_059_GPU_HOST_QUALIFICATION.md`.
 
 ## Change Set 060 — Integrated first-PNG fail-closed preflight
-- Updates `tools/phase18_first_png.py` so the direct one-command path now incorporates the newer Change Set 059 GPU-host qualification and Change Set 058 exact-model cache preflight before Golden readiness and before durable queue mutation.
-- Host qualification must return `eligible=true`; incompatible hardware fails before model-weight download.
-- Model cache/prefetch must return `ready=true` and remain `$0-local`; paid-provider drift is terminal.
-- Adds repository-scoped host-qualification and model-cache evidence receipts to the first-PNG result payload.
-- Adds configurable positive `--minimum-free-gib` while keeping the conservative 30 GiB default.
-- Adds `tests/test_phase18_first_png_preflight.py` covering strict preflight ordering, non-eligible hosts, nonzero qualification failure, cache readiness/cost lock, disk-headroom forwarding and repository-scoped evidence paths.
-- No prompt, seed, canvas, provider/model identity, Fact Lock, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
+- `tools/phase18_first_png.py` composes host qualification, exact-model cache preflight, readiness and queue mutation in fail-closed order.
+- Adds repository-scoped qualification/cache evidence; no safety or quality gate is weakened.
 - Detailed record: `docs/PHASE18_CHANGESET_060_INTEGRATED_FIRST_PNG_PREFLIGHT.md`.
 
 ## Change Set 061 — Tamper-evident GPU evidence manifest
-- Adds `engine/intelligence/golden_evidence_bundle.py` to hash the first real PNG, first-PNG result and explicit supporting receipts with SHA-256.
-- Requires the generation result to keep `publication_ready=false`, validates a non-empty PNG signature, and rejects evidence paths outside the repository.
-- Adds `tools/phase18_build_gpu_evidence_manifest.py` and CPU-safe regression tests for hashing, fake-PNG rejection, publication-gate preservation, path confinement and receipt deduplication.
-- Updates `.github/workflows/phase18-gpu-smoke.yml` to build the compact evidence index after real-PNG verification and before GitHub artifact upload.
-- Adds GPU-host qualification evidence to the uploaded artifact scope so the first genuine proof can be audited from hardware qualification through result bytes.
-- The manifest is evidence integrity only; it cannot confer semantic safety, identity validity, Golden quality or publication readiness.
+- Hashes first real PNG and supporting receipts with SHA-256, validates PNG signature and repository path confinement.
+- Evidence integrity never implies publication readiness.
 - Detailed record: `docs/PHASE18_CHANGESET_061_GPU_EVIDENCE_MANIFEST.md`.
 
 ## Change Set 062 — Replayable Golden GPU evidence verification
-- Extends `engine/intelligence/golden_evidence_bundle.py` with `verify_golden_evidence_manifest`, which independently replays the canonical manifest SHA-256 plus every recorded evidence file size and SHA-256.
-- Tightens first-PNG evidence construction to require non-empty job/request identity and a canonical 64-hex generation payload SHA-256.
-- Rejects duplicate paths, repository-path escape, missing evidence, byte/size drift, manifest metadata drift, invalid PNG membership/signature and any mutation of `publication_ready=false`.
-- Adds `tools/phase18_verify_gpu_evidence_manifest.py` to write a machine-readable verification receipt without granting semantic, visual, or publication approval.
-- Updates the self-hosted GPU workflow so evidence is built, replay-verified against the actual runner bytes, and only then uploaded as an artifact.
-- Expands CPU-safe regression coverage for manifest replay, metadata tampering, evidence-byte tampering, path confinement even after outer-digest recomputation, and workflow ordering.
-- No prompt, seed, canvas, provider/model identity, Fact Lock, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
+- Independently replays manifest/evidence hashes, sizes, path confinement, PNG membership/signature and `publication_ready=false`.
+- Adds `tools/phase18_verify_gpu_evidence_manifest.py` and inserts replay verification before artifact upload.
 - Detailed record: `docs/PHASE18_CHANGESET_062_EVIDENCE_REPLAY_VERIFICATION.md`.
 
 ## Change Set 063 — T4 low-VRAM sequential offload path
-- First real Colab/Tesla T4 execution reached FLUX.2 transformer attention but failed with `torch.OutOfMemoryError`; the host exposed 14.56 GiB VRAM and the failing attention allocation requested an additional 3.54 GiB with only about 3.00 GiB free.
-- Root cause was not handoff integrity, provider/model identity, prompt, seed, BF16 lock or CUDA readiness. The existing runtime already used Diffusers model-level CPU offload, but its peak resident CUDA footprint was still too high at the locked `1088x1360` Golden canvas.
-- Updates `engine/intelligence/flux2_klein_diffusers.py` to prefer Diffusers `enable_sequential_cpu_offload()` when available and fall back to `enable_model_cpu_offload()` only when sequential offload is unavailable.
-- Adds explicit `offload_mode` result metadata (`sequential_cpu`, `model_cpu`, or `none`) so real evidence can distinguish the memory strategy used.
-- Preserves the exact approved model, BF16 dtype, deterministic seed, prompt, native/target canvas, guidance scale, four-step inference path, `$0-local` policy and all semantic/Golden publication gates.
-- Extends `tests/test_phase18_flux2_klein_diffusers.py` to verify sequential preference, model-offload fallback and emitted offload metadata.
+- First real Colab/Tesla T4 attempt reached FLUX.2 transformer attention but failed with CUDA OOM on the locked canvas.
+- `engine/intelligence/flux2_klein_diffusers.py` now prefers Diffusers sequential CPU offload and falls back to model CPU offload only when required.
+- Result metadata records `offload_mode`; model, BF16, prompt, seed, canvas, guidance, four-step inference and `$0-local` remain unchanged.
 - Targeted Colab regression after pull: `8 passed`.
-- `main` and production publishing paths remain untouched.
 
 ## Change Set 064 — First genuine T4 PNG proof
-- Retrying the exact candidate-1 Golden handoff after Change Set 063 completed successfully on the Colab Tesla T4.
-- Result status: `REAL_VISUAL_PROOF_GENERATED`.
-- Locked seed remained `7007001`; model remained `black-forest-labs/FLUX.2-klein-4B`; dtype remained BF16; native canvas remained `1088x1360`; target canvas remained `1080x1350`; cost mode remained `$0-local`.
-- Observed execution time was approximately 252.7 seconds on this T4 sample.
-- The proof establishes real inference and image persistence, not semantic safety, Golden-quality acceptance, production throughput, or publication readiness.
-- Human inspection exposed a visual-composition failure: the general multi-league concept was rendered as a four-panel football collage.
+- The exact candidate-1 handoff completed successfully after Change Set 063 on a Colab Tesla T4.
+- Status: `REAL_VISUAL_PROOF_GENERATED`; seed `7007001`; `black-forest-labs/FLUX.2-klein-4B`; BF16; native `1088x1360`; target `1080x1350`; `$0-local`.
+- Observed execution time was about 252.7 seconds.
+- This proved genuine inference/persistence only. Human review rejected the visual because the general multi-league concept became a four-panel football collage.
 
 ## Change Set 065 — Unified-scene Visual Intelligence correction
-- Corrects the root prompt/scene grammar that allowed the first proof to become a collage instead of merely patching one seed.
-- `VisualFamilyRouter` now routes general-world stories toward a single unified editorial scene with one focal hierarchy and continuous perspective.
-- `GenerationPackageCompiler` now imposes one full-bleed physical world, one coherent camera perspective and one lighting system, and explicitly prohibits collage, montage, split-screen, grids, diptych/triptych/contact-sheet, tiled panels, framed windows, image-within-image composition, seams and panel borders.
-- `PromptConstraintCompiler` adds deterministic positive reframes for the new composition constraints so FLUX-like providers cannot silently drop them.
-- Golden benchmark advances to `golden-visual-general-season-opener-v2`; the old `five visual zones` language is removed and league breadth is integrated inside one stadium world.
-- Golden batch advances to `pul7sar-golden-batch-v2` with `composition_grammar=single_continuous_scene` and v2 request IDs.
-- Batch verification remains backward-aware for v1 but makes the v2 composition grammar and prompt lock fail-closed.
-- Adds `tests/test_phase18_unified_scene_policy.py`.
+- Replaces collage-permissive general-world grammar with one full-bleed physical world, one coherent camera perspective, one lighting system and one focal hierarchy.
+- Explicitly forbids collage, montage, split-screen, grids, diptych/triptych/contact-sheet, tiled panels, framed windows, image-within-image composition, seams and panel borders.
+- Golden benchmark advanced to v2 with `composition_grammar=single_continuous_scene`.
 - Detailed record: `docs/PHASE18_CHANGESET_064_066_COLAB_VISUAL_INTELLIGENCE.md`.
 
 ## Change Set 066 — Semi-automatic Colab Golden runner
-- Adds `tools/phase18_colab_runner.py` so future Colab loops do not require manual readiness/build/verify/execute/display commands.
-- Refuses to operate outside `phase18/story-intelligence` and optional update is restricted to `git pull --ff-only`.
-- Always rebuilds and verifies the current Golden batch so stale handoffs from an older Visual Intelligence policy are not silently reused.
-- Re-checks Golden GPU readiness, executes one selected candidate through the locked FLUX executor, verifies manifest/result seed and request identity, requires a real PNG, writes a durable Colab summary, and keeps `publication_ready=false`.
-- When invoked with IPython `%run`, it attempts to display the resulting PNG inline automatically.
-- Reuses a matching successful candidate unless `--force` is explicitly requested.
-- Adds `tests/test_phase18_colab_runner.py`.
+- Adds `tools/phase18_colab_runner.py`, branch-locked to `phase18/story-intelligence` with optional `git pull --ff-only` update.
+- Rebuilds/verifies current Golden batch, re-checks GPU readiness, executes selected candidate, binds result identity, requires real PNG and keeps `publication_ready=false`.
 - Detailed record: `docs/PHASE18_CHANGESET_064_066_COLAB_VISUAL_INTELLIGENCE.md`.
 
 ## Change Set 067 — Colab CPU preflight and exact handoff-SHA result provenance
-- `tools/phase18_flux2_execute.py` now replays the versioned handoff integrity check and persists the exact verified `payload_sha256` in every real GPU result.
-- `tools/phase18_colab_runner.py` now runs a compact CPU-safe Golden regression preflight by default before GPU readiness/execution, covering unified-scene policy, Golden batch verification, executor handoff integrity and the Colab runner itself.
-- Existing Colab result reuse is strengthened from request ID + seed to status + request ID + seed + model ID + exact payload SHA-256 + `$0-local`; legacy/stale result JSON without the digest is never silently reused.
-- A fresh GPU result is checked against the same identity/SHA/cost contract before its PNG can be surfaced by the runner.
-- `tests/test_phase18_flux2_execute_command.py` adds verified-digest and tamper-replay coverage.
-- `tests/test_phase18_colab_runner.py` adds exact reuse-contract and legacy-result rejection coverage.
-- No files deleted; no production path or quality/safety gate weakened.
+- FLUX executor persists the verified `payload_sha256`; Colab result reuse now requires status + request ID + seed + model + exact SHA + `$0-local`.
+- Colab runs CPU-safe Golden regression preflight before GPU readiness/execution.
 - Detailed record: `docs/PHASE18_CHANGESET_067_COLAB_SHA_PREFLIGHT.md`.
 
 ## Change Set 068 — Golden v2 smoke compatibility and CI regression repair
-- Full CI Run `32629494120` exposed remaining v1-only assumptions after the v2 Visual Intelligence migration: the Golden smoke coordinator rejected `pul7sar-golden-batch-v2`, the batch regression still asserted v1, and smoke tests still expected the old v1 request ID.
-- `engine/intelligence/golden_smoke.py` now explicitly supports v1 historical evidence and the current v2 manifest; v2 additionally requires `composition_grammar=single_continuous_scene` and a unified-scene prompt marker before candidate 1 may enter the durable smoke queue.
-- `tests/test_phase18_golden_batch.py` now locks the current v2 manifest/composition grammar and verifies the generated prompt contains the unified-scene marker.
-- `tests/test_phase18_golden_smoke.py` now expects `golden-general-season-opener-v2-001`, retains SHA/cost/job/terminal-failure checks, and adds fail-closed v2 composition-grammar drift coverage.
-- The Colab targeted CPU preflight now also includes the Golden batch and Golden smoke modules so this migration class of regression is caught before GPU time is spent.
-- GitHub Actions Run `32629634107`: SUCCESS after the core v2 compatibility repair; syntax, full Phase 18 tests, production isolation, Golden v2 handoff build, four-candidate batch build and integrity verification all passed.
-- No runtime/test files deleted and no production path or quality/safety gate weakened.
+- Repairs stale v1 assumptions after the v2 migration and adds Golden batch/smoke modules to Colab targeted preflight.
+- GitHub Actions Run `32629634107`: SUCCESS.
 - Detailed record: `docs/PHASE18_CHANGESET_068_GOLDEN_V2_SMOKE_COMPAT.md`.
 
-## Current verified Golden Visual state
-A genuine Phase 18 PNG has been generated on a Google Colab Tesla T4 using the locked FLUX.2 Klein BF16 path with sequential CPU offload. That first v1 proof remains valid technical evidence but is visually rejected as a Golden candidate because it produced a four-panel collage. The current benchmark is v2 and explicitly locks `single_continuous_scene`. The complete CPU/CI preparation path is now v2-compatible and green, and Colab result reuse is bound to the exact handoff SHA. A genuine v2 candidate-1 PNG has not yet been executed, so no v2 Golden-quality claim is made.
+## Intervening visual corrections after the v2 proof — regulation geometry and exact-brand exclusion
+A second genuine Colab proof established that the single-scene correction removed the prior four-panel structure, but human inspection found two new hard visual failures: malformed association-football pitch markings/geometry and an AI-generated `PUL7SAR` text treatment that was not the approved logo.
 
-## Production safety through Change Set 068
-- `main`: untouched by Phase 18 development changes.
+The active Golden benchmark therefore advanced cumulatively:
+- v3 locks `sport_geometry=association_football_regulation_pitch`, including one halfway line, one correctly placed centre circle/mark, coherent penalty/goal areas, goal lines/touchlines and perspective-consistent markings. `GoldenVisualBlockers` gained `broken_sport_surface_geometry`.
+- v4 locks `generated_branding_allowed=false` and `brand_composition_policy=exact_assets_only_after_generation`. The AI base scene must contain zero PUL7SAR/PULSAR lettering, generated wordmark, number-7/pulse treatment, readable sponsor text, pseudo-text or substitute platform branding. `GoldenVisualBlockers` gained `generated_platform_brand_or_wordmark`.
+- `GenerationPackageCompiler`, `PromptConstraintCompiler`, Golden handoff/batch builders, verifier and unified-scene regression tests enforce those cumulative locks.
+- Detailed brand-exclusion record: `docs/PHASE18_CHANGESET_068_EXACT_BRANDING_EXCLUSION.md` (historical filename retained even though Change Set 068 was already used by the earlier v2 smoke repair).
+
+## Change Set 069 — Golden v4 durable-smoke compatibility
+- Branch review found a real integration mismatch: the active builder/verifier were already v4, while `engine/intelligence/golden_smoke.py` still accepted only v1/v2 and `tests/test_phase18_golden_smoke.py` still expected the v2 request ID.
+- `golden_smoke.py` now supports v1–v4 and applies cumulative fail-closed manifest locks: v2+ unified scene, v3+ regulation football-pitch geometry, v4 generated-brand prohibition plus exact-assets-only post-generation branding.
+- Before candidate 1 may enter the durable queue, the coordinator also replays matching SHA-protected prompt markers for unified composition, sport geometry and brand exclusion.
+- `tests/test_phase18_golden_smoke.py` now expects `golden-general-season-opener-v4-001` and adds regression coverage for grammar, geometry, generated-brand permission and brand-composition-policy drift while retaining SHA, zero-cost, job-identity and terminal-failure checks.
+- Added `docs/PHASE18_CHANGESET_069_GOLDEN_V4_SMOKE_COMPAT.md`.
+- Files deleted: none.
+- Production paths and all factual/identity/sentiment/semantic/quality/BF16/zero-cost gates remain unchanged.
+
+## Current verified Golden Visual state
+- Genuine GPU execution on the locked FLUX.2 Klein BF16 path is proven on a Colab Tesla T4 with sequential CPU offload.
+- The first genuine proof was rejected for collage/panel composition.
+- The later genuine single-scene proof was rejected for malformed football-pitch geometry and incorrect generated PUL7SAR text/branding.
+- The active benchmark is now `golden-visual-general-season-opener-v4` / `pul7sar-golden-batch-v4`.
+- A genuine v4 Candidate 1 PNG has not yet been executed, so no v4 visual-quality or publication claim is made.
+
+## Production safety through Change Set 069
+- `main`: untouched.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
 - No paid provider or paid image API selected.
 - No production secret/API key added.
 - No model weights or font files committed.
-- GitHub CPU CI does not claim to generate a FLUX image.
 - No fake PNG or fake performance sample is generated.
 - Missing semantic verification remains fail-closed.
-- Golden Visual approval remains additional to semantic publication safety.
-- Unsupported/unproven BF16 does not trigger a silent precision downgrade.
-- Raw generation throughput is never represented as publication throughput.
-- GPU host qualification, model caching, evidence hashing and evidence replay do not independently imply publication readiness.
-- Low-VRAM mitigation changes memory placement only; it does not weaken model, dtype, prompt, seed, canvas, factual, identity, semantic or visual-quality constraints.
-- Unified-scene Visual Intelligence changes composition semantics only; exact logos, PUL7SAR branding and typography remain deterministic post-composition assets.
-- Colab automation is branch-locked and cannot silently update or run against `main`.
-- Colab durable-result reuse requires the exact current handoff SHA-256 and `$0-local` contract; stale legacy output cannot be treated as a current v2 proof.
-- Golden v2 smoke queue entry additionally requires the unified single-scene grammar instead of merely accepting the manifest version.
+- Golden approval remains additional to semantic-publication safety.
+- Unsupported BF16 never triggers a silent precision downgrade.
+- Exact PUL7SAR branding remains deterministic post-composition only.
 
-## Architecture after Change Set 068
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v2 [single_continuous_scene] -> Colab CPU Regression Preflight [unified-scene + batch + smoke + SHA] -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Human/Automated Semantic Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 069
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Regulation Sport-Geometry Lock -> Generated-Brand Exclusion -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v4 -> Colab CPU Regression Preflight -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA Telemetry -> Native PNG -> Exact Platform Normalization -> Real Visual Proof -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Quality-First Selection -> Exact-Asset PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Pull Change Sets 067–068 into the active Colab T4 checkout.
-2. Run `PYTHONPATH=. python tools/phase18_colab_runner.py --update --candidate 1`; the expanded targeted CPU regression preflight runs automatically before GPU execution.
-3. Execute only v2 candidate 1; do not spend GPU time on candidates 2–4 until the unified-scene direction is visually judged.
-4. Judge the fresh SHA-bound v2 PNG specifically for removal of collage/panel structure, editorial hierarchy, realism, protected-zone cleanliness and overall PUL7SAR direction.
-5. If v2 candidate 1 is directionally correct, run the remaining deterministic seeds sequentially and apply the strict Golden scorecard.
-6. Use observed successful runtimes and memory telemetry—not theoretical throughput—to size the future production GPU worker pool.
-7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
+1. Pull the latest `phase18/story-intelligence` into the active Colab T4 checkout.
+2. Run only v4 Candidate 1 through `PYTHONPATH=. python tools/phase18_colab_runner.py --update --candidate 1` (or the durable one-command smoke path).
+3. Do not spend GPU time on Candidates 2–4 until Candidate 1 is checked for all four basics: one continuous scene, regulation football-pitch geometry, zero generated platform branding/text, and premium editorial quality.
+4. If Candidate 1 clears those blockers, run remaining deterministic seeds and apply semantic plus strict Golden quality review.
+5. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity are enforced end-to-end.
