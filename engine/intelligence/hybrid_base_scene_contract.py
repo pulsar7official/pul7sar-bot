@@ -2,7 +2,8 @@
 
 The generative model is asked only for what it owns. Exact surfaces, text,
 branding, scores, crests and identity-sensitive layers are explicitly reserved
-for later deterministic/verified composition.
+for later deterministic/verified composition. The platform name itself is not
+placed in the generative prompt, reducing accidental wordmark hallucination.
 """
 from __future__ import annotations
 
@@ -29,7 +30,7 @@ class HybridBaseSceneContractCompiler:
         ]
         reserved = [
             "all readable text",
-            "PUL7SAR branding and wordmark",
+            "all platform branding and wordmarks",
             "scores, dates, statistics and exact numbers",
             "team, club and competition marks",
         ]
@@ -43,7 +44,7 @@ class HybridBaseSceneContractCompiler:
 
         suffix = (
             "Create only the generative atmosphere layer of one continuous editorial image. "
-            "Do not render readable words, letters, numbers, scoreboards, logos, crests, watermarks or PUL7SAR branding. "
+            "Do not render readable words, letters, numbers, scoreboards, logos, crests, watermarks, platform names or platform branding. "
         )
         if source.get("sport_surface_geometry") is LayerSource.DETERMINISTIC:
             suffix += (
