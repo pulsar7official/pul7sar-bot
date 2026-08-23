@@ -91,6 +91,15 @@ class CompositionQualityDecision:
     failures: tuple[str, ...] = ()
 
 
+def _normalized_sha256(value: object) -> str | None:
+    if not isinstance(value, str):
+        return None
+    digest = value.strip().lower()
+    if len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        return None
+    return digest
+
+
 class PostCompositionPlanner:
     """Build deterministic placement instructions from an approved package."""
 
@@ -126,8 +135,6 @@ class PostCompositionPlanner:
                 continue
             role, box_role = mapped
             if box_role not in package.layout_boxes:
-                # Optional asset roles are simply not composited when their
-                # geometry is not part of this story's approved layout.
                 continue
             tint = None
             if asset.role is AssetRole.PUL7SAR_PULSE and asset.treatment is AssetTreatment.TINTABLE_ACCENT:
@@ -182,6 +189,24 @@ class PostCompositionQualityGate:
         if len(integrity_map) != len(plan.integrity_records):
             failures.append("duplicate asset integrity record")
 
+        # The approved PUL7SAR logo may never be accepted as a symbolic asset ID
+        # alone. Final composition requires a declared immutable digest and a
+        # matching runtime integrity record for the exact logo bytes.
+        brand_logos = assets.by_role(AssetRole.PUL7SAR_LOGO)
+        if len(brand_logos) != 1:
+            failures.append("exactly one declared PUL7SAR logo asset is required")
+        else:
+            logo_asset = brand_logos[0]
+            expected_logo_sha = _normalized_sha256(logo_asset.metadata.get("sha256"))
+            if expected_logo_sha is None:
+                failures.append(f"missing valid declared checksum for PUL7SAR logo: {logo_asset.asset_id}")
+            else:
+                actual_logo_sha = integrity_map.get(logo_asset.asset_id)
+                if actual_logo_sha is None:
+                    failures.append(f"missing integrity record for PUL7SAR logo: {logo_asset.asset_id}")
+                elif actual_logo_sha != expected_logo_sha:
+                    failures.append(f"asset checksum mismatch: {logo_asset.asset_id}")
+
         for element in plan.elements:
             if element.box_role not in package.layout_boxes:
                 failures.append(f"missing approved layout box: {element.box_role}")
@@ -190,12 +215,12 @@ class PostCompositionQualityGate:
                 if asset is None:
                     failures.append(f"unknown asset in composition plan: {element.asset_id}")
                     continue
-                expected = asset.metadata.get("sha256")
-                if expected:
+                expected = _normalized_sha256(asset.metadata.get("sha256"))
+                if expected and asset.role is not AssetRole.PUL7SAR_LOGO:
                     actual = integrity_map.get(element.asset_id)
                     if actual is None:
                         failures.append(f"missing integrity record for asset: {element.asset_id}")
-                    elif str(expected).strip().lower() != actual:
+                    elif expected != actual:
                         failures.append(f"asset checksum mismatch: {element.asset_id}")
 
         logos = [item for item in plan.elements if item.role is CompositionRole.BRAND_LOGO]
