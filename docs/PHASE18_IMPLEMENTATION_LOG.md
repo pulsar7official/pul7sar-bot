@@ -173,10 +173,19 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - No prompt/model/seed/canvas, BF16, factual, identity, semantic-publication or Golden-quality gate is weakened.
 - Detailed record: `docs/PHASE18_CHANGESET_055_CUDA_MEMORY_TELEMETRY.md`.
 
+## Change Set 056 — One-command first genuine Golden PNG smoke path
+- Adds `engine/intelligence/golden_smoke.py` to cross-check candidate 1 against the verified Golden manifest and prepare/reuse exactly one durable smoke job.
+- Adds `tools/phase18_first_png.py`, composing batch build, full batch integrity verification, CUDA/FLUX/BF16 readiness, durable enqueue, one normal GPU-worker cycle and final real-PNG existence validation into one command.
+- Host readiness is proven before the durable queue is mutated; incompatible CPU/non-BF16 hosts fail without leaving a pending generation job.
+- Existing terminal failures are never silently reset, and an existing job can be reused only when request ID, handoff path, SHA-256, provider and model remain identical.
+- A generated PNG is still explicitly `publication_ready=false` until semantic verification and the strict Golden quality review pass.
+- Adds `tests/test_phase18_golden_smoke.py` covering SHA drift, cost-mode drift, durable single-job semantics, identity mismatch and terminal-failure refusal.
+- Detailed record: `docs/PHASE18_CHANGESET_056_ONE_COMMAND_FIRST_PNG.md`.
+
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies across the benchmark batch. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 055
+## Production safety through Change Set 056
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
 - Legacy production image sourcing/rendering: untouched.
@@ -191,12 +200,13 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Golden Visual aesthetic approval remains additional to semantic publication safety.
 - Unsupported or unproven BF16 does not trigger a silent precision downgrade.
 - Raw generation throughput is never represented as publication throughput.
+- First-PNG orchestration fails before enqueueing if Golden GPU readiness is not proven.
 
-## Architecture after Change Set 055
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 056
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> One-Command Smoke Coordinator -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Run the enqueue + worker path on a compatible `$0` CUDA/BF16 host for candidate 1.
+1. Execute `PYTHONPATH=. python tools/phase18_first_png.py` on a compatible `$0` CUDA/BF16 host.
 2. Capture the first genuine PNG together with latency and CUDA high-water memory from Change Set 055.
 3. Use only observed successful samples to calculate raw generation capacity and determine whether latency or VRAM is the primary worker bottleneck.
 4. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success alone is not acceptance.
