@@ -1,6 +1,6 @@
 # PUL7SAR Phase 18 — Implementation Log Continuation
 
-This is the authoritative continuation record for Change Sets 094–096 on `phase18/story-intelligence`. It supplements `docs/PHASE18_IMPLEMENTATION_LOG.md`; no production branch is modified.
+This is the authoritative continuation record for Change Sets 094–097 on `phase18/story-intelligence`. It supplements `docs/PHASE18_IMPLEMENTATION_LOG.md`; no production branch is modified.
 
 ## Change Set 094 — Pre-FLUX Qwen model-cache qualification
 
@@ -193,4 +193,71 @@ PUL7SAR's Golden target benefits from preserving the base image's natural grass 
 2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
 3. Visually inspect whether the pitch now reads as photographic turf with deterministic regulation markings rather than a graphic surface.
 4. If Candidate 1 still fails, tune only evidence-backed placement, surface normalization, or line styling; do not relax factual, identity, semantic-publication, or Golden-quality gates.
+5. Resolve and SHA-lock the user-approved PUL7SAR logo asset before final publication composition.
+
+## Change Set 097 — Feathered pitch integration
+
+### Branch review before change
+- Repository: `pulsar7official/pul7sar-bot`.
+- Target branch: `phase18/story-intelligence` only.
+- Comparison with `main`: `diverged`, 724 commits ahead and 70 behind at review time.
+- `main` was not modified, merged, or force-updated.
+- Genuine Candidate 1 under the latest texture-preserving/stripe-free Hybrid v5 architecture remains unexecuted on GPU.
+
+### Why this change was necessary
+Change Sets 095–096 removed the opaque tactical-board replacement and default synthetic mowing bands. The remaining low-opacity turf colour normalisation still ended at the exact projective pitch polygon boundary. Even with preserved texture, that hard transition could visually disclose the deterministic layer as a composited quadrilateral.
+
+The Golden target needs exact lines and geometry, but the colour normalisation should visually merge with the photographed turf. Change Set 097 therefore softens only the low-opacity colour mask at the pitch edge while keeping all regulation markings deterministic and sharp.
+
+### Added
+- `docs/PHASE18_CHANGESET_097_FEATHERED_PITCH_INTEGRATION.md`.
+- `DEFAULT_SURFACE_FEATHER_PX = 18` in the Golden football compositor.
+- `surface_feather_px` in `FootballPitchRenderStyle` and `FootballHybridCompositionReceipt`.
+- Pixel-level regression coverage proving the feather stays transparent outside the pitch and reaches stronger opacity in the interior.
+- Integrity regression coverage rejecting hard-edge Golden receipts.
+
+### Modified
+- `engine/intelligence/football_pitch_renderer.py`
+  - Builds a grayscale pitch polygon mask for the turf tint.
+  - Applies Gaussian blur to that mask and multiplies it by the original hard polygon mask.
+  - The result is an inward-only feather: the green tint cannot bleed into stands or outside-scene pixels.
+  - Regulation markings are still drawn afterward on exact projective geometry.
+- `engine/intelligence/football_hybrid_composer.py`
+  - Default surface feather is 18 px.
+  - The feather value is validated and persisted in the composition receipt.
+  - Low-opacity texture-preserving tint, stripe-free default and deterministic markings remain unchanged.
+- `engine/intelligence/hybrid_artifact_integrity.py`
+  - Golden football receipts now require a safe feather range of 8..48 px.
+  - Existing texture-preserving mode, source-texture preservation, safe tint opacity and SHA-256 replay remain mandatory.
+- `tests/test_phase18_football_hybrid_composer.py`
+  - Verifies the default receipt carries the feather contract.
+  - Verifies inward-only surface blending behavior.
+- `tests/test_phase18_hybrid_artifact_integrity.py`
+  - Verifies a hard-edge `surface_feather_px=0` receipt cannot prove Golden artifact integrity.
+
+### Deleted
+- Nothing.
+
+### Gates and invariants unchanged
+- `main` / `main.py`: untouched.
+- Fact Lock, identity verification, sentiment and neutrality: unchanged.
+- `$0-local`: unchanged.
+- FLUX.2 Klein 4B, BF16, seeds/canvases and generation controls: unchanged.
+- Base semantic layer ownership remains mandatory before deterministic pitch composition.
+- SemanticPublicationGate remains mandatory for publication.
+- Golden thresholds remain 8.5 minimum / 9.0+ elite; hard blockers still override score.
+- Generated PUL7SAR branding remains forbidden.
+- Exact PUL7SAR logo bytes/checksum remain unresolved; final publication composition stays blocked.
+- No paid provider, secret, model weights, font files, fake PNG or fabricated benchmark was added.
+
+### Test state
+- New/updated CPU regressions are committed on the Phase 18 branch.
+- Full GitHub Actions verification must complete before Change Set 097 is called CI-green.
+- No GPU visual result is claimed.
+
+### Remaining work
+1. Confirm full Phase 18 CPU CI on the Change Set 097 head.
+2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
+3. Review whether the pitch tint boundary has visually disappeared while exact deterministic regulation markings remain integrated with the photographed field.
+4. If Candidate 1 still fails, tune only evidence-backed placement, feather radius, tint opacity or line styling; do not relax factual, identity, semantic-publication or Golden-quality gates.
 5. Resolve and SHA-lock the user-approved PUL7SAR logo asset before final publication composition.
