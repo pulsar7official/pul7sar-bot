@@ -1,0 +1,138 @@
+name: Phase 18 GPU Golden Smoke
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_PHASE18_GOLDEN_GPU to execute the locked candidate-1 GPU smoke"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-golden-gpu-smoke
+  cancel-in-progress: false
+
+jobs:
+  first-real-png:
+    # Deliberately self-hosted. This workflow must never silently consume a paid
+    # hosted GPU runner. Attach these labels only to a CUDA/BF16-capable PUL7SAR host.
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 60
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+
+    steps:
+      - name: Require explicit GPU execution confirmation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.confirmation }}" != "RUN_PHASE18_GOLDEN_GPU" ]; then
+            echo "Refusing GPU execution: confirmation token mismatch." >&2
+            exit 2
+          fi
+
+      - name: Checkout Phase 18 branch only
+        uses: actions/checkout@v4
+        with:
+          ref: phase18/story-intelligence
+          fetch-depth: 1
+
+      - name: Prove branch isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test -f engine/intelligence/golden_smoke.py
+          test -f tools/phase18_first_png.py
+          if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 3
+          fi
+
+      - name: Prove CUDA-enabled PyTorch exists before dependency installation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import torch
+          payload = {
+              "torch": torch.__version__,
+              "cuda_available": bool(torch.cuda.is_available()),
+              "cuda_version": torch.version.cuda,
+              "device_count": int(torch.cuda.device_count()) if torch.cuda.is_available() else 0,
+          }
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA-enabled PyTorch is required; refusing to replace/install PyTorch automatically")
+          PY
+
+      - name: Install Phase 18 GPU-side optional dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install -r requirements-phase18-gpu.txt
+
+      - name: Record model-specific Golden readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_local_readiness.py | tee output/phase18_gpu_smoke/readiness.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = json.loads(Path("output/phase18_gpu_smoke/readiness.json").read_text(encoding="utf-8"))
+          if p.get("golden_generation_ready") is not True:
+              raise SystemExit("golden_generation_ready is not true")
+          if p.get("recommended_dtype") not in {"bfloat16", "bf16"}:
+              raise SystemExit("Golden smoke requires proven BF16 readiness")
+          PY
+
+      - name: Generate first genuine locked Golden PNG
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_first_png.py \
+            --worker-id github-self-hosted-golden-smoke-01 \
+            --timeout-seconds 1800 \
+            | tee output/phase18_gpu_smoke/first-png-result.json
+
+      - name: Verify a real PNG exists and publication remains gated
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          result = json.loads(Path("output/phase18_gpu_smoke/first-png-result.json").read_text(encoding="utf-8"))
+          if result.get("publication_ready") is not False:
+              raise SystemExit("GPU generation must not self-authorize publication")
+          png = Path(result["png"])
+          if not png.is_file() or png.suffix.lower() != ".png":
+              raise SystemExit(f"Real PNG missing: {png}")
+          sig = png.read_bytes()[:8]
+          if sig != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("Result file is not a valid PNG signature")
+          print(json.dumps({"png": str(png), "bytes": png.stat().st_size}, indent=2))
+          PY
+
+      - name: Upload genuine Golden smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-golden-gpu-smoke-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/**
+            output/phase18_visual_proof/**
+            output/phase18_generated/**
+            output/phase18_worker_telemetry/**
+            output/phase18_generation_queue/**
+            output/phase18_handoffs/golden-batch/**
