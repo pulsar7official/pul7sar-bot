@@ -66,3 +66,62 @@ The previous proof showed that pitch integration quality can fail even when dete
 2. If the genuine base passes semantic layer ownership, build the pitch diagnostic matrix against that exact base PNG before generating any additional seed.
 3. Use the diagnostic evidence to choose or refine pitch placement, tint, feather, or line styling without weakening factual, identity, semantic-publication, or Golden-quality gates.
 4. Resolve and SHA-lock the approved PUL7SAR logo asset before final publication composition.
+
+## Change Set 099 — Colab non-destructive pitch review flow
+
+### Branch review before change
+- Repository: `pulsar7official/pul7sar-bot`.
+- Target branch: `phase18/story-intelligence` only.
+- Comparison with `main`: `diverged`, 737 commits ahead and 72 behind at review time.
+- `main` was not modified, merged, force-updated, or used as a write target.
+- Change Set 098 already provided the CPU-only pitch diagnostic matrix, but review still required manually locating the latest base PNG and opening each diagnostic artifact.
+- A genuine Candidate 1 under the latest architecture still requires a compatible CUDA/BF16 host; no new GPU result is claimed here.
+
+### Added
+- `tools/phase18_colab_pitch_review.py`
+  - Reads the existing `output/phase18_colab/latest.json` and requires both the active checkout and stored summary to identify `phase18/story-intelligence`.
+  - Requires `pul7sar-golden-batch-v5`, deterministic football replacement enabled, the requested candidate number, `publication_ready=false`, and a real existing `.png` base path.
+  - Reuses `FootballPitchDiagnosticBuilder` without invoking FLUX or Qwen.
+  - Displays the genuine FLUX base first and every approved football camera preset afterward.
+  - Never auto-selects a preset.
+  - Optional `--selected-preset` records an explicit human review choice only and still emits `publication_ready=false`.
+  - Writes an auditable `colab-pitch-review.json` receipt next to the diagnostic artifacts.
+- `tests/test_phase18_colab_pitch_review.py`
+  - Covers no-auto-selection behavior, all-preset display, explicit manual selection, stale-contract rejection, publication-ready source rejection, candidate mismatch, and wrong-branch rejection.
+- `docs/PHASE18_CHANGESET_099_COLAB_PITCH_REVIEW.md`.
+
+### Modified
+- `docs/PHASE18_IMPLEMENTATION_LOG_098.md` extended with the current Change Set 099 record.
+
+### Deleted
+- Nothing.
+
+### Why this materially reduces the remaining gap
+Once Candidate 1 exists, the next uncertainty is whether deterministic pitch placement matches the actual stadium camera. Change Set 099 makes that comparison one CPU-only Colab command using the exact same base pixels. It avoids a second FLUX inference merely to inspect composition placement and keeps camera selection explicitly human-reviewed instead of guessing or silently changing the Golden contract.
+
+### Gates and invariants unchanged
+- `main` / `main.py`: untouched.
+- Telegram and legacy production publishing: untouched.
+- Fact Lock: unchanged and fail-closed.
+- Identity verification: unchanged and fail-closed.
+- Sentiment / neutrality: unchanged.
+- `$0-local`: unchanged.
+- FLUX.2 Klein 4B, BF16, seeds/canvases and generation controls: unchanged.
+- Base semantic layer ownership remains mandatory for the quality path.
+- SemanticPublicationGate remains mandatory.
+- Golden thresholds remain 8.5 minimum / 9.0+ elite; hard blockers override score.
+- Generated PUL7SAR branding remains forbidden.
+- Exact PUL7SAR logo SHA remains unresolved; final publication composition stays blocked.
+- No paid provider, secret, model weights, font files, fake PNG, or fabricated benchmark was added.
+
+### Test state
+- Regression tests were added for the new Colab pitch-review path.
+- A new GitHub Actions result for the Change Set 099 code/test head must be observed before this log can claim CI success.
+- No GPU result is claimed by this change.
+
+### Remaining work
+1. Obtain a compatible CUDA/BF16 host and run Golden Hybrid v5 Candidate 1 only.
+2. If the base exists and is suitable for engineering review, run `PYTHONPATH=. python tools/phase18_colab_pitch_review.py --candidate 1` before spending GPU on another seed.
+3. Review the genuine base and all deterministic placement variants; if needed, record an explicit preset with `--selected-preset` without treating that as publication approval.
+4. Feed the visually chosen/refined camera placement back into the quality path only after semantic layer ownership and Hybrid QA remain satisfied.
+5. Resolve and SHA-lock the approved PUL7SAR logo asset before final publication composition.
