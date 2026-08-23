@@ -4,11 +4,13 @@ from pathlib import Path
 
 from engine.intelligence.football_hybrid_composer import (
     DEFAULT_STRIPE_OPACITY,
+    DEFAULT_SURFACE_FEATHER_PX,
     DEFAULT_SURFACE_OPACITY,
     TEXTURE_PRESERVING_COMPOSITION_MODE,
     FootballHybridComposer,
 )
 from engine.intelligence.football_pitch_placement import FootballCameraPreset, FootballPitchPlacementPlanner
+from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle, PillowFootballPitchRenderer
 
 
 class FootballPitchPlacementTests(unittest.TestCase):
@@ -45,6 +47,8 @@ class FootballHybridComposerTests(unittest.TestCase):
             self.assertTrue(receipt.generated_pitch_markings_replaced)
             self.assertEqual(receipt.surface_opacity, DEFAULT_SURFACE_OPACITY)
             self.assertLess(receipt.surface_opacity, 255)
+            self.assertEqual(receipt.surface_feather_px, DEFAULT_SURFACE_FEATHER_PX)
+            self.assertGreater(receipt.surface_feather_px, 0)
             self.assertEqual(receipt.composition_mode, TEXTURE_PRESERVING_COMPOSITION_MODE)
             self.assertTrue(receipt.source_texture_preserved)
             self.assertFalse(receipt.mowing_stripes_applied)
@@ -78,6 +82,26 @@ class FootballHybridComposerTests(unittest.TestCase):
                 light = composed.getpixel((360, 530))
                 self.assertNotEqual(dark, light)
                 self.assertGreater(sum(light) - sum(dark), 25)
+
+    def test_surface_feather_is_inward_and_reduces_hard_boundary(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow unavailable")
+        renderer = PillowFootballPitchRenderer()
+        style = FootballPitchRenderStyle(
+            line_rgba=(0, 0, 0, 0),
+            surface_rgba=(25, 92, 45, 100),
+            alternate_surface_rgba=(25, 92, 45, 0),
+            mowing_stripes=False,
+            surface_feather_px=20,
+        )
+        corners = ((100.0, 600.0), (200.0, 200.0), (440.0, 200.0), (540.0, 600.0))
+        overlay = renderer.render_overlay(canvas_size=(640, 800), destination_corners=corners, style=style)
+        alpha = overlay.getchannel("A")
+        self.assertEqual(alpha.getpixel((95, 600)), 0)
+        self.assertLess(alpha.getpixel((110, 585)), alpha.getpixel((320, 450)))
+        self.assertGreater(alpha.getpixel((320, 450)), 80)
 
     def test_mowing_stripes_are_explicit_opt_in_only(self):
         try:
