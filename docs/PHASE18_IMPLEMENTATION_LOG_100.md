@@ -62,14 +62,14 @@ The first real Candidate 1 base remains GPU-blocked, but once it exists the came
 - No paid provider, secret, model weights, font files, fake PNG, or fabricated benchmark was added.
 
 ### Test state
-- Regression tests were added for the new pitch-selection lock.
-- A new GitHub Actions result for the Change Set 100 code/test head must be observed before this log can claim CI success.
+- GitHub Actions Run `32674698338` (run 1368): **SUCCESS** on the Change Set 100 code/test head `dcc46332f8a8ea5c6692ee39bbd17ec960b4e710`.
+- The discover-based Phase 18 verification workflow completed successfully with the new pitch-selection regression tests included.
+- Documentation-only commits after that code/test head do not alter runtime behavior.
 - No GPU result is claimed by this change.
 
 ### Remaining work
-1. Observe the Phase 18 CPU CI result for Change Set 100 and record it only if it succeeds.
-2. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
-3. If the base passes semantic layer ownership, run the Change Set 099 pitch review and make an explicit human preset selection.
-4. Run `PYTHONPATH=. python tools/phase18_lock_pitch_selection.py --candidate 1` to bind that review to exact base/variant hashes without another FLUX inference.
-5. Run hybrid semantic/alignment inspection on the locked artifact before any Golden-quality claim.
-6. Resolve and SHA-lock the approved PUL7SAR logo asset before final publication composition.
+1. On a compatible CUDA/BF16 host, run Golden Hybrid v5 Candidate 1 only.
+2. If the base passes semantic layer ownership, run the Change Set 099 pitch review and make an explicit human preset selection.
+3. Run `PYTHONPATH=. python tools/phase18_lock_pitch_selection.py --candidate 1` to bind that review to exact base/variant hashes without another FLUX inference.
+4. Run hybrid semantic/alignment inspection on the locked artifact before any Golden-quality claim.
+5. Resolve and SHA-lock the approved PUL7SAR logo asset before final publication composition.
