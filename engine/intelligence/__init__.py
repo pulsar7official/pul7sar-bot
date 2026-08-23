@@ -10,6 +10,7 @@ from engine.intelligence.classification import EntityCandidate, EntityKind, Stor
 from engine.intelligence.concept_director import ConceptBrief, ConceptConstraint, ConceptDirectionError, ConceptDirector, ProposedConcept
 from engine.intelligence.cost_policy import BillingClass, CostPolicyDecision, DevelopmentCostPolicy, ProviderEconomics
 from engine.intelligence.dry_run_manifest import DryRunManifest, DryRunManifestCompiler
+from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGrammar, HeadlineDecision, HeadlineInput, HeadlineTone
 from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
 from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
@@ -53,7 +54,10 @@ from engine.intelligence.scene_spec import OriginalSceneSpecification, SceneIden
 from engine.intelligence.semantic_publication_gate import SemanticPublicationDecision, SemanticPublicationGate
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
+from engine.intelligence.sport_visual_rules import SportSurface, SportVisualRule, SportVisualRuleRegistry
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
+from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
+from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
 from engine.intelligence.visual_proof import VisualProofArtifact, VisualProofArtifactWriter
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
