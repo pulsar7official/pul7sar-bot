@@ -1,6 +1,8 @@
-# PUL7SAR Phase 18 — Change Sets 079–082
+# PUL7SAR Phase 18 — Canonical Change Sets 081–084
 
-## Change Set 079 — Scene Complexity Minimization
+> Historical filename retained for continuity. The authoritative implementation sequence reserves 077–080 for fact schemas, Fact Lock integration, deterministic football geometry and layer-aware Hybrid Visual QA.
+
+## Change Set 081 — Scene Complexity Minimization
 Added `engine/intelligence/scene_complexity_policy.py`.
 
 PUL7SAR no longer assumes that a football story needs a full generated football stadium or pitch. The policy selects the minimum physical dependency needed to communicate the story:
@@ -11,39 +13,27 @@ PUL7SAR no longer assumes that a football story needs a full generated football 
 
 This reduces hallucination risk before prompt construction begins.
 
-## Change Set 080 — Expanded Cross-Sport Rules
+## Change Set 082 — Expanded Cross-Sport Rules
 Expanded `engine/intelligence/sport_visual_rules.py`.
 
-Explicit profiles now cover more than thirty sport families, including football, basketball, tennis, padel, badminton, volleyball, handball, baseball, American football, rugby, cricket, golf, boxing, MMA, wrestling, judo, taekwondo, athletics, Formula 1, motorsport, swimming, cycling, rowing, sailing, ice hockey, winter sports, table tennis, snooker, darts, gymnastics, weightlifting, equestrian and esports.
+Explicit profiles cover more than thirty sport families, including football, basketball, tennis, padel, badminton, volleyball, handball, baseball, American football, rugby, cricket, golf, boxing, MMA, wrestling, judo, taekwondo, athletics, Formula 1, motorsport, swimming, cycling, rowing, sailing, ice hockey, winter sports, table tennis, snooker, darts, gymnastics, weightlifting, equestrian and esports.
 
-Arabic aliases are included for major sport names. Unknown sports still receive a conservative fallback rather than an invented geometry contract.
+Arabic aliases are included for major sport names. Unknown sports receive a conservative fallback rather than an invented geometry contract.
 
 Added `tests/test_phase18_sport_visual_rules.py`.
 
-## Change Set 081 — Deterministic Football Geometry Renderer
+## Change Set 083 — Deterministic Football Geometry Renderer
 Added/strengthened:
 - `engine/intelligence/football_pitch_geometry.py`
 - `engine/intelligence/football_pitch_projection.py`
 - `engine/intelligence/football_pitch_renderer.py`
 
-The football geometry now includes:
-- boundary lines,
-- halfway line,
-- centre circle and centre mark,
-- penalty areas,
-- goal areas,
-- penalty marks,
-- penalty arcs,
-- four corner arcs.
+A projective homography maps regulation world-space geometry to an arbitrary four-corner image quadrilateral. The lazy-Pillow renderer creates a transparent deterministic pitch layer and can alpha-composite it over a base image. This is the direct replacement for asking FLUX to invent pitch proportions and markings.
 
-A projective homography maps regulation world-space geometry to an arbitrary four-corner image quadrilateral. A lazy-Pillow renderer can create a transparent deterministic pitch layer and composite it over a base image.
-
-This is the direct replacement for asking FLUX to invent pitch proportions and markings.
-
-## Change Set 082 — Geometry Capability Fail-Closed Policy
+## Change Set 084 — Geometry Capability Fail-Closed Policy
 Added `engine/intelligence/geometry_capabilities.py` and integrated it into `EditorialPlanningService`.
 
-A sport can require exact geometry without PUL7SAR yet having a renderer for it. The new registry distinguishes policy requirement from implementation readiness.
+A sport can require exact geometry without PUL7SAR yet having a renderer for it. The registry distinguishes policy requirement from implementation readiness.
 
 Current declared deterministic renderer readiness:
 - football: `football_pitch_projective_v1`
