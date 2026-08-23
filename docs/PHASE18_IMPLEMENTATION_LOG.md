@@ -152,6 +152,15 @@ The active Golden benchmark therefore advanced cumulatively:
 - Files deleted: none.
 - Production paths and all factual/identity/sentiment/semantic/quality/BF16/zero-cost gates remain unchanged.
 
+## Change Set 070 — Exact PUL7SAR logo integrity gate
+- Branch review of deterministic post-composition found that the symbolic `pul7sar-logo` asset ID could still pass without a declared immutable checksum, leaving room for a wrong local logo file to be substituted later.
+- `engine/intelligence/post_composition.py` now requires the PUL7SAR logo asset to carry a valid declared 64-hex SHA-256 and requires a matching runtime `AssetIntegrityRecord` before the post-composition quality gate can pass.
+- Missing declared checksum, missing runtime integrity evidence, or checksum mismatch fails closed. Existing rules still require exactly one PUL7SAR logo and forbid tinting it.
+- `tests/test_phase18_post_composition.py` adds regression coverage for missing checksum, missing integrity record and mismatch while retaining existing tint/platform/canvas checks.
+- Added `docs/PHASE18_CHANGESET_070_EXACT_LOGO_INTEGRITY_GATE.md`.
+- No asset bytes, model weights, fonts, paid provider or production secret were added. Files deleted: none.
+- The approved production logo file itself remains unresolved; final composition therefore intentionally remains blocked until the correct logo bytes and locked checksum are supplied.
+
 ## Current verified Golden Visual state
 - Genuine GPU execution on the locked FLUX.2 Klein BF16 path is proven on a Colab Tesla T4 with sequential CPU offload.
 - The first genuine proof was rejected for collage/panel composition.
@@ -159,7 +168,7 @@ The active Golden benchmark therefore advanced cumulatively:
 - The active benchmark is now `golden-visual-general-season-opener-v4` / `pul7sar-golden-batch-v4`.
 - A genuine v4 Candidate 1 PNG has not yet been executed, so no v4 visual-quality or publication claim is made.
 
-## Production safety through Change Set 069
+## Production safety through Change Set 070
 - `main`: untouched.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -171,14 +180,15 @@ The active Golden benchmark therefore advanced cumulatively:
 - Missing semantic verification remains fail-closed.
 - Golden approval remains additional to semantic-publication safety.
 - Unsupported BF16 never triggers a silent precision downgrade.
-- Exact PUL7SAR branding remains deterministic post-composition only.
+- Exact PUL7SAR branding remains deterministic post-composition only and now requires immutable logo-byte integrity evidence.
 
-## Architecture after Change Set 069
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Regulation Sport-Geometry Lock -> Generated-Brand Exclusion -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v4 -> Colab CPU Regression Preflight -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA Telemetry -> Native PNG -> Exact Platform Normalization -> Real Visual Proof -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Quality-First Selection -> Exact-Asset PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 070
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Regulation Sport-Geometry Lock -> Generated-Brand Exclusion -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v4 -> Colab CPU Regression Preflight -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA Telemetry -> Native PNG -> Exact Platform Normalization -> Real Visual Proof -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Quality-First Selection -> Exact Logo SHA/Runtime Integrity Gate -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
 1. Pull the latest `phase18/story-intelligence` into the active Colab T4 checkout.
 2. Run only v4 Candidate 1 through `PYTHONPATH=. python tools/phase18_colab_runner.py --update --candidate 1` (or the durable one-command smoke path).
 3. Do not spend GPU time on Candidates 2–4 until Candidate 1 is checked for all four basics: one continuous scene, regulation football-pitch geometry, zero generated platform branding/text, and premium editorial quality.
 4. If Candidate 1 clears those blockers, run remaining deterministic seeds and apply semantic plus strict Golden quality review.
-5. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity are enforced end-to-end.
+5. Resolve the approved PUL7SAR logo to an actual runtime/repository file and lock its SHA-256 before any final composition can pass.
+6. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity are enforced end-to-end.
