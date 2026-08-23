@@ -1,11 +1,8 @@
 """End-to-end CPU-safe editorial planning service for PUL7SAR Phase 18.
 
 Input: several fact-locked editorial angles for the same story.
-Output: one selected angle, concise headline, production mode, sport-aware geometry
-contract and deterministic/generative layer ownership.
-
-No image model is called here. The service is intended to decide what should be
-said and what should be built before expensive generation begins.
+Output: one selected angle, concise headline, production mode, sport-aware geometry,
+scene-complexity policy and deterministic/generative layer ownership.
 """
 from __future__ import annotations
 
@@ -15,6 +12,7 @@ from typing import Optional
 from engine.intelligence.editorial_angle_selector import EditorialAngleCandidate, EditorialAngleScore, VisualAwareEditorialAngleSelector
 from engine.intelligence.editorial_headline_grammar import HeadlineTone
 from engine.intelligence.hybrid_layer_planner import HybridLayerPlan, HybridVisualLayerPlanner
+from engine.intelligence.scene_complexity_policy import SceneComplexityDecision, SceneComplexityPolicy
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 
@@ -24,6 +22,7 @@ class EditorialPlanningResult:
     selected_angle: Optional[EditorialAngleScore]
     decision: Optional[StoryToVisualDecision]
     layers: Optional[HybridLayerPlan]
+    complexity: Optional[SceneComplexityDecision]
     rejected_angle_ids: tuple[str, ...]
     status: str
 
@@ -34,6 +33,7 @@ class EditorialPlanningService:
         self._orchestrator = StoryToVisualOrchestrator()
         self._sports = SportVisualRuleRegistry()
         self._layers = HybridVisualLayerPlanner()
+        self._complexity = SceneComplexityPolicy()
 
     def plan(
         self,
@@ -53,6 +53,7 @@ class EditorialPlanningService:
                 selected_angle=None,
                 decision=None,
                 layers=None,
+                complexity=None,
                 rejected_angle_ids=rejected,
                 status="NO_SAFE_EDITORIAL_ANGLE",
             )
@@ -74,11 +75,14 @@ class EditorialPlanningService:
             metadata={"selected_angle_id": chosen.angle_id},
         )
         decision = self._orchestrator.decide(story)
-        layers = self._layers.plan(decision.plan, self._sports.get(sport))
+        sport_rule = self._sports.get(sport)
+        layers = self._layers.plan(decision.plan, sport_rule)
+        complexity = self._complexity.decide(chosen.event, secondary_subject_count=len(chosen.secondary_subjects))
         return EditorialPlanningResult(
             selected_angle=selection.selected,
             decision=decision,
             layers=layers,
+            complexity=complexity,
             rejected_angle_ids=rejected,
             status="EDITORIAL_VISUAL_PLAN_READY",
         )
