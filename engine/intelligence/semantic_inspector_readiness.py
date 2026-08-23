@@ -8,9 +8,9 @@ Important compatibility rules:
 - do not import Qwen2.5-VL classes from the private
   ``transformers.models.qwen2_5_vl`` package;
 - keep the Golden runtime on the verified Transformers 4.x public API line;
-- keep Pillow on the verified 11.x line in Colab and prove that drawing/text
-  modules import coherently. In-place Pillow major upgrades can otherwise leave
-  a live notebook with mixed modules from two installed generations.
+- keep Pillow on the verified 11.x line in Colab and prove that the public image,
+  drawing and font modules import coherently. Do not probe non-public/nonexistent
+  symbols such as ``PIL.ImageText``.
 """
 from __future__ import annotations
 
@@ -62,9 +62,6 @@ class Qwen25VLReadinessProbe:
             # Qwen2_5_VLConfig and pipeline at transformers package top level.
             from transformers import Qwen2_5_VLConfig, pipeline  # noqa: F401
 
-            # The inspector itself uses image-text-to-text Pipeline. Merely
-            # importing the callable proves registration without downloading
-            # model weights in this readiness phase.
             if Qwen2_5_VLConfig is None or pipeline is None:  # defensive only
                 failures.append("transformers_qwen2_5_vl_public_api_unavailable")
         except Exception as exc:
@@ -87,7 +84,7 @@ class Qwen25VLReadinessProbe:
 
         try:
             import PIL
-            from PIL import Image, ImageDraw, ImageFont, ImageText  # noqa: F401
+            from PIL import Image, ImageDraw, ImageFont  # noqa: F401
 
             pillow_version = getattr(PIL, "__version__", None)
             pillow_major = self._major(pillow_version)
@@ -97,6 +94,8 @@ class Qwen25VLReadinessProbe:
                     + str(pillow_version)
                     + ":expected_<12"
                 )
+            if Image is None or ImageDraw is None or ImageFont is None:  # defensive only
+                failures.append("pillow_public_modules_unavailable")
         except Exception as exc:
             failures.append(
                 "pillow_runtime_incoherent:"
