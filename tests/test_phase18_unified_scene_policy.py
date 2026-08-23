@@ -39,9 +39,12 @@ class UnifiedScenePolicyTests(unittest.TestCase):
         self.assertIn("no field/court/rink lines", prompt)
         self.assertIn("the exact surface will be replaced by deterministic code after generation", prompt)
         self.assertNotIn("exactly one halfway line", prompt)
-        self.assertIn("zero pul7sar lettering", prompt)
-        self.assertIn("never spell pul7sar, pulsar, or any approximation", prompt)
-        self.assertIn("dynamic", request.metadata.get("brand_composition_policy", "dynamic"))
+        self.assertIn("fully unbranded", prompt)
+        self.assertIn("platform names", prompt)
+        self.assertNotIn("pul7sar", prompt)
+        self.assertNotIn("pulsar", prompt)
+        self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
+        self.assertFalse(request.metadata["generated_branding_allowed"])
         self.assertEqual(request.native_negative_constraints, ())
 
     def test_golden_v5_batch_round_trip_verifies_hybrid_geometry_and_brand_policy(self):
