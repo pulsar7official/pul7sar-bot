@@ -1,11 +1,12 @@
-# PUL7SAR Phase 18 — Change Set 081
+# PUL7SAR Phase 18 — Canonical Change Set 087
+
+> Historical filename retained. Canonical numbering moved this change to 087 after reconciliation with existing scene-complexity, cross-sport, renderer and geometry-capability changes.
 
 ## Golden v4 CPU verification alignment
 
 Branch review found a stale integration path in `.github/workflows/phase18-intelligence.yml`: the active builders and Colab runner were already locked to Golden v4, but CPU CI still passed a v2 request ID and uploaded artifacts with v2 names. That could make a green verification run appear to certify a stale benchmark contract.
 
-Change Set 081 updates the workflow to:
-
+Change Set 087 updates the workflow to:
 - build request `golden-general-season-opener-v4-001`,
 - label the handoff and candidate-batch artifacts as v4,
 - explicitly assert `pul7sar-golden-batch-v4`,
@@ -16,4 +17,4 @@ Change Set 081 updates the workflow to:
 
 Added `tests/test_phase18_intelligence_workflow.py` so future edits fail if the workflow regresses to v2 request/artifact names or loses the current v4 contract markers. The workflow remains CPU-only on `ubuntu-latest`, Phase-18-scoped, and contains no paid-provider secret or API endpoint.
 
-No change was made to `main`, `main.py`, Telegram production publishing, provider/model/seed/BF16/cost policy, semantic publication gates or Golden thresholds. Files deleted: none.
+No change was made to `main`, `main.py`, Telegram production publishing, provider/model/seed/BF16/cost policy, semantic publication gates or Golden thresholds. Files deleted: none in this change set.
