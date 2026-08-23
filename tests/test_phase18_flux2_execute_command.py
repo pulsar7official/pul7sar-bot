@@ -5,7 +5,7 @@ from pathlib import Path
 
 from engine.intelligence.local_backend_execution import LocalBackendGenerationRequest
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
-from tools.phase18_flux2_execute import _request_from_json
+from tools.phase18_flux2_execute import _handoff_payload_sha256, _request_from_json
 
 
 class Flux2ExecuteCommandTests(unittest.TestCase):
@@ -50,6 +50,26 @@ class Flux2ExecuteCommandTests(unittest.TestCase):
             request = _request_from_json(str(path))
             self.assertEqual(request.seed, 77)
             self.assertEqual(request.metadata["cost_mode"], "$0-local")
+        finally:
+            temp.cleanup()
+
+    def test_verified_handoff_digest_can_be_persisted_in_result(self):
+        data = self.valid()
+        temp, path = self.write(data)
+        try:
+            self.assertEqual(_handoff_payload_sha256(str(path)), data["payload_sha256"])
+        finally:
+            temp.cleanup()
+
+    def test_handoff_digest_helper_replays_integrity_before_returning_hash(self):
+        data = self.valid()
+        original_hash = data["payload_sha256"]
+        data["seed"] = 78
+        temp, path = self.write(data)
+        try:
+            with self.assertRaisesRegex(ValueError, "integrity check failed"):
+                _handoff_payload_sha256(str(path))
+            self.assertEqual(data["payload_sha256"], original_hash)
         finally:
             temp.cleanup()
 
