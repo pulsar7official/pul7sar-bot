@@ -7,6 +7,7 @@ so malformed generated field geometry cannot survive into the final image.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import hashlib
 from pathlib import Path
 
 from engine.intelligence.football_pitch_placement import FootballCameraPreset, FootballPitchPlacementPlanner
@@ -24,6 +25,8 @@ class FootballHybridCompositionReceipt:
     generated_pitch_markings_replaced: bool
     surface_opacity: int
     mowing_stripes_applied: bool = True
+    input_sha256: str = ""
+    output_sha256: str = ""
 
 
 class FootballHybridComposer:
@@ -36,6 +39,14 @@ class FootballHybridComposer:
         if len(rgb) != 3 or any(not isinstance(value, int) or not 0 <= value <= 255 for value in rgb):
             raise ValueError("surface_rgb must contain three 0..255 integers")
         return rgb
+
+    @staticmethod
+    def _sha256(path: Path) -> str:
+        digest = hashlib.sha256()
+        with path.open("rb") as handle:
+            for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
 
     def compose_file(
         self,
@@ -55,6 +66,7 @@ class FootballHybridComposer:
         source = Path(base_path)
         if not source.is_file():
             raise FileNotFoundError(base_path)
+        input_sha = self._sha256(source)
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
 
@@ -77,6 +89,10 @@ class FootballHybridComposer:
             composed.save(target, format="PNG")
             canvas = f"{base.width}x{base.height}"
 
+        output_sha = self._sha256(target)
+        if input_sha == output_sha:
+            raise RuntimeError("hybrid composition produced byte-identical output; deterministic replacement was not proven")
+
         return FootballHybridCompositionReceipt(
             status="FOOTBALL_HYBRID_SURFACE_COMPOSED",
             input_path=str(source),
@@ -87,4 +103,6 @@ class FootballHybridComposer:
             generated_pitch_markings_replaced=True,
             surface_opacity=255,
             mowing_stripes_applied=True,
+            input_sha256=input_sha,
+            output_sha256=output_sha,
         )
