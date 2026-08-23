@@ -28,7 +28,7 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             candidate = load_first_candidate(manifest)
             self.assertEqual(candidate.candidate, 1)
             self.assertEqual(candidate.seed, 7007001)
-            self.assertEqual(candidate.request_id, "golden-general-season-opener-v2-001")
+            self.assertEqual(candidate.request_id, "golden-general-season-opener-v4-001")
             self.assertEqual(len(candidate.payload_sha256), 64)
             self.assertTrue(candidate.handoff_path.is_file())
 
@@ -50,13 +50,40 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "zero|0-local|cost"):
                 load_first_candidate(manifest)
 
-    def test_v2_manifest_requires_unified_scene_grammar(self) -> None:
+    def test_v4_manifest_requires_unified_scene_grammar(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["composition_grammar"] = "legacy_collage"
             manifest.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "single_continuous_scene"):
+                load_first_candidate(manifest)
+
+    def test_v4_manifest_requires_regulation_pitch_geometry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["sport_geometry"] = "decorative_pitch"
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "regulation association-football pitch geometry"):
+                load_first_candidate(manifest)
+
+    def test_v4_manifest_forbids_generated_branding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["generated_branding_allowed"] = True
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "generated platform branding"):
+                load_first_candidate(manifest)
+
+    def test_v4_manifest_requires_exact_post_generation_branding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["brand_composition_policy"] = "generated_wordmark"
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "exact-assets-only"):
                 load_first_candidate(manifest)
 
     def test_prepare_creates_exactly_one_durable_smoke_job(self) -> None:
