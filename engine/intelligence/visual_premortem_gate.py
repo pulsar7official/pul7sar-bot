@@ -15,7 +15,7 @@ from engine.intelligence.editorial_planning_service import EditorialPlanningResu
 from engine.intelligence.hybrid_layer_planner import LayerSource
 from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInspectionPolicy
 from engine.intelligence.local_vision_inspectors import LocalVisionCapabilityReport
-from engine.intelligence.story_visual_editorial import ProductionMode
+from engine.intelligence.sports_story_integrity import SportsStoryIntegrityGuard
 from engine.intelligence.visual_failure_scenarios import FailureScenarioReport, FailureSeverity, VisualFailureScenarioEngine
 
 
@@ -42,6 +42,7 @@ class VisualPremortemGate:
     def __init__(self) -> None:
         self._scenarios = VisualFailureScenarioEngine()
         self._inspection = HybridVisualInspectionPolicy()
+        self._integrity = SportsStoryIntegrityGuard()
 
     def evaluate(
         self,
@@ -60,6 +61,18 @@ class VisualPremortemGate:
                 PremortemAction.BLOCK, False, False, FailureScenarioReport(()), (), ("editorial_visual_plan_not_ready",)
             )
 
+        event = planning.selected_angle.candidate.event if planning.selected_angle else planning.decision.plan.event
+        integrity = self._integrity.validate(event, verified_facts)
+        if not integrity.valid:
+            return VisualPremortemDecision(
+                PremortemAction.BLOCK,
+                False,
+                False,
+                FailureScenarioReport(()),
+                (),
+                tuple("story_integrity:" + item for item in integrity.violations),
+            )
+
         source_by_name = {layer.name: layer.source for layer in planning.layers.layers}
         geometry_required = source_by_name.get("sport_surface_geometry") is LayerSource.DETERMINISTIC
         geometry_ready = bool(planning.geometry_capability and planning.geometry_capability.ready) if geometry_required else True
@@ -67,7 +80,7 @@ class VisualPremortemGate:
         inspection = self._inspection.evaluate(vision_capabilities, identity_required=identity_required)
 
         report = self._scenarios.evaluate(
-            event=planning.selected_angle.candidate.event if planning.selected_angle else planning.decision.plan.event,
+            event=event,
             production_mode=production_mode,
             verified_facts=verified_facts,
             has_verified_palette_for_dominant_entity=dominant_palette_verified,
@@ -84,7 +97,6 @@ class VisualPremortemGate:
         hard = tuple(item.scenario_id for item in report.scenarios if item.severity is FailureSeverity.HARD_BLOCK)
         warnings = tuple(item.scenario_id for item in report.scenarios if item.severity is FailureSeverity.WARNING)
 
-        # Some hard scenarios block GPU because generation cannot repair them.
         pre_gpu_blockers = {
             "geometry_renderer_missing",
             "identity_unverified",
@@ -101,8 +113,6 @@ class VisualPremortemGate:
                 PremortemAction.BLOCK, False, False, report, warnings, execution_blockers + publication_only
             )
 
-        # Missing semantic inspection or final brand recipe should not stop a
-        # useful engineering proof, but they must never silently become publishable.
         if publication_only:
             return VisualPremortemDecision(
                 PremortemAction.ENGINEERING_PROOF_ONLY,
@@ -113,8 +123,6 @@ class VisualPremortemGate:
                 publication_only,
             )
 
-        # Warnings mean the plan is safe only because deterministic fallback is
-        # available (for example, default red when a verified team palette is absent).
         if warnings:
             return VisualPremortemDecision(
                 PremortemAction.REPLAN_TO_SAFE_FALLBACK,
