@@ -23,6 +23,7 @@ class Flux2KleinInferenceConfig:
     guidance_scale: float = 1.0
     num_inference_steps: int = 4
     cpu_offload: bool = True
+    prefer_sequential_cpu_offload: bool = True
 
     def __post_init__(self) -> None:
         if self.guidance_scale <= 0:
@@ -77,10 +78,18 @@ class Flux2KleinDiffusersProbe:
 class Flux2KleinPipelineWrapper:
     """Translate PUL7SAR's local backend call into Flux2KleinPipeline arguments."""
 
-    def __init__(self, pipe: Any, torch_module: Any, config: Flux2KleinInferenceConfig) -> None:
+    def __init__(
+        self,
+        pipe: Any,
+        torch_module: Any,
+        config: Flux2KleinInferenceConfig,
+        *,
+        offload_mode: str = "none",
+    ) -> None:
         self._pipe = pipe
         self._torch = torch_module
         self._config = config
+        self._offload_mode = offload_mode
 
     def __call__(
         self,
@@ -119,6 +128,7 @@ class Flux2KleinPipelineWrapper:
                 "guidance_scale": self._config.guidance_scale,
                 "num_inference_steps": self._config.num_inference_steps,
                 "cpu_offload": self._config.cpu_offload,
+                "offload_mode": self._offload_mode,
                 "native_canvas_alignment": 16,
             },
         }
@@ -134,6 +144,14 @@ def build_flux2_klein_pipeline_factory(
 
     Tests may inject `pipeline_loader` and `torch_module`; production/local use
     imports the optional dependencies lazily.
+
+    Low-VRAM hosts prefer Diffusers' sequential CPU offload when the installed
+    pipeline exposes it. Sequential offload is slower than model-level offload,
+    but materially lowers the resident CUDA parameter footprint and is the safe
+    first fallback after a real 14.56-GiB T4 host proved model-level offload can
+    still OOM inside FLUX.2 attention at the locked 1088x1360 Golden canvas.
+    The exact model, BF16 dtype, prompt, seed, canvas and inference-step lock are
+    unchanged.
     """
 
     def factory(model_id: str, dtype: str) -> Flux2KleinPipelineWrapper:
@@ -159,11 +177,26 @@ def build_flux2_klein_pipeline_factory(
         if dtype not in dtype_map:
             raise ValueError("unsupported dtype")
         pipe = pipeline_loader(model_id, torch_dtype=dtype_map[dtype])
+
+        offload_mode = "none"
         if inference.cpu_offload:
-            enable = getattr(pipe, "enable_model_cpu_offload", None)
-            if enable is None:
-                raise RuntimeError("Flux2Klein pipeline does not expose enable_model_cpu_offload")
-            enable()
-        return Flux2KleinPipelineWrapper(pipe, torch_module, inference)
+            sequential = getattr(pipe, "enable_sequential_cpu_offload", None)
+            model_offload = getattr(pipe, "enable_model_cpu_offload", None)
+            if inference.prefer_sequential_cpu_offload and sequential is not None:
+                sequential()
+                offload_mode = "sequential_cpu"
+            elif model_offload is not None:
+                model_offload()
+                offload_mode = "model_cpu"
+            else:
+                raise RuntimeError(
+                    "Flux2Klein pipeline exposes neither sequential nor model CPU offload"
+                )
+        return Flux2KleinPipelineWrapper(
+            pipe,
+            torch_module,
+            inference,
+            offload_mode=offload_mode,
+        )
 
     return factory
