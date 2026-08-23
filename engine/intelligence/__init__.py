@@ -16,6 +16,7 @@ from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGram
 from engine.intelligence.editorial_planning_service import EditorialPlanningResult, EditorialPlanningService
 from engine.intelligence.entity_theme import EntityPaletteEvidence, EntityTheme, EntityThemeResolver
 from engine.intelligence.fact_lock import FactLock, FactLockViolation
+from engine.intelligence.fact_locked_editorial_adapter import FactLockedEditorialAdapter, FactLockedEditorialFacts
 from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
 from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, Flux2KleinInferenceConfig, Flux2KleinPipelineWrapper, build_flux2_klein_pipeline_factory
 from engine.intelligence.flux_worker_executor import Flux2SubprocessConfig, Flux2SubprocessLockedExecutor
@@ -59,6 +60,7 @@ from engine.intelligence.semantic_publication_gate import SemanticPublicationDec
 from engine.intelligence.sentiment import SentimentDecision, SentimentEvidence, SentimentProvider, SentimentResolver
 from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.sport_visual_rules import SportSurface, SportVisualRule, SportVisualRuleRegistry
+from engine.intelligence.sports_fact_schema import EventFactSchema, EventFactSchemaRegistry, FactSchemaValidation
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
 from engine.intelligence.story_event_resolver import StoryEventResolver
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
