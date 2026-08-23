@@ -4,6 +4,8 @@ Prevents stale/tampered PNGs or receipts from being reused as evidence for a
 newer visual candidate. The receipt must still match the actual files on disk.
 The current football contract is texture-preserving: exact geometry is owned by
 code without painting an opaque tactical-board surface over the source image.
+Synthetic mowing stripes are not required for integrity; preserving photographic
+turf detail is preferred and stripe use is an explicit optional styling choice.
 """
 from __future__ import annotations
 
@@ -55,8 +57,6 @@ class HybridArtifactIntegrityGate:
             failures.append("source_pitch_texture_not_preserved")
         if not 24 <= receipt.surface_opacity <= 96:
             failures.append("surface_normalization_opacity_out_of_range")
-        if not receipt.mowing_stripes_applied:
-            failures.append("deterministic_surface_texture_missing")
 
         if source.is_file():
             actual = self._sha256(source)
