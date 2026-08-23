@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
-from tools.phase18_build_golden_handoff import build_request
+from tools.phase18_build_golden_handoff import GOLDEN_BENCHMARK_ID, build_request
 
 
 DEFAULT_SEEDS = (7007001, 7007002, 7007003, 7007004)
@@ -28,7 +28,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
 
     candidates: list[dict[str, object]] = []
     for index, seed in enumerate(seeds, start=1):
-        request_id = f"golden-general-season-opener-{index:03d}"
+        request_id = f"golden-general-season-opener-v2-{index:03d}"
         request = build_request(seed=seed, request_id=request_id)
         filename = f"candidate-{index:02d}-seed-{seed}.json"
         path = target / filename
@@ -49,9 +49,10 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         })
 
     manifest = {
-        "manifest_version": "pul7sar-golden-batch-v1",
-        "benchmark": "golden-visual-general-season-opener-v1",
+        "manifest_version": "pul7sar-golden-batch-v2",
+        "benchmark": GOLDEN_BENCHMARK_ID,
         "cost_mode": "$0-local",
+        "composition_grammar": "single_continuous_scene",
         "selection_rule": "quality-first; compare visual quality after identical semantic gates, never select by seed order",
         "candidates": candidates,
     }
@@ -68,9 +69,11 @@ def main() -> int:
     manifest = build_batch(args.output_dir, tuple(args.seeds))
     print(json.dumps({
         "status": "GOLDEN_BATCH_READY",
+        "benchmark": manifest["benchmark"],
         "output_dir": args.output_dir,
         "candidate_count": len(manifest["candidates"]),
         "cost_mode": manifest["cost_mode"],
+        "composition_grammar": manifest["composition_grammar"],
     }, ensure_ascii=False, indent=2))
     return 0
 
