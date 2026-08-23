@@ -80,7 +80,16 @@ class EditorialPlanningService:
             SurfaceVisibility.PARTIAL_DETERMINISTIC,
             SurfaceVisibility.FULL_DETERMINISTIC,
         }
-        if deterministic_surface_required and not geometry_capability.ready:
+
+        # Sport policy may know exact geometry for a surface, while the selected
+        # editorial scene does not need that surface at all. In NONE/CONTEXT_ONLY
+        # modes the layer plan must not accidentally re-introduce exact geometry
+        # merely because the sport itself has regulation markings.
+        if not deterministic_surface_required:
+            sport_rule = replace(sport_rule, exact_geometry_preferred=False, geometry_requirements=())
+            decision = replace(decision, sport_geometry_requirements=())
+
+        elif not geometry_capability.ready:
             if complexity.surface_visibility is SurfaceVisibility.FULL_DETERMINISTIC:
                 return EditorialPlanningResult(
                     selected_angle=selection.selected,
