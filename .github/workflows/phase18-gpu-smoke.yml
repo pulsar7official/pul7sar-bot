@@ -47,8 +47,10 @@ jobs:
           set -euo pipefail
           test "$(git branch --show-current)" = "phase18/story-intelligence"
           test -f engine/intelligence/golden_smoke.py
+          test -f engine/intelligence/golden_evidence_bundle.py
           test -f tools/phase18_first_png.py
           test -f tools/phase18_prefetch_flux2.py
+          test -f tools/phase18_build_gpu_evidence_manifest.py
           if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 3
@@ -143,6 +145,18 @@ jobs:
           print(json.dumps({"png": str(png), "bytes": png.stat().st_size}, indent=2))
           PY
 
+      - name: Build tamper-evident Golden evidence manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_build_gpu_evidence_manifest.py \
+            --result output/phase18_gpu_smoke/first-png-result.json \
+            --include output/phase18_gpu_smoke/model-cache.json \
+            --include output/phase18_gpu_smoke/readiness.json \
+            --include output/phase18_gpu_host/qualification.json \
+            --output output/phase18_gpu_smoke/evidence-manifest.json \
+            | tee output/phase18_gpu_smoke/evidence-manifest-console.json
+
       - name: Upload genuine Golden smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -152,6 +166,7 @@ jobs:
           retention-days: 7
           path: |
             output/phase18_gpu_smoke/**
+            output/phase18_gpu_host/**
             output/phase18_visual_proof/**
             output/phase18_generated/**
             output/phase18_worker_telemetry/**
