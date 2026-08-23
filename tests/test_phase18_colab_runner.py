@@ -26,19 +26,25 @@ class Phase18ColabRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "positive"):
             _candidate({"candidates": []}, 0)
 
-    def test_current_v4_contract_is_required_before_gpu(self):
+    def test_current_v5_hybrid_contract_is_required_before_gpu(self):
         current = {
-            "manifest_version": "pul7sar-golden-batch-v4",
+            "manifest_version": "pul7sar-golden-batch-v5",
             "composition_grammar": "single_continuous_scene",
-            "sport_geometry": "association_football_regulation_pitch",
+            "sport_geometry": "deterministic_football_pitch_projective_v1",
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": True,
+            "football_camera_preset": "high_wide_central",
             "generated_branding_allowed": False,
-            "brand_composition_policy": "exact_assets_only_after_generation",
+            "brand_composition_policy": "dynamic_deterministic_after_generation",
         }
         _assert_current_golden_contract(current)
         for key, bad in (
-            ("manifest_version", "pul7sar-golden-batch-v2"),
+            ("manifest_version", "pul7sar-golden-batch-v4"),
             ("composition_grammar", "multi_panel"),
             ("sport_geometry", None),
+            ("generated_sport_geometry_allowed", True),
+            ("hybrid_surface_replacement_required", False),
+            ("football_camera_preset", "unknown"),
             ("generated_branding_allowed", True),
             ("brand_composition_policy", None),
         ):
@@ -49,14 +55,14 @@ class Phase18ColabRunnerTests(unittest.TestCase):
 
     def test_result_reuse_requires_request_seed_model_sha_and_zero_cost(self):
         selected = {
-            "request_id": "golden-v4-001",
+            "request_id": "golden-hybrid-v5-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "payload_sha256": "a" * 64,
         }
         result = {
             "status": "REAL_VISUAL_PROOF_GENERATED",
-            "request_id": "golden-v4-001",
+            "request_id": "golden-hybrid-v5-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "payload_sha256": "a" * 64,
@@ -76,14 +82,14 @@ class Phase18ColabRunnerTests(unittest.TestCase):
 
     def test_legacy_result_without_payload_sha_is_never_reused(self):
         selected = {
-            "request_id": "golden-v4-001",
+            "request_id": "golden-hybrid-v5-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "payload_sha256": "a" * 64,
         }
         legacy = {
             "status": "REAL_VISUAL_PROOF_GENERATED",
-            "request_id": "golden-v4-001",
+            "request_id": "golden-hybrid-v5-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "cost_mode": "$0-local",
