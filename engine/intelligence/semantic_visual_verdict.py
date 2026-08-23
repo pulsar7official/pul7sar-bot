@@ -43,6 +43,7 @@ class SemanticVisualVerdict:
     single_scene: SemanticCheck
     severe_defects_absent: SemanticCheck
     subject_framing_valid: SemanticCheck
+    sport_geometry_alignment_valid: SemanticCheck | None = None
     identity_valid: SemanticCheck | None = None
 
     def __post_init__(self) -> None:
@@ -75,11 +76,14 @@ class SemanticVisualVerdict:
 
     def to_flags(self) -> VisualInspectionFlags:
         """Convert only inspected FAIL states to negative Hybrid evidence."""
+        severe = self.severe_defects_absent.state is InspectionState.FAIL
+        if self.sport_geometry_alignment_valid is not None:
+            severe = severe or self.sport_geometry_alignment_valid.state is InspectionState.FAIL
         return VisualInspectionFlags(
             generated_text_detected=self.readable_text_absent.state is InspectionState.FAIL,
             generated_brand_detected=self.platform_brand_absent.state is InspectionState.FAIL,
             generated_fake_logo_detected=self.fake_entity_marks_absent.state is InspectionState.FAIL,
-            severe_anatomy_or_object_defect=self.severe_defects_absent.state is InspectionState.FAIL,
+            severe_anatomy_or_object_defect=severe,
             collage_or_split_scene_detected=self.single_scene.state is InspectionState.FAIL,
         )
 
@@ -90,6 +94,7 @@ class SemanticVisualVerdictGate:
         verdict: SemanticVisualVerdict,
         *,
         identity_required: bool,
+        geometry_alignment_required: bool = False,
         minimum_confidence: float = 0.85,
     ) -> tuple[bool, tuple[str, ...]]:
         if not isinstance(verdict, SemanticVisualVerdict):
@@ -105,6 +110,10 @@ class SemanticVisualVerdictGate:
             "severe_defects_absent": verdict.severe_defects_absent,
             "subject_framing_valid": verdict.subject_framing_valid,
         }
+        if geometry_alignment_required:
+            if verdict.sport_geometry_alignment_valid is None:
+                return False, ("sport_geometry_alignment_not_inspected",)
+            checks["sport_geometry_alignment_valid"] = verdict.sport_geometry_alignment_valid
         if identity_required:
             if verdict.identity_valid is None:
                 return False, ("identity_not_inspected",)
