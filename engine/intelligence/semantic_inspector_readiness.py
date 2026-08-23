@@ -7,10 +7,9 @@ time on FLUX or downloads/loads semantic-inspector weights.
 Important compatibility rules:
 - do not import Qwen2.5-VL classes from the private
   ``transformers.models.qwen2_5_vl`` package;
-- keep the Golden runtime on the verified Transformers 4.x public API line;
-- keep Pillow on the verified 11.x line in Colab and prove that the public image,
-  drawing and font modules import coherently. Do not probe non-public/nonexistent
-  symbols such as ``PIL.ImageText``.
+- use only the exact semantic-runtime builds qualified for the Golden path;
+- prove that Pillow public image/drawing/font modules import coherently;
+- do not probe non-public/nonexistent symbols such as ``PIL.ImageText``.
 """
 from __future__ import annotations
 
@@ -29,6 +28,8 @@ class SemanticInspectorReadiness:
 
 class Qwen25VLReadinessProbe:
     MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
+    VERIFIED_TRANSFORMERS_VERSION = "4.56.2"
+    VERIFIED_PILLOW_VERSION = "11.3.0"
 
     @staticmethod
     def _major(version: str | None) -> int | None:
@@ -56,6 +57,13 @@ class Qwen25VLReadinessProbe:
                     "transformers_major_version_unverified:"
                     + str(transformers_version)
                     + ":expected_<5"
+                )
+            if transformers_version != self.VERIFIED_TRANSFORMERS_VERSION:
+                failures.append(
+                    "transformers_version_drift:"
+                    + str(transformers_version)
+                    + ":expected="
+                    + self.VERIFIED_TRANSFORMERS_VERSION
                 )
 
             # Use only the documented public API. Hugging Face documents both
@@ -93,6 +101,13 @@ class Qwen25VLReadinessProbe:
                     "pillow_major_version_unverified:"
                     + str(pillow_version)
                     + ":expected_<12"
+                )
+            if pillow_version != self.VERIFIED_PILLOW_VERSION:
+                failures.append(
+                    "pillow_version_drift:"
+                    + str(pillow_version)
+                    + ":expected="
+                    + self.VERIFIED_PILLOW_VERSION
                 )
             if Image is None or ImageDraw is None or ImageFont is None:  # defensive only
                 failures.append("pillow_public_modules_unavailable")
