@@ -1,11 +1,13 @@
-# PUL7SAR Phase 18 — Change Sets 069–074
+# PUL7SAR Phase 18 — Canonical Change Sets 071–076
+
+> Historical filename retained for repository continuity. Early drafts used provisional 069–074 labels, but the authoritative implementation log had already assigned 069–070 to Golden-v4 smoke compatibility and exact-logo integrity. The canonical numbering for this editorial architecture is therefore 071–076.
 
 ## Why this architecture changed
 Real GPU proofs showed that prompt engineering alone is not a safe production strategy. A technically successful image could still contain malformed sport geometry, generated pseudo-branding, weak composition, or an editorial concept that is difficult to visualize reliably.
 
 The new rule is: **PUL7SAR plans the wording and the visual production strategy together before any image model is called.** Generative AI is no longer responsible for every pixel or every exact fact.
 
-## Change Set 069 — Story-to-Visual Editorial Engine
+## Change Set 071 — Story-to-Visual Editorial Engine
 Added `engine/intelligence/story_visual_editorial.py`.
 
 Introduces a stable sports-event taxonomy covering results, live moments, previews, confirmed transfers, rumours, contracts, injuries, comebacks, suspensions, retirement, appointments, dismissals, statements, records, awards, trophies, draws, tables, tactics, officiating, controversies, financial news, organization news, schedules, qualification, elimination and general stories.
@@ -18,7 +20,7 @@ Each event maps to a visual family and one of four production modes:
 
 Low-confidence stories automatically fall back to verified-asset editorial treatment instead of compensating with more imaginative generation.
 
-## Change Set 070 — Sport-aware production rules
+## Change Set 072 — Sport-aware production rules
 Added `engine/intelligence/sport_visual_rules.py`.
 
 Separates event semantics from sport physics. A result is an event type; football, tennis, basketball or boxing determine different surface/equipment constraints.
@@ -32,7 +34,7 @@ The registry records:
 - geometry requirements,
 - high-risk generated elements.
 
-## Change Set 071 — Visual-compatible editorial language
+## Change Set 073 — Visual-compatible editorial language
 Added:
 - `engine/intelligence/editorial_headline_grammar.py`
 - `engine/intelligence/editorial_copy_builder.py`
@@ -41,7 +43,7 @@ The headline is no longer independent from the image. Every event has an editori
 
 The builder does not silently paraphrase or invent missing context to meet length limits.
 
-## Change Set 072 — Visual-aware editorial angle selection
+## Change Set 074 — Visual-aware editorial angle selection
 Added `engine/intelligence/editorial_angle_selector.py`.
 
 When one story supports several verified angles, PUL7SAR now ranks them by:
@@ -58,7 +60,7 @@ Hard blockers include low fact confidence, unverified required identity, invente
 
 This lets a slightly less important but far more reliable visual angle beat a complex angle that would be likely to hallucinate.
 
-## Change Set 073 — Unified editorial planning service
+## Change Set 075 — Unified editorial planning service
 Added:
 - `engine/intelligence/story_to_visual_orchestrator.py`
 - `engine/intelligence/editorial_planning_service.py`
@@ -75,7 +77,7 @@ A CPU-only inspection command was added:
 
 It can inspect a story plan without model loading or GPU use.
 
-## Change Set 074 — Hybrid visual layer ownership
+## Change Set 076 — Hybrid visual layer ownership
 Added `engine/intelligence/hybrid_layer_planner.py`.
 
 The final image is now decomposed by reliability:
@@ -90,7 +92,7 @@ The final image is now decomposed by reliability:
 This directly addresses the malformed football-pitch and pseudo-PUL7SAR failures seen in the real Colab proofs.
 
 ## Colab runner hardening
-`tools/phase18_colab_runner.py` now rejects stale Golden contracts before GPU use. It requires the current v4 manifest, single-scene grammar, regulation-football geometry lock, `generated_branding_allowed=false`, and `brand_composition_policy=exact_assets_only_after_generation`.
+`tools/phase18_colab_runner.py` rejects stale Golden contracts before GPU use. It requires the current v4 manifest, single-scene grammar, regulation-football geometry lock, `generated_branding_allowed=false`, and `brand_composition_policy=exact_assets_only_after_generation`.
 
 The old summary-key mismatch that could display `geometry=None` or `branding=None` despite newer manifest fields was corrected.
 
@@ -105,7 +107,7 @@ The old summary-key mismatch that could display `geometry=None` or `branding=Non
 - `tests/test_phase18_editorial_copy_builder.py`
 - strengthened `tests/test_phase18_colab_runner.py`
 
-The scenario matrix currently exercises 30 event/sport combinations without GPU use.
+The scenario matrix exercises 30 event/sport combinations without GPU use.
 
 ## Production isolation
 No change was made to `main`, `main.py`, Telegram production publishing, production secrets or paid image APIs.
