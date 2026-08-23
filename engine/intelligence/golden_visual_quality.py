@@ -49,6 +49,7 @@ class GoldenVisualBlockers:
     fantasy_or_monumental_staging: bool = False
     fake_logo_or_crest: bool = False
     pseudo_text_or_gibberish: bool = False
+    generated_platform_brand_or_wordmark: bool = False
     invented_result_or_winner: bool = False
     cluttered_collage: bool = False
     broken_geometry_or_anatomy: bool = False
