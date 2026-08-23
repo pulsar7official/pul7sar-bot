@@ -21,25 +21,11 @@ class GenerationLayoutPackageTests(unittest.TestCase):
     def _spec(self, platform):
         profile = self.registry.get(platform)
         return OriginalSceneSpecification(
-            platform=platform,
-            width=profile.width,
-            height=profile.height,
-            aspect_ratio=profile.aspect_ratio,
-            safe_area={
-                "top": profile.safe_area.top,
-                "right": profile.safe_area.right,
-                "bottom": profile.safe_area.bottom,
-                "left": profile.safe_area.left,
-            },
-            family="general_world",
-            concept="global sports season opener",
-            subject=None,
-            identity_reference=None,
-            environment="global sports editorial world",
-            composition="platform-specific editorial composition",
-            camera_direction="wide premium framing",
-            emotional_mood=Sentiment.ANTICIPATORY.value,
-            palette_strategy="brand_red",
+            platform=platform, width=profile.width, height=profile.height, aspect_ratio=profile.aspect_ratio,
+            safe_area={"top": profile.safe_area.top, "right": profile.safe_area.right, "bottom": profile.safe_area.bottom, "left": profile.safe_area.left},
+            family="general_world", concept="global sports season opener", subject=None, identity_reference=None,
+            environment="global sports editorial world", composition="platform-specific editorial composition",
+            camera_direction="wide premium framing", emotional_mood=Sentiment.ANTICIPATORY.value, palette_strategy="brand_red",
         )
 
     def test_layout_geometry_reaches_generation_package(self):
@@ -47,10 +33,8 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         layout = self.layout_planner.plan(profile)
         package = self.compiler.compile(self._spec(SocialPlatform.INSTAGRAM_STORY), self.assets, planned_layout=layout)
         self.assertEqual(package.canvas, "1080x1920")
-        self.assertIn("hero", package.layout_boxes)
-        self.assertIn("logo", package.layout_boxes)
-        self.assertIn("headline", package.layout_boxes)
-        self.assertIn("social_footer", package.layout_boxes)
+        self.assertIn("hero", package.layout_boxes); self.assertIn("logo", package.layout_boxes)
+        self.assertIn("headline", package.layout_boxes); self.assertIn("social_footer", package.layout_boxes)
         self.assertEqual(package.accent_hex, "#E10600")
         self.assertEqual(package.metadata["layout_strategy"], "pul7sar-deterministic-v1")
 
@@ -65,20 +49,19 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         profile = self.registry.get(SocialPlatform.INSTAGRAM_FEED)
         layout = self.layout_planner.plan(profile)
         package = self.compiler.compile(self._spec(SocialPlatform.INSTAGRAM_FEED), self.assets, planned_layout=layout)
+        prompt = package.scene_prompt.casefold()
         self.assertEqual(package.metadata["base_scene_overlay_policy"], "no_brand_or_editorial_overlays_in_ai_scene")
-        self.assertIn("Do not draw or imitate the PUL7SAR logo", package.scene_prompt)
-        self.assertIn("deterministic post-composition", package.scene_prompt)
-        self.assertNotIn("Use the exact supplied PUL7SAR wordmark", package.scene_prompt)
+        self.assertTrue(package.metadata["brand_name_redacted_from_generation_prompt"])
+        self.assertIn("do not draw or imitate any platform logo", prompt)
+        self.assertIn("deterministic post-composition", prompt)
+        self.assertNotIn("pul7sar", prompt)
+        self.assertNotIn("pulsar", prompt)
 
     def test_result_geometry_can_include_score_and_crest(self):
         profile = self.registry.get(SocialPlatform.FACEBOOK_FEED)
-        layout = self.layout_planner.plan(
-            profile,
-            LayoutRequirements(include_crest=True, include_score=True),
-        )
+        layout = self.layout_planner.plan(profile, LayoutRequirements(include_crest=True, include_score=True))
         package = self.compiler.compile(self._spec(SocialPlatform.FACEBOOK_FEED), self.assets, planned_layout=layout)
-        self.assertIn("score", package.layout_boxes)
-        self.assertIn("crest", package.layout_boxes)
+        self.assertIn("score", package.layout_boxes); self.assertIn("crest", package.layout_boxes)
 
     def test_mismatched_platform_layout_is_rejected(self):
         x_layout = self.layout_planner.plan(self.registry.get(SocialPlatform.X_FEED))
