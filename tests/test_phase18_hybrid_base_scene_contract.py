@@ -28,9 +28,12 @@ class HybridBaseSceneContractTests(unittest.TestCase):
 
     def test_brand_text_score_and_identity_are_not_generator_owned(self):
         prompt = self.contract.prompt_suffix
-        self.assertIn("PUL7SAR branding", prompt)
-        self.assertIn("scoreboards", prompt)
-        self.assertIn("Do not invent a recognizable real-person face", prompt)
+        lowered = prompt.casefold()
+        self.assertIn("platform branding", lowered)
+        self.assertIn("scoreboards", lowered)
+        self.assertIn("do not invent a recognizable real-person face", lowered)
+        self.assertNotIn("pul7sar", lowered)
+        self.assertNotIn("pulsar", lowered)
 
     def test_one_continuous_scene_is_explicit(self):
         self.assertIn("single coherent camera", self.contract.prompt_suffix)
