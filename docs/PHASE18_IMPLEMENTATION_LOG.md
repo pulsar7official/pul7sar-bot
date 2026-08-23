@@ -164,10 +164,20 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - The manifest is evidence integrity only; it cannot confer semantic safety, identity validity, Golden quality or publication readiness.
 - Detailed record: `docs/PHASE18_CHANGESET_061_GPU_EVIDENCE_MANIFEST.md`.
 
+## Change Set 062 — Replayable Golden GPU evidence verification
+- Extends `engine/intelligence/golden_evidence_bundle.py` with `verify_golden_evidence_manifest`, which independently replays the canonical manifest SHA-256 plus every recorded evidence file size and SHA-256.
+- Tightens first-PNG evidence construction to require non-empty job/request identity and a canonical 64-hex generation payload SHA-256.
+- Rejects duplicate paths, repository-path escape, missing evidence, byte/size drift, manifest metadata drift, invalid PNG membership/signature and any mutation of `publication_ready=false`.
+- Adds `tools/phase18_verify_gpu_evidence_manifest.py` to write a machine-readable verification receipt without granting semantic, visual, or publication approval.
+- Updates the self-hosted GPU workflow so evidence is built, replay-verified against the actual runner bytes, and only then uploaded as an artifact.
+- Expands CPU-safe regression coverage for manifest replay, metadata tampering, evidence-byte tampering, path confinement even after outer-digest recomputation, and workflow ordering.
+- No prompt, seed, canvas, provider/model identity, Fact Lock, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
+- Detailed record: `docs/PHASE18_CHANGESET_062_EVIDENCE_REPLAY_VERIFICATION.md`.
+
 ## Current verified Golden Visual batch
 The deterministic four-candidate handoffs remain transport-ready and tamper-evident. Seeds are `7007001`, `7007002`, `7007003`, and `7007004`; only seed varies. A genuine PNG is still not claimed because a compatible CUDA/BF16 runtime has not executed the handoff.
 
-## Production safety through Change Set 061
+## Production safety through Change Set 062
 - `main`: untouched by Phase 18 development changes.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -185,14 +195,15 @@ The deterministic four-candidate handoffs remain transport-ready and tamper-evid
 - Model caching does not imply GPU readiness or publication readiness.
 - GPU host qualification does not imply model/backend/generation/publication readiness.
 - GPU evidence hashing does not imply semantic or visual approval.
+- GPU evidence replay verification does not imply semantic, identity, Golden-quality, or publication approval.
 
-## Architecture after Change Set 061
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Integrated Golden Smoke Preflight [GPU Host Qualification -> Approved Model Cache/Prefetch -> FLUX/BF16 Readiness] -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Tamper-Evident GPU Evidence Manifest -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 062
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Verified Golden Batch -> Integrated Golden Smoke Preflight [GPU Host Qualification -> Approved Model Cache/Prefetch -> FLUX/BF16 Readiness] -> Durable Generation Job -> Atomic Queue Lease -> Expired-Lease Recovery -> BF16/CUDA GPU Worker -> Worker Heartbeat + Measured Runtime Telemetry -> Locked FLUX Executor + CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Tamper-Evident GPU Evidence Manifest -> Evidence Replay Verification -> Subject/Framing + Identity Similarity + Semantic Safety + Protected-Region/Safe-Crop Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
 1. Attach/provide a real NVIDIA CUDA host and run the self-contained `tools/phase18_first_png.py`; it will qualify hardware before download or queue mutation.
 2. Require host `eligible=true`, cache `ready=true`, `$0-local`, and `golden_generation_ready=true` before any durable job exists.
-3. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification, model-cache/readiness receipts and the new SHA-256 evidence manifest.
+3. Capture the first genuine PNG plus latency, CUDA memory high-water data, host qualification, model-cache/readiness receipts, SHA-256 evidence manifest, and replay-verification receipt.
 4. Inspect candidate 1 against semantic and strict Golden benchmarks; generation success and evidence integrity alone are not acceptance.
 5. If stable, execute remaining deterministic seeds through the same worker path and compute capacity only from observed successful samples.
 6. Add distributed queue infrastructure only after the single-host worker is proven, preserving `GenerationJobStore` semantics.
