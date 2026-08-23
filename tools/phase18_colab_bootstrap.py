@@ -72,7 +72,7 @@ import json
 import torch
 import transformers
 import PIL
-from PIL import Image, ImageDraw, ImageFont, ImageText
+from PIL import Image, ImageDraw, ImageFont
 from transformers import Qwen2_5_VLConfig, pipeline
 
 payload = {
@@ -82,13 +82,17 @@ payload = {
     "transformers": transformers.__version__,
     "pillow": PIL.__version__,
     "qwen_public_api": bool(Qwen2_5_VLConfig is not None and pipeline is not None),
-    "pillow_modules_coherent": bool(Image and ImageDraw and ImageFont and ImageText),
+    "pillow_modules_coherent": bool(Image and ImageDraw and ImageFont),
 }
 print(json.dumps(payload, indent=2, sort_keys=True))
 if payload["transformers"] != "4.56.2":
     raise SystemExit("TRANSFORMERS_VERSION_DRIFT")
 if payload["pillow"] != "11.3.0":
     raise SystemExit("PILLOW_VERSION_DRIFT")
+if not payload["pillow_modules_coherent"]:
+    raise SystemExit("PILLOW_MODULES_INCOHERENT")
+if not payload["qwen_public_api"]:
+    raise SystemExit("QWEN_PUBLIC_API_UNAVAILABLE")
 if not payload["cuda_available"]:
     raise SystemExit("CUDA_NOT_AVAILABLE")
 '''
