@@ -91,10 +91,6 @@ class EditorialPlanningService:
         complexity = self._complexity.decide(chosen.event, secondary_subject_count=len(chosen.secondary_subjects))
         geometry_capability = self._geometry.evaluate(sport_rule)
 
-        # Dynamic brand is first driven by objective event semantics. This fixes
-        # the important case where a story contains two clubs but one objectively
-        # won the match or acquired the player. A transfer destination / winner
-        # may therefore control 7+pulse even though multiple entities are present.
         brand = None
         if verified_facts is not None:
             dominant = self._dominant.resolve(
@@ -105,16 +101,18 @@ class EditorialPlanningService:
             if dominant is not None:
                 palettes = dict(entity_palettes or {})
                 dominant_palette = palettes.get(dominant.entity_name)
-                brand = self._brand.resolve(StoryHeroEvidence(
-                    entity_name=dominant.entity_name,
-                    confidence=dominant.confidence,
-                    is_unambiguous=True,
-                    palette=dominant_palette,
-                ))
+                brand = self._brand.resolve(
+                    StoryHeroEvidence(
+                        entity_name=dominant.entity_name,
+                        confidence=dominant.confidence,
+                        is_unambiguous=True,
+                        palette=dominant_palette,
+                    ),
+                    dominance_reason=dominant.reason.value,
+                )
 
-        # Backward-compatible editorial-hero path for story families where no
-        # objective dominant entity is available. Multi-entity stories still
-        # default to red unless the caller explicitly proves one hero.
+        # Non-objective story families can still use an explicitly established
+        # editorial hero. But two-sided unresolved stories default to brand red.
         if brand is None:
             if hero_is_unambiguous is None:
                 hero_is_unambiguous = len(chosen.secondary_subjects) == 0
