@@ -176,6 +176,8 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 - Base-scene and hybrid-surface inspections no longer retain one long-lived Qwen pipeline, allowing model/CUDA memory to be reclaimed between stages on constrained T4 hosts.
 - Added `tests/test_phase18_qwen_process_isolation.py` for default isolation, explicit direct-mode opt-out and semantic-verdict round-trip integrity.
 - Verifier ID advanced to `qwen2.5-vl-3b-local-v5-isolated-t4` so evidence is provenance-distinct from prior runtime builds.
+- CI Runs `32653096283` and `32653213680` exposed only regression-locked prompt wording drift while the new isolation tests passed; the existing phrases for model-generated exact pitch/court/rink geometry and deterministic-pitch expectations were restored without changing the semantic rules.
+- CI Run `32653277453` (run 1276): SUCCESS. All 649 discover-based Phase 18 tests passed, followed by completion audit, production isolation, Golden Hybrid v5 handoff/batch build, integrity verification and current-contract assertions. CPU CI correctly produced no fake visual proof.
 - Detailed record: `docs/PHASE18_CHANGESET_093_QWEN_PROCESS_ISOLATION.md`.
 - No production path, paid provider, Fact Lock, identity, sentiment/neutrality, semantic-publication rule, Golden threshold, FLUX model, BF16 lock, seed/canvas lock, or `main` state changed.
 
