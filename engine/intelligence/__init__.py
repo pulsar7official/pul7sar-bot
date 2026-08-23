@@ -20,6 +20,8 @@ from engine.intelligence.fact_locked_editorial_adapter import FactLockedEditoria
 from engine.intelligence.final_export import ExportAuthorization, FinalComposedOutput, FinalExportGate
 from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, Flux2KleinInferenceConfig, Flux2KleinPipelineWrapper, build_flux2_klein_pipeline_factory
 from engine.intelligence.flux_worker_executor import Flux2SubprocessConfig, Flux2SubprocessLockedExecutor
+from engine.intelligence.football_pitch_geometry import ArcMark, CircleMark, FootballPitchGeometry, LineSegment, PointMark, RectMark
+from engine.intelligence.football_pitch_projection import FootballPitchProjectionPlanner, PerspectiveProjector, ProjectedFootballMarkings, ProjectedPoint, ProjectedPolyline
 from engine.intelligence.generation_authorization import AuthorizationFailure, GenerationAuthorization, GenerationAuthorizer
 from engine.intelligence.generation_job_store import FilesystemGenerationJobStore, LeaseRecoverySummary, QueueSnapshot
 from engine.intelligence.generation_jobs import GenerationJob, GenerationJobState, GenerationWorkerCapabilities
