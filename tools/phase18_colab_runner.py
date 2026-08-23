@@ -1,15 +1,10 @@
 #!/usr/bin/env python3
 """Semi-automatic Colab runner for the Phase 18 Golden Visual GPU loop.
 
-This command keeps GitHub as the source of truth while reducing Colab work to a
-single repeatable notebook command. It can optionally fast-forward the checked
-out Phase 18 branch, run a compact CPU-safe regression preflight, rebuild/verify
-the current Golden batch, prove local Golden GPU readiness, execute exactly one
-selected candidate, persist a compact summary, and display the resulting PNG when
-invoked through IPython `%run`.
-
-It never touches `main`, never changes the approved provider/model/cost policy,
-and never promotes generation success to publication readiness.
+GitHub is the source of truth. The runner fast-forwards the Phase 18 branch,
+runs CPU-safe regressions, rebuilds and verifies the current Golden batch,
+proves GPU readiness, executes one candidate, persists a durable result and
+shows the PNG under IPython. It refuses stale Golden contracts before GPU use.
 """
 
 from __future__ import annotations
@@ -24,6 +19,10 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
+EXPECTED_MANIFEST_VERSION = "pul7sar-golden-batch-v4"
+EXPECTED_COMPOSITION = "single_continuous_scene"
+EXPECTED_SPORT_GEOMETRY = "association_football_regulation_pitch"
+EXPECTED_BRAND_POLICY = "exact_assets_only_after_generation"
 DEFAULT_BATCH_DIR = "output/phase18_handoffs/golden-batch"
 DEFAULT_GENERATION_DIR = "output/phase18_generated"
 DEFAULT_PROOF_DIR = "output/phase18_visual_proof"
@@ -35,6 +34,8 @@ TARGETED_TEST_MODULES = (
     "tests.test_phase18_verify_golden_batch",
     "tests.test_phase18_flux2_execute_command",
     "tests.test_phase18_colab_runner",
+    "tests.test_phase18_story_visual_editorial",
+    "tests.test_phase18_story_to_visual_orchestrator",
 )
 
 if str(ROOT) not in sys.path:
@@ -45,13 +46,6 @@ from tools.phase18_verify_golden_batch import verify_batch
 
 
 def _subprocess_env(cwd: Path) -> dict[str, str]:
-    """Return a deterministic subprocess environment rooted at the checkout.
-
-    Colab/IPython can import Phase 18 modules in the parent process while a child
-    Python process launched from `tools/` still fails with `No module named
-    engine`. Every runner subprocess therefore receives the repository root at
-    the front of PYTHONPATH. Existing user PYTHONPATH entries are preserved.
-    """
     env = os.environ.copy()
     root = str(cwd.resolve())
     existing = env.get("PYTHONPATH", "")
@@ -62,13 +56,7 @@ def _subprocess_env(cwd: Path) -> dict[str, str]:
     return env
 
 
-def _run(
-    command: list[str],
-    *,
-    cwd: Path,
-    capture: bool = True,
-    check: bool = False,
-) -> subprocess.CompletedProcess[str]:
+def _run(command: list[str], *, cwd: Path, capture: bool = True, check: bool = False) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         command,
         cwd=cwd,
@@ -97,16 +85,11 @@ def _assert_phase18_branch(root: Path) -> str:
 
 def _fast_forward_phase18(root: Path) -> str:
     _assert_phase18_branch(root)
-    completed = _run(
-        ["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH],
-        cwd=root,
-        capture=True,
-    )
+    completed = _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH], cwd=root, capture=True)
     if completed.returncode != 0:
         raise RuntimeError(
             "COLAB_UPDATE_FAILED: fast-forward pull failed; no merge/rebase fallback is attempted\n"
-            + completed.stdout[-2000:]
-            + completed.stderr[-2000:]
+            + completed.stdout[-2000:] + completed.stderr[-2000:]
         )
     _assert_phase18_branch(root)
     head = _run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture=True)
@@ -121,36 +104,40 @@ def _run_targeted_tests(root: Path) -> dict[str, Any]:
     if completed.returncode != 0:
         raise RuntimeError(
             "COLAB_CPU_PREFLIGHT_FAILED: refusing to spend GPU time on a branch that fails the Golden targeted tests\n"
-            + completed.stdout[-3000:]
-            + completed.stderr[-3000:]
+            + completed.stdout[-3000:] + completed.stderr[-3000:]
         )
-    return {
-        "status": "COLAB_CPU_PREFLIGHT_PASSED",
-        "test_modules": list(TARGETED_TEST_MODULES),
-    }
+    return {"status": "COLAB_CPU_PREFLIGHT_PASSED", "test_modules": list(TARGETED_TEST_MODULES)}
+
+
+def _assert_current_golden_contract(manifest: dict[str, Any]) -> None:
+    """Prevent stale Colab prompts/results from masquerading as the current benchmark."""
+    failures: list[str] = []
+    if manifest.get("manifest_version") != EXPECTED_MANIFEST_VERSION:
+        failures.append(f"manifest_version={manifest.get('manifest_version')!r}")
+    if manifest.get("composition_grammar") != EXPECTED_COMPOSITION:
+        failures.append(f"composition_grammar={manifest.get('composition_grammar')!r}")
+    if manifest.get("sport_geometry") != EXPECTED_SPORT_GEOMETRY:
+        failures.append(f"sport_geometry={manifest.get('sport_geometry')!r}")
+    if manifest.get("generated_branding_allowed") is not False:
+        failures.append(f"generated_branding_allowed={manifest.get('generated_branding_allowed')!r}")
+    if manifest.get("brand_composition_policy") != EXPECTED_BRAND_POLICY:
+        failures.append(f"brand_composition_policy={manifest.get('brand_composition_policy')!r}")
+    if failures:
+        raise RuntimeError("COLAB_STALE_GOLDEN_CONTRACT: " + "; ".join(failures))
 
 
 def _json_command(command: list[str], *, root: Path, label: str) -> dict[str, Any]:
     completed = _run(command, cwd=root, capture=True)
     if completed.returncode != 0:
-        raise RuntimeError(
-            f"{label} failed\nstdout:\n{completed.stdout[-3000:]}\nstderr:\n{completed.stderr[-3000:]}"
-        )
+        raise RuntimeError(f"{label} failed\nstdout:\n{completed.stdout[-3000:]}\nstderr:\n{completed.stderr[-3000:]}")
     try:
-        payload = json.loads(completed.stdout)
+        return json.loads(completed.stdout)
     except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"{label} did not emit JSON\nstdout:\n{completed.stdout[-3000:]}\nstderr:\n{completed.stderr[-3000:]}"
-        ) from exc
-    return payload
+        raise RuntimeError(f"{label} did not emit JSON\nstdout:\n{completed.stdout[-3000:]}\nstderr:\n{completed.stderr[-3000:]}") from exc
 
 
 def _golden_readiness(root: Path) -> dict[str, Any]:
-    payload = _json_command(
-        [sys.executable, str(root / "tools" / "phase18_local_readiness.py")],
-        root=root,
-        label="Golden readiness",
-    )
+    payload = _json_command([sys.executable, str(root / "tools" / "phase18_local_readiness.py")], root=root, label="Golden readiness")
     if payload.get("golden_generation_ready") is not True:
         raise RuntimeError("COLAB_GOLDEN_GPU_NOT_READY\n" + json.dumps(payload, ensure_ascii=False, indent=2))
     return payload
@@ -166,7 +153,6 @@ def _candidate(manifest: dict[str, Any], candidate_number: int) -> dict[str, Any
 
 
 def _result_matches_candidate(result: dict[str, Any], selected: dict[str, Any]) -> bool:
-    """Require full durable identity before reusing an existing GPU result."""
     return (
         result.get("status") == "REAL_VISUAL_PROOF_GENERATED"
         and result.get("request_id") == selected.get("request_id")
@@ -212,11 +198,11 @@ def _write_summary(path: Path, payload: dict[str, Any]) -> None:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Semi-automatic PUL7SAR Phase 18 Colab Golden Visual runner")
     parser.add_argument("--repository-root", default=str(ROOT))
-    parser.add_argument("--update", action="store_true", help="git pull --ff-only the Phase 18 branch before preparing the batch")
+    parser.add_argument("--update", action="store_true")
     parser.add_argument("--candidate", type=int, default=1)
     parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--skip-targeted-tests", action="store_true", help="skip the CPU-safe Golden regression preflight")
-    parser.add_argument("--force", action="store_true", help="regenerate even when a matching successful result already exists")
+    parser.add_argument("--skip-targeted-tests", action="store_true")
+    parser.add_argument("--force", action="store_true")
     parser.add_argument("--batch-dir", default=DEFAULT_BATCH_DIR)
     parser.add_argument("--generation-dir", default=DEFAULT_GENERATION_DIR)
     parser.add_argument("--proof-dir", default=DEFAULT_PROOF_DIR)
@@ -229,25 +215,13 @@ def main() -> int:
         raise RuntimeError("repository-root is not a Phase 18 checkout")
 
     branch = _assert_phase18_branch(root)
-    head = None
-    if args.update:
-        head = _fast_forward_phase18(root)
-    if head is None:
-        completed = _run(["git", "rev-parse", "--short", "HEAD"], cwd=root, capture=True)
-        if completed.returncode != 0:
-            raise RuntimeError("unable to resolve HEAD")
-        head = completed.stdout.strip()
+    head = _fast_forward_phase18(root) if args.update else _run(["git", "rev-parse", "--short", "HEAD"], cwd=root).stdout.strip()
 
-    test_preflight = (
-        {"status": "COLAB_CPU_PREFLIGHT_SKIPPED", "test_modules": []}
-        if args.skip_targeted_tests
-        else _run_targeted_tests(root)
-    )
+    test_preflight = {"status": "COLAB_CPU_PREFLIGHT_SKIPPED", "test_modules": []} if args.skip_targeted_tests else _run_targeted_tests(root)
 
     batch_dir = root / args.batch_dir
-    # Always rebuild so a changed Visual Intelligence prompt/constraint policy
-    # produces new SHA-locked handoffs instead of reusing stale Colab files.
     manifest = build_batch(str(batch_dir))
+    _assert_current_golden_contract(manifest)
     integrity = verify_batch(str(batch_dir / "manifest.json"))
     selected = _candidate(manifest, args.candidate)
     readiness = _golden_readiness(root)
@@ -259,7 +233,8 @@ def main() -> int:
         "manifest_version": manifest.get("manifest_version"),
         "composition_grammar": manifest.get("composition_grammar"),
         "sport_geometry": manifest.get("sport_geometry"),
-        "branding_policy": manifest.get("branding_policy"),
+        "generated_branding_allowed": manifest.get("generated_branding_allowed"),
+        "brand_composition_policy": manifest.get("brand_composition_policy"),
         "candidate": args.candidate,
         "seed": selected.get("seed"),
         "request_id": selected.get("request_id"),
@@ -293,20 +268,14 @@ def main() -> int:
             existing = {}
         if _result_matches_candidate(existing, selected):
             png = _proof_from_result(existing, root)
-            payload = {
-                "status": "COLAB_GOLDEN_ALREADY_EXISTS",
-                **base_summary,
-                "png": str(png),
-                "displayed_inline": _maybe_display(png),
-            }
+            payload = {"status": "COLAB_GOLDEN_ALREADY_EXISTS", **base_summary, "png": str(png), "displayed_inline": _maybe_display(png)}
             _write_summary(summary_path, payload)
             print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
             return 0
 
     handoff = batch_dir / str(selected["handoff"])
     command = [
-        sys.executable,
-        str(root / "tools" / "phase18_flux2_execute.py"),
+        sys.executable, str(root / "tools" / "phase18_flux2_execute.py"),
         "--request", str(handoff),
         "--generation-dir", str(root / args.generation_dir),
         "--proof-dir", str(proof_dir),
@@ -317,10 +286,10 @@ def main() -> int:
     print("=== PUL7SAR COLAB GPU EXECUTION ===")
     print(f"branch={branch} head={head} candidate={args.candidate} seed={selected.get('seed')}")
     print(
-        "benchmark=" + str(manifest.get("benchmark"))
-        + " composition=" + str(manifest.get("composition_grammar"))
-        + " geometry=" + str(manifest.get("sport_geometry"))
-        + " branding=" + str(manifest.get("branding_policy"))
+        f"benchmark={manifest.get('benchmark')} manifest={manifest.get('manifest_version')} "
+        f"composition={manifest.get('composition_grammar')} geometry={manifest.get('sport_geometry')} "
+        f"generated_branding_allowed={manifest.get('generated_branding_allowed')} "
+        f"brand_policy={manifest.get('brand_composition_policy')}"
     )
     print("Streaming the locked FLUX executor below; generation may take several minutes on a T4.")
     completed = _run(command, cwd=root, capture=False)
@@ -335,14 +304,10 @@ def main() -> int:
     png = _proof_from_result(result, root)
 
     payload = {
-        "status": "COLAB_REAL_VISUAL_PROOF_GENERATED",
-        **base_summary,
-        "png": str(png),
-        "executor_result": str(result_path.resolve()),
-        "execution_seconds": result.get("execution_seconds"),
-        "gpu_name": result.get("gpu_name"),
-        "gpu_vram_gb": result.get("gpu_vram_gb"),
-        "resolved_dtype": result.get("resolved_dtype"),
+        "status": "COLAB_REAL_VISUAL_PROOF_GENERATED", **base_summary,
+        "png": str(png), "executor_result": str(result_path.resolve()),
+        "execution_seconds": result.get("execution_seconds"), "gpu_name": result.get("gpu_name"),
+        "gpu_vram_gb": result.get("gpu_vram_gb"), "resolved_dtype": result.get("resolved_dtype"),
         "cuda_peak_allocated_gb": result.get("cuda_peak_allocated_gb"),
         "cuda_peak_reserved_gb": result.get("cuda_peak_reserved_gb"),
         "displayed_inline": _maybe_display(png),
