@@ -151,18 +151,22 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             raise Qwen25VLInspectionError(f"cannot decode inspection image: {exc}") from exc
 
         pipe = self._load()
+        # Current Transformers multimodal pipeline supports image placeholders in
+        # the chat message with actual PIL images supplied via `images=[...]`.
         messages = [{
             "role": "user",
             "content": [
-                {"type": "image", "image": image},
+                {"type": "image"},
                 {"type": "text", "text": self._instruction(expected_subject)},
             ],
         }]
         try:
-            output = pipe(text=messages, max_new_tokens=self.config.max_new_tokens)
-        except TypeError:
-            # Some Transformers releases accept the message object positionally.
-            output = pipe(messages, max_new_tokens=self.config.max_new_tokens)
+            output = pipe(
+                text=messages,
+                images=[image],
+                max_new_tokens=self.config.max_new_tokens,
+                return_full_text=False,
+            )
         except Exception as exc:
             raise Qwen25VLInspectionError(f"semantic inspection inference failed: {exc}") from exc
 
