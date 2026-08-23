@@ -156,12 +156,19 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 ## Change Set 091 — Qwen / Colab runtime compatibility lock
 - Reviewed the latest real Colab blocker: semantic readiness failed with `ImportError` around `PIL._typing._Ink` after the setup cell upgraded the live notebook from Pillow 11.x to Pillow 12.x; the same unconstrained install also moved Transformers onto an unverified 5.x major line.
 - Updated `requirements-phase18-gpu.txt` to keep the verified semantic runtime on `transformers>=4.52.1,<5.0.0` and `Pillow>=11.3.0,<12.0.0`. FLUX/Diffusers, CUDA/BF16, seeds/canvases and `$0-local` remain unchanged.
-- Hardened `Qwen25VLReadinessProbe`: Transformers major `>=5` and Pillow major `>=12` are explicit blockers, and Pillow `Image`, `ImageDraw`, `ImageFont` and `ImageText` must import coherently before the semantic runtime is considered ready.
+- Hardened `Qwen25VLReadinessProbe`: Transformers major `>=5` and Pillow major `>=12` are explicit blockers, and Pillow `Image`, `ImageDraw` and `ImageFont` must import coherently before the semantic runtime is considered ready. `PIL.ImageText` is not a valid public readiness symbol and is never imported.
 - Updated `tools/phase18_colab_one_command.py` so a full execution proves Qwen/Pillow semantic-runtime readiness before entering the FLUX atmosphere/base-scene runner; the same readiness gate is rechecked immediately before semantic inference. `--prepare-only` may defer this check because it performs no GPU generation, while a full run cannot use `--semantic-inspection none` as a bypass.
-- Expanded `tests/test_phase18_qwen_runtime_contract.py` to regression-lock both dependency ranges and Pillow runtime coherence, and added `tests/test_phase18_colab_semantic_preflight_order.py` to enforce pre-GPU semantic readiness ordering and the no-bypass/recheck contract.
+- Expanded `tests/test_phase18_qwen_runtime_contract.py` to regression-lock dependency versions and Pillow runtime coherence, and added `tests/test_phase18_colab_semantic_preflight_order.py` to enforce pre-GPU semantic readiness ordering and the no-bypass/recheck contract.
 - CI Run `32646700150`: SUCCESS. Syntax, complete discover-based Phase 18 validation, completion audit, production isolation, Golden Hybrid v5 handoff/batch build, batch integrity and current-contract assertions all passed. CPU CI correctly skipped visual-proof upload because it generated no fake PNG.
 - Detailed record: `docs/PHASE18_CHANGESET_091_QWEN_COLAB_RUNTIME_COMPAT.md`.
 - No semantic bypass was introduced. A live notebook already contaminated by an in-place major Pillow upgrade must fail closed and may require a runtime restart rather than disabling Qwen.
+
+## Change Set 092 — Exact semantic runtime contract and Pillow public-API regression lock
+- `Qwen25VLReadinessProbe` now requires the exact qualified semantic builds, Transformers `4.56.2` and Pillow `11.3.0`, rather than accepting any same-major version when the one-command path is invoked outside the bootstrap.
+- Any Transformers/Pillow version drift is an explicit fail-closed blocker; the existing major-version diagnostics remain for clearer failure evidence.
+- `tests/test_phase18_qwen_runtime_contract.py` now forbids importing nonexistent `PIL.ImageText`, requires the public `Image`/`ImageDraw`/`ImageFont` modules, and locks the exact runtime constants plus the bootstrap contract.
+- Detailed record: `docs/PHASE18_CHANGESET_092_EXACT_SEMANTIC_RUNTIME_CONTRACT.md`.
+- No production path, paid provider, Fact Lock, identity, sentiment/neutrality, semantic-publication rule, Golden threshold, FLUX model, BF16 lock, seed/canvas lock, or `main` state changed.
 
 ## Current verified Golden Visual state
 - Genuine FLUX.2 Klein BF16 GPU execution is proven on Colab Tesla T4 with sequential CPU offload.
@@ -170,7 +177,7 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 - Active historical benchmark is v4; the current branch also contains the newer v5 hybrid base-scene path where diffusion does not own final pitch geometry or branding.
 - A genuine Candidate 1 PNG under the latest hybrid/evidence/runtime hardening has not yet been executed. No new visual-quality or publication claim is made.
 
-## Production safety through Change Set 091
+## Production safety through Change Set 092
 - `main`: untouched.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -184,14 +191,14 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 - Golden approval remains additional to semantic-publication safety.
 - Unsupported BF16 never triggers a silent precision downgrade.
 - Exact PUL7SAR branding remains deterministic post-composition only and checksum/runtime-integrity protected.
-- Unverified major-version drift in the Qwen/Pillow runtime is now rejected before semantic clearance can be claimed.
-- Full Colab execution now proves semantic-runtime compatibility before any FLUX GPU generation, preventing the observed dependency failure from wasting another Golden generation cycle.
+- The semantic readiness gate now rejects both major-version drift and same-major unqualified build drift before GPU generation can be cleared.
+- Invalid/non-public Pillow symbols are regression-blocked; readiness uses only `Image`, `ImageDraw` and `ImageFont`.
 
-## Architecture after Change Set 091
-`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Scene Complexity Policy -> Sport Rule -> Geometry Capability -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch -> CPU Contract Verification -> Colab CPU Preflight -> Qwen/Pillow Runtime Compatibility Preflight -> CUDA/BF16 FLUX Atmosphere/Base Scene -> Native PNG -> Qwen Readiness Recheck -> Qwen Semantic Inspection -> SemanticLayerEvidenceAdapter -> BaseSceneExecutionGate -> HybridLayerQualityGate -> Deterministic Football Renderer / Deterministic Data / Typography + Verified Assets -> Final Hybrid Visual QA -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 092
+`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Scene Complexity Policy -> Sport Rule -> Geometry Capability -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch -> CPU Contract Verification -> Colab CPU Preflight -> Exact Qwen/Pillow Runtime Compatibility Preflight -> CUDA/BF16 FLUX Atmosphere/Base Scene -> Native PNG -> Qwen Readiness Recheck -> Qwen Semantic Inspection -> SemanticLayerEvidenceAdapter -> BaseSceneExecutionGate -> HybridLayerQualityGate -> Deterministic Football Renderer / Deterministic Data / Typography + Verified Assets -> Final Hybrid Visual QA -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. On a fresh compatible Colab CUDA/BF16 runtime, install the locked Phase 18 GPU requirements and require the pre-GPU Qwen runtime gate to pass; never bypass the semantic gate to obtain a PNG.
+1. On a fresh compatible Colab CUDA/BF16 runtime, run the bootstrap so the exact Transformers `4.56.2` + Pillow `11.3.0` semantic contract is repaired and proven in a fresh interpreter; never bypass Qwen to obtain a PNG.
 2. Run only Golden Hybrid v5 Candidate 1. Composition must not begin unless base-scene semantic layer evidence is complete and clean.
 3. Inspect deterministic pitch integration and final hybrid semantic alignment from that one genuine PNG before spending GPU time on seeds 2–4.
 4. Resolve the approved PUL7SAR brand geometry/asset bytes and checksum-lock them before any final composition can pass.
