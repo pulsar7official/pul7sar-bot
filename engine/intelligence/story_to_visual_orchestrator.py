@@ -6,7 +6,7 @@ facts from raw reporting.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping, Optional
 
@@ -29,7 +29,7 @@ class VerifiedEditorialStory:
     stakes: str = "normal"
     exact_assets: tuple[str, ...] = ()
     confidence: float = 1.0
-    metadata: Mapping[str, object] = MappingProxyType({})
+    metadata: Mapping[str, object] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         for name in ("sport", "subject", "fact_phrase", "story_core"):
@@ -73,7 +73,6 @@ class StoryToVisualOrchestrator:
             number=story.number,
         ))
 
-        # Exact sport geometry is a production constraint, not a diffusion wish.
         geometry = rule.geometry_requirements if rule.exact_geometry_preferred else ()
         plan = self._visuals.plan(
             event=story.event,
