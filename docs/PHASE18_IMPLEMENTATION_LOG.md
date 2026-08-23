@@ -213,10 +213,20 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Adds `tests/test_phase18_colab_runner.py`.
 - Detailed record: `docs/PHASE18_CHANGESET_064_066_COLAB_VISUAL_INTELLIGENCE.md`.
 
-## Current verified Golden Visual state
-A genuine Phase 18 PNG has now been generated on a Google Colab Tesla T4 using the locked FLUX.2 Klein BF16 path with sequential CPU offload. The first v1 proof is retained as technical evidence but is visually rejected as a Golden candidate because it produced a four-panel collage. The current benchmark is v2 and explicitly locks `single_continuous_scene`; v2 candidate generation must be re-run before any Golden-quality claim.
+## Change Set 067 — Colab CPU preflight and exact handoff-SHA result provenance
+- `tools/phase18_flux2_execute.py` now replays the versioned handoff integrity check and persists the exact verified `payload_sha256` in every real GPU result.
+- `tools/phase18_colab_runner.py` now runs a compact CPU-safe Golden regression preflight by default before GPU readiness/execution, covering unified-scene policy, Golden batch verification, executor handoff integrity and the Colab runner itself.
+- Existing Colab result reuse is strengthened from request ID + seed to status + request ID + seed + model ID + exact payload SHA-256 + `$0-local`; legacy/stale result JSON without the digest is never silently reused.
+- A fresh GPU result is checked against the same identity/SHA/cost contract before its PNG can be surfaced by the runner.
+- `tests/test_phase18_flux2_execute_command.py` adds verified-digest and tamper-replay coverage.
+- `tests/test_phase18_colab_runner.py` adds exact reuse-contract and legacy-result rejection coverage.
+- No files deleted; no production path or quality/safety gate weakened.
+- Detailed record: `docs/PHASE18_CHANGESET_067_COLAB_SHA_PREFLIGHT.md`.
 
-## Production safety through Change Set 066
+## Current verified Golden Visual state
+A genuine Phase 18 PNG has been generated on a Google Colab Tesla T4 using the locked FLUX.2 Klein BF16 path with sequential CPU offload. That first v1 proof is retained as technical evidence but is visually rejected as a Golden candidate because it produced a four-panel collage. The current benchmark is v2 and explicitly locks `single_continuous_scene`; Change Set 067 now guarantees that the next Colab result is bound to the exact current v2 handoff SHA before reuse or acceptance as a fresh technical proof. A v2 PNG has not yet been generated, so no Golden-quality claim is made.
+
+## Production safety through Change Set 067
 - `main`: untouched by Phase 18 development changes.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -234,15 +244,16 @@ A genuine Phase 18 PNG has now been generated on a Google Colab Tesla T4 using t
 - Low-VRAM mitigation changes memory placement only; it does not weaken model, dtype, prompt, seed, canvas, factual, identity, semantic or visual-quality constraints.
 - Unified-scene Visual Intelligence changes composition semantics only; exact logos, PUL7SAR branding and typography remain deterministic post-composition assets.
 - Colab automation is branch-locked and cannot silently update or run against `main`.
+- Colab durable-result reuse now requires the exact current handoff SHA-256 and `$0-local` contract; stale legacy output cannot be treated as a current v2 proof.
 
-## Architecture after Change Set 066
-`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v2 [single_continuous_scene] -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Human/Automated Semantic Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 067
+`Article -> Story Intelligence -> Fact / Identity / Sentiment / Neutrality -> Visual Family -> Unified Single-Scene Concept Grammar -> Concept Director -> Generation Authorization -> Platform Profile -> Scene Specification -> Verified Theme / Assets / Layout -> Generation Package -> Provider Constraint Reframing -> Zero-Cost Eligibility -> Portable SHA-256 Handoff -> Golden Batch v2 [single_continuous_scene] -> Colab CPU Regression Preflight -> Colab/Self-Hosted Golden Runner -> FLUX/BF16 Readiness -> Sequential-CPU-Offload GPU Execution -> Exact Handoff-SHA Result Binding -> CUDA High-Water Memory Telemetry -> Native FLUX PNG -> Exact Platform Normalization -> Real PNG Visual Proof -> Human/Automated Semantic Inspection -> SemanticPublicationGate -> Strict Golden Visual 8.5/9.0 Quality Gate -> Quality-First Selection -> Deterministic PUL7SAR PostComposition -> Typography -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Pull Change Sets 064–066 into the active Colab T4 checkout.
-2. Run the new CPU-safe targeted tests for unified-scene policy and Colab runner before spending GPU time.
-3. Execute v2 candidate 1 through `tools/phase18_colab_runner.py`; do not generate candidates 2–4 yet.
-4. Judge the new real PNG specifically for removal of collage/panel structure, editorial hierarchy, realism, protected-zone cleanliness and overall PUL7SAR direction.
+1. Pull Change Set 067 into the active Colab T4 checkout.
+2. Run `tools/phase18_colab_runner.py --update --candidate 1`; its targeted CPU regression preflight now runs automatically before GPU execution.
+3. Execute only v2 candidate 1; do not spend GPU time on candidates 2–4 until the new unified-scene direction is visually judged.
+4. Judge the fresh SHA-bound v2 PNG specifically for removal of collage/panel structure, editorial hierarchy, realism, protected-zone cleanliness and overall PUL7SAR direction.
 5. If v2 candidate 1 is directionally correct, run the remaining deterministic seeds sequentially and apply the strict Golden scorecard.
 6. Use observed successful runtimes and memory telemetry—not theoretical throughput—to size the future production GPU worker pool.
 7. Keep verified-reference-person execution blocked until asset-path resolution and identity similarity remain end-to-end enforced.
