@@ -74,7 +74,7 @@ class Qwen25VLSemanticInspector:
         return f"""You are a strict sports-editorial visual QA inspector. Inspect only the supplied image. Do not infer facts outside the pixels.
 Expected hero subject: {subject}.
 Return ONE JSON object only, with exactly these keys:
-readable_text_absent, platform_brand_absent, fake_entity_marks_absent, single_scene, severe_defects_absent, subject_framing_valid.
+readable_text_absent, platform_brand_absent, fake_entity_marks_absent, single_scene, severe_defects_absent, subject_framing_valid, sport_geometry_alignment_valid.
 Each value must be an object with keys: pass (boolean), confidence (number 0..1), detail (short string).
 Rules:
 - readable_text_absent=false if any obvious generated readable/pseudo-readable lettering or numerals appear where the clean base scene should be unbranded.
@@ -83,6 +83,7 @@ Rules:
 - single_scene=false for collage, split-screen, tiled, multi-panel, image-within-image composition.
 - severe_defects_absent=false for major malformed anatomy, impossible objects, gross perspective failures, duplicated structural objects, or visually broken sport scene elements.
 - subject_framing_valid=true when the expected subject is none and the scene has a usable editorial focal hierarchy; when an expected subject is supplied, require that subject to be clearly usable and not badly cropped/occluded.
+- sport_geometry_alignment_valid=true only if the visible playing surface has physically plausible proportions and its plane, perspective, horizon/vanishing direction and connection to the surrounding stadium/arena look coherent. False if the field appears pasted in, too wide/short, skewed against the stadium, floating, or impossible even when its internal markings are mathematically correct.
 Be conservative. If uncertain, lower confidence rather than pretending certainty."""
 
     @staticmethod
@@ -151,8 +152,6 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             raise Qwen25VLInspectionError(f"cannot decode inspection image: {exc}") from exc
 
         pipe = self._load()
-        # Current Transformers multimodal pipeline supports image placeholders in
-        # the chat message with actual PIL images supplied via `images=[...]`.
         messages = [{
             "role": "user",
             "content": [
@@ -180,5 +179,6 @@ Be conservative. If uncertain, lower confidence rather than pretending certainty
             single_scene=self._check(data, "single_scene"),
             severe_defects_absent=self._check(data, "severe_defects_absent"),
             subject_framing_valid=self._check(data, "subject_framing_valid"),
+            sport_geometry_alignment_valid=self._check(data, "sport_geometry_alignment_valid"),
             identity_valid=None,
         )
