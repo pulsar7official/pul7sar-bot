@@ -3,7 +3,8 @@
 PUL7SAR is not a diffusion-generated logo. The brand has stable geometry and a
 contextual accent state. Default 7/pulse is PUL7SAR red. A verified fact-driven
 story-dominant entity (winner, transfer destination, champion, etc.) may own the
-accent when its palette is verified. Ambiguity or missing evidence fails to red.
+accent when its palette is verified and belongs to that exact entity. Ambiguity,
+entity mismatch, or missing evidence fails to red.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ class BrandAccentReason(str, Enum):
     AMBIGUOUS_HERO = "ambiguous_hero"
     LOW_CONFIDENCE = "low_confidence"
     PALETTE_UNAVAILABLE = "palette_unavailable"
+    PALETTE_ENTITY_MISMATCH = "palette_entity_mismatch"
 
 
 @dataclass(frozen=True)
@@ -66,6 +68,8 @@ class DynamicBrandResolver:
             return DynamicBrandDecision(default, BrandAccentReason.LOW_CONFIDENCE, None, False)
         if hero.palette is None:
             return DynamicBrandDecision(default, BrandAccentReason.PALETTE_UNAVAILABLE, hero.entity_name, False)
+        if hero.palette.entity_name.strip().casefold() != hero.entity_name.strip().casefold():
+            return DynamicBrandDecision(default, BrandAccentReason.PALETTE_ENTITY_MISMATCH, hero.entity_name, False)
         theme = self._themes.resolve(hero.palette)
         if not theme.verified:
             return DynamicBrandDecision(default, BrandAccentReason.LOW_CONFIDENCE, hero.entity_name, False)
