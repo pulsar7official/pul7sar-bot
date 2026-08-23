@@ -92,7 +92,7 @@ class SceneSpecCompiler:
         "player_stories": "sport-specific editorial portrait environment",
         "serious_news": "restrained factual editorial environment",
         "organization": "institutional editorial environment",
-        "general_world": "global sports editorial world led by PUL7SAR identity",
+        "general_world": "global sports editorial world with a premium unified visual hierarchy",
     }
 
     _DEFAULT_CAMERA = {
