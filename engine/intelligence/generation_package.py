@@ -136,7 +136,9 @@ class GenerationPackageCompiler:
 
         prompt_parts.extend((
             "Critical visual elements must stay inside the declared platform safe area.",
-            "Generate only the clean photographic/editorial base scene. Do not draw or imitate the PUL7SAR logo, heartbeat mark, club/team crests, competition marks, social icons, headline typography, score typography, or footer text.",
+            "Generate only the clean photographic/editorial base scene. Do not draw or imitate the PUL7SAR logo, heartbeat mark, number 7, wordmark, club/team crests, competition marks, social icons, headline typography, score typography, footer text, watermark, signature, or any other editorial overlay.",
+            "The AI base scene must contain zero PUL7SAR lettering and zero generated PUL7SAR branding. Never spell PUL7SAR, PULSAR, or any approximation of the platform name anywhere in the scene. Never invent a substitute wordmark, stylized seven, pulse mark, or platform badge.",
+            "Keep stadium advertising boards, banners, screens, kit sponsors, and environmental signage visually neutral and unbranded with no legible words, letters, numerals, pseudo-text, fake logos, or readable sponsor marks. Exact branding and typography are added only by deterministic post-composition.",
             "Official marks, PUL7SAR branding, the contextual number-7/pulse tint, and all final editorial typography are deterministic post-composition assets and must remain absent from the AI base scene.",
             "If a club/team identity is visually implied through kit or environment, keep it editorially plausible without inventing unreadable pseudo-logos or fake text.",
         ))
@@ -153,6 +155,7 @@ class GenerationPackageCompiler:
             "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
             "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
             "base_scene_overlay_policy": "no_brand_or_editorial_overlays_in_ai_scene",
+            "generated_branding_allowed": False,
             "composition_grammar": "single_continuous_scene",
             "multi_panel_layout_allowed": False,
             "identity_required": identity is not None,
