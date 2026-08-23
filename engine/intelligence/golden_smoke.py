@@ -23,6 +23,8 @@ from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 SUPPORTED_GOLDEN_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v1",
     "pul7sar-golden-batch-v2",
+    "pul7sar-golden-batch-v3",
+    "pul7sar-golden-batch-v4",
 }
 GOLDEN_COST_MODE = "$0-local"
 DEFAULT_SMOKE_JOB_ID = "golden-smoke-candidate-01"
@@ -47,6 +49,65 @@ class GoldenSmokePreparation:
     reusable_existing: bool
 
 
+def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None:
+    if manifest_version in {
+        "pul7sar-golden-batch-v2",
+        "pul7sar-golden-batch-v3",
+        "pul7sar-golden-batch-v4",
+    } and data.get("composition_grammar") != "single_continuous_scene":
+        raise ValueError("Golden smoke v2+ requires single_continuous_scene composition grammar")
+
+    if manifest_version in {
+        "pul7sar-golden-batch-v3",
+        "pul7sar-golden-batch-v4",
+    } and data.get("sport_geometry") != "association_football_regulation_pitch":
+        raise ValueError("Golden smoke v3+ requires regulation association-football pitch geometry")
+
+    if manifest_version == "pul7sar-golden-batch-v4":
+        if data.get("generated_branding_allowed") is not False:
+            raise ValueError("Golden smoke v4 requires generated platform branding to remain forbidden")
+        if data.get("brand_composition_policy") != "exact_assets_only_after_generation":
+            raise ValueError("Golden smoke v4 requires exact-assets-only post-generation branding")
+
+
+def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
+    prompt = request.prompt.casefold()
+    if manifest_version in {
+        "pul7sar-golden-batch-v2",
+        "pul7sar-golden-batch-v3",
+        "pul7sar-golden-batch-v4",
+    }:
+        unified_markers = (
+            "one single continuous full-bleed editorial image",
+            "never use collage, montage, split-screen, grid, diptych, triptych",
+        )
+        if any(marker not in prompt for marker in unified_markers):
+            raise ValueError("candidate 1 v2+ handoff is missing unified-scene prompt lock")
+
+    if manifest_version in {
+        "pul7sar-golden-batch-v3",
+        "pul7sar-golden-batch-v4",
+    }:
+        geometry_markers = (
+            "regulation association-football pitch geometry",
+            "exactly one halfway line",
+            "exactly one circular centre circle",
+            "do not duplicate the halfway line or centre circle",
+        )
+        if any(marker not in prompt for marker in geometry_markers):
+            raise ValueError("candidate 1 v3+ handoff is missing regulation-pitch prompt lock")
+
+    if manifest_version == "pul7sar-golden-batch-v4":
+        branding_markers = (
+            "zero pul7sar lettering",
+            "never spell pul7sar, pulsar, or any approximation",
+            "no legible words, letters, numerals, pseudo-text, fake logos",
+            "exact branding and typography are added only by deterministic post-composition",
+        )
+        if any(marker not in prompt for marker in branding_markers):
+            raise ValueError("candidate 1 v4 handoff is missing generated-brand exclusion prompt lock")
+
+
 def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
     """Load and cross-check candidate 1 from a deterministic Golden batch."""
     path = Path(manifest_path)
@@ -56,11 +117,7 @@ def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
         raise ValueError("unsupported Golden batch manifest version")
     if data.get("cost_mode") != GOLDEN_COST_MODE:
         raise ValueError("Golden smoke path requires $0-local cost mode")
-    if (
-        manifest_version == "pul7sar-golden-batch-v2"
-        and data.get("composition_grammar") != "single_continuous_scene"
-    ):
-        raise ValueError("Golden smoke v2 requires single_continuous_scene composition grammar")
+    _assert_manifest_policy(data, manifest_version)
 
     candidates = data.get("candidates")
     if not isinstance(candidates, list) or not candidates:
@@ -90,10 +147,7 @@ def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
         raise ValueError("candidate 1 model ID does not match Golden manifest")
     if request.metadata.get("cost_mode") != GOLDEN_COST_MODE:
         raise ValueError("candidate 1 handoff escaped $0-local cost mode")
-    if manifest_version == "pul7sar-golden-batch-v2":
-        prompt = request.prompt.casefold()
-        if "one single continuous full-bleed editorial image" not in prompt:
-            raise ValueError("candidate 1 v2 handoff is missing unified-scene prompt lock")
+    _assert_handoff_prompt_policy(request, manifest_version)
 
     return GoldenSmokeCandidate(
         manifest_path=path,
