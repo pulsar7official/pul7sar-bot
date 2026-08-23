@@ -95,6 +95,9 @@ The verifier supports legacy v1 plus the new v2 manifest, but v2 fails closed un
 
 This prevents a stale or tampered multi-panel prompt from reaching expensive GPU inference under a v2 manifest.
 
+### `.github/workflows/phase18-intelligence.yml`
+The CPU CI Golden handoff/batch build was aligned to the v2 request identity and artifact naming so CI cannot silently keep producing the legacy v1 benchmark while Colab uses v2.
+
 ### Regression coverage
 `tests/test_phase18_unified_scene_policy.py` covers:
 - deterministic FLUX-friendly reframing of all new composition constraints,
@@ -124,14 +127,24 @@ Capabilities:
 13. Reuses an already-successful matching result unless `--force` is explicitly supplied.
 14. Keeps `publication_ready=false`; generation success cannot bypass semantic or Golden review.
 
+### `notebooks/PUL7SAR_Phase18_Colab_Auto.ipynb`
+Adds a dedicated lightweight notebook entrypoint for future sessions. It contains only the controlled steps needed to:
+- clone or fast-forward the Phase 18 branch,
+- verify the active branch and GPU,
+- install only `requirements-phase18-gpu.txt`,
+- run the targeted unified-scene/Colab/FLUX regression tests,
+- execute candidate 1 through the semi-automatic runner and display the PNG inline.
+
+The notebook intentionally does not auto-run candidates 2–4; human visual review of candidate 1 remains a required checkpoint before more GPU time is spent.
+
 ### Intended Colab interaction
-After the active notebook has the runner, the normal loop becomes approximately:
+Inside an already-prepared Phase 18 checkout, the normal loop becomes approximately:
 
 ```python
 %run tools/phase18_colab_runner.py --update --candidate 1
 ```
 
-Instead of manually copying readiness, batch-build, verify, executor and display commands one by one.
+For a fresh session, open `notebooks/PUL7SAR_Phase18_Colab_Auto.ipynb` and run its three code cells in order.
 
 ### Regression coverage
 `tests/test_phase18_colab_runner.py` covers:
@@ -142,6 +155,7 @@ Instead of manually copying readiness, batch-build, verify, executor and display
 
 ## Files added
 - `tools/phase18_colab_runner.py`
+- `notebooks/PUL7SAR_Phase18_Colab_Auto.ipynb`
 - `tests/test_phase18_unified_scene_policy.py`
 - `tests/test_phase18_colab_runner.py`
 - `docs/PHASE18_CHANGESET_064_066_COLAB_VISUAL_INTELLIGENCE.md`
@@ -153,6 +167,7 @@ Instead of manually copying readiness, batch-build, verify, executor and display
 - `tools/phase18_build_golden_handoff.py`
 - `tools/phase18_build_golden_batch.py`
 - `tools/phase18_verify_golden_batch.py`
+- `.github/workflows/phase18-intelligence.yml`
 - `docs/PHASE18_IMPLEMENTATION_LOG.md`
 
 ## Files deleted
@@ -167,4 +182,4 @@ None.
 - No secret or model weight committed.
 
 ## Next validation
-Pull the branch into the active Colab checkout, run the new CPU-safe targeted regression tests, then run the v2 candidate 1 through `phase18_colab_runner.py`. The next real PNG should be judged specifically for whether the first-proof collage failure has disappeared. Do not spend GPU time on candidates 2–4 until candidate 1 proves the corrected composition grammar is directionally sound.
+Pull the branch into the active Colab checkout, run the new CPU-safe targeted regression tests, then run v2 candidate 1 through the semi-automatic runner. The next real PNG should be judged specifically for whether the first-proof collage failure has disappeared. Do not spend GPU time on candidates 2–4 until candidate 1 proves the corrected composition grammar is directionally sound.
