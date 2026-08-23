@@ -4,9 +4,13 @@ The probe never downloads model weights. It verifies that the installed Python
 stack exposes the *public* Transformers Qwen2.5-VL API before Colab spends GPU
 time on FLUX or downloads/loads semantic-inspector weights.
 
-Important compatibility rule: do not import Qwen2.5-VL classes from the private
-``transformers.models.qwen2_5_vl`` package. Transformers may reorganize that
-internal package while keeping its documented top-level public API stable.
+Important compatibility rules:
+- do not import Qwen2.5-VL classes from the private
+  ``transformers.models.qwen2_5_vl`` package;
+- keep the Golden runtime on the verified Transformers 4.x public API line;
+- keep Pillow on the verified 11.x line in Colab and prove that drawing/text
+  modules import coherently. In-place Pillow major upgrades can otherwise leave
+  a live notebook with mixed modules from two installed generations.
 """
 from __future__ import annotations
 
@@ -26,6 +30,16 @@ class SemanticInspectorReadiness:
 class Qwen25VLReadinessProbe:
     MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 
+    @staticmethod
+    def _major(version: str | None) -> int | None:
+        if not version:
+            return None
+        token = version.split(".", 1)[0]
+        try:
+            return int(token)
+        except ValueError:
+            return None
+
     def inspect(self) -> SemanticInspectorReadiness:
         failures: list[str] = []
         transformers_version = None
@@ -36,6 +50,14 @@ class Qwen25VLReadinessProbe:
             import transformers
 
             transformers_version = getattr(transformers, "__version__", None)
+            major = self._major(transformers_version)
+            if major is not None and major >= 5:
+                failures.append(
+                    "transformers_major_version_unverified:"
+                    + str(transformers_version)
+                    + ":expected_<5"
+                )
+
             # Use only the documented public API. Hugging Face documents both
             # Qwen2_5_VLConfig and pipeline at transformers package top level.
             from transformers import Qwen2_5_VLConfig, pipeline  # noqa: F401
@@ -64,9 +86,24 @@ class Qwen25VLReadinessProbe:
             failures.append("torch_unavailable:" + exc.__class__.__name__ + ":" + str(exc)[:240])
 
         try:
-            from PIL import Image  # noqa: F401
+            import PIL
+            from PIL import Image, ImageDraw, ImageFont, ImageText  # noqa: F401
+
+            pillow_version = getattr(PIL, "__version__", None)
+            pillow_major = self._major(pillow_version)
+            if pillow_major is not None and pillow_major >= 12:
+                failures.append(
+                    "pillow_major_version_unverified:"
+                    + str(pillow_version)
+                    + ":expected_<12"
+                )
         except Exception as exc:
-            failures.append("pillow_unavailable:" + exc.__class__.__name__ + ":" + str(exc)[:240])
+            failures.append(
+                "pillow_runtime_incoherent:"
+                + exc.__class__.__name__
+                + ":"
+                + str(exc)[:240]
+            )
 
         return SemanticInspectorReadiness(
             ready=not failures,
