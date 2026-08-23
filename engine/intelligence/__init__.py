@@ -64,6 +64,7 @@ from engine.intelligence.story_event_resolver import StoryEventResolver
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
 from engine.intelligence.typography import DeterministicTypographyEngine, FontReference, Pul7sarTypographyPolicy, TextAlign, TextBox, TextLayout, TextRole, TextStyle, TypographyDecision
+from engine.intelligence.visual_layer_qa import HybridLayerQualityGate, LayerLeakageEvidence, LayerQADecision
 from engine.intelligence.visual_proof import VisualProofArtifact, VisualProofArtifactWriter
 from engine.intelligence.visual_router import VisualFamily, VisualFamilyRouter, VisualRoute
 from engine.intelligence.vision_verification_policy import LOCAL_FACE_EMBEDDING_COMPONENT, LOCAL_GEOMETRY_COMPONENT, VisionVerificationCapability, VisionVerificationDecision, VisionVerifierProfile, ZeroCostVisionVerificationGate
