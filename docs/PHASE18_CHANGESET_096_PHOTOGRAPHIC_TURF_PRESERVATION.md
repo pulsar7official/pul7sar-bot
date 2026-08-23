@@ -86,12 +86,14 @@ Nothing.
 
 ## Test state
 
-New/updated CPU regression tests are committed on the Phase 18 branch. GitHub Actions must complete before this Change Set is called CI-green. No GPU visual result is claimed by this change.
+- GitHub Actions Run `32662495872` (run 1324): **SUCCESS** on the Change Set 096 head.
+- Syntax check, full discover-based Phase 18 validation, completion audit, production isolation, Golden Hybrid v5 handoff build, four-candidate batch build, batch integrity, and current-contract assertions all passed.
+- CPU CI correctly produced no fake visual proof; the visual-proof upload step remained skipped.
+- No GPU visual result is claimed by this change.
 
 ## Remaining work
 
-1. Confirm full Phase 18 CPU CI on the Change Set 096 head.
-2. On a compatible CUDA/BF16 runtime, execute Golden Hybrid v5 Candidate 1 only.
-3. Inspect whether the pitch now reads as photographic turf with deterministic regulation markings rather than a graphic surface.
-4. If visual integration still fails, tune only evidence-backed placement, surface normalization, or line styling; do not relax factual, identity, semantic-publication, or Golden-quality gates.
-5. Resolve and SHA-lock the user-approved PUL7SAR logo asset before final publication composition.
+1. On a compatible CUDA/BF16 runtime, execute Golden Hybrid v5 Candidate 1 only.
+2. Inspect whether the pitch now reads as photographic turf with deterministic regulation markings rather than a graphic surface.
+3. If visual integration still fails, tune only evidence-backed placement, surface normalization, or line styling; do not relax factual, identity, semantic-publication, or Golden-quality gates.
+4. Resolve and SHA-lock the user-approved PUL7SAR logo asset before final publication composition.
