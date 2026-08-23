@@ -18,7 +18,12 @@ Change Set 093 isolates each Qwen semantic inspection stage in a fresh spawned P
   - parent orchestration detects timeout, abnormal exit, missing receipt, malformed receipt and child-side Python failure as `Qwen25VLInspectionError`;
   - the child uses the same model, image limit, deterministic generation, semantic schema and evidence contract as before;
   - model/CUDA memory is reclaimed when the child exits, so base-scene and hybrid-surface inspection do not retain one long-lived Qwen pipeline on a T4;
-  - verifier ID advanced to `qwen2.5-vl-3b-local-v5-isolated-t4` so evidence from the isolated runtime cannot be confused with earlier verifier builds.
+  - verifier ID advanced to `qwen2.5-vl-3b-local-v5-isolated-t4` so evidence from the isolated runtime cannot be confused with earlier verifier builds;
+  - after CI detected two semantic-equivalent prompt wording changes, the existing regression-locked phrases `exact pitch/court/rink markings` and `Deterministic pitch markings are expected` were restored without changing inspection logic.
+
+## Tested
+- Initial CI Run `32653096283` passed syntax and all new process-isolation tests but failed two existing Qwen stage tests because their exact regression-locked prompt phrases had been reworded. The failure was limited to those text assertions; the isolation tests themselves passed.
+- The prompt wording was restored on the Phase 18 branch and a replacement verification run was started. This document does not claim CI success until that run completes successfully.
 
 ## Deleted
 Nothing.
