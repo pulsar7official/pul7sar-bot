@@ -39,6 +39,15 @@ class GoldenVisualQualityTests(unittest.TestCase):
         self.assertFalse(item.approved)
         self.assertEqual(item.quality_tier, "below_golden")
 
+    def test_broken_sport_surface_geometry_rejects_even_elite_looking_candidate(self):
+        item = GoldenVisualEvaluation(
+            "candidate-geometry", 7, self.scores(9.7),
+            GoldenVisualBlockers(broken_sport_surface_geometry=True),
+        )
+        self.assertFalse(item.approved)
+        self.assertIn("broken_sport_surface_geometry", item.blockers.active)
+        self.assertEqual(item.quality_tier, "below_golden")
+
     def test_core_dimension_below_premium_floor_rejects(self):
         scores = GoldenVisualScores(GOLDEN_CORE_FLOOR - 0.1, 9.5, 9.5, 9.5, 9.5, 9.5)
         item = GoldenVisualEvaluation("candidate-1", 1, scores)
