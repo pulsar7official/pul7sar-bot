@@ -1,9 +1,8 @@
-import tempfile
 import unittest
-from pathlib import Path
 
+from engine.intelligence.hybrid_evidence_builder import VisualInspectionFlags
 from engine.intelligence.hybrid_layer_planner import LayerSource
-from tools.phase18_colab_one_command import _golden_layer_plan, _semantic_payload
+from tools.phase18_colab_one_command import _golden_layer_plan, _merge_flags
 
 
 class ColabOneCommandHelperTests(unittest.TestCase):
@@ -13,15 +12,13 @@ class ColabOneCommandHelperTests(unittest.TestCase):
         self.assertTrue(plan.by_name("pul7sar_brand").required)
         self.assertTrue(plan.by_name("editorial_typography").required)
 
-    def test_semantic_none_mode_never_claims_automatic_approval(self):
-        with tempfile.TemporaryDirectory() as temp:
-            image = Path(temp) / "unused.png"
-            payload, caps, verdict = _semantic_payload(image, "none")
-            self.assertEqual(payload["status"], "SEMANTIC_INSPECTION_NOT_REQUESTED")
-            self.assertFalse(payload["approved"])
-            self.assertIsNone(verdict)
-            self.assertFalse(caps.semantic_defect_detection)
-            self.assertFalse(caps.forbidden_visual_detection)
+    def test_stage_specific_semantic_failures_merge_without_false_pass(self):
+        base = VisualInspectionFlags(generated_text_detected=True)
+        hybrid = VisualInspectionFlags(severe_anatomy_or_object_defect=True)
+        merged = _merge_flags(base, hybrid)
+        self.assertTrue(merged.generated_text_detected)
+        self.assertTrue(merged.severe_anatomy_or_object_defect)
+        self.assertFalse(merged.generated_brand_detected)
 
 
 if __name__ == "__main__":
