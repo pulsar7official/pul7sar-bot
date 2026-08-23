@@ -3,9 +3,10 @@
 
 This command keeps GitHub as the source of truth while reducing Colab work to a
 single repeatable notebook command. It can optionally fast-forward the checked
-out Phase 18 branch, rebuild/verify the current Golden batch, prove local Golden
-GPU readiness, execute exactly one selected candidate, persist a compact summary,
-and display the resulting PNG when invoked through IPython `%run`.
+out Phase 18 branch, run a compact CPU-safe regression preflight, rebuild/verify
+the current Golden batch, prove local Golden GPU readiness, execute exactly one
+selected candidate, persist a compact summary, and display the resulting PNG when
+invoked through IPython `%run`.
 
 It never touches `main`, never changes the approved provider/model/cost policy,
 and never promotes generation success to publication readiness.
@@ -26,6 +27,12 @@ DEFAULT_BATCH_DIR = "output/phase18_handoffs/golden-batch"
 DEFAULT_GENERATION_DIR = "output/phase18_generated"
 DEFAULT_PROOF_DIR = "output/phase18_visual_proof"
 DEFAULT_SUMMARY = "output/phase18_colab/latest.json"
+TARGETED_TEST_MODULES = (
+    "tests.test_phase18_unified_scene_policy",
+    "tests.test_phase18_verify_golden_batch",
+    "tests.test_phase18_flux2_execute_command",
+    "tests.test_phase18_colab_runner",
+)
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -86,6 +93,21 @@ def _fast_forward_phase18(root: Path) -> str:
     return head.stdout.strip()
 
 
+def _run_targeted_tests(root: Path) -> dict[str, Any]:
+    command = [sys.executable, "-m", "unittest", "-q", *TARGETED_TEST_MODULES]
+    completed = _run(command, cwd=root, capture=True)
+    if completed.returncode != 0:
+        raise RuntimeError(
+            "COLAB_CPU_PREFLIGHT_FAILED: refusing to spend GPU time on a branch that fails the Golden targeted tests\n"
+            + completed.stdout[-3000:]
+            + completed.stderr[-3000:]
+        )
+    return {
+        "status": "COLAB_CPU_PREFLIGHT_PASSED",
+        "test_modules": list(TARGETED_TEST_MODULES),
+    }
+
+
 def _json_command(command: list[str], *, root: Path, label: str) -> dict[str, Any]:
     completed = _run(command, cwd=root, capture=True)
     if completed.returncode != 0:
@@ -119,6 +141,18 @@ def _candidate(manifest: dict[str, Any], candidate_number: int) -> dict[str, Any
         if int(item.get("candidate", -1)) == candidate_number:
             return dict(item)
     raise ValueError(f"candidate {candidate_number} is not present in the Golden manifest")
+
+
+def _result_matches_candidate(result: dict[str, Any], selected: dict[str, Any]) -> bool:
+    """Require full durable identity before reusing an existing GPU result."""
+    return (
+        result.get("status") == "REAL_VISUAL_PROOF_GENERATED"
+        and result.get("request_id") == selected.get("request_id")
+        and result.get("seed") == selected.get("seed")
+        and result.get("model_id") == selected.get("model_id")
+        and result.get("payload_sha256") == selected.get("payload_sha256")
+        and result.get("cost_mode") == "$0-local"
+    )
 
 
 def _proof_from_result(result: dict[str, Any], root: Path) -> Path:
@@ -159,6 +193,7 @@ def main() -> int:
     parser.add_argument("--update", action="store_true", help="git pull --ff-only the Phase 18 branch before preparing the batch")
     parser.add_argument("--candidate", type=int, default=1)
     parser.add_argument("--prepare-only", action="store_true")
+    parser.add_argument("--skip-targeted-tests", action="store_true", help="skip the CPU-safe Golden regression preflight")
     parser.add_argument("--force", action="store_true", help="regenerate even when a matching successful result already exists")
     parser.add_argument("--batch-dir", default=DEFAULT_BATCH_DIR)
     parser.add_argument("--generation-dir", default=DEFAULT_GENERATION_DIR)
@@ -180,6 +215,12 @@ def main() -> int:
         if completed.returncode != 0:
             raise RuntimeError("unable to resolve HEAD")
         head = completed.stdout.strip()
+
+    test_preflight = (
+        {"status": "COLAB_CPU_PREFLIGHT_SKIPPED", "test_modules": []}
+        if args.skip_targeted_tests
+        else _run_targeted_tests(root)
+    )
 
     batch_dir = root / args.batch_dir
     # Always rebuild so a changed Visual Intelligence prompt/constraint policy
@@ -203,6 +244,8 @@ def main() -> int:
         "native_canvas": selected.get("native_canvas"),
         "target_canvas": selected.get("target_canvas"),
         "integrity_status": integrity.get("status"),
+        "cpu_preflight_status": test_preflight.get("status"),
+        "cpu_preflight_modules": test_preflight.get("test_modules"),
         "golden_generation_ready": readiness.get("golden_generation_ready"),
         "recommended_dtype": readiness.get("recommended_dtype"),
         "publication_ready": False,
@@ -224,11 +267,7 @@ def main() -> int:
             existing = json.loads(result_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             existing = {}
-        if (
-            existing.get("request_id") == selected.get("request_id")
-            and existing.get("seed") == selected.get("seed")
-            and existing.get("status") == "REAL_VISUAL_PROOF_GENERATED"
-        ):
+        if _result_matches_candidate(existing, selected):
             png = _proof_from_result(existing, root)
             payload = {
                 "status": "COLAB_GOLDEN_ALREADY_EXISTS",
@@ -262,8 +301,8 @@ def main() -> int:
         raise RuntimeError("executor succeeded without writing the durable result JSON")
 
     result = json.loads(result_path.read_text(encoding="utf-8"))
-    if result.get("request_id") != selected.get("request_id") or result.get("seed") != selected.get("seed"):
-        raise RuntimeError("executor result identity does not match the selected manifest candidate")
+    if not _result_matches_candidate(result, selected):
+        raise RuntimeError("executor result identity/SHA/cost contract does not match the selected manifest candidate")
     png = _proof_from_result(result, root)
 
     payload = {
