@@ -47,7 +47,7 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 
 ## Change Set 063 — T4 low-VRAM sequential offload
 - First Colab/Tesla T4 attempt reached FLUX.2 attention but failed with CUDA OOM on the locked canvas.
-- `flux2_klein_diffusers.py` now prefers sequential CPU offload and falls back to model CPU offload only when required.
+- `flux2_klein_diffusers.py` prefers sequential CPU offload and falls back to model CPU offload only when required.
 - Model, BF16, prompt, seed, canvas, guidance, four-step inference and `$0-local` remain unchanged.
 
 ## Change Set 064 — First genuine T4 PNG proof
@@ -57,7 +57,7 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 
 ## Change Sets 065–068 — Unified scene, Colab automation and v2 regression repair
 - Golden composition grammar moved to one continuous full-bleed scene with explicit collage/montage/split-screen/grid prohibitions.
-- Semi-automatic `phase18_colab_runner.py` is branch-locked, rebuilds/verifies Golden handoffs, rechecks GPU readiness, binds result identity/SHA and never promotes generation to publication.
+- `phase18_colab_runner.py` is branch-locked, rebuilds/verifies Golden handoffs, rechecks GPU readiness, binds result identity/SHA and never promotes generation to publication.
 - Colab CPU preflight runs before GPU use.
 - FLUX executor persists exact handoff SHA; stale result reuse is rejected.
 - Golden v2 smoke assumptions were repaired; CI Run `32629634107`: SUCCESS.
@@ -65,9 +65,9 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 ## Intervening visual corrections — Golden v3/v4
 A later genuine single-scene proof removed the collage but human inspection found two hard failures: malformed association-football pitch proportions/markings and an AI-generated PUL7SAR treatment that was not the approved logo.
 
-The benchmark therefore advanced cumulatively:
-- v3: `sport_geometry=association_football_regulation_pitch`; one coherent 105x68-style pitch, halfway line, centre circle/mark, penalty/goal areas, goal/touch lines and perspective-consistent markings. `broken_sport_surface_geometry` is a hard Golden blocker.
-- v4: `generated_branding_allowed=false`; `brand_composition_policy=exact_assets_only_after_generation`. Generated PUL7SAR/PULSAR lettering, pseudo-wordmarks, pulse/7 substitutes, readable sponsor text and pseudo-text are forbidden. `generated_platform_brand_or_wordmark` is a hard blocker.
+The benchmark advanced cumulatively:
+- v3: `sport_geometry=association_football_regulation_pitch`; `broken_sport_surface_geometry` is a hard Golden blocker.
+- v4: `generated_branding_allowed=false`; `brand_composition_policy=exact_assets_only_after_generation`; `generated_platform_brand_or_wordmark` is a hard blocker.
 
 Detailed brand-exclusion record: `docs/PHASE18_CHANGESET_068_EXACT_BRANDING_EXCLUSION.md`.
 
@@ -84,60 +84,63 @@ Detailed brand-exclusion record: `docs/PHASE18_CHANGESET_068_EXACT_BRANDING_EXCL
 - Detailed record: `docs/PHASE18_CHANGESET_070_EXACT_LOGO_INTEGRITY_GATE.md`.
 
 ## Change Sets 071–076 — Story-to-Visual editorial architecture
-Canonical numbering reconciles an earlier provisional 069–074 label collision; the historical filename is retained but its contents now state the canonical sequence.
+Canonical numbering reconciles an earlier provisional 069–074 label collision; the historical filename is retained but its contents state the canonical sequence.
 
-- **071 Story-to-Visual Editorial Engine:** event taxonomy and production modes (`generative_scene`, `hybrid`, `deterministic_composition`, `verified_asset_editorial`); low-confidence stories fall back to verified assets rather than more imaginative generation.
-- **072 Sport-aware production rules:** sport physics/surface/equipment risks are separated from event semantics across football, basketball, tennis, golf, combat sports, athletics, motorsport, swimming, cycling, volleyball, handball, ice hockey, winter sports and conservative unknown fallback.
+- **071 Story-to-Visual Editorial Engine:** event taxonomy and production modes; low-confidence stories fall back to verified assets rather than more imaginative generation.
+- **072 Sport-aware production rules:** sport physics/surface/equipment risks are separated from event semantics.
 - **073 Visual-compatible editorial language:** headline/copy grammar is planned with the visual anchor and uses supplied verified fact slots only.
-- **074 Visual-aware angle selection:** candidate angles are ranked by editorial value, fact/identity confidence and visual reliability; low-confidence identity, invented-scene dependency and other hard blockers fail closed.
-- **075 Unified editorial planning:** orchestrator, planning service and event resolver connect selected angle -> concise headline -> sport-aware production mode -> geometry/layer contracts -> generation authorization without inferring missing facts from prose.
-- **076 Hybrid layer ownership:** atmosphere may be generative, while geometry, exact data, typography and PUL7SAR branding belong to deterministic/verified layers; identity-sensitive subjects belong to verified assets or separately verified depictions.
+- **074 Visual-aware angle selection:** candidates are ranked by editorial value, fact/identity confidence and visual reliability; unsafe angles fail closed.
+- **075 Unified editorial planning:** selected angle -> concise headline -> sport-aware production mode -> geometry/layer contracts -> generation authorization without inferring missing facts from prose.
+- **076 Hybrid layer ownership:** atmosphere may be generative, while geometry, exact data, typography and PUL7SAR branding belong to deterministic/verified layers; identity-sensitive subjects require verified assets or separately verified depictions.
 
 Detailed record: `docs/PHASE18_CHANGESET_069_074_STORY_TO_VISUAL_EDITORIAL_ENGINE.md` (historical filename retained; canonical numbering 071–076 inside).
 
-## Change Set 077 — Event-specific sports fact schemas
-- `engine/intelligence/sports_fact_schema.py` defines required/optional/exact-render/identity slots for the active editorial-event taxonomy.
-- Results, live moments, previews, transfers, contracts, injuries, comebacks, suspensions, retirement, appointments, dismissals, statements, records, awards, trophies, draws, tables, tactics, officiating, controversies, financial/organization news, schedules, qualification, elimination and general stories validate before copy/visual planning.
-- Scores, minutes, dates, standings, formations, fees, record values and similar exact facts are routed to deterministic rendering rather than generative invention.
+## Change Sets 077–080 — Fact integrity, football geometry and final hybrid QA
+- **077 Event-specific Fact Schemas:** `sports_fact_schema.py` defines required/optional/exact-render/identity slots for the active sports-event taxonomy; exact scores, dates, formations, fees, standings and record values are deterministic facts.
+- **078 Fact Lock -> Editorial Slot Integrity:** `fact_locked_editorial_adapter.py` requires supplied visual/copy slots to be backed by `LockedClaim(kind=FACT)` for the same slot; low-confidence or inferred/forbidden claims cannot satisfy required facts.
+- **079 Deterministic Football Pitch Geometry:** regulation world-space football geometry and projective perspective mapping replace diffusion-owned pitch geometry.
+- **080 Layer-aware Hybrid Visual QA:** `hybrid_visual_quality_gate.py` blocks generated text/brand/fake logos, severe defects/collage, and missing deterministic geometry/exact branding/typography/verified identity required by the final layer plan.
 
-## Change Set 078 — Fact-Lock-to-editorial slot binding
-- `engine/intelligence/fact_locked_editorial_adapter.py` requires every supplied editorial/visual slot to be backed by a `LockedClaim(kind=FACT)` declaring the same slot.
-- `SAFE_INFERENCE` and `FORBIDDEN` claims cannot satisfy required slots.
-- Missing required slots, unbacked values and FACT claims below the 0.80 production-confidence floor fail closed.
-- Fact-schema and adapter contracts are exported through `engine/intelligence/__init__.py`.
+Detailed record: `docs/PHASE18_CHANGESET_075_078_FACT_GEOMETRY_QA.md` (historical filename retained; canonical numbering 077–080 inside).
 
-## Change Set 079 — Hybrid layer leakage QA
-- Adds `engine/intelligence/visual_layer_qa.py` and `tests/test_phase18_visual_layer_qa.py`.
-- `HybridLayerQualityGate` blocks generated text, platform branding, exact numbers, entity marks, unverified identity and sport geometry when those pixels belong to deterministic/verified layers.
-- This gate consumes inspection evidence; it does not replace computer-vision extraction, `SemanticPublicationGate` or Golden visual-quality review.
-- Colab CPU preflight now includes the layer-QA regression module before spending GPU time.
-- Detailed record: `docs/PHASE18_CHANGESET_077_079_FACT_SCHEMA_LAYER_QA.md`.
+## Change Sets 081–084 — Complexity minimization, cross-sport coverage and deterministic renderer capability
+- **081 Scene Complexity Minimization:** `scene_complexity_policy.py` chooses the minimum physical scene dependency needed for each event; many stories require no surface, results/previews use partial deterministic context, tactics require full deterministic surface.
+- **082 Expanded Cross-Sport Rules:** explicit profiles cover more than thirty sport families plus Arabic aliases and a conservative unknown fallback.
+- **083 Deterministic Football Geometry Renderer:** `football_pitch_renderer.py` uses the projective geometry plan to render a transparent Pillow pitch overlay and composite it over a base image, rather than asking FLUX to invent markings.
+- **084 Geometry Capability Fail-Closed Policy:** `geometry_capabilities.py` separates exact-geometry policy from implementation readiness. Football is currently declared ready as `football_pitch_projective_v1`; unsupported exact-geometry sports simplify or block instead of falling back to generative geometry.
 
-## Change Set 080 — Complete deterministic football geometry contract
-- `engine/intelligence/football_pitch_geometry.py` now owns a stable 105m x 68m reference pitch plus exact halfway/boundary lines, penalty and goal areas, centre circle, centre/penalty marks, both penalty arcs and all four 1m corner arcs.
-- Integrity receipt now proves counts for centre mark, penalty marks, penalty arcs and corner arcs in addition to the original line/area symmetry checks.
-- Existing `engine/intelligence/football_pitch_projection.py` was reviewed as the perspective layer and already projects world-space primitives through a four-corner homography; the current implementation consumes lines, rectangles, circles, arcs and point marks via `project_all_markings()` while retaining the older polyline-only API.
-- `tests/test_phase18_football_pitch_geometry.py` verifies the complete marking set and penalty-arc orientation.
-- `tests/test_phase18_football_pitch_projection.py` verifies projected penalty/corner arcs and centre/penalty point marks as well as the original homography/circle checks.
-- Football geometry/projection contracts are exported through `engine/intelligence/__init__.py`.
-- Colab CPU preflight includes both deterministic football geometry and projection test modules, so a geometry regression blocks GPU expenditure.
-- Files deleted during numbering cleanup: superseded `docs/PHASE18_CHANGESET_075_077_FACT_SCHEMA_LAYER_QA.md`; replaced by canonical `docs/PHASE18_CHANGESET_077_079_FACT_SCHEMA_LAYER_QA.md`.
+Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.md` (historical filename retained; canonical numbering 081–084 inside).
 
-## Change Set 081 — Golden v4 CPU verification alignment
-- Branch review found `.github/workflows/phase18-intelligence.yml` still building with the stale `golden-general-season-opener-v2-001` request/artifact naming while active builders, durable smoke and Colab runner are locked to Golden v4.
-- CPU CI now builds `golden-general-season-opener-v4-001`, uploads v4-named handoff/candidate artifacts, and explicitly asserts `pul7sar-golden-batch-v4`, `single_continuous_scene`, `association_football_regulation_pitch`, `generated_branding_allowed=false`, and `exact_assets_only_after_generation` before artifact upload.
-- Added `tests/test_phase18_intelligence_workflow.py` to reject stale v2 request/artifact names and preserve Phase-18-only, CPU-safe, no-secret workflow isolation.
-- Detailed record: `docs/PHASE18_CHANGESET_081_GOLDEN_V4_CI_ALIGNMENT.md`.
-- Files deleted: none in Change Set 081.
+## Change Set 085 — Base-scene layer leakage QA
+- Added `visual_layer_qa.py` and `tests/test_phase18_visual_layer_qa.py`.
+- This pre-composition gate is intentionally narrower than final `HybridVisualQualityGate`: it blocks generated text, PUL7SAR/platform branding, exact numbers, entity marks, unverified identity and generated sport geometry whenever those responsibilities belong to deterministic code or verified assets.
+- It consumes inspection evidence and does not replace computer-vision extraction, `SemanticPublicationGate` or Golden visual-quality review.
+
+## Change Set 086 — Complete football marking primitives and GPU-preflight regression protection
+- `football_pitch_geometry.py` now includes centre mark, both penalty marks, both 9.15m penalty arcs and all four 1m corner arcs in addition to boundary/halfway lines, centre circle, penalty areas and goal areas.
+- Geometry integrity receipt proves marking counts and symmetry.
+- Geometry/projection regression tests now cover arc orientation, projected arcs and projected centre/penalty point marks.
+- Geometry/projection contracts are exported through `engine/intelligence/__init__.py`.
+- Colab CPU preflight now includes layer QA plus football geometry/projection regression modules, so regressions block GPU expenditure.
+
+## Change Set 087 — Golden v4 CPU verification alignment
+- Branch review found `.github/workflows/phase18-intelligence.yml` still using stale Golden-v2 request/artifact names while the active builder, smoke coordinator and Colab runner were locked to v4.
+- CPU CI now builds `golden-general-season-opener-v4-001`, uploads v4-named artifacts and explicitly asserts `pul7sar-golden-batch-v4`, `single_continuous_scene`, `association_football_regulation_pitch`, `generated_branding_allowed=false`, and `exact_assets_only_after_generation` before artifact upload.
+- Added `tests/test_phase18_intelligence_workflow.py` to prevent stale-v2 regression and preserve Phase-18-only, CPU-safe, no-secret workflow isolation.
+- Detailed record: `docs/PHASE18_CHANGESET_085_087_LAYER_GEOMETRY_CI_HARDENING.md`; historical `docs/PHASE18_CHANGESET_081_GOLDEN_V4_CI_ALIGNMENT.md` now declares canonical Change Set 087.
+
+## Documentation reconciliation performed with Change Set 087
+- Historical filenames were retained where renaming would create unnecessary churn, but their contents now state canonical numbering.
+- Removed duplicate provisional docs `docs/PHASE18_CHANGESET_075_077_FACT_SCHEMA_LAYER_QA.md` and `docs/PHASE18_CHANGESET_077_079_FACT_SCHEMA_LAYER_QA.md` after consolidating their information into canonical records.
 
 ## Current verified Golden Visual state
 - Genuine FLUX.2 Klein BF16 GPU execution is proven on Colab Tesla T4 with sequential CPU offload.
 - Proof 1: rejected for collage/panel composition.
 - Proof 2: single scene, but rejected for malformed football geometry and incorrect generated PUL7SAR text/branding.
 - Active benchmark: `golden-visual-general-season-opener-v4` / `pul7sar-golden-batch-v4`.
-- A genuine v4 Candidate 1 PNG has not yet been executed after the latest hybrid/editorial/geometry hardening. No v4 visual-quality or publication claim is made.
+- A genuine v4 Candidate 1 PNG has not yet been executed after the latest editorial/layer/geometry hardening. No v4 visual-quality or publication claim is made.
 
-## Production safety through Change Set 081
+## Production safety through Change Set 087
 - `main`: untouched.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -152,13 +155,13 @@ Detailed record: `docs/PHASE18_CHANGESET_069_074_STORY_TO_VISUAL_EDITORIAL_ENGIN
 - Unsupported BF16 never triggers a silent precision downgrade.
 - Exact PUL7SAR branding remains deterministic post-composition only and checksum/runtime-integrity protected.
 
-## Architecture after Change Set 081
-`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Sport Rule -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch v4 -> Golden-v4 CPU Contract Verification -> Colab CPU Preflight (including layer QA + football geometry/projection) -> CUDA/BF16 FLUX Execution -> Native PNG -> Visual Evidence Extraction -> Hybrid Layer Leakage QA -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Deterministic Geometry/Data/Typography + Verified Assets -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 087
+`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Scene Complexity Policy -> Sport Rule -> Geometry Capability -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch v4 -> Golden-v4 CPU Contract Verification -> Colab CPU Preflight -> CUDA/BF16 FLUX Atmosphere/Base Scene -> Native PNG -> Visual Evidence Extraction -> Base-Scene Layer Leakage QA -> Deterministic Football Renderer / Deterministic Data / Typography + Verified Assets -> Final Hybrid Visual QA -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Wire real generated-image evidence/probes into `HybridLayerQualityGate`; until then layer leakage cannot be auto-cleared.
-2. Build a deterministic raster/vector composer for the projected football markings so the 105m x 68m contract becomes actual pixels over the generated atmosphere rather than only a geometry plan.
+1. Wire real generated-image probes/evidence into the new base-scene `HybridLayerQualityGate`; until then text/brand/geometry leakage cannot be auto-cleared.
+2. Connect `PillowFootballPitchRenderer` into the normal deterministic post-composition path and prove the overlay/canvas/alpha contract end-to-end rather than merely having a standalone renderer.
 3. Resolve and checksum-lock the approved PUL7SAR logo asset before any final composition can pass.
 4. Keep real-person execution blocked until verified reference assets and identity similarity are enforced end-to-end.
-5. Only after the above CPU-safe integration is green, run v4 Candidate 1 on a compatible CUDA/BF16 host. Do not spend GPU time on Candidates 2–4 until Candidate 1 is checked for: one continuous scene, no generated text/branding, no model-owned football geometry, correct deterministic overlay integration, and premium editorial quality.
-6. If Candidate 1 clears hard blockers, run the remaining deterministic seeds and apply semantic plus strict Golden quality review.
+5. Only after the CPU-safe integration above is green, run v4 Candidate 1 on a compatible CUDA/BF16 host. Do not spend GPU time on Candidates 2–4 until Candidate 1 is checked for one continuous scene, zero generated text/branding, no model-owned football geometry, correct deterministic overlay integration, semantic safety and premium editorial quality.
+6. If Candidate 1 clears hard blockers, run remaining deterministic seeds and apply semantic plus strict Golden quality review.
