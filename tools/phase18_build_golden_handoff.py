@@ -23,7 +23,7 @@ from engine.intelligence.scene_spec import OriginalSceneSpecification
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
-GOLDEN_BENCHMARK_ID = "golden-visual-general-season-opener-v2"
+GOLDEN_BENCHMARK_ID = "golden-visual-general-season-opener-v3"
 
 
 def build_request(*, seed: int, request_id: str):
@@ -53,36 +53,43 @@ def build_request(*, seed: int, request_id: str):
         subject=None,
         identity_reference=None,
         environment=(
-            "one photorealistic elite European football stadium at dusk with continuous architecture, continuous pitch geometry, "
-            "floodlights, realistic supporter atmosphere and subtle tactical markings; evoke the breadth of England, Spain, Italy, "
-            "Germany and France only through harmonized environmental mood, crowd energy, lighting nuance and football culture inside "
-            "the same physical stadium world, never as separate league zones, separate pictures, or repeated player frames"
+            "one photorealistic elite European association-football stadium at dusk with continuous architecture, floodlights, realistic "
+            "supporter atmosphere and one regulation football pitch. The playing surface must be structurally authentic: straight touchlines "
+            "and goal lines, exactly one halfway line, exactly one centre circle centered on that halfway line, one centre mark, two aligned penalty "
+            "areas, two aligned goal areas, two goals on the goal lines, physically plausible corner arcs, and all white markings obeying the same "
+            "camera perspective. Evoke England, Spain, Italy, Germany and France only through harmonized environmental mood, crowd energy, lighting "
+            "nuance and football culture inside the same physical stadium world, never as separate league zones, pictures, or repeated player frames"
         ),
         composition=(
-            "single full-bleed cinematic magazine-cover composition with one uninterrupted camera view, one coherent vanishing point, "
-            "strong foreground-to-background depth, one main focal axis across the pitch and elegant negative space for later PUL7SAR "
-            "headline and branding; the entire canvas must read instantly as one photograph-like editorial artwork"
+            "single full-bleed cinematic magazine-cover composition with one uninterrupted camera view, one coherent vanishing point, strong "
+            "foreground-to-background depth, one main focal axis across the pitch and elegant negative space for later PUL7SAR headline and branding; "
+            "the entire canvas must read instantly as one photograph-like editorial artwork. The pitch itself must read immediately as one physically "
+            "correct regulation association-football field rather than an approximate or decorative field graphic"
         ),
         camera_direction=(
-            "premium wide-to-medium sports editorial lens from a low touchline perspective, realistic stadium depth, controlled highlights, "
-            "subtle atmospheric separation and no artificial framing devices"
+            "premium wide-to-medium sports editorial lens from a low touchline or lower-stand perspective, realistic stadium depth, controlled "
+            "highlights, subtle atmospheric separation, perspective-correct field geometry and no artificial framing devices"
         ),
         emotional_mood=Sentiment.ANTICIPATORY.value,
         palette_strategy="PUL7SAR premium red accent with natural stadium blacks, graphite, grass and floodlight whites",
         factual_constraints=(
             "the European domestic league season is approaching rather than already decided",
             "the scene is general and must not imply a result, champion, transfer, or specific real-person claim",
+            "the visible playing surface must be a physically plausible regulation association-football pitch",
         ),
         forbidden_visual_elements=(
             "no invented result",
             "no collage or multi-panel layout",
             "no split-screen, grid, diptych, triptych, or contact-sheet framing",
             "no image-within-image composition",
+            "no malformed football pitch geometry",
+            "no duplicate, missing, warped, or invented field markings",
         ),
         metadata={
             "benchmark": GOLDEN_BENCHMARK_ID,
             "composition_grammar": "single_continuous_scene",
-            "visual_failure_addressed": "first proof produced a four-panel football collage",
+            "sport_geometry": "association_football_regulation_pitch",
+            "visual_failure_addressed": "first proof produced a four-panel collage; second proof produced malformed football pitch markings",
         },
     )
     package = GenerationPackageCompiler().compile(specification, assets, planned_layout=layout)
@@ -99,7 +106,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Visual #0 portable FLUX.2 handoff")
     parser.add_argument("--output", default="output/phase18_handoffs/golden-general-season-opener.json")
     parser.add_argument("--seed", type=int, default=7007001)
-    parser.add_argument("--request-id", default="golden-general-season-opener-v2-001")
+    parser.add_argument("--request-id", default="golden-general-season-opener-v3-001")
     args = parser.parse_args()
     request = build_request(seed=args.seed, request_id=args.request_id)
     output = LocalGenerationHandoff.write(request, args.output)
