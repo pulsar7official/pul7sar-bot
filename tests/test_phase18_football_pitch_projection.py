@@ -13,14 +13,21 @@ class FootballPitchProjectionTests(unittest.TestCase):
             self.assertAlmostEqual(px, d[0], places=6)
             self.assertAlmostEqual(py, d[1], places=6)
 
-    def test_pitch_projection_contains_one_halfway_and_centre_circle(self):
+    def test_pitch_projection_contains_core_regulation_markings(self):
         planner = FootballPitchProjectionPlanner()
-        markings = planner.project_markings(((120, 180), (920, 210), (1040, 1120), (40, 1100)))
-        roles = [item.role for item in markings]
+        projected = planner.project_all_markings(((120, 180), (920, 210), (1040, 1120), (40, 1100)))
+        roles = [item.role for item in projected.polylines]
+        point_roles = [item.role for item in projected.points]
         self.assertEqual(roles.count("halfway_line"), 1)
         self.assertEqual(roles.count("centre_circle"), 1)
         self.assertEqual(roles.count("penalty_area_left"), 1)
         self.assertEqual(roles.count("penalty_area_right"), 1)
+        self.assertEqual(roles.count("penalty_arc_left"), 1)
+        self.assertEqual(roles.count("penalty_arc_right"), 1)
+        self.assertEqual(sum(role.startswith("corner_arc_") for role in roles), 4)
+        self.assertEqual(point_roles.count("centre_mark"), 1)
+        self.assertEqual(point_roles.count("penalty_mark_left"), 1)
+        self.assertEqual(point_roles.count("penalty_mark_right"), 1)
 
     def test_projected_circle_is_closed_and_sampled(self):
         planner = FootballPitchProjectionPlanner()
@@ -30,6 +37,14 @@ class FootballPitchProjectionTests(unittest.TestCase):
         self.assertEqual(len(circle.points), 49)
         self.assertAlmostEqual(circle.points[0][0], circle.points[-1][0], places=6)
         self.assertAlmostEqual(circle.points[0][1], circle.points[-1][1], places=6)
+
+    def test_penalty_and_corner_arcs_remain_open_polylines(self):
+        planner = FootballPitchProjectionPlanner()
+        projected = planner.project_all_markings(((100, 120), (900, 150), (1000, 1100), (20, 1080)), arc_samples=24)
+        arcs = [item for item in projected.polylines if "_arc_" in item.role]
+        self.assertEqual(len(arcs), 6)
+        self.assertTrue(all(not item.closed for item in arcs))
+        self.assertTrue(all(len(item.points) == 24 for item in arcs))
 
     def test_degenerate_projection_is_rejected(self):
         source = ((0.0, 0.0), (10.0, 0.0), (10.0, 5.0), (0.0, 5.0))
