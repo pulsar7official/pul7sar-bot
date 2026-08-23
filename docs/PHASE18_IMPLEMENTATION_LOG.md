@@ -136,6 +136,14 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 - This materially reduces the gap between real generated-image probe output and layer-ownership QA without pretending that computer-vision capabilities exist when they do not.
 - No production code path, paid provider, fact/identity/sentiment/neutrality rule, semantic-publication gate, Golden thresholds, model, precision or `main` branch state was changed.
 
+## Change Set 089 — Concrete semantic layer-leakage evidence
+- Added `engine/intelligence/semantic_layer_evidence.py`, a fail-closed adapter from `SemanticVisualVerdict` to `LayerLeakageEvidence`. It requires each requested semantic layer check to be actually inspected above the configured confidence floor; missing or low-confidence checks block completion instead of being treated as clean.
+- Expanded the local zero-cost Qwen2.5-VL inspection schema with explicit `exact_numbers_absent` and `generated_sport_geometry_absent` checks, while retaining separate scene, defect, framing and final geometry-alignment checks. This lets the vision stage distinguish model-owned editorial numbers/field markings from deterministic layers rather than inferring those violations from generic text or defect output.
+- Updated `tools/phase18_qwen25_vl_inspect.py` to emit normalized layer-leakage evidence and completion blockers alongside the semantic verdict. Optional CLI requirements decide whether exact-number and sport-geometry checks are mandatory for the active plan.
+- Added `tests/test_phase18_semantic_layer_evidence.py` for clean complete evidence, text/brand/number/geometry leakage mapping, missing required geometry inspection and low-confidence fail-closed behavior.
+- Identity remains separate: this adapter does not claim identity similarity and does not convert missing identity verification into a clean identity result.
+- No production path, paid provider, Fact Lock, sentiment/neutrality rule, semantic-publication rule, Golden threshold, FLUX model, BF16 lock or `main` state changed.
+
 ## Current verified Golden Visual state
 - Genuine FLUX.2 Klein BF16 GPU execution is proven on Colab Tesla T4 with sequential CPU offload.
 - Proof 1: rejected for collage/panel composition.
@@ -143,7 +151,7 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 - Active historical benchmark is v4; the current branch also contains the newer v5 hybrid base-scene path where diffusion does not own final pitch geometry or branding.
 - A genuine Candidate 1 PNG under the latest hybrid/evidence hardening has not yet been executed. No new visual-quality or publication claim is made.
 
-## Production safety through Change Set 088
+## Production safety through Change Set 089
 - `main`: untouched.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -158,12 +166,12 @@ Detailed record: `docs/PHASE18_CHANGESET_079_082_COMPLEXITY_GEOMETRY_CAPABILITY.
 - Unsupported BF16 never triggers a silent precision downgrade.
 - Exact PUL7SAR branding remains deterministic post-composition only and checksum/runtime-integrity protected.
 
-## Architecture after Change Set 088
-`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Scene Complexity Policy -> Sport Rule -> Geometry Capability -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch -> CPU Contract Verification -> Colab CPU Preflight -> CUDA/BF16 FLUX Atmosphere/Base Scene -> Native PNG -> Visual Evidence Extraction -> BaseSceneLayerEvidenceAdapter -> HybridLayerQualityGate -> Deterministic Football Renderer / Deterministic Data / Typography + Verified Assets -> Final Hybrid Visual QA -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 089
+`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Scene Complexity Policy -> Sport Rule -> Geometry Capability -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch -> CPU Contract Verification -> Colab CPU Preflight -> CUDA/BF16 FLUX Atmosphere/Base Scene -> Native PNG -> Qwen Semantic Inspection -> SemanticLayerEvidenceAdapter -> HybridLayerQualityGate -> Deterministic Football Renderer / Deterministic Data / Typography + Verified Assets -> Final Hybrid Visual QA -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
-1. Connect a concrete forbidden-visual vision probe to emit the normalized tokens consumed by `BaseSceneLayerEvidenceAdapter` and set `forbidden_visual_inspection_complete=true` only when that capability actually completed successfully.
-2. Prove the existing `FootballHybridComposer` output/canvas/alpha contract through the normal one-command path on the next genuine Candidate 1 PNG; the wrapper already performs deterministic surface replacement after a successful base generation.
+1. Wire the new semantic-layer inspection result directly into the one-command hybrid path so Candidate 1 cannot advance from base-scene inspection to deterministic composition unless all layer checks required by its `HybridLayerPlan` are complete.
+2. Prove the existing `FootballHybridComposer` output/canvas/alpha contract through the normal one-command path on the next genuine Candidate 1 PNG; the wrapper already performs deterministic surface replacement after successful base generation.
 3. Resolve the approved PUL7SAR brand geometry/asset bytes and checksum-lock them before any final composition can pass.
 4. Keep real-person execution blocked until verified reference assets and identity similarity are enforced end-to-end.
-5. Run only Candidate 1 on a compatible CUDA/BF16 host after CPU CI is green; inspect one continuous scene, zero generated text/branding, no model-owned football geometry, deterministic pitch integration, semantic safety and premium editorial quality before spending GPU time on seeds 2–4.
+5. Run only Candidate 1 on a compatible CUDA/BF16 host after CPU CI is green; inspect one continuous scene, zero generated text/branding/exact editorial numbers, no model-owned football geometry, deterministic pitch integration, semantic safety and premium editorial quality before spending GPU time on seeds 2–4.
