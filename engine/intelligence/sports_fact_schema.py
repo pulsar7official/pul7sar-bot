@@ -2,8 +2,8 @@
 
 These schemas define what a story must know before copy/visual planning. They do
 not extract facts. Upstream extraction and Fact Lock populate the slots; this
-module validates completeness and identifies which values must be rendered by
-exact deterministic layers rather than invented by image generation.
+module validates completeness and identifies exact values and explicit dominant
+entity slots. Dominance is never inferred from prose.
 """
 from __future__ import annotations
 
@@ -37,10 +37,10 @@ _SCHEMAS = {
     EditorialEvent.RESULT: EventFactSchema(
         EditorialEvent.RESULT,
         ("subject", "opponent", "result_status"),
-        ("score", "competition", "stage", "key_moment"),
+        ("score", "competition", "stage", "key_moment", "winner_entity"),
         ("score",),
-        ("subject", "opponent"),
-        ("invented score", "invented scorer", "invented trophy"),
+        ("subject", "opponent", "winner_entity"),
+        ("invented score", "invented scorer", "invented trophy", "invented winner"),
     ),
     EditorialEvent.LIVE_MOMENT: EventFactSchema(
         EditorialEvent.LIVE_MOMENT,
@@ -154,10 +154,10 @@ _SCHEMAS = {
     EditorialEvent.TROPHY: EventFactSchema(
         EditorialEvent.TROPHY,
         ("subject", "competition", "title_status"),
-        ("opponent", "score", "title_number"),
+        ("opponent", "score", "title_number", "champion_entity"),
         ("score", "title_number"),
-        ("subject",),
-        ("invented trophy", "invented score"),
+        ("subject", "champion_entity"),
+        ("invented trophy", "invented score", "invented champion"),
     ),
     EditorialEvent.DRAW: EventFactSchema(
         EditorialEvent.DRAW,
@@ -225,16 +225,16 @@ _SCHEMAS = {
     EditorialEvent.QUALIFICATION: EventFactSchema(
         EditorialEvent.QUALIFICATION,
         ("subject", "qualification_status"),
-        ("competition", "stage", "deciding_result"),
+        ("competition", "stage", "deciding_result", "qualified_entity"),
         ("deciding_result",),
-        ("subject",),
+        ("subject", "qualified_entity"),
     ),
     EditorialEvent.ELIMINATION: EventFactSchema(
         EditorialEvent.ELIMINATION,
         ("subject", "elimination_status"),
-        ("competition", "stage", "deciding_result"),
+        ("competition", "stage", "deciding_result", "eliminating_entity"),
         ("deciding_result",),
-        ("subject",),
+        ("subject", "eliminating_entity"),
     ),
     EditorialEvent.GENERAL: EventFactSchema(
         EditorialEvent.GENERAL,
