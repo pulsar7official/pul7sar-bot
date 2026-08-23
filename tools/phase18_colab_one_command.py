@@ -7,10 +7,10 @@ Flow:
 3. discover/run all Phase 18 CPU tests,
 4. generate/reuse exactly one atmosphere-only FLUX candidate,
 5. replace the reserved football surface with deterministic 105m x 68m geometry,
-6. display the hybrid proof.
+6. report actual local visual-inspection capability,
+7. display the hybrid proof.
 
-The result is still not publication-ready because exact dynamic brand geometry,
-typography and final visual QA remain separate gates.
+The command never equates PNG generation with publication readiness.
 """
 from __future__ import annotations
 
@@ -31,6 +31,8 @@ if str(ROOT) not in sys.path:
 
 from engine.intelligence.football_hybrid_composer import FootballHybridComposer
 from engine.intelligence.football_pitch_placement import FootballCameraPreset
+from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInspectionPolicy
+from engine.intelligence.local_vision_inspectors import detect_local_vision_capabilities
 
 
 def _env() -> dict[str, str]:
@@ -92,6 +94,10 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
         output_path=str(output),
         camera_preset=FootballCameraPreset.HIGH_WIDE_CENTRAL,
     )
+
+    capabilities = detect_local_vision_capabilities()
+    inspection = HybridVisualInspectionPolicy().evaluate(capabilities, identity_required=False)
+
     receipt_path = HYBRID_DIR / f"candidate-{candidate:02d}-golden-hybrid-v5-receipt.json"
     payload = {
         "status": "GOLDEN_HYBRID_SURFACE_READY",
@@ -104,8 +110,15 @@ def _compose_hybrid(candidate: int) -> dict[str, object]:
         "surface_opacity": receipt.surface_opacity,
         "dynamic_brand_applied": False,
         "typography_applied": False,
+        "visual_inspection": {
+            "status": inspection.status,
+            "engineering_proof_allowed": inspection.engineering_proof_allowed,
+            "automatic_visual_qa_ready": inspection.automatic_visual_qa_ready,
+            "publication_visual_gate_ready": inspection.publication_visual_gate_ready,
+            "missing_capabilities": list(inspection.missing_capabilities),
+        },
         "publication_ready": False,
-        "next_gate": "visual inspection + dynamic brand geometry + typography + final hybrid QA",
+        "next_gate": "semantic visual inspection capability + approved dynamic brand geometry + typography + final hybrid QA",
     }
     receipt_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     payload["displayed_inline"] = _display(output)
@@ -125,15 +138,15 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/4 Updating protected Phase 18 branch...")
+    print("1/5 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
 
-    print("2/4 Discovering and running all Phase 18 CPU validation...")
+    print("2/5 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
 
-    print("3/4 Entering locked atmosphere-only Golden runner...")
+    print("3/5 Entering locked atmosphere-only Golden runner...")
     command = [
         sys.executable,
         str(ROOT / "tools" / "phase18_colab_runner.py"),
@@ -150,7 +163,8 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/4 Replacing generated surface with deterministic regulation football geometry...")
+    print("4/5 Replacing generated surface with deterministic regulation football geometry...")
+    print("5/5 Reporting visual-inspection capability and displaying hybrid proof...")
     _compose_hybrid(args.candidate)
     return 0
 
