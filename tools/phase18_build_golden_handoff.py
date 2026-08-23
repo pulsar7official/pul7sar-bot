@@ -23,6 +23,9 @@ from engine.intelligence.scene_spec import OriginalSceneSpecification
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
+GOLDEN_BENCHMARK_ID = "golden-visual-general-season-opener-v2"
+
+
 def build_request(*, seed: int, request_id: str):
     platform = SocialPlatform.INSTAGRAM_FEED
     profile = PlatformProfileRegistry().get(platform)
@@ -44,29 +47,43 @@ def build_request(*, seed: int, request_id: str):
         },
         family="general_world",
         concept=(
-            "European football season opener: a premium global editorial world connecting "
-            "five major league atmospheres through one coherent stadium-scale composition"
+            "European football season opener expressed as one unified premium editorial stadium world: "
+            "the feeling of the major leagues returning, captured in a single continuous scene with one dominant visual hierarchy"
         ),
         subject=None,
         identity_reference=None,
         environment=(
-            "photorealistic elite European football environment at dusk, layered stadium architecture, "
-            "floodlights, subtle pitch tactical markings and distant supporter atmosphere; five visual "
-            "zones evoke England, Spain, Italy, Germany and France without fake league logos or text"
+            "one photorealistic elite European football stadium at dusk with continuous architecture, continuous pitch geometry, "
+            "floodlights, realistic supporter atmosphere and subtle tactical markings; evoke the breadth of England, Spain, Italy, "
+            "Germany and France only through harmonized environmental mood, crowd energy, lighting nuance and football culture inside "
+            "the same physical stadium world, never as separate league zones, separate pictures, or repeated player frames"
         ),
         composition=(
-            "cinematic magazine-cover composition with strong depth, grounded realism, elegant negative "
-            "space for later PUL7SAR headline and branding, no fantasy monument, no crowded collage"
+            "single full-bleed cinematic magazine-cover composition with one uninterrupted camera view, one coherent vanishing point, "
+            "strong foreground-to-background depth, one main focal axis across the pitch and elegant negative space for later PUL7SAR "
+            "headline and branding; the entire canvas must read instantly as one photograph-like editorial artwork"
         ),
-        camera_direction="premium wide-to-medium sports editorial lens, low perspective, realistic depth and controlled highlights",
+        camera_direction=(
+            "premium wide-to-medium sports editorial lens from a low touchline perspective, realistic stadium depth, controlled highlights, "
+            "subtle atmospheric separation and no artificial framing devices"
+        ),
         emotional_mood=Sentiment.ANTICIPATORY.value,
         palette_strategy="PUL7SAR premium red accent with natural stadium blacks, graphite, grass and floodlight whites",
         factual_constraints=(
             "the European domestic league season is approaching rather than already decided",
             "the scene is general and must not imply a result, champion, transfer, or specific real-person claim",
         ),
-        forbidden_visual_elements=("no invented result",),
-        metadata={"benchmark": "golden-visual-general-season-opener-v1"},
+        forbidden_visual_elements=(
+            "no invented result",
+            "no collage or multi-panel layout",
+            "no split-screen, grid, diptych, triptych, or contact-sheet framing",
+            "no image-within-image composition",
+        ),
+        metadata={
+            "benchmark": GOLDEN_BENCHMARK_ID,
+            "composition_grammar": "single_continuous_scene",
+            "visual_failure_addressed": "first proof produced a four-panel football collage",
+        },
     )
     package = GenerationPackageCompiler().compile(specification, assets, planned_layout=layout)
     return LocalBackendRequestCompiler().compile_portable_handoff(
@@ -82,12 +99,13 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Visual #0 portable FLUX.2 handoff")
     parser.add_argument("--output", default="output/phase18_handoffs/golden-general-season-opener.json")
     parser.add_argument("--seed", type=int, default=7007001)
-    parser.add_argument("--request-id", default="golden-general-season-opener-001")
+    parser.add_argument("--request-id", default="golden-general-season-opener-v2-001")
     args = parser.parse_args()
     request = build_request(seed=args.seed, request_id=args.request_id)
     output = LocalGenerationHandoff.write(request, args.output)
     print(json.dumps({
         "status": "GOLDEN_HANDOFF_READY",
+        "benchmark": GOLDEN_BENCHMARK_ID,
         "output": output,
         "model": request.model_id,
         "seed": request.seed,
