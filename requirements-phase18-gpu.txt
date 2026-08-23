@@ -1,11 +1,12 @@
 # Optional dependencies for real Phase 18 local/free-GPU visual proof execution.
 # PyTorch is intentionally not pinned/installed here because CUDA wheels depend on
 # the execution environment (Colab/self-hosted GPU). The runtime gate verifies it.
-# Diffusers 0.39.0 is the current PyPI release line verified during Phase 18 and
-# exposes the FLUX.2 API family; runtime preflight additionally proves that the
-# installed build exports Flux2KleinPipeline before any model weights are loaded.
+# Diffusers 0.39.0+ exposes the FLUX.2 API family used by the Golden runner.
+# Transformers 4.52.1+ documents the public Qwen2.5-VL API used by the semantic
+# inspector. Phase 18 must use that public top-level API rather than private
+# transformers.models.* implementation paths, which may move between releases.
 diffusers>=0.39.0
-transformers
+transformers>=4.52.1
 accelerate
 safetensors
 huggingface_hub
