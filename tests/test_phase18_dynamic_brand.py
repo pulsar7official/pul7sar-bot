@@ -25,6 +25,13 @@ class DynamicBrandResolverTests(unittest.TestCase):
         self.assertTrue(result.contextual)
         self.assertEqual(result.tint_scope, ("seven", "pulse"))
 
+    def test_palette_must_belong_to_exact_hero_entity(self):
+        hero = StoryHeroEvidence("Club A", 0.99, True, self.palette(entity="Club B", color="#034694"))
+        result = self.resolver.resolve(hero)
+        self.assertEqual(result.accent_hex, EntityThemeResolver.PUL7SAR_RED)
+        self.assertEqual(result.reason, BrandAccentReason.PALETTE_ENTITY_MISMATCH)
+        self.assertFalse(result.contextual)
+
     def test_ambiguous_multi_entity_story_falls_back_to_red(self):
         hero = StoryHeroEvidence("Club A", 0.98, False, self.palette())
         result = self.resolver.resolve(hero)
