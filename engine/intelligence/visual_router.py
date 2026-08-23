@@ -83,7 +83,10 @@ class VisualFamilyRouter:
         if classification.scope is StoryScope.GENERAL:
             return VisualRoute(
                 family=VisualFamily.GENERAL_WORLD,
-                concept="represent the wider sports world with PUL7SAR brand-led identity",
+                concept=(
+                    "represent the wider sports world as one unified premium editorial scene with a single focal hierarchy, "
+                    "continuous perspective, and PUL7SAR brand-led identity; integrate variety inside one world rather than a collage"
+                ),
             )
 
         return VisualRoute(
@@ -116,5 +119,6 @@ class VisualFamilyRouter:
                 "requires_identity_gate": route.requires_identity_gate,
                 "story_scope": classification.scope.value,
                 "story_type": classification.story_type.value,
+                "composition_grammar": "single_continuous_scene",
             },
         )
