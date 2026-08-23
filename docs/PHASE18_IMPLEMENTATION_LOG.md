@@ -131,6 +131,7 @@ Foundation through local image inspection: Fact Lock, StoryAnalyzer, identity ve
 - Adds `tools/phase18_prefetch_flux2.py` to prove or download only the approved `black-forest-labs/FLUX.2-klein-4B` open-weight snapshot before GPU generation.
 - Writes a machine-readable cache receipt containing provider/model/license/cost mode, cache path, apparent snapshot size and qualification evidence.
 - Adds `tests/test_phase18_model_cache.py` covering cached eligibility, insufficient/sufficient disk, unknown-space fail-closed behavior and input validation.
+- Strengthens `tests/test_phase18_gpu_smoke_workflow.py` to require model prefetch before model-specific readiness and before the first-PNG command.
 - Makes `huggingface_hub` an explicit GPU-side dependency.
 - Updates the self-hosted GPU smoke workflow to prefetch/verify the exact model before Golden readiness and generation, avoiding wasted GPU time on first-run storage/download failures.
 - No prompt, seed, canvas, factual, identity, sentiment, semantic-publication or Golden-quality gate is weakened.
