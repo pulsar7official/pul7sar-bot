@@ -33,9 +33,44 @@ class VisualExecutionPlanTests(unittest.TestCase):
         self.assertEqual(plan.geometry_executor, "football_pitch_projective_v1")
         self.assertIsNotNone(plan.football_camera_preset)
         self.assertEqual(plan.dynamic_brand_accent_hex, "#0047AB")
+        self.assertEqual(plan.dominant_entity, "Club A")
+        self.assertIsNone(plan.story_dominance_reason)
         self.assertIn("deterministic_sport_geometry_applied", plan.hard_verification_requirements)
         self.assertIn("no_generated_pul7sar_brand", plan.hard_verification_requirements)
         self.assertIn("plain and unmarked", plan.base_scene_contract.prompt_suffix)
+
+    def test_verified_match_winner_is_auditable_in_execution_plan(self):
+        candidate = EditorialAngleCandidate(
+            angle_id="result",
+            event=EditorialEvent.RESULT,
+            story_core="verified completed match",
+            fact_phrase="يفوز في المباراة",
+            primary_subject="Club A",
+            secondary_subjects=("Club B",),
+            editorial_importance=0.98,
+            fact_confidence=0.99,
+            identity_confidence=0.99,
+        )
+        palettes = {
+            "Club A": EntityPaletteEvidence("Club A", "#AA0000", 0.98, "registry"),
+            "Club B": EntityPaletteEvidence("Club B", "#0033AA", 0.98, "registry"),
+        }
+        planning = EditorialPlanningService().plan(
+            sport="football",
+            candidates=(candidate,),
+            verified_facts={
+                "subject": "Club A",
+                "opponent": "Club B",
+                "result_status": "completed",
+                "winner_entity": "Club B",
+            },
+            entity_palettes=palettes,
+        )
+        plan = VisualExecutionPlanCompiler().compile(planning)
+        self.assertEqual(plan.dominant_entity, "Club B")
+        self.assertEqual(plan.story_dominance_reason, "result_winner")
+        self.assertEqual(plan.dynamic_brand_accent_hex, "#0033AA")
+        self.assertEqual(plan.dynamic_brand_reason, "verified_dominant_entity")
 
     def test_non_executable_planning_is_rejected(self):
         bad = EditorialPlanningService().plan(
