@@ -13,6 +13,9 @@ class GoldenVisualBatchTests(unittest.TestCase):
             manifest = build_batch(temp, (7007001, 7007002, 7007003))
             self.assertEqual(manifest["cost_mode"], "$0-local")
             self.assertEqual(manifest["composition_grammar"], "single_continuous_scene")
+            self.assertEqual(manifest["sport_geometry"], "association_football_regulation_pitch")
+            self.assertFalse(manifest["generated_branding_allowed"])
+            self.assertEqual(manifest["brand_composition_policy"], "exact_assets_only_after_generation")
             self.assertEqual(len(manifest["candidates"]), 3)
             hashes = {item["payload_sha256"] for item in manifest["candidates"]}
             self.assertEqual(len(hashes), 3)
@@ -27,8 +30,11 @@ class GoldenVisualBatchTests(unittest.TestCase):
             expected = build_batch(temp, (11, 12))
             saved = json.loads((Path(temp) / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(saved, expected)
-            self.assertEqual(saved["manifest_version"], "pul7sar-golden-batch-v2")
+            self.assertEqual(saved["manifest_version"], "pul7sar-golden-batch-v4")
             self.assertEqual(saved["composition_grammar"], "single_continuous_scene")
+            self.assertEqual(saved["sport_geometry"], "association_football_regulation_pitch")
+            self.assertFalse(saved["generated_branding_allowed"])
+            self.assertEqual(saved["brand_composition_policy"], "exact_assets_only_after_generation")
 
     def test_duplicate_seeds_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
