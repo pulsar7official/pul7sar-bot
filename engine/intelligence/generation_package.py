@@ -46,10 +46,9 @@ class GenerationPackage:
 class GenerationPackageCompiler:
     """Compile approved base-scene state while preserving exact-layer ownership.
 
-    Base generation must not depend on a fixed PUL7SAR raster logo asset because
-    Phase 18 branding is deterministic and dynamic. Brand readiness is checked
-    later by the post/dynamic-brand composition layer, not before atmosphere
-    generation.
+    The platform name is intentionally absent from the image-model prompt. Exact
+    brand identity belongs to deterministic composition; naming the brand inside
+    a diffusion prompt can itself encourage hallucinated wordmarks.
     """
 
     def compile(
@@ -74,8 +73,6 @@ class GenerationPackageCompiler:
             if planned_layout.profile.width != specification.width or planned_layout.profile.height != specification.height:
                 raise ValueError("planned layout canvas mismatch")
 
-        # Team/competition/identity assets still remain exact. PUL7SAR branding
-        # itself is intentionally not required for the base-scene request.
         assets.assert_team_crests_exact()
         social_assets = assets.by_role(AssetRole.SOCIAL_ICON)
         identity_assets = assets.by_role(AssetRole.VERIFIED_IDENTITY_REFERENCE)
@@ -85,7 +82,7 @@ class GenerationPackageCompiler:
             raise ValueError("identity-required scene needs at least one VERIFIED_IDENTITY_REFERENCE asset")
 
         prompt_parts = [
-            f"Create a premium PUL7SAR sports editorial base scene for {specification.platform.value}.",
+            f"Create a premium global sports editorial base scene for {specification.platform.value}.",
             f"Canvas: {specification.width}x{specification.height} ({specification.aspect_ratio}).",
             f"Visual family: {specification.family}.",
             f"Concept: {specification.concept}.",
@@ -109,7 +106,7 @@ class GenerationPackageCompiler:
             prompt_parts.append(f"Palette strategy: {specification.palette_strategy}.")
         if specification.visual_copy:
             prompt_parts.append(
-                "Editorial copy exists for deterministic post-composition; reserve suitable clean space for it but do not render the text into the base scene."
+                "Editorial copy exists for deterministic post-composition; reserve suitable clean space for it but do not render text into the base scene."
             )
         if identity is not None:
             prompt_parts.append(
@@ -139,36 +136,42 @@ class GenerationPackageCompiler:
                     "height": box.height,
                 }
             prompt_parts.append(
-                "Respect the supplied deterministic layout geometry by keeping all non-hero overlay regions visually calm and free of critical subject detail."
+                "Respect supplied deterministic layout geometry by keeping all non-hero overlay regions visually calm and free of critical subject detail."
             )
             prompt_parts.append(
-                "Use " + planned_layout.accent_hex + " only as a contextual environmental accent when visually appropriate; the exact PUL7SAR number-7/pulse treatment is added later by deterministic composition."
+                "Use " + planned_layout.accent_hex + " only as a restrained environmental accent when appropriate; the exact platform 7/pulse treatment is added later by deterministic composition."
             )
 
         prompt_parts.extend((
             "Critical visual elements must stay inside the declared platform safe area.",
-            "Generate only the clean photographic/editorial base scene. Do not draw or imitate the PUL7SAR logo, heartbeat mark, number 7, wordmark, club/team crests, competition marks, social icons, headline typography, score typography, footer text, watermark, signature, or any other editorial overlay.",
-            "The AI base scene must contain zero PUL7SAR lettering and zero generated PUL7SAR branding. Never spell PUL7SAR, PULSAR, or any approximation of the platform name anywhere in the scene. Never invent a substitute wordmark, stylized seven, pulse mark, or platform badge.",
+            "Generate only a clean photographic/editorial base scene. Do not draw or imitate any platform logo, heartbeat mark, stylized number mark, wordmark, club/team crest, competition mark, social icon, headline typography, score typography, footer text, watermark, signature, or other editorial overlay.",
+            "Keep the image fully unbranded: no platform lettering, platform name, substitute wordmark, stylized badge, invented logo or recognizable branding treatment anywhere in the scene.",
             "Keep stadium advertising boards, banners, screens, kit sponsors, and environmental signage visually neutral and unbranded with no legible words, letters, numerals, pseudo-text, fake logos, or readable sponsor marks. Exact branding and typography are added only by deterministic post-composition.",
-            "Official marks, PUL7SAR branding, the contextual number-7/pulse tint, and all final editorial typography are deterministic post-composition layers and must remain absent from the AI base scene.",
-            "If a club/team identity is visually implied through kit or environment, keep it editorially plausible without inventing unreadable pseudo-logos or fake text.",
+            "Official marks, contextual 7/pulse tint, and all final editorial typography are deterministic post-composition layers and must remain absent from the AI base scene.",
+            "If club/team identity is visually implied through kit or environment, keep it editorially plausible without inventing pseudo-logos or fake text.",
         ))
         if base_scene_contract is not None:
             prompt_parts.append(base_scene_contract.prompt_suffix)
         if social_assets:
             prompt_parts.append(
-                "Reserve a compact, visually quiet footer zone for a later small platform icon plus PUL7SAR handle; do not render that footer yourself."
+                "Reserve a compact, visually quiet footer zone for a later platform icon and handle; do not render that footer yourself."
             )
+
+        scene_prompt = " ".join(prompt_parts)
+        lowered = scene_prompt.casefold()
+        if "pul7sar" in lowered or "pulsar" in lowered:
+            raise ValueError("generative base prompt leaked the platform name")
 
         metadata = {
             "dry_run": True,
             "safe_area": dict(specification.safe_area),
             "profile_version": specification.metadata.get("profile_version"),
             "crop_strategy": specification.metadata.get("crop_strategy"),
-            "social_footer_policy": "compact_icon_plus_pul7sar_handle" if social_assets else "none",
+            "social_footer_policy": "compact_icon_plus_platform_handle" if social_assets else "none",
             "layout_strategy": planned_layout.strategy if planned_layout else "unspecified",
             "base_scene_overlay_policy": "no_brand_or_editorial_overlays_in_ai_scene",
             "brand_source": "deterministic_dynamic_brand_layer",
+            "brand_name_redacted_from_generation_prompt": True,
             "generated_branding_allowed": False,
             "composition_grammar": "single_continuous_scene",
             "multi_panel_layout_allowed": False,
@@ -183,7 +186,7 @@ class GenerationPackageCompiler:
         return GenerationPackage(
             platform=specification.platform.value,
             canvas=f"{specification.width}x{specification.height}",
-            scene_prompt=" ".join(prompt_parts),
+            scene_prompt=scene_prompt,
             negative_constraints=specification.forbidden_visual_elements,
             asset_ids=tuple(asset.asset_id for asset in assets.assets),
             factual_constraints=specification.factual_constraints,
