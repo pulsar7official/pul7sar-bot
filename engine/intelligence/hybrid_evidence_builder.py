@@ -1,8 +1,8 @@
 """Build final HybridVisualEvidence from real layer receipts.
 
 This avoids marking a layer as complete merely because the plan requested it.
-Evidence is derived from actual deterministic-composition receipts and explicit
-inspection results.
+Evidence is derived from actual deterministic-composition receipts, hash-valid
+artifacts, and explicit inspection results.
 """
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from engine.intelligence.football_hybrid_composer import FootballHybridCompositionReceipt
+from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
 from engine.intelligence.hybrid_visual_quality_gate import HybridVisualEvidence
 
 
@@ -23,6 +24,9 @@ class VisualInspectionFlags:
 
 
 class HybridVisualEvidenceBuilder:
+    def __init__(self) -> None:
+        self._integrity = HybridArtifactIntegrityGate()
+
     def build(
         self,
         *,
@@ -32,13 +36,11 @@ class HybridVisualEvidenceBuilder:
         exact_typography_applied: bool = False,
         verified_identity_applied: bool = False,
     ) -> HybridVisualEvidence:
-        geometry_applied = bool(
-            football_receipt is not None
-            and football_receipt.status == "FOOTBALL_HYBRID_SURFACE_COMPOSED"
-            and football_receipt.deterministic_geometry_applied
-            and football_receipt.generated_pitch_markings_replaced
-            and football_receipt.surface_opacity == 255
-        )
+        geometry_applied = False
+        if football_receipt is not None:
+            integrity = self._integrity.validate_football(football_receipt)
+            geometry_applied = integrity.valid
+
         return HybridVisualEvidence(
             generated_text_detected=inspection.generated_text_detected,
             generated_brand_detected=inspection.generated_brand_detected,
