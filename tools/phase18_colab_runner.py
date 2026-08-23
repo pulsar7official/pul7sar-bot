@@ -36,6 +36,7 @@ TARGETED_TEST_MODULES = (
     "tests.test_phase18_colab_runner",
     "tests.test_phase18_story_visual_editorial",
     "tests.test_phase18_story_to_visual_orchestrator",
+    "tests.test_phase18_visual_layer_qa",
 )
 
 if str(ROOT) not in sys.path:
