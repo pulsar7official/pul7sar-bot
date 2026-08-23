@@ -10,7 +10,7 @@ from tools.phase18_verify_golden_batch import verify_batch
 
 
 class UnifiedScenePolicyTests(unittest.TestCase):
-    def test_provider_reframes_collage_and_pitch_geometry_constraints_for_flux_like_models(self):
+    def test_provider_reframes_collage_pitch_and_brand_constraints_for_flux_like_models(self):
         compiled = PromptConstraintCompiler().compile(
             (
                 "no collage or multi-panel layout",
@@ -18,6 +18,7 @@ class UnifiedScenePolicyTests(unittest.TestCase):
                 "no image-within-image composition",
                 "no malformed football pitch geometry",
                 "no duplicate, missing, warped, or invented field markings",
+                "no generated branding, wordmarks, readable text, or pseudo-text",
             ),
             supports_native_negative=False,
         )
@@ -30,9 +31,12 @@ class UnifiedScenePolicyTests(unittest.TestCase):
         self.assertIn("regulation association-football pitch geometry", text)
         self.assertIn("exactly one halfway line", text)
         self.assertIn("do not duplicate the halfway line or centre circle", text)
+        self.assertIn("clean unbranded photographic base scene", text)
+        self.assertIn("no legible words, letters, numerals", text)
+        self.assertIn("deterministic post-composition", text)
 
-    def test_golden_request_is_locked_to_single_scene_and_regulation_pitch(self):
-        request = build_request(seed=7007001, request_id="golden-general-season-opener-v3-test")
+    def test_golden_request_is_locked_to_single_scene_regulation_pitch_and_no_generated_branding(self):
+        request = build_request(seed=7007001, request_id="golden-general-season-opener-v4-test")
         prompt = request.prompt.casefold()
         self.assertIn("one single continuous full-bleed editorial image", prompt)
         self.assertIn("never use collage, montage, split-screen, grid, diptych, triptych", prompt)
@@ -42,21 +46,27 @@ class UnifiedScenePolicyTests(unittest.TestCase):
         self.assertIn("exactly one halfway line", prompt)
         self.assertIn("exactly one circular centre circle", prompt)
         self.assertIn("do not duplicate the halfway line or centre circle", prompt)
+        self.assertIn("zero pul7sar lettering", prompt)
+        self.assertIn("never spell pul7sar, pulsar, or any approximation", prompt)
+        self.assertIn("exact branding and typography are added only by deterministic post-composition", prompt)
         self.assertEqual(request.native_negative_constraints, ())
 
-    def test_golden_v3_batch_round_trip_verifies_composition_and_pitch_geometry(self):
+    def test_golden_v4_batch_round_trip_verifies_composition_pitch_and_brand_policy(self):
         with tempfile.TemporaryDirectory() as temp:
             manifest = build_batch(temp, seeds=(7007001, 7007002))
-            self.assertEqual(manifest["manifest_version"], "pul7sar-golden-batch-v3")
+            self.assertEqual(manifest["manifest_version"], "pul7sar-golden-batch-v4")
             self.assertEqual(manifest["benchmark"], GOLDEN_BENCHMARK_ID)
             self.assertEqual(manifest["composition_grammar"], "single_continuous_scene")
             self.assertEqual(manifest["sport_geometry"], "association_football_regulation_pitch")
+            self.assertFalse(manifest["generated_branding_allowed"])
+            self.assertEqual(manifest["brand_composition_policy"], "exact_assets_only_after_generation")
             verified = verify_batch(str(Path(temp) / "manifest.json"))
             self.assertEqual(verified["status"], "GOLDEN_BATCH_INTEGRITY_VERIFIED")
             self.assertEqual(verified["composition_grammar"], "single_continuous_scene")
             self.assertEqual(verified["sport_geometry"], "association_football_regulation_pitch")
+            self.assertFalse(verified["generated_branding_allowed"])
 
-    def test_v3_verifier_rejects_missing_composition_lock(self):
+    def test_v4_verifier_rejects_missing_composition_lock(self):
         with tempfile.TemporaryDirectory() as temp:
             build_batch(temp, seeds=(7007001,))
             manifest_path = Path(temp) / "manifest.json"
@@ -66,7 +76,7 @@ class UnifiedScenePolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "single_continuous_scene"):
                 verify_batch(str(manifest_path))
 
-    def test_v3_verifier_rejects_missing_pitch_geometry_lock(self):
+    def test_v4_verifier_rejects_missing_pitch_geometry_lock(self):
         with tempfile.TemporaryDirectory() as temp:
             build_batch(temp, seeds=(7007001,))
             manifest_path = Path(temp) / "manifest.json"
@@ -74,6 +84,16 @@ class UnifiedScenePolicyTests(unittest.TestCase):
             payload["sport_geometry"] = "decorative_pitch"
             manifest_path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "regulation association-football pitch geometry"):
+                verify_batch(str(manifest_path))
+
+    def test_v4_verifier_rejects_generated_branding_permission(self):
+        with tempfile.TemporaryDirectory() as temp:
+            build_batch(temp, seeds=(7007001,))
+            manifest_path = Path(temp) / "manifest.json"
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["generated_branding_allowed"] = True
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "forbid generated platform branding"):
                 verify_batch(str(manifest_path))
 
 
