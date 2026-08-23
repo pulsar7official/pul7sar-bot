@@ -41,6 +41,18 @@ def _request_from_json(path: str):
     return LocalGenerationHandoff.read(path)
 
 
+def _handoff_payload_sha256(path: str) -> str:
+    """Return the already-verified handoff digest for durable result provenance."""
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    supplied = data.get("payload_sha256")
+    if not isinstance(supplied, str) or len(supplied) != 64:
+        raise ValueError("generation handoff is missing a valid payload_sha256")
+    # Reuse the canonical reader as the integrity authority. This makes the
+    # digest safe to persist only after the handoff itself has passed replay.
+    LocalGenerationHandoff.read(path)
+    return supplied
+
+
 def execute_request(
     *,
     request_path: str,
@@ -49,6 +61,7 @@ def execute_request(
     dtype: str,
 ) -> dict[str, object]:
     request = _request_from_json(request_path)
+    payload_sha256 = _handoff_payload_sha256(request_path)
     model = FLUX2_KLEIN_4B_LOCAL
     if request.provider_id != model.provider_id or request.model_id != model.model_id:
         raise ValueError("request does not target the approved zero-cost FLUX.2 klein candidate")
@@ -114,6 +127,7 @@ def execute_request(
         "backend_version": backend_snapshot.version,
         "seed": normalized.provenance.seed,
         "request_id": normalized.provenance.request_id,
+        "payload_sha256": payload_sha256,
         "native_width": request.width,
         "native_height": request.height,
         "width": normalized.provenance.width,
