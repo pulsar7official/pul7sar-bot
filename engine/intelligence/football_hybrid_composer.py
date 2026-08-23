@@ -7,10 +7,9 @@ model-generated exact sport geometry before this compositor runs.
 Earlier engineering proofs used an opaque flat-green replacement surface. That
 proved geometry but looked like a tactical board pasted into the stadium. The
 current compositor keeps the underlying photographic turf visible, adds only a
-subtle deterministic colour normalisation, then draws regulation markings in
-projective perspective. Synthetic mowing stripes are disabled by default so the
-base image keeps its photographed grass texture and light variation; they remain
-an explicit opt-in styling control only.
+subtle deterministic colour normalisation with an inward feathered boundary,
+then draws regulation markings in projective perspective. Synthetic mowing
+stripes are disabled by default so photographed grass detail remains visible.
 """
 from __future__ import annotations
 
@@ -25,6 +24,7 @@ from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle
 TEXTURE_PRESERVING_COMPOSITION_MODE = "texture_preserving_pitch_overlay_v1"
 DEFAULT_SURFACE_OPACITY = 54
 DEFAULT_STRIPE_OPACITY = 0
+DEFAULT_SURFACE_FEATHER_PX = 18
 
 
 @dataclass(frozen=True)
@@ -42,6 +42,7 @@ class FootballHybridCompositionReceipt:
     output_sha256: str = ""
     composition_mode: str = TEXTURE_PRESERVING_COMPOSITION_MODE
     source_texture_preserved: bool = True
+    surface_feather_px: int = DEFAULT_SURFACE_FEATHER_PX
 
 
 class FootballHybridComposer:
@@ -79,6 +80,7 @@ class FootballHybridComposer:
         surface_rgb: tuple[int, int, int] = (25, 92, 45),
         surface_opacity: int = DEFAULT_SURFACE_OPACITY,
         stripe_opacity: int = DEFAULT_STRIPE_OPACITY,
+        surface_feather_px: int = DEFAULT_SURFACE_FEATHER_PX,
     ) -> FootballHybridCompositionReceipt:
         try:
             from PIL import Image
@@ -88,6 +90,8 @@ class FootballHybridComposer:
         surface_rgb = self._validate_rgb(surface_rgb)
         surface_opacity = self._validate_opacity(surface_opacity, name="surface_opacity", minimum=24, maximum=96)
         stripe_opacity = self._validate_opacity(stripe_opacity, name="stripe_opacity", minimum=0, maximum=64)
+        if not isinstance(surface_feather_px, int) or not 0 <= surface_feather_px <= 64:
+            raise ValueError("surface_feather_px must be an integer between 0 and 64")
         source = Path(base_path)
         if not source.is_file():
             raise FileNotFoundError(base_path)
@@ -109,6 +113,7 @@ class FootballHybridComposer:
                 fill_surface=True,
                 mowing_stripes=stripe_opacity > 0,
                 stripe_count=10,
+                surface_feather_px=surface_feather_px,
             )
             composed = self._renderer.composite_on(base, destination_corners=corners, style=style)
             composed.save(target, format="PNG")
@@ -135,4 +140,5 @@ class FootballHybridComposer:
             output_sha256=output_sha,
             composition_mode=TEXTURE_PRESERVING_COMPOSITION_MODE,
             source_texture_preserved=True,
+            surface_feather_px=surface_feather_px,
         )
