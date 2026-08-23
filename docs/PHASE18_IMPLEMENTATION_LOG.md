@@ -117,11 +117,18 @@ Detailed record: `docs/PHASE18_CHANGESET_069_074_STORY_TO_VISUAL_EDITORIAL_ENGIN
 - `engine/intelligence/football_pitch_geometry.py` now owns a stable 105m x 68m reference pitch plus exact halfway/boundary lines, penalty and goal areas, centre circle, centre/penalty marks, both penalty arcs and all four 1m corner arcs.
 - Integrity receipt now proves counts for centre mark, penalty marks, penalty arcs and corner arcs in addition to the original line/area symmetry checks.
 - Existing `engine/intelligence/football_pitch_projection.py` was reviewed as the perspective layer and already projects world-space primitives through a four-corner homography; the current implementation consumes lines, rectangles, circles, arcs and point marks via `project_all_markings()` while retaining the older polyline-only API.
-- `tests/test_phase18_football_pitch_geometry.py` now verifies the complete marking set and penalty-arc orientation.
-- `tests/test_phase18_football_pitch_projection.py` now verifies projected penalty/corner arcs and centre/penalty point marks as well as the original homography/circle checks.
+- `tests/test_phase18_football_pitch_geometry.py` verifies the complete marking set and penalty-arc orientation.
+- `tests/test_phase18_football_pitch_projection.py` verifies projected penalty/corner arcs and centre/penalty point marks as well as the original homography/circle checks.
 - Football geometry/projection contracts are exported through `engine/intelligence/__init__.py`.
-- Colab CPU preflight now includes both deterministic football geometry and projection test modules, so a geometry regression blocks GPU expenditure.
+- Colab CPU preflight includes both deterministic football geometry and projection test modules, so a geometry regression blocks GPU expenditure.
 - Files deleted during numbering cleanup: superseded `docs/PHASE18_CHANGESET_075_077_FACT_SCHEMA_LAYER_QA.md`; replaced by canonical `docs/PHASE18_CHANGESET_077_079_FACT_SCHEMA_LAYER_QA.md`.
+
+## Change Set 081 — Golden v4 CPU verification alignment
+- Branch review found `.github/workflows/phase18-intelligence.yml` still building with the stale `golden-general-season-opener-v2-001` request/artifact naming while active builders, durable smoke and Colab runner are locked to Golden v4.
+- CPU CI now builds `golden-general-season-opener-v4-001`, uploads v4-named handoff/candidate artifacts, and explicitly asserts `pul7sar-golden-batch-v4`, `single_continuous_scene`, `association_football_regulation_pitch`, `generated_branding_allowed=false`, and `exact_assets_only_after_generation` before artifact upload.
+- Added `tests/test_phase18_intelligence_workflow.py` to reject stale v2 request/artifact names and preserve Phase-18-only, CPU-safe, no-secret workflow isolation.
+- Detailed record: `docs/PHASE18_CHANGESET_081_GOLDEN_V4_CI_ALIGNMENT.md`.
+- Files deleted: none in Change Set 081.
 
 ## Current verified Golden Visual state
 - Genuine FLUX.2 Klein BF16 GPU execution is proven on Colab Tesla T4 with sequential CPU offload.
@@ -130,7 +137,7 @@ Detailed record: `docs/PHASE18_CHANGESET_069_074_STORY_TO_VISUAL_EDITORIAL_ENGIN
 - Active benchmark: `golden-visual-general-season-opener-v4` / `pul7sar-golden-batch-v4`.
 - A genuine v4 Candidate 1 PNG has not yet been executed after the latest hybrid/editorial/geometry hardening. No v4 visual-quality or publication claim is made.
 
-## Production safety through Change Set 080
+## Production safety through Change Set 081
 - `main`: untouched.
 - `main.py`: untouched.
 - Telegram production publishing: untouched.
@@ -145,8 +152,8 @@ Detailed record: `docs/PHASE18_CHANGESET_069_074_STORY_TO_VISUAL_EDITORIAL_ENGIN
 - Unsupported BF16 never triggers a silent precision downgrade.
 - Exact PUL7SAR branding remains deterministic post-composition only and checksum/runtime-integrity protected.
 
-## Architecture after Change Set 080
-`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Sport Rule -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch v4 -> Colab CPU Preflight (including layer QA + football geometry/projection) -> CUDA/BF16 FLUX Execution -> Native PNG -> Visual Evidence Extraction -> Hybrid Layer Leakage QA -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Deterministic Geometry/Data/Typography + Verified Assets -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
+## Architecture after Change Set 081
+`Article -> Fact Lock -> Event Fact Schema -> Fact-Locked Editorial Slots -> Visual-Aware Angle Selection -> Editorial Copy/Headline + Visual Anchor -> Sport Rule -> Hybrid Layer Ownership -> Generation Authorization -> Unified Single-Scene / Generated-Brand Exclusion -> Generation Package -> Zero-Cost Eligibility -> SHA-256 Handoff -> Golden Batch v4 -> Golden-v4 CPU Contract Verification -> Colab CPU Preflight (including layer QA + football geometry/projection) -> CUDA/BF16 FLUX Execution -> Native PNG -> Visual Evidence Extraction -> Hybrid Layer Leakage QA -> Semantic Inspection -> SemanticPublicationGate -> Golden 8.5/9.0 Quality Gate -> Deterministic Geometry/Data/Typography + Verified Assets -> Exact Logo Integrity Gate -> FinalExportGate -> Platform Export`
 
 ## Immediate next work
 1. Wire real generated-image evidence/probes into `HybridLayerQualityGate`; until then layer leakage cannot be auto-cleared.
