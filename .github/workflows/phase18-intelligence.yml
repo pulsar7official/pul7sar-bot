@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -38,6 +40,8 @@ jobs:
           python tools/phase18_cpu_validate.py
           python -m unittest -v tests.test_story_intelligence_models
       - name: Run Phase 18 completion audit
+        env:
+          PHASE18_CPU_VALIDATED: '1'
         run: |
           python tools/phase18_completion_audit.py
       - name: Verify production isolation
