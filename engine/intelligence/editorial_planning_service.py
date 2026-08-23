@@ -2,13 +2,13 @@
 
 The service selects one fact-locked editorial angle, builds concise copy, applies
 sport/scene complexity policy, verifies deterministic geometry capability,
-resolves the dynamic PUL7SAR accent, and assigns exact visual layers before any
-expensive generation occurs.
+resolves the dynamic PUL7SAR accent from objective story dominance when facts
+support it, and assigns exact visual layers before expensive generation occurs.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from typing import Optional
+from typing import Mapping, Optional
 
 from engine.intelligence.dynamic_brand import DynamicBrandDecision, DynamicBrandResolver, StoryHeroEvidence
 from engine.intelligence.editorial_angle_selector import EditorialAngleCandidate, EditorialAngleScore, VisualAwareEditorialAngleSelector
@@ -18,6 +18,7 @@ from engine.intelligence.geometry_capabilities import DeterministicGeometryCapab
 from engine.intelligence.hybrid_layer_planner import HybridLayerPlan, HybridVisualLayerPlanner
 from engine.intelligence.scene_complexity_policy import SceneComplexityDecision, SceneComplexityPolicy, SurfaceVisibility
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
+from engine.intelligence.story_dominant_entity import StoryDominantEntityResolver
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import ProductionMode
 
@@ -43,6 +44,7 @@ class EditorialPlanningService:
         self._complexity = SceneComplexityPolicy()
         self._geometry = DeterministicGeometryCapabilityRegistry()
         self._brand = DynamicBrandResolver()
+        self._dominant = StoryDominantEntityResolver()
 
     def plan(
         self,
@@ -56,6 +58,8 @@ class EditorialPlanningService:
         exact_assets: tuple[str, ...] = (),
         hero_palette: EntityPaletteEvidence | None = None,
         hero_is_unambiguous: bool | None = None,
+        verified_facts: Mapping[str, object] | None = None,
+        entity_palettes: Mapping[str, EntityPaletteEvidence] | None = None,
     ) -> EditorialPlanningResult:
         selection = self._angles.select(candidates)
         rejected = tuple(item.candidate.angle_id for item in selection.ranked if not item.eligible)
@@ -87,23 +91,45 @@ class EditorialPlanningService:
         complexity = self._complexity.decide(chosen.event, secondary_subject_count=len(chosen.secondary_subjects))
         geometry_capability = self._geometry.evaluate(sport_rule)
 
-        if hero_is_unambiguous is None:
-            hero_is_unambiguous = len(chosen.secondary_subjects) == 0
-        brand = self._brand.resolve(StoryHeroEvidence(
-            entity_name=chosen.primary_subject,
-            confidence=story_confidence,
-            is_unambiguous=hero_is_unambiguous,
-            palette=hero_palette,
-        ))
+        # Dynamic brand is first driven by objective event semantics. This fixes
+        # the important case where a story contains two clubs but one objectively
+        # won the match or acquired the player. A transfer destination / winner
+        # may therefore control 7+pulse even though multiple entities are present.
+        brand = None
+        if verified_facts is not None:
+            dominant = self._dominant.resolve(
+                event=chosen.event,
+                facts=verified_facts,
+                confidence=story_confidence,
+            )
+            if dominant is not None:
+                palettes = dict(entity_palettes or {})
+                dominant_palette = palettes.get(dominant.entity_name)
+                brand = self._brand.resolve(StoryHeroEvidence(
+                    entity_name=dominant.entity_name,
+                    confidence=dominant.confidence,
+                    is_unambiguous=True,
+                    palette=dominant_palette,
+                ))
+
+        # Backward-compatible editorial-hero path for story families where no
+        # objective dominant entity is available. Multi-entity stories still
+        # default to red unless the caller explicitly proves one hero.
+        if brand is None:
+            if hero_is_unambiguous is None:
+                hero_is_unambiguous = len(chosen.secondary_subjects) == 0
+            brand = self._brand.resolve(StoryHeroEvidence(
+                entity_name=chosen.primary_subject,
+                confidence=story_confidence,
+                is_unambiguous=hero_is_unambiguous,
+                palette=hero_palette,
+            ))
 
         deterministic_surface_required = complexity.surface_visibility in {
             SurfaceVisibility.PARTIAL_DETERMINISTIC,
             SurfaceVisibility.FULL_DETERMINISTIC,
         }
 
-        # Sport policy may know exact geometry for a surface, while the selected
-        # editorial scene does not need that surface at all. In NONE/CONTEXT_ONLY
-        # modes the layer plan must not accidentally re-introduce exact geometry.
         if not deterministic_surface_required:
             sport_rule = replace(sport_rule, exact_geometry_preferred=False, geometry_requirements=())
             decision = replace(decision, sport_geometry_requirements=())
@@ -121,8 +147,6 @@ class EditorialPlanningService:
                     status="GEOMETRY_CAPABILITY_BLOCKED",
                 )
 
-            # Partial context may be removed instead of asking generation to
-            # improvise exact geometry which PUL7SAR cannot yet render.
             safe_plan = replace(
                 decision.plan,
                 production_mode=ProductionMode.VERIFIED_ASSET_EDITORIAL,
