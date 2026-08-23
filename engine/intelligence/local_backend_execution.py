@@ -90,25 +90,11 @@ class LocalImageBackend(Protocol):
 class LocalBackendRequestCompiler:
     """Compile exact local-backend requests while keeping brand tokens out of diffusion."""
 
-    def __init__(
-        self,
-        constraints: PromptConstraintCompiler | None = None,
-        cost_policy: DevelopmentCostPolicy | None = None,
-    ) -> None:
+    def __init__(self, constraints: PromptConstraintCompiler | None = None, cost_policy: DevelopmentCostPolicy | None = None) -> None:
         self._constraints = constraints or PromptConstraintCompiler()
         self._cost_policy = cost_policy or DevelopmentCostPolicy(zero_cost_only=True)
 
-    def compile(
-        self,
-        *,
-        package: GenerationPackage,
-        model: LocalModelCandidate,
-        readiness: LocalGenerationReadinessReport,
-        backend: str,
-        seed: int,
-        request_id: str,
-        reference_asset_ids: tuple[str, ...] = (),
-    ) -> LocalBackendGenerationRequest:
+    def compile(self, *, package: GenerationPackage, model: LocalModelCandidate, readiness: LocalGenerationReadinessReport, backend: str, seed: int, request_id: str, reference_asset_ids: tuple[str, ...] = ()) -> LocalBackendGenerationRequest:
         if not readiness.ready:
             raise ValueError("local generation is blocked because readiness report is not ready")
         if readiness.provider_id != model.provider_id or readiness.model_id != model.model_id:
@@ -118,55 +104,16 @@ class LocalBackendRequestCompiler:
         if readiness.as_dict().get("cost_mode") != "$0-local":
             raise ValueError("local execution must remain in $0-local mode")
         self._cost_policy.assert_allowed(model.economics)
-        return self._compile_locked(
-            package=package,
-            model=model,
-            backend=backend,
-            seed=seed,
-            request_id=request_id,
-            reference_asset_ids=reference_asset_ids,
-            handoff=False,
-        )
+        return self._compile_locked(package=package, model=model, backend=backend, seed=seed, request_id=request_id, reference_asset_ids=reference_asset_ids, handoff=False)
 
-    def compile_portable_handoff(
-        self,
-        *,
-        package: GenerationPackage,
-        model: LocalModelCandidate,
-        backend: str,
-        seed: int,
-        request_id: str,
-        reference_asset_ids: tuple[str, ...] = (),
-    ) -> LocalBackendGenerationRequest:
+    def compile_portable_handoff(self, *, package: GenerationPackage, model: LocalModelCandidate, backend: str, seed: int, request_id: str, reference_asset_ids: tuple[str, ...] = ()) -> LocalBackendGenerationRequest:
         self._cost_policy.assert_allowed(model.economics)
-        return self._compile_locked(
-            package=package,
-            model=model,
-            backend=backend,
-            seed=seed,
-            request_id=request_id,
-            reference_asset_ids=reference_asset_ids,
-            handoff=True,
-        )
+        return self._compile_locked(package=package, model=model, backend=backend, seed=seed, request_id=request_id, reference_asset_ids=reference_asset_ids, handoff=True)
 
-    def _compile_locked(
-        self,
-        *,
-        package: GenerationPackage,
-        model: LocalModelCandidate,
-        backend: str,
-        seed: int,
-        request_id: str,
-        reference_asset_ids: tuple[str, ...],
-        handoff: bool,
-    ) -> LocalBackendGenerationRequest:
+    def _compile_locked(self, *, package: GenerationPackage, model: LocalModelCandidate, backend: str, seed: int, request_id: str, reference_asset_ids: tuple[str, ...], handoff: bool) -> LocalBackendGenerationRequest:
         target_width, target_height = self._canvas(package.canvas)
         generation_width, generation_height = model.align_canvas(target_width, target_height)
-
-        compiled = self._constraints.compile(
-            package.negative_constraints,
-            supports_native_negative=model.supports_native_negative_prompt,
-        )
+        compiled = self._constraints.compile(package.negative_constraints, supports_native_negative=model.supports_native_negative_prompt)
         self._constraints.assert_complete(compiled)
 
         prompt_parts = [package.scene_prompt]
@@ -174,9 +121,7 @@ class LocalBackendRequestCompiler:
             prompt_parts.append("Verified factual constraints: " + " | ".join(package.factual_constraints))
         if compiled.positive_instructions:
             prompt_parts.append("Mandatory visual treatment: " + " ".join(compiled.positive_instructions))
-        prompt_parts.append(
-            "Generate only the clean base scene. Do not render platform branding, club crests, social icons, final headline typography, score typography, or footer text into the image."
-        )
+        prompt_parts.append("Generate only the clean base scene. Do not render platform branding, club crests, social icons, final headline typography, score typography, or footer text into the image.")
         prompt = " ".join(prompt_parts)
         lowered = prompt.casefold()
         if "pul7sar" in lowered or "pulsar" in lowered:
@@ -184,7 +129,10 @@ class LocalBackendRequestCompiler:
 
         hybrid_contract = bool(package.metadata.get("hybrid_base_scene_contract"))
         reserved_content = tuple(package.metadata.get("reserved_base_scene_content") or ())
-        generated_geometry_allowed = not any("sport_surface_geometry" in str(item) for item in reserved_content)
+        generated_geometry_allowed = not any(
+            "playing-surface geometry" in str(item).casefold() or "sport surface geometry" in str(item).casefold()
+            for item in reserved_content
+        )
 
         return LocalBackendGenerationRequest(
             provider_id=model.provider_id,
