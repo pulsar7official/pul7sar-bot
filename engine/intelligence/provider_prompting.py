@@ -54,11 +54,19 @@ class PromptConstraintCompiler:
         "no image-within-image composition": (
             "Keep all visual information inside the same coherent physical scene rather than placing secondary pictures or framed scenes inside the main image."
         ),
+        # Legacy v3/v4 geometry ownership.
         "no malformed football pitch geometry": (
             "Render regulation association-football pitch geometry with straight perspective-consistent touchlines and goal lines, exactly one halfway line, exactly one circular centre circle centered on the halfway line, a correctly placed centre mark, two coherent penalty areas and goal areas aligned with the two goals, and physically plausible corner arcs."
         ),
         "no duplicate, missing, warped, or invented field markings": (
             "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective."
+        ),
+        # Hybrid v5: diffusion no longer owns pitch geometry at all.
+        "no football pitch markings in the reserved surface plane": (
+            "Keep the reserved playing-surface region plain, grass-colored and completely unmarked so deterministic PUL7SAR geometry can replace it after generation."
+        ),
+        "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines": (
+            "Show no painted football markings in the reserved surface region: no centre circle, halfway line, penalty or goal areas, touchlines, goal lines, arcs or decorative field diagrams."
         ),
         "no generated branding, wordmarks, readable text, or pseudo-text": (
             "Render a clean unbranded photographic base scene with no legible words, letters, numerals, platform names, sponsor writing, logos, wordmarks, watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually neutral so all exact branding and typography can be added later by deterministic post-composition."
