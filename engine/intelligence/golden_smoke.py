@@ -20,7 +20,10 @@ from engine.intelligence.generation_jobs import GenerationJob, GenerationJobStat
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 
 
-GOLDEN_MANIFEST_VERSION = "pul7sar-golden-batch-v1"
+SUPPORTED_GOLDEN_MANIFEST_VERSIONS = {
+    "pul7sar-golden-batch-v1",
+    "pul7sar-golden-batch-v2",
+}
 GOLDEN_COST_MODE = "$0-local"
 DEFAULT_SMOKE_JOB_ID = "golden-smoke-candidate-01"
 
@@ -48,10 +51,16 @@ def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
     """Load and cross-check candidate 1 from a deterministic Golden batch."""
     path = Path(manifest_path)
     data = json.loads(path.read_text(encoding="utf-8"))
-    if data.get("manifest_version") != GOLDEN_MANIFEST_VERSION:
+    manifest_version = data.get("manifest_version")
+    if manifest_version not in SUPPORTED_GOLDEN_MANIFEST_VERSIONS:
         raise ValueError("unsupported Golden batch manifest version")
     if data.get("cost_mode") != GOLDEN_COST_MODE:
         raise ValueError("Golden smoke path requires $0-local cost mode")
+    if (
+        manifest_version == "pul7sar-golden-batch-v2"
+        and data.get("composition_grammar") != "single_continuous_scene"
+    ):
+        raise ValueError("Golden smoke v2 requires single_continuous_scene composition grammar")
 
     candidates = data.get("candidates")
     if not isinstance(candidates, list) or not candidates:
@@ -81,6 +90,10 @@ def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
         raise ValueError("candidate 1 model ID does not match Golden manifest")
     if request.metadata.get("cost_mode") != GOLDEN_COST_MODE:
         raise ValueError("candidate 1 handoff escaped $0-local cost mode")
+    if manifest_version == "pul7sar-golden-batch-v2":
+        prompt = request.prompt.casefold()
+        if "one single continuous full-bleed editorial image" not in prompt:
+            raise ValueError("candidate 1 v2 handoff is missing unified-scene prompt lock")
 
     return GoldenSmokeCandidate(
         manifest_path=path,
