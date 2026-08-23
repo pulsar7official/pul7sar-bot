@@ -8,9 +8,10 @@ Flow:
 4. generate/reuse exactly one atmosphere-only FLUX candidate,
 5. replace the reserved football surface with deterministic 105m x 68m geometry,
 6. verify composition receipt/file hashes,
-7. optionally run local Qwen semantic visual inspection after FLUX exits,
-8. require semantic pitch/stadium perspective alignment for the Golden proof,
-9. run receipt-backed HybridVisualQualityGate and report blockers.
+7. run local Qwen semantic visual inspection after FLUX exits by default,
+8. require no generated exact numbers / model-owned sport geometry leakage,
+9. require semantic pitch/stadium perspective alignment,
+10. run receipt-backed HybridVisualQualityGate and report blockers.
 
 The command never equates PNG generation with publication readiness.
 """
@@ -40,6 +41,7 @@ from engine.intelligence.hybrid_visual_inspection_policy import HybridVisualInsp
 from engine.intelligence.hybrid_visual_quality_gate import HybridVisualQualityGate
 from engine.intelligence.local_vision_inspectors import LocalVisionCapabilityReport, detect_local_vision_capabilities
 from engine.intelligence.qwen25_vl_inspector import Qwen25VLInspectionError, Qwen25VLSemanticInspector
+from engine.intelligence.semantic_inspector_readiness import Qwen25VLReadinessProbe
 from engine.intelligence.semantic_visual_verdict import SemanticVisualVerdict, SemanticVisualVerdictGate
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
 from engine.intelligence.story_visual_editorial import EditorialEvent, StoryVisualEditorialEngine
@@ -60,9 +62,7 @@ def _run(command: list[str]) -> int:
 
 
 def _branch() -> str:
-    completed = subprocess.run(
-        ["git", "branch", "--show-current"], cwd=ROOT, env=_env(), text=True, capture_output=True
-    )
+    completed = subprocess.run(["git", "branch", "--show-current"], cwd=ROOT, env=_env(), text=True, capture_output=True)
     if completed.returncode != 0:
         raise RuntimeError("unable to resolve current branch")
     return completed.stdout.strip()
@@ -80,12 +80,22 @@ def _display(path: Path) -> bool:
         return False
 
 
-def _semantic_payload(
-    output: Path, mode: str
-) -> tuple[dict[str, object], LocalVisionCapabilityReport, SemanticVisualVerdict | None]:
+def _semantic_payload(output: Path, mode: str) -> tuple[dict[str, object], LocalVisionCapabilityReport, SemanticVisualVerdict | None]:
     base_caps = detect_local_vision_capabilities()
     if mode == "none":
         return {"mode": "none", "status": "SEMANTIC_INSPECTION_NOT_REQUESTED", "approved": False}, base_caps, None
+
+    readiness = Qwen25VLReadinessProbe().inspect()
+    if not readiness.ready:
+        return {
+            "mode": "qwen2.5-vl-3b-local",
+            "status": "SEMANTIC_INSPECTOR_RUNTIME_NOT_READY",
+            "approved": False,
+            "readiness_failures": list(readiness.failures),
+            "transformers_version": readiness.transformers_version,
+            "torch_version": readiness.torch_version,
+            "cuda_available": readiness.cuda_available,
+        }, base_caps, None
 
     try:
         verdict = Qwen25VLSemanticInspector().inspect_file(str(output), expected_subject=None)
@@ -93,7 +103,15 @@ def _semantic_payload(
             verdict,
             identity_required=False,
             geometry_alignment_required=True,
+            exact_numbers_absence_required=True,
+            generated_sport_geometry_absence_required=True,
             minimum_confidence=0.85,
+        )
+        names = (
+            "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
+            "exact_numbers_absent", "generated_sport_geometry_absent",
+            "single_scene", "severe_defects_absent", "subject_framing_valid",
+            "sport_geometry_alignment_valid",
         )
         checks = {
             name: {
@@ -101,11 +119,7 @@ def _semantic_payload(
                 "confidence": getattr(verdict, name).confidence,
                 "detail": getattr(verdict, name).detail,
             }
-            for name in (
-                "readable_text_absent", "platform_brand_absent", "fake_entity_marks_absent",
-                "single_scene", "severe_defects_absent", "subject_framing_valid",
-                "sport_geometry_alignment_valid",
-            )
+            for name in names
         }
         semantic_capable = verdict.complete_non_identity
         caps = LocalVisionCapabilityReport(
@@ -122,6 +136,8 @@ def _semantic_payload(
             "verifier_id": verdict.verifier_id,
             "approved": approved,
             "geometry_alignment_required": True,
+            "exact_numbers_absence_required": True,
+            "generated_sport_geometry_absence_required": True,
             "failures": list(failures),
             "checks": checks,
         }, caps, verdict
@@ -130,7 +146,6 @@ def _semantic_payload(
             "mode": "qwen2.5-vl-3b-local",
             "status": "SEMANTIC_VISUAL_INSPECTION_FAILED",
             "approved": False,
-            "geometry_alignment_required": True,
             "error": str(exc),
         }, base_caps, None
 
@@ -231,7 +246,7 @@ def main() -> int:
     parser.add_argument("--candidate", type=int, default=1)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--prepare-only", action="store_true")
-    parser.add_argument("--semantic-inspection", choices=("none", "qwen"), default="none")
+    parser.add_argument("--semantic-inspection", choices=("none", "qwen"), default="qwen")
     args = parser.parse_args()
 
     branch = _branch()
@@ -239,21 +254,16 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND HYBRID v5 ===")
-    print("1/9 Updating protected Phase 18 branch...")
+    print("1/10 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
 
-    print("2/9 Discovering and running all Phase 18 CPU validation...")
+    print("2/10 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
 
-    print("3/9 Entering locked atmosphere-only Golden runner...")
-    command = [
-        sys.executable,
-        str(ROOT / "tools" / "phase18_colab_runner.py"),
-        "--candidate", str(args.candidate),
-        "--skip-targeted-tests",
-    ]
+    print("3/10 Entering locked atmosphere-only Golden runner...")
+    command = [sys.executable, str(ROOT / "tools" / "phase18_colab_runner.py"), "--candidate", str(args.candidate), "--skip-targeted-tests"]
     if args.force:
         command.append("--force")
     if args.prepare_only:
@@ -264,12 +274,13 @@ def main() -> int:
     if args.prepare_only:
         return 0
 
-    print("4/9 Replacing generated surface with deterministic regulation football geometry...")
-    print("5/9 Verifying deterministic composition artifact hashes and receipt...")
-    print("6/9 Running/reporting semantic visual inspection according to selected mode...")
-    print("7/9 Verifying football pitch/stadium perspective alignment...")
-    print("8/9 Running receipt-backed Hybrid Visual QA...")
-    print("9/9 Reporting blockers and displaying hybrid proof...")
+    print("4/10 Replacing generated surface with deterministic regulation football geometry...")
+    print("5/10 Verifying deterministic composition artifact hashes and receipt...")
+    print("6/10 Checking local semantic-inspector runtime readiness...")
+    print("7/10 Running semantic visual inspection...")
+    print("8/10 Verifying generated text/number/geometry leakage and pitch/stadium alignment...")
+    print("9/10 Running receipt-backed Hybrid Visual QA...")
+    print("10/10 Reporting blockers and displaying hybrid proof...")
     _compose_hybrid(args.candidate, args.semantic_inspection)
     return 0
 
