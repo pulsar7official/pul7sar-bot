@@ -68,6 +68,20 @@ Regression coverage for:
 - `main.py`: untouched.
 - Telegram production path: untouched.
 
+### Verification
+GitHub Actions Run `32611296349` completed successfully.
+
+The run passed:
+- Phase 18 Python syntax compilation;
+- the full Phase 18 intelligence test suite, including the new Golden smoke coordinator tests;
+- production-isolation verification;
+- portable Golden handoff build;
+- deterministic four-candidate Golden batch build;
+- Golden batch integrity verification;
+- artifact upload for the locked handoff and batch.
+
+The visual-proof upload step was correctly skipped because CPU GitHub CI did not generate a PNG. This is expected and preserves the rule that no fake visual proof is created.
+
 ### Why this matters
 Before Change Set 056, the first real PNG required an operator to execute a sequence of separate commands correctly. That is useful for debugging but is not the final operational shape of an automated image pipeline. This change reduces the smoke proof to one command while retaining the same internal durable queue and worker architecture intended for later unattended service operation.
 
