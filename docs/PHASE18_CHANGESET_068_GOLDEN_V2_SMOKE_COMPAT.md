@@ -26,6 +26,8 @@ GitHub Actions Run `32629494120` executed 374 Phase 18 tests. Most passed, inclu
   - updates the deterministic candidate-1 request ID to `golden-general-season-opener-v2-001`;
   - adds a fail-closed test for v2 composition-grammar drift;
   - retains SHA drift, cost drift, durable job identity and bounded terminal-failure coverage.
+- `tools/phase18_colab_runner.py`
+  - expands the default CPU-safe preflight to include Golden batch and Golden smoke regressions in addition to unified-scene, batch verification, handoff-integrity and Colab-runner checks.
 
 ### Added / deleted
 
@@ -35,7 +37,7 @@ GitHub Actions Run `32629494120` executed 374 Phase 18 tests. Most passed, inclu
 
 ### Verification
 
-GitHub Actions Run `32629634107` completed successfully after the repair. It passed:
+GitHub Actions Run `32629634107` completed successfully after the core repair. The later Run `32629719529` also completed successfully after the expanded Colab preflight was committed. The final run passed:
 
 - Phase 18 syntax checks;
 - the complete Phase 18 intelligence test suite;
