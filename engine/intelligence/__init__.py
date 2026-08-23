@@ -76,6 +76,7 @@ from engine.intelligence.social_assets import DestinationSocialAssetSelector
 from engine.intelligence.sport_visual_rules import SportSurface, SportVisualRule, SportVisualRuleRegistry
 from engine.intelligence.sports_fact_schema import EventFactSchema, EventFactSchemaRegistry, FactSchemaValidation
 from engine.intelligence.story_analyzer import StoryAnalysisError, StoryAnalyzer
+from engine.intelligence.story_dominant_entity import DominantEntityReason, StoryDominantEntity, StoryDominantEntityResolver
 from engine.intelligence.story_event_resolver import StoryEventResolver
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision, StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
