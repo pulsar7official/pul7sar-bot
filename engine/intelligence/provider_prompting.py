@@ -43,6 +43,17 @@ class PromptConstraintCompiler:
         "no completed signing ceremony": "Keep the scene in an unresolved negotiation/interest context rather than a completed transfer presentation.",
         "no invented result": "Create pre-event anticipation only and keep the sporting outcome completely unresolved.",
         "no sensational harm": "Use restrained factual visual drama and avoid graphic, sensational, or exploitative treatment of injury or harm.",
+        "no collage or multi-panel layout": (
+            "Render one single continuous full-bleed editorial scene in one physical world and one camera view; "
+            "keep the entire canvas visually unified with no separate photo regions, montage structure, or panelized storytelling."
+        ),
+        "no split-screen, grid, diptych, triptych, or contact-sheet framing": (
+            "Use one uninterrupted photographic frame with continuous perspective and lighting across the whole canvas; "
+            "do not divide the image with seams, borders, boxes, windows, or repeated frames."
+        ),
+        "no image-within-image composition": (
+            "Keep all visual information inside the same coherent physical scene rather than placing secondary pictures or framed scenes inside the main image."
+        ),
     }
 
     def compile(
