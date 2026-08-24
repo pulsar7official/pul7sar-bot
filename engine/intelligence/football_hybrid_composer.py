@@ -17,11 +17,13 @@ from dataclasses import dataclass
 import hashlib
 from pathlib import Path
 
+from engine.intelligence.football_pitch_geometry import FootballPitchGeometry
 from engine.intelligence.football_pitch_placement import FootballCameraPreset, FootballPitchPlacementPlanner
 from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle, PillowFootballPitchRenderer
 
 
 TEXTURE_PRESERVING_COMPOSITION_MODE = "texture_preserving_pitch_overlay_v1"
+FOOTBALL_GEOMETRY_RENDERER_ID = "football_pitch_projective_v1"
 DEFAULT_SURFACE_OPACITY = 54
 DEFAULT_STRIPE_OPACITY = 0
 DEFAULT_SURFACE_FEATHER_PX = 18
@@ -43,12 +45,15 @@ class FootballHybridCompositionReceipt:
     composition_mode: str = TEXTURE_PRESERVING_COMPOSITION_MODE
     source_texture_preserved: bool = True
     surface_feather_px: int = DEFAULT_SURFACE_FEATHER_PX
+    geometry_renderer_id: str = FOOTBALL_GEOMETRY_RENDERER_ID
+    geometry_integrity: dict[str, object] | None = None
 
 
 class FootballHybridComposer:
     def __init__(self) -> None:
         self._placements = FootballPitchPlacementPlanner()
         self._renderer = PillowFootballPitchRenderer()
+        self._geometry = FootballPitchGeometry()
 
     @staticmethod
     def _validate_rgb(rgb: tuple[int, int, int]) -> tuple[int, int, int]:
@@ -99,6 +104,10 @@ class FootballHybridComposer:
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
 
+        geometry_integrity = self._geometry.integrity_receipt()
+        if geometry_integrity.get("status") != "REGULATION_FOOTBALL_GEOMETRY_READY":
+            raise RuntimeError("regulation football geometry integrity is not ready")
+
         with Image.open(source) as raw:
             base = raw.convert("RGBA")
             placement = self._placements.plan(camera_preset)
@@ -130,9 +139,6 @@ class FootballHybridComposer:
             canvas=canvas,
             camera_preset=camera_preset.value,
             deterministic_geometry_applied=True,
-            # Kept for compatibility with existing receipts. Under Hybrid v5 the
-            # base semantic gate proves generated exact markings are absent; the
-            # visible final markings are therefore wholly deterministic.
             generated_pitch_markings_replaced=True,
             surface_opacity=surface_opacity,
             mowing_stripes_applied=stripe_opacity > 0,
@@ -141,4 +147,6 @@ class FootballHybridComposer:
             composition_mode=TEXTURE_PRESERVING_COMPOSITION_MODE,
             source_texture_preserved=True,
             surface_feather_px=surface_feather_px,
+            geometry_renderer_id=FOOTBALL_GEOMETRY_RENDERER_ID,
+            geometry_integrity=geometry_integrity,
         )
