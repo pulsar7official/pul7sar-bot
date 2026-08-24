@@ -14,6 +14,7 @@ import hashlib
 from pathlib import Path
 
 from engine.intelligence.football_hybrid_composer import (
+    FOOTBALL_GEOMETRY_RENDERER_ID,
     FootballHybridCompositionReceipt,
     TEXTURE_PRESERVING_COMPOSITION_MODE,
 )
@@ -33,6 +34,35 @@ class HybridArtifactIntegrityGate:
             for chunk in iter(lambda: handle.read(1024 * 1024), b""):
                 digest.update(chunk)
         return digest.hexdigest()
+
+    @staticmethod
+    def _validate_geometry_snapshot(receipt: FootballHybridCompositionReceipt, failures: list[str]) -> None:
+        if receipt.geometry_renderer_id != FOOTBALL_GEOMETRY_RENDERER_ID:
+            failures.append("unexpected_football_geometry_renderer")
+
+        snapshot = receipt.geometry_integrity
+        if not isinstance(snapshot, dict):
+            failures.append("football_geometry_integrity_missing")
+            return
+        if snapshot.get("status") != "REGULATION_FOOTBALL_GEOMETRY_READY":
+            failures.append("football_geometry_integrity_not_ready")
+        if snapshot.get("length_m") != 105.0 or snapshot.get("width_m") != 68.0:
+            failures.append("football_geometry_dimensions_mismatch")
+        expected_counts = {
+            "halfway_line_count": 1,
+            "centre_circle_count": 1,
+            "centre_mark_count": 1,
+            "penalty_mark_count": 2,
+            "penalty_arc_count": 2,
+            "corner_arc_count": 4,
+            "penalty_area_count": 2,
+            "goal_area_count": 2,
+        }
+        for key, expected in expected_counts.items():
+            if snapshot.get(key) != expected:
+                failures.append(f"football_geometry_{key}_mismatch")
+        if snapshot.get("symmetric_penalty_areas") is not True:
+            failures.append("football_geometry_penalty_areas_not_symmetric")
 
     def validate_football(self, receipt: FootballHybridCompositionReceipt) -> HybridArtifactIntegrityDecision:
         if not isinstance(receipt, FootballHybridCompositionReceipt):
@@ -59,6 +89,8 @@ class HybridArtifactIntegrityGate:
             failures.append("surface_normalization_opacity_out_of_range")
         if not 8 <= receipt.surface_feather_px <= 48:
             failures.append("surface_boundary_feather_out_of_range")
+
+        self._validate_geometry_snapshot(receipt, failures)
 
         if source.is_file():
             actual = self._sha256(source)
