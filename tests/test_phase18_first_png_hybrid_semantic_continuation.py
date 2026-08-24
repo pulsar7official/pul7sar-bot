@@ -64,6 +64,7 @@ class FirstPngHybridSemanticContinuationTests(unittest.TestCase):
             handoff, result = self._fixture(root)
             output = root / "receipt.json"
             with (
+                patch.object(continuation, "LATEST", handoff),
                 patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
                 patch.object(continuation, "_compose_hybrid", return_value=result),
             ):
@@ -81,6 +82,7 @@ class FirstPngHybridSemanticContinuationTests(unittest.TestCase):
             handoff, result = self._fixture(root)
             result["semantic_visual_inspection"]["hybrid_surface"]["approved"] = False
             with (
+                patch.object(continuation, "LATEST", handoff),
                 patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
                 patch.object(continuation, "_compose_hybrid", return_value=result),
             ):
@@ -93,6 +95,7 @@ class FirstPngHybridSemanticContinuationTests(unittest.TestCase):
             handoff, result = self._fixture(root)
             result["publication_ready"] = True
             with (
+                patch.object(continuation, "LATEST", handoff),
                 patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
                 patch.object(continuation, "_compose_hybrid", return_value=result),
             ):
@@ -107,6 +110,7 @@ class FirstPngHybridSemanticContinuationTests(unittest.TestCase):
             payload["base_png_sha256"] = "0" * 64
             handoff.write_text(json.dumps(payload), encoding="utf-8")
             with (
+                patch.object(continuation, "LATEST", handoff),
                 patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
                 patch.object(continuation, "_compose_hybrid", return_value=result) as compose,
             ):
@@ -114,14 +118,29 @@ class FirstPngHybridSemanticContinuationTests(unittest.TestCase):
                     continuation.run(candidate=1, handoff_path=handoff, output_path=root / "receipt.json")
                 compose.assert_not_called()
 
+    def test_noncanonical_handoff_is_rejected_before_qwen_or_composition(self):
+        with tempfile.TemporaryDirectory(dir=".") as temp:
+            root = Path(temp)
+            handoff, result = self._fixture(root)
+            canonical = root / "canonical-latest.json"
+            canonical.write_bytes(handoff.read_bytes())
+            with (
+                patch.object(continuation, "LATEST", canonical),
+                patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
+                patch.object(continuation, "_compose_hybrid", return_value=result) as compose,
+            ):
+                with self.assertRaisesRegex(RuntimeError, "HYBRID_CONTINUATION_CANONICAL_HANDOFF_REQUIRED"):
+                    continuation.run(candidate=1, handoff_path=handoff, output_path=root / "receipt.json")
+                compose.assert_not_called()
+
     def test_branch_and_candidate_remain_locked(self):
         with tempfile.TemporaryDirectory(dir=".") as temp:
             root = Path(temp)
             handoff, _ = self._fixture(root)
-            with patch.object(continuation, "_branch", return_value="main"):
+            with patch.object(continuation, "LATEST", handoff), patch.object(continuation, "_branch", return_value="main"):
                 with self.assertRaisesRegex(RuntimeError, "HYBRID_CONTINUATION_BRANCH_BLOCKED"):
                     continuation.run(candidate=1, handoff_path=handoff, output_path=root / "receipt.json")
-            with patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH):
+            with patch.object(continuation, "LATEST", handoff), patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH):
                 with self.assertRaisesRegex(RuntimeError, "HYBRID_CONTINUATION_REQUIRES_CANDIDATE_1"):
                     continuation.run(candidate=2, handoff_path=handoff, output_path=root / "receipt.json")
 
