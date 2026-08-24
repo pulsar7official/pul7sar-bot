@@ -36,9 +36,11 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("Qwen/Qwen2.5-VL-3B-Instruct", self.text)
         self.assertIn('payload.get("semantic_runtime_ready") is not True', self.text)
         self.assertIn('payload.get("semantic_model_ready") is not True', self.text)
-        self.assertIn('payload.get("generation_authorized")', self.text)
-        self.assertIn('payload.get("queue_mutated")', self.text)
-        self.assertIn('payload.get("png_created")', self.text)
+        # Gate fields are intentionally checked through one fail-closed loop so
+        # future additions cannot silently bypass the same invariant.
+        self.assertIn('for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready")', self.text)
+        self.assertIn('if payload.get(field) is not False', self.text)
+        self.assertIn('semantic preflight illegally changed gate', self.text)
         semantic = self.text.index("python tools/phase18_preflight_semantic_gpu.py")
         flux_prefetch = self.text.index("python tools/phase18_prefetch_flux2.py")
         readiness = self.text.index("python tools/phase18_local_readiness.py")
