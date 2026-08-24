@@ -61,6 +61,43 @@ class LocalBackendExecutionTests(unittest.TestCase):
         self.assertEqual(request.metadata["cost_mode"], "$0-local")
         self.assertEqual(request.width % 16, 0); self.assertEqual(request.height % 16, 0)
 
+    def test_visual_grammar_metadata_survives_provider_neutral_package_to_local_handoff(self):
+        package = GenerationPackage(
+            platform="instagram_feed",
+            canvas="1080x1350",
+            scene_prompt="one restrained continuous football atmosphere",
+            negative_constraints=("no humiliation",),
+            asset_ids=(),
+            factual_constraints=("preview remains unresolved",),
+            layout_boxes={},
+            accent_hex="#E10600",
+            metadata={
+                "visual_grammar_contract": "pul7sar-visual-grammar-v1",
+                "visual_grammar_provider_agnostic": True,
+                "visual_grammar_surface_visibility": "partial_deterministic",
+                "visual_grammar_camera_language": "high wide central",
+                "visual_grammar_fantasy_level": "restrained",
+                "visual_grammar_generated_elements": ("stadium atmosphere",),
+                "visual_grammar_deterministic_elements": ("sport surface geometry",),
+                "visual_grammar_forbidden_generated_elements": ("brand", "exact data"),
+            },
+        )
+        request = LocalBackendRequestCompiler().compile_portable_handoff(
+            package=package,
+            model=FLUX2_KLEIN_4B_LOCAL,
+            backend="diffusers",
+            seed=7009,
+            request_id="grammar-portable-001",
+        )
+        self.assertEqual(request.metadata["visual_grammar_contract"], "pul7sar-visual-grammar-v1")
+        self.assertTrue(request.metadata["visual_grammar_provider_agnostic"])
+        self.assertEqual(request.metadata["visual_grammar_surface_visibility"], "partial_deterministic")
+        self.assertEqual(request.metadata["visual_grammar_camera_language"], "high wide central")
+        self.assertEqual(request.metadata["visual_grammar_fantasy_level"], "restrained")
+        self.assertEqual(request.metadata["visual_grammar_generated_elements"], ("stadium atmosphere",))
+        self.assertEqual(request.metadata["visual_grammar_deterministic_elements"], ("sport surface geometry",))
+        self.assertEqual(request.metadata["visual_grammar_forbidden_generated_elements"], ("brand", "exact data"))
+
     def test_execution_local_request_is_not_marked_portable(self):
         self.assertFalse(self.request().metadata["portable_handoff"])
 
