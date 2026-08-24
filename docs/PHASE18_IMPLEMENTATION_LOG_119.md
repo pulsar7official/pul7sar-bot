@@ -106,6 +106,25 @@ Still blocked by unavailable compatible CUDA/BF16 execution in the current tool 
 
 The exact external blocker remains: a CUDA/BF16 host capable of running the locked FLUX.2 Klein 4B Candidate 1 path (plus the required local semantic inspection runtime for publication-grade review).
 
+## CI evidence
+
+Change Set 119 head before this log-only follow-up: `2c8aa478e9a5dd792d06b82b8d50c3cddf4fb5a7`.
+
+GitHub Actions run `32719278191` / run number `1579` completed with `success`.
+
+Successful stages included:
+- Phase 18 syntax checks;
+- complete discover-based Phase 18 CPU validation, including `tests/test_phase18_direct_publication.py`;
+- completion audit;
+- production-isolation verification;
+- Golden Hybrid v5 portable handoff build;
+- four-candidate Golden Hybrid v5 batch build and integrity verification;
+- current Golden Hybrid v5 contract assertions;
+- genuine Golden Direct Visual CPU proof build;
+- upload of the direct visual proof artifact.
+
+No CUDA/FLUX Hybrid PNG was fabricated by CPU CI and no publication-ready claim is made from this run.
+
 ## Remaining work
 
 1. Run the current Golden Hybrid v5 Candidate 1 on a compatible CUDA/BF16 host and preserve all existing provenance/semantic/layer gates.
@@ -119,6 +138,6 @@ The exact external blocker remains: a CUDA/BF16 host capable of running the lock
 - Added: `engine/intelligence/direct_publication.py`
 - Added: `tests/test_phase18_direct_publication.py`
 - Added: `docs/PHASE18_IMPLEMENTATION_LOG_119.md`
-- Modified: none outside this new log/file set
+- Modified: `docs/PHASE18_IMPLEMENTATION_LOG_119.md` only to record the successful CI result
 - Deleted: none
 - `main`: untouched
