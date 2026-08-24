@@ -1,9 +1,11 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.phase18_colab_runner import (
     _assert_current_golden_contract,
+    _attach_generation_provenance,
     _candidate,
     _proof_from_result,
     _result_matches_candidate,
@@ -108,6 +110,67 @@ class Phase18ColabRunnerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             with self.assertRaisesRegex(RuntimeError, "REAL_VISUAL_PROOF_GENERATED"):
                 _proof_from_result({"status": "FAILED", "png": "proof.png"}, Path(temp))
+
+    def test_colab_acceptance_attaches_verified_provenance(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            png = root / "proof.png"
+            png.write_bytes(b"\x89PNG\r\n\x1a\nproof")
+            payload = {
+                "candidate": 1,
+                "request_id": "golden-hybrid-v5-001",
+                "seed": 7007001,
+                "model_id": "black-forest-labs/FLUX.2-klein-4B",
+                "payload_sha256": "a" * 64,
+                "publication_ready": False,
+            }
+            verified = {
+                "status": "GENERATION_PROVENANCE_LOCK_VERIFIED",
+                "base_png": str(png.resolve()),
+                "base_png_sha256": "b" * 64,
+                "executor_result": str(root / "result.json"),
+                "executor_result_sha256": "c" * 64,
+                "metadata": str(root / "metadata.json"),
+                "metadata_sha256": "d" * 64,
+                "resolved_dtype": "bfloat16",
+                "cost_mode": "$0-local",
+                "publication_ready": False,
+            }
+            with patch("tools.phase18_colab_runner.GenerationProvenanceLock") as factory:
+                factory.return_value.verify.return_value = verified
+                accepted = _attach_generation_provenance(root=root, payload=payload, png=png)
+
+            self.assertEqual(accepted["generation_provenance_status"], "GENERATION_PROVENANCE_LOCK_VERIFIED")
+            self.assertEqual(accepted["base_png_sha256"], "b" * 64)
+            self.assertEqual(accepted["provenance_resolved_dtype"], "bfloat16")
+            self.assertEqual(accepted["provenance_cost_mode"], "$0-local")
+            self.assertFalse(accepted["publication_ready"])
+
+    def test_colab_acceptance_rejects_unverified_provenance(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            png = root / "proof.png"
+            png.write_bytes(b"\x89PNG\r\n\x1a\nproof")
+            payload = {"publication_ready": False}
+            with patch("tools.phase18_colab_runner.GenerationProvenanceLock") as factory:
+                factory.return_value.verify.return_value = {
+                    "status": "NOT_VERIFIED",
+                    "publication_ready": False,
+                }
+                with self.assertRaisesRegex(RuntimeError, "COLAB_GENERATION_PROVENANCE_NOT_VERIFIED"):
+                    _attach_generation_provenance(root=root, payload=payload, png=png)
+
+    def test_colab_acceptance_never_consumes_publication_ready_input(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            png = root / "proof.png"
+            png.write_bytes(b"\x89PNG\r\n\x1a\nproof")
+            with self.assertRaisesRegex(RuntimeError, "COLAB_PROVENANCE_REQUIRES_UNPUBLISHED_INPUT"):
+                _attach_generation_provenance(
+                    root=root,
+                    payload={"publication_ready": True},
+                    png=png,
+                )
 
 
 if __name__ == "__main__":
