@@ -1,10 +1,13 @@
-"""Editorial visual study v5 with reference-derived PUL7SAR branding.
+"""Editorial visual study with reference-derived, adaptively placed PUL7SAR branding.
 
 The legacy study renderer still supplies the composition prototype, but its
 font-recreated brand may never survive into the review PNG. The lower scene is
 reconstructed as a continuation of the dark ground plane, then the checksum-
-locked reference-derived master is composited directly. No card, shelf, or
-artificial logo background is introduced.
+locked reference-derived master is composited directly.
+
+Brand geometry is fixed; placement and scale are resolved from the story family
+and platform profile. No card, shelf, artificial logo background, generator or
+network dependency is introduced.
 
 This remains a composition study, not publication authorization.
 """
@@ -14,8 +17,15 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
+from engine.intelligence.adaptive_brand_placement import (
+    AdaptiveBrandPlacement,
+    AdaptiveBrandPlacementResolver,
+)
+from engine.intelligence.brand_embedded_master import EmbeddedBrandMasterLoader
 from engine.intelligence.brand_reference_renderer import BrandReferencePlacement, BrandReferenceRenderer
 from engine.intelligence.editorial_scene_study_renderer import EditorialSceneStudyRenderer
+from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SocialPlatform
+from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
 from engine.intelligence.visual_study_handoff import VisualStudyHandoff
 
 
@@ -38,20 +48,32 @@ class EditorialReferenceSceneStudyReceipt:
     final_brand_generic_ecg_recreation_used: bool
     final_brand_generator_used: bool
     final_brand_network_used: bool
+    adaptive_brand_placement_used: bool
+    brand_zone: str
+    brand_x: int
+    brand_y: int
+    brand_width: int
+    brand_height: int
+    brand_max_width_ratio: float
+    brand_max_height_ratio: float
+    platform: str
     generator_used_for_scene: bool = False
     verified_player_asset_used: bool = False
     subject_placeholder_used: bool = True
     arabic_raqm_used: bool = True
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground"
+    contract: str = "pul7sar-editorial-reference-scene-study-renderer-v6-adaptive-brand"
 
 
 class EditorialReferenceSceneStudyRenderer:
     WIDTH = 1080
     HEIGHT = 1350
     BRAND_CLEAR_TOP = 990
-    BRAND_PLACEMENT = BrandReferencePlacement(x=105, y=1045, width=870)
+
+    def __init__(self) -> None:
+        self._brand_placement = AdaptiveBrandPlacementResolver()
+        self._profiles = PlatformProfileRegistry()
 
     @staticmethod
     def _sha(path: Path) -> str:
@@ -87,6 +109,68 @@ class EditorialReferenceSceneStudyRenderer:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         image.convert("RGB").save(output_path, format="PNG")
 
+    @classmethod
+    def _absolute_brand_placement(
+        cls,
+        *,
+        adaptive: AdaptiveBrandPlacement,
+        profile: PlatformImageProfile,
+        reference_size: tuple[int, int],
+    ) -> tuple[BrandReferencePlacement, int]:
+        """Fit the exact brand aspect ratio inside the adaptive normalized box."""
+        if profile.width != cls.WIDTH or profile.height != cls.HEIGHT:
+            raise ValueError(
+                "EDITORIAL_STUDY_PROFILE_CANVAS_MISMATCH: "
+                f"renderer={cls.WIDTH}x{cls.HEIGHT}; profile={profile.width}x{profile.height}"
+            )
+        reference_w, reference_h = reference_size
+        if reference_w <= 0 or reference_h <= 0:
+            raise ValueError("reference brand size must be positive")
+
+        max_w = max(1, round(profile.width * adaptive.max_width_ratio))
+        max_h = max(1, round(profile.height * adaptive.max_height_ratio))
+        width_from_height = max(1, round(max_h * reference_w / reference_h))
+        target_w = min(max_w, width_from_height)
+        target_h = max(1, round(reference_h * target_w / reference_w))
+
+        center_x = round(profile.width * adaptive.center_x_ratio)
+        center_y = round(profile.height * adaptive.center_y_ratio)
+        x = round(center_x - target_w / 2)
+        y = round(center_y - target_h / 2)
+
+        # Clamp against platform safe areas plus the contract clearance. This is
+        # intentionally deterministic: the exact identity shape never changes.
+        clearance = round(min(profile.width, profile.height) * adaptive.minimum_clearance_ratio)
+        safe_left = profile.safe_area.left + clearance
+        safe_right = profile.width - profile.safe_area.right - clearance
+        safe_top = profile.safe_area.top + clearance
+        safe_bottom = profile.height - profile.safe_area.bottom - clearance
+        if safe_right <= safe_left or safe_bottom <= safe_top:
+            raise ValueError("ADAPTIVE_BRAND_SAFE_AREA_COLLAPSED")
+        if target_w > safe_right - safe_left or target_h > safe_bottom - safe_top:
+            raise ValueError("ADAPTIVE_BRAND_DOES_NOT_FIT_SAFE_AREA")
+
+        x = max(safe_left, min(x, safe_right - target_w))
+        y = max(safe_top, min(y, safe_bottom - target_h))
+        return BrandReferencePlacement(x=x, y=y, width=target_w), target_h
+
+    def resolve_brand_placement(
+        self,
+        *,
+        family: EditorialSceneFamily,
+        platform: SocialPlatform = SocialPlatform.INSTAGRAM_FEED,
+    ) -> tuple[BrandReferencePlacement, int, AdaptiveBrandPlacement, PlatformImageProfile]:
+        """Resolve the real placement used by the reference-brand renderer."""
+        profile = self._profiles.get(platform)
+        adaptive = self._brand_placement.resolve(family=family, profile=profile)
+        embedded = EmbeddedBrandMasterLoader().load()
+        placement, target_h = self._absolute_brand_placement(
+            adaptive=adaptive,
+            profile=profile,
+            reference_size=embedded.metallic.size,
+        )
+        return placement, target_h, adaptive, profile
+
     def render(
         self,
         handoff: VisualStudyHandoff,
@@ -95,7 +179,20 @@ class EditorialReferenceSceneStudyRenderer:
         accent_hex: str,
         font_path: str,
         seed: int = 7007,
+        platform: SocialPlatform = SocialPlatform.INSTAGRAM_FEED,
     ) -> EditorialReferenceSceneStudyReceipt:
+        if not isinstance(handoff, VisualStudyHandoff):
+            raise TypeError("handoff must be VisualStudyHandoff")
+        try:
+            family = EditorialSceneFamily(handoff.scene_family)
+        except ValueError as exc:
+            raise ValueError(f"UNKNOWN_EDITORIAL_SCENE_FAMILY: {handoff.scene_family}") from exc
+
+        placement, brand_height, adaptive, profile = self.resolve_brand_placement(
+            family=family,
+            platform=platform,
+        )
+
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         stage = target.with_name(target.stem + ".approx-brand-stage.png")
@@ -113,7 +210,7 @@ class EditorialReferenceSceneStudyRenderer:
         brand_receipt = BrandReferenceRenderer().render_on_file(
             base_path=str(clean),
             output_path=str(target),
-            placement=self.BRAND_PLACEMENT,
+            placement=placement,
             accent_hex=accent_hex,
         )
 
@@ -140,6 +237,15 @@ class EditorialReferenceSceneStudyRenderer:
             final_brand_generic_ecg_recreation_used=brand_receipt.generic_ecg_recreation_used,
             final_brand_generator_used=brand_receipt.generator_used,
             final_brand_network_used=brand_receipt.network_used,
+            adaptive_brand_placement_used=True,
+            brand_zone=adaptive.zone.value,
+            brand_x=placement.x,
+            brand_y=placement.y,
+            brand_width=placement.width,
+            brand_height=brand_height,
+            brand_max_width_ratio=adaptive.max_width_ratio,
+            brand_max_height_ratio=adaptive.max_height_ratio,
+            platform=profile.platform.value,
             generator_used_for_scene=base_receipt.generator_used,
             verified_player_asset_used=base_receipt.verified_player_asset_used,
             subject_placeholder_used=base_receipt.subject_placeholder_used,
