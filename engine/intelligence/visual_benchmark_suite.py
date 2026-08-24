@@ -24,70 +24,47 @@ class VisualBenchmarkCase:
 
 PHASE18_VISUAL_BENCHMARKS = (
     VisualBenchmarkCase(
-        "transfer-signature-v1",
-        EditorialEvent.TRANSFER_CONFIRMED,
+        "transfer-signature-v1", EditorialEvent.TRANSFER_CONFIRMED,
         "premium transfer visual with verified hero subject, destination-club context and concise copy",
-        (
-            "one dominant verified subject",
-            "verified club-linked contextual accent",
-            "adaptive hybrid PUL7SAR brand placement",
-            "negative space for concise headline",
-        ),
-        (
-            "full-pitch requirement",
-            "dense infographic statistics",
-            "legacy repository logo",
-            "generated exact crest or readable brand text",
-        ),
+        ("one dominant verified subject", "verified club-linked contextual accent", "adaptive hybrid PUL7SAR brand placement", "negative space for concise headline"),
+        ("full-pitch requirement", "dense infographic statistics", "legacy repository logo", "generated exact crest or readable brand text"),
     ),
     VisualBenchmarkCase(
-        "result-statement-v1",
-        EditorialEvent.RESULT,
+        "result-statement-v1", EditorialEvent.RESULT,
         "high-impact result statement that celebrates the winner without degrading the loser",
-        (
-            "exact deterministic score",
-            "balanced exact club identity",
-            "winner-led hierarchy",
-            "respectful treatment of losing side",
-        ),
-        (
-            "humiliation imagery",
-            "mockery or shame symbolism",
-            "generated score typography",
-            "dense supporting paragraph",
-        ),
+        ("exact deterministic score", "balanced exact club identity", "winner-led hierarchy", "respectful treatment of losing side"),
+        ("humiliation imagery", "mockery or shame symbolism", "generated score typography", "dense supporting paragraph"),
     ),
     VisualBenchmarkCase(
-        "verified-subject-news-v1",
-        EditorialEvent.INJURY,
+        "verified-subject-news-v1", EditorialEvent.INJURY,
         "restrained verified-subject news visual suitable for injury/statement coverage",
-        (
-            "verified source subject asset",
-            "restrained editorial atmosphere",
-            "concise factual headline",
-        ),
-        (
-            "fabricated injury pose",
-            "invented emotional expression presented as fact",
-            "fantasy spectacle",
-            "unverified identity",
-        ),
+        ("verified source subject asset", "restrained editorial atmosphere", "concise factual headline"),
+        ("fabricated injury pose", "invented emotional expression presented as fact", "fantasy spectacle", "unverified identity"),
     ),
     VisualBenchmarkCase(
-        "tactical-intelligence-v1",
-        EditorialEvent.TACTICS,
+        "tactical-intelligence-v1", EditorialEvent.TACTICS,
         "deterministic tactical visual where exact geometry and data are the hero",
-        (
-            "deterministic sport geometry",
-            "exact verified tactical data",
-            "clean technical hierarchy",
-        ),
-        (
-            "AI-generated exact pitch markings",
-            "decorative full stadium as primary subject",
-            "invented formation data",
-        ),
+        ("deterministic sport geometry", "exact verified tactical data", "clean technical hierarchy"),
+        ("AI-generated exact pitch markings", "decorative full stadium as primary subject", "invented formation data"),
         BenchmarkReviewKind.STRUCTURAL,
+    ),
+    VisualBenchmarkCase(
+        "football-editorial-atmosphere-v1", EditorialEvent.GENERAL,
+        "premium football news visual that carries PUL7SAR atmosphere without forcing a person, pitch or infographic",
+        (
+            "single dominant editorial headline hierarchy",
+            "dark premium sports depth",
+            "verified contextual accent",
+            "optional stadium light or tactical texture only when supportive",
+            "adaptive PUL7SAR signature separated from the headline",
+        ),
+        (
+            "legacy repository logo",
+            "dense paragraph copy",
+            "mandatory full football pitch",
+            "decorative statistics unrelated to the story",
+            "visual clutter competing with the headline",
+        ),
     ),
 )
 
