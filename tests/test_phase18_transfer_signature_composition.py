@@ -2,6 +2,7 @@ import unittest
 
 from engine.intelligence.adaptive_brand_placement import BrandZone
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
+from engine.intelligence.result_statement_composition import NormalizedBox
 from engine.intelligence.transfer_signature_composition import TransferSignatureComposer
 
 
@@ -30,15 +31,23 @@ class TransferSignatureCompositionTests(unittest.TestCase):
         self.assertNotEqual(portrait.headline_box, landscape.headline_box)
         self.assertNotEqual(portrait.club_context_box, landscape.club_context_box)
 
-    def test_verified_hero_never_intersects_copy_zones(self):
+    def test_verified_hero_never_intersects_copy_or_adaptive_brand_lane(self):
         for platform in SocialPlatform:
             plan = self.composer.plan(self.profiles.get(platform))
             self.assertFalse(self.composer._intersects(plan.hero_box, plan.headline_box))
             self.assertFalse(self.composer._intersects(plan.hero_box, plan.club_context_box))
+            brand = plan.brand
+            brand_box = NormalizedBox(
+                brand.center_x_ratio - brand.max_width_ratio / 2,
+                brand.center_y_ratio - brand.max_height_ratio / 2,
+                brand.max_width_ratio,
+                brand.max_height_ratio,
+            )
+            self.assertFalse(self.composer._intersects(plan.hero_box, brand_box), platform.value)
 
     def test_transfer_contract_is_distinct_and_non_authorizing(self):
         plan = self.composer.plan(self.profiles.get(SocialPlatform.FACEBOOK_FEED))
-        self.assertEqual(plan.contract, "pul7sar-transfer-signature-composition-v2-safe-separated")
+        self.assertEqual(plan.contract, "pul7sar-transfer-signature-composition-v3-adaptive-brand-lane")
         self.assertFalse(plan.publication_ready)
 
 
