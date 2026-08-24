@@ -41,11 +41,15 @@ class ResultStatementStudyRendererTests(unittest.TestCase):
     def test_result_renderer_is_independent_and_preserves_neutrality_contract(self):
         with tempfile.TemporaryDirectory() as tmp:
             receipt = self._render(Path(tmp) / 'result.png')
-            self.assertEqual(receipt.contract, 'pul7sar-result-statement-study-renderer-v1')
+            self.assertEqual(receipt.contract, 'pul7sar-result-statement-study-renderer-v2-score-monument')
+            self.assertEqual(receipt.visual_grammar, 'score_monument')
             self.assertTrue(receipt.club_identity_scale_equal)
             self.assertEqual(receipt.loser_treatment, 'neutral_respectful_no_degradation')
             self.assertTrue(receipt.home_identity_placeholder_used)
             self.assertTrue(receipt.away_identity_placeholder_used)
+            self.assertFalse(receipt.identity_initial_letters_used)
+            self.assertFalse(receipt.giant_color_panels_used)
+            self.assertFalse(receipt.full_pitch_used)
             self.assertFalse(receipt.generator_used)
             self.assertFalse(receipt.network_used)
             self.assertTrue(receipt.study_only)
@@ -62,12 +66,15 @@ class ResultStatementStudyRendererTests(unittest.TestCase):
             self.assertEqual(first.output_sha256, second.output_sha256)
             self.assertEqual(one.read_bytes(), two.read_bytes())
 
-    def test_result_identity_boxes_are_equal_before_pixel_rendering(self):
+    def test_result_identity_boxes_are_equal_and_below_score_monument(self):
         home = self.composition.home_identity_box
         away = self.composition.away_identity_box
+        score = self.composition.score_box
         self.assertEqual(home.width, away.width)
         self.assertEqual(home.height, away.height)
         self.assertNotEqual(home.x, away.x)
+        self.assertGreaterEqual(home.y, score.y + score.height)
+        self.assertGreaterEqual(away.y, score.y + score.height)
         self.assertTrue(self.composition.score_is_primary)
         self.assertFalse(self.composition.generated_score_allowed)
         self.assertFalse(self.composition.generated_crest_allowed)
