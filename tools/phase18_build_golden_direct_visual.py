@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build genuine CPU-only Golden Direct Visual candidates for human review.
+"""Build a genuine CPU-only Golden Direct Visual candidate for human review.
 
-These are engineering visual proofs, not publication-ready news. They exercise the
-real generator-bypass path and bind every output to exact PNG bytes and repo asset
-checksums. Two existing repository brand files are rendered as separate candidates
-so visual review can decide which asset, if either, matches the approved identity.
+This is an engineering visual proof, not publication-ready news. It exercises the
+real generator-bypass path and binds output to exact PNG bytes and repo asset
+checksums. Repository brand rasters are screened before use; opaque-background
+assets are recorded as rejected rather than silently composited.
 """
 from __future__ import annotations
 
@@ -12,6 +12,8 @@ import argparse
 import hashlib
 import json
 from pathlib import Path
+
+from PIL import Image
 
 from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, AssetTreatment
 from engine.intelligence.direct_visual_execution import DirectVisualExecutionPlanner
@@ -30,6 +32,16 @@ BRAND_CANDIDATES = ("logo.png", "pulsar7.PNG")
 
 def _sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _transparent_brand_asset(path: Path) -> bool:
+    with Image.open(path) as image:
+        if image.mode not in {"RGBA", "LA"} and "transparency" not in image.info:
+            return False
+        rgba = image.convert("RGBA")
+        alpha = rgba.getchannel("A")
+        lo, _hi = alpha.getextrema()
+        return lo < 255
 
 
 def build(output_dir: str) -> dict[str, object]:
@@ -54,15 +66,24 @@ def build(output_dir: str) -> dict[str, object]:
     renderer = DirectVisualRenderer()
     planner = DirectVisualExecutionPlanner()
     gate = DirectRenderQualityGate()
-    candidates: list[dict[str, object]] = []
+    accepted: list[dict[str, object]] = []
+    rejected_assets: list[dict[str, object]] = []
     system_font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
     font_path = system_font if Path(system_font).is_file() else None
 
-    for index, asset_name in enumerate(BRAND_CANDIDATES, start=1):
+    for asset_name in BRAND_CANDIDATES:
         asset_path = Path(asset_name)
         if not asset_path.is_file():
             raise FileNotFoundError(asset_path)
-        asset_id = f"repo-brand-candidate-{index}"
+        if not _transparent_brand_asset(asset_path):
+            rejected_assets.append({
+                "brand_asset": asset_name,
+                "brand_sha256": _sha(asset_path),
+                "reason": "opaque_background_not_allowed_for_direct_brand_composition",
+            })
+            continue
+
+        asset_id = "repo-brand-golden-direct"
         assets = AssetBundle((
             AssetReference(
                 asset_id=asset_id,
@@ -76,7 +97,7 @@ def build(output_dir: str) -> dict[str, object]:
             decision.execution_route,
             layout,
             assets,
-            headline=decision.headline,
+            headline="VISUAL INTELLIGENCE SYSTEM",
             exact_data=(
                 "STORY INTELLIGENCE",
                 "VERIFIED DATA OWNERSHIP",
@@ -85,7 +106,7 @@ def build(output_dir: str) -> dict[str, object]:
             ),
         )
         render_asset = RenderAsset(asset_id, str(asset_path), _sha(asset_path))
-        output_path = out / f"candidate-{index:02d}-{asset_path.stem.lower()}.png"
+        output_path = out / "candidate-01-golden-direct.png"
         receipt = renderer.render(
             plan,
             layout,
@@ -96,8 +117,8 @@ def build(output_dir: str) -> dict[str, object]:
         quality = gate.evaluate(plan, layout, receipt)
         if not quality.allowed:
             raise RuntimeError("Golden Direct Visual quality gate failed: " + "; ".join(quality.failures))
-        candidates.append({
-            "candidate": index,
+        accepted.append({
+            "candidate": 1,
             "brand_asset": asset_name,
             "brand_sha256": _sha(asset_path),
             "png": output_path.name,
@@ -113,22 +134,27 @@ def build(output_dir: str) -> dict[str, object]:
             "publication_ready": False,
             "review_required": True,
         })
+        break
+
+    if len(accepted) != 1:
+        raise RuntimeError("no transparent repository brand asset is eligible for Golden Direct Visual")
 
     manifest = {
         "manifest_version": "pul7sar-golden-direct-visual-v1",
         "benchmark": BENCHMARK_ID,
-        "purpose": "human visual review of genuine deterministic CPU-rendered candidates",
+        "purpose": "human visual review of genuine deterministic CPU-rendered candidate",
         "cost_mode": "$0-local",
         "publication_ready": False,
-        "candidate_count": len(candidates),
-        "candidates": candidates,
+        "candidate_count": 1,
+        "candidates": accepted,
+        "rejected_brand_assets": rejected_assets,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     return manifest
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Direct Visual candidates")
+    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Direct Visual candidate")
     parser.add_argument("--output-dir", default="output/phase18_visual_proof/golden-direct-v1")
     args = parser.parse_args()
     manifest = build(args.output_dir)
