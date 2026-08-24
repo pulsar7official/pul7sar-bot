@@ -190,6 +190,14 @@ class LocalBackendRequestCompiler:
                 "generated_sport_geometry_allowed": generated_geometry_allowed,
                 "hybrid_surface_replacement_required": hybrid_contract and not generated_geometry_allowed,
                 "base_scene_overlay_policy": package.metadata.get("base_scene_overlay_policy"),
+                "visual_grammar_contract": package.metadata.get("visual_grammar_contract"),
+                "visual_grammar_provider_agnostic": bool(package.metadata.get("visual_grammar_provider_agnostic")),
+                "visual_grammar_surface_visibility": package.metadata.get("visual_grammar_surface_visibility"),
+                "visual_grammar_camera_language": package.metadata.get("visual_grammar_camera_language"),
+                "visual_grammar_fantasy_level": package.metadata.get("visual_grammar_fantasy_level"),
+                "visual_grammar_generated_elements": tuple(package.metadata.get("visual_grammar_generated_elements") or ()),
+                "visual_grammar_deterministic_elements": tuple(package.metadata.get("visual_grammar_deterministic_elements") or ()),
+                "visual_grammar_forbidden_generated_elements": tuple(package.metadata.get("visual_grammar_forbidden_generated_elements") or ()),
             },
         )
 
