@@ -43,6 +43,9 @@ class PromptConstraintCompiler:
         "watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually "
         "neutral so all exact branding and typography can be added later by deterministic post-composition."
     )
+    _NO_RESERVED_MARKINGS = (
+        "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
+    )
 
     _REFRAMES = {
         "no humiliation": "Keep every losing or secondary side dignified and respectful; focus emotional emphasis on the winner without degrading anyone.",
@@ -66,9 +69,8 @@ class PromptConstraintCompiler:
         "no duplicate, missing, warped, or invented field markings": (
             "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective."
         ),
-        "no football pitch markings in the reserved surface plane": (
-            "Keep the reserved playing-surface region plain, grass-colored and completely unmarked so deterministic geometry can replace it after generation."
-        ),
+        "no football pitch markings in the reserved surface plane": _NO_RESERVED_MARKINGS,
+        "no football pitch markings in the reserved surface context": _NO_RESERVED_MARKINGS,
         "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines": (
             "Show no painted football markings in the reserved surface region: no centre circle, halfway line, penalty or goal areas, touchlines, goal lines, arcs or decorative field diagrams."
         ),
