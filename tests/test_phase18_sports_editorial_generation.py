@@ -50,7 +50,11 @@ class SportsEditorialGenerationAugmenterTests(unittest.TestCase):
         package = self.augmenter.augment(self.base, self.scene(EditorialEvent.TRANSFER_CONFIRMED))
         self.assertIn("generated readable PUL7SAR wordmark", package.negative_constraints)
         self.assertIn("dense infographic copy", package.negative_constraints)
-        self.assertIn("PUL7SAR metallic wordmark geometry", package.metadata["sports_editorial_deterministic_ownership"])
+        ownership = package.metadata["sports_editorial_deterministic_ownership"]
+        self.assertIn("PUL7SAR fixed metallic wordmark geometry", ownership)
+        self.assertIn("PUL7SAR enlarged 7 geometry", ownership)
+        self.assertIn("PUL7SAR pulse-below-wordmark geometry", ownership)
+        self.assertIn("PUL7SAR small football near R geometry", ownership)
 
 
 if __name__ == "__main__":
