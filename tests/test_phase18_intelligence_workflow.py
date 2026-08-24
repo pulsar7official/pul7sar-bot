@@ -16,7 +16,7 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn("generated_branding_allowed", self.text)
         self.assertIn("dynamic_deterministic_after_generation", self.text)
 
-    def test_editorial_study_assertion_tracks_compact_pulse_reference(self):
+    def test_editorial_study_assertion_tracks_measured_pulse_reference(self):
         self.assertIn('pul7sar-editorial-scene-study-v3', self.text)
         self.assertIn('pul7sar-editorial-scene-study-renderer-v3', self.text)
         self.assertIn('transfer-signature-v1', self.text)
@@ -24,13 +24,15 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn('subject_placeholder_used', self.text)
         self.assertIn('subject_placeholder_is_identity_evidence', self.text)
         self.assertIn('arabic_raqm_used', self.text)
-        self.assertIn('approximate-study-only-v4-compact-reference-pulse', self.text)
-        self.assertIn('reference-pulse-v2-compact', self.text)
-        self.assertIn('brand_pulse_full_wordmark_underline', self.text)
-        self.assertIn('brand_pulse_compact_shoulders', self.text)
+        self.assertIn('approximate-study-only-v5-measured-reference-pulse', self.text)
+        self.assertIn('reference-pulse-v3-measured', self.text)
+        self.assertIn('brand_pulse_long_baseline', self.text)
+        self.assertIn('brand_pulse_active_waveform_compact', self.text)
+        self.assertIn('brand_pulse_vertical_depth_controlled', self.text)
         self.assertIn('brand_pulse_visually_linked_to_seven', self.text)
-        self.assertNotIn('brand_pulse_baseline_under_wordmark', self.text)
-        self.assertNotIn('approximate-study-only-v3-reference-pulse-integrated', self.text)
+        self.assertNotIn('brand_pulse_full_wordmark_underline', self.text)
+        self.assertNotIn('brand_pulse_compact_shoulders', self.text)
+        self.assertNotIn('approximate-study-only-v4-compact-reference-pulse', self.text)
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v1"', self.text)
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v2"', self.text)
 
