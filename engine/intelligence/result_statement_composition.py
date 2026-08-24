@@ -78,28 +78,31 @@ class ResultStatementComposer:
         if not isinstance(profile, PlatformImageProfile):
             raise TypeError("profile must be PlatformImageProfile")
 
-        # Result score owns the central band; brand stays in a lower/upper safe zone.
+        # Result score owns the central monument; identities sit beneath it and
+        # never compete with the adaptive lower brand signature.
         brand = self.brand_resolver.resolve(
             family=EditorialSceneFamily.RESULT_STATEMENT,
             profile=profile,
             occupied_zones=(),
         )
         if brand.zone is not BrandZone.LOWER_CENTER:
-            # A non-default zone is valid when collision-aware callers request it,
-            # but this canonical benchmark keeps the central score well above the brand.
             raise ValueError("CANONICAL_RESULT_BENCHMARK_EXPECTS_LOWER_CENTER_SIGNATURE")
 
         portrait = profile.height >= profile.width
         if portrait:
-            score = NormalizedBox(0.30, 0.37, 0.40, 0.18)
-            home = NormalizedBox(0.08, 0.39, 0.18, 0.14)
-            away = NormalizedBox(0.74, 0.39, 0.18, 0.14)
-            headline = NormalizedBox(0.12, 0.18, 0.76, 0.11)
+            # Four clear vertical beats: headline -> score monument -> balanced
+            # identities -> adaptive signature. No scoreboard-card overlap.
+            headline = NormalizedBox(0.16, 0.135, 0.68, 0.075)
+            score = NormalizedBox(0.27, 0.285, 0.46, 0.205)
+            home = NormalizedBox(0.10, 0.565, 0.27, 0.135)
+            away = NormalizedBox(0.63, 0.565, 0.27, 0.135)
         else:
-            score = NormalizedBox(0.39, 0.35, 0.22, 0.22)
-            home = NormalizedBox(0.14, 0.37, 0.17, 0.18)
-            away = NormalizedBox(0.69, 0.37, 0.17, 0.18)
-            headline = NormalizedBox(0.25, 0.14, 0.50, 0.12)
+            # Landscape retains the same hierarchy but moves identities laterally
+            # around a compact central score monument.
+            headline = NormalizedBox(0.30, 0.105, 0.40, 0.09)
+            score = NormalizedBox(0.385, 0.285, 0.23, 0.255)
+            home = NormalizedBox(0.11, 0.31, 0.20, 0.22)
+            away = NormalizedBox(0.69, 0.31, 0.20, 0.22)
 
         return ResultStatementComposition(
             score_box=score,
