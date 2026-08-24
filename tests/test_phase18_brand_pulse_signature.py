@@ -7,10 +7,11 @@ from engine.intelligence.brand_pulse_signature import APPROVED_PUL7SAR_PULSE_SIG
 class BrandPulseSignatureTests(unittest.TestCase):
     def test_approved_signature_is_safe(self):
         APPROVED_PUL7SAR_PULSE_SIGNATURE.assert_safe()
-        self.assertEqual(APPROVED_PUL7SAR_PULSE_SIGNATURE.signature_id, "pul7sar-reference-pulse-v2-compact")
+        self.assertEqual(APPROVED_PUL7SAR_PULSE_SIGNATURE.signature_id, "pul7sar-reference-pulse-v3-measured")
         self.assertEqual(APPROVED_PUL7SAR_PULSE_SIGNATURE.recovery_beats, 2)
-        self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.compact_horizontal_shoulders)
-        self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.full_wordmark_underline_forbidden)
+        self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.long_horizontal_baseline)
+        self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.active_waveform_compact)
+        self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.excessive_vertical_excursion_forbidden)
         self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.visually_linked_to_enlarged_seven)
         self.assertTrue(APPROVED_PUL7SAR_PULSE_SIGNATURE.waveform_centered_on_seven_zone)
         self.assertFalse(APPROVED_PUL7SAR_PULSE_SIGNATURE.generic_ecg_allowed)
@@ -20,12 +21,15 @@ class BrandPulseSignatureTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "GENERIC_ECG_IS_NOT_PUL7SAR_IDENTITY"):
             forged.assert_safe()
 
-    def test_full_wordmark_underline_is_forbidden(self):
-        forged = replace(APPROVED_PUL7SAR_PULSE_SIGNATURE, full_wordmark_underline_forbidden=False)
-        with self.assertRaisesRegex(ValueError, "MAY_NOT_UNDERLINE_FULL_WORDMARK"):
+    def test_reference_keeps_long_baseline_but_compact_active_waveform(self):
+        forged = replace(APPROVED_PUL7SAR_PULSE_SIGNATURE, long_horizontal_baseline=False)
+        with self.assertRaisesRegex(ValueError, "REQUIRES_HORIZONTAL_BASELINE"):
             forged.assert_safe()
-        forged = replace(APPROVED_PUL7SAR_PULSE_SIGNATURE, compact_horizontal_shoulders=False)
-        with self.assertRaisesRegex(ValueError, "SHOULDERS_MUST_REMAIN_COMPACT"):
+        forged = replace(APPROVED_PUL7SAR_PULSE_SIGNATURE, active_waveform_compact=False)
+        with self.assertRaisesRegex(ValueError, "ACTIVE_WAVEFORM_MUST_REMAIN_COMPACT"):
+            forged.assert_safe()
+        forged = replace(APPROVED_PUL7SAR_PULSE_SIGNATURE, excessive_vertical_excursion_forbidden=False)
+        with self.assertRaisesRegex(ValueError, "VERTICAL_DEPTH_MAY_NOT_DRIFT"):
             forged.assert_safe()
 
     def test_seven_link_and_recovery_pattern_are_locked(self):
