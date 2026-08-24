@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: ${{ github.workspace }}
-      CONTEXT_FILE: output/context/municipal-stadium-bakel.jpg
-      CONTEXT_SOURCE: https://commons.wikimedia.org/wiki/File:Municipal_Stadium,_Bakel.jpg
+      CONTEXT_FILE: output/context/wembley-association-football-stadium.jpg
+      CONTEXT_SOURCE: https://commons.wikimedia.org/wiki/File:Wembley_Association_Football_Stadium.jpg
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir -p output/context
           curl -L --fail --retry 3 --retry-delay 2 \
-            'https://commons.wikimedia.org/wiki/Special:Redirect/file/Municipal_Stadium,_Bakel.jpg' \
+            'https://commons.wikimedia.org/wiki/Special:Redirect/file/Wembley_Association_Football_Stadium.jpg' \
             -o "$CONTEXT_FILE"
           python - <<'PY'
           from pathlib import Path
