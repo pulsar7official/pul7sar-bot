@@ -2,8 +2,9 @@
 
 General event stories receive one symbolic editorial anchor and cinematic depth,
 without forcing a person, football pitch, stadium, trophy or decorative stats.
-The anchor is abstract and code-owned; facts/copy and PUL7SAR branding remain
-separate deterministic layers.
+When a rights-verified photographic context is explicitly supplied for the story,
+it may own the photographic atmosphere only. Facts, readable copy, identity,
+brand geometry and the editorial anchor remain deterministic/code-owned.
 """
 from __future__ import annotations
 
@@ -18,6 +19,10 @@ from engine.intelligence.adaptive_brand_overlay import AdaptiveBrandOverlayRende
 from engine.intelligence.event_editorial_composition import EventEditorialComposition
 from engine.intelligence.platform_profiles import PlatformImageProfile
 from engine.intelligence.premium_editorial_surface import EditorialSurfaceStyle, PremiumEditorialSurface
+from engine.intelligence.verified_context_surface import (
+    VerifiedContextAsset,
+    VerifiedContextSurfaceRenderer,
+)
 
 
 class EventAnchorKind(str, Enum):
@@ -43,6 +48,9 @@ class EventEditorialStudyReceipt:
     brand_width: int
     brand_height: int
     atmosphere_contract: str
+    photographic_context_used: bool = False
+    context_contract: str | None = None
+    context_source_reference: str | None = None
     generator_used: bool = False
     network_used: bool = False
     study_only: bool = True
@@ -81,6 +89,37 @@ class EventEditorialStudyRenderer:
         return ImageFont.truetype(font_path, size=12)
 
     @staticmethod
+    def _finish_photographic_context(canvas: Image.Image, *, accent: tuple[int, int, int]) -> Image.Image:
+        """Build premium depth without fabricating semantic scene content."""
+        width, height = canvas.size
+        image = canvas.convert('RGBA')
+
+        # Copy-side shadow gives typography a clean editorial lane while retaining
+        # recognisable photographic texture rather than hiding the source image.
+        shade = Image.new('RGBA', image.size, (0, 0, 0, 0))
+        sd = ImageDraw.Draw(shade, 'RGBA')
+        for i in range(18):
+            x = round(width * (0.43 + i * 0.035))
+            alpha = min(165, 28 + i * 8)
+            sd.rectangle((x, 0, width, height), fill=(2, 6, 12, alpha))
+        shade = shade.filter(ImageFilter.GaussianBlur(max(18, width // 42)))
+        image = Image.alpha_composite(image, shade)
+
+        # Two restrained optical accents create lens depth, not fake objects.
+        optics = Image.new('RGBA', image.size, (0, 0, 0, 0))
+        od = ImageDraw.Draw(optics, 'RGBA')
+        od.ellipse(
+            (-round(width*.18), round(height*.18), round(width*.42), round(height*.78)),
+            fill=(*accent, 34),
+        )
+        od.ellipse(
+            (round(width*.50), -round(height*.10), round(width*1.05), round(height*.45)),
+            fill=(220, 237, 248, 15),
+        )
+        optics = optics.filter(ImageFilter.GaussianBlur(max(26, width // 20)))
+        return Image.alpha_composite(image, optics)
+
+    @staticmethod
     def _draw_anchor(canvas: Image.Image, box: tuple[int, int, int, int], *, accent: tuple[int, int, int], kind: EventAnchorKind) -> None:
         x0, y0, x1, y1 = box
         w, h = x1 - x0, y1 - y0
@@ -90,8 +129,6 @@ class EventEditorialStudyRenderer:
         draw = ImageDraw.Draw(layer, 'RGBA')
         cx, cy = x0 + w // 2, y0 + h // 2
 
-        # A luminous portal/monument made from perspective planes. Variants alter
-        # topology, not meaning; none claim a real venue, trophy or organisation.
         halo = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
         hd = ImageDraw.Draw(halo, 'RGBA')
         for step in range(8, 0, -1):
@@ -111,10 +148,8 @@ class EventEditorialStudyRenderer:
             (cx + bottom_w // 2, bottom_y),
             (cx - bottom_w // 2, bottom_y),
         )
-        draw.polygon(points, fill=(7, 17, 29, 128), outline=(*accent, 115))
+        draw.polygon(points, fill=(7, 17, 29, 110), outline=(*accent, 130))
 
-        # Internal horizon bands make the monument feel dimensional rather than a
-        # flat icon. Calendar/broadcast variants use a different number of bands.
         band_count = {
             EventAnchorKind.ANNOUNCEMENT: 3,
             EventAnchorKind.CALENDAR: 4,
@@ -128,8 +163,6 @@ class EventEditorialStudyRenderer:
             half = round((top_w * (1-t) + bottom_w * t) / 2)
             draw.line((cx-half, y, cx+half, y), fill=(226, 238, 246, 24 + i * 6), width=max(1, round(w * 0.003)))
 
-        # Compact pulse at the core for announcement/event energy; it is not the
-        # protected PUL7SAR brand pulse geometry and never contains readable text.
         core_w = round(w * 0.24)
         core_y = cy
         draw.line((cx-core_w, core_y, cx-round(core_w*0.35), core_y), fill=(*accent, 165), width=max(2, round(w*0.007)))
@@ -149,6 +182,7 @@ class EventEditorialStudyRenderer:
         accent_hex: str,
         font_path: str,
         seed_key: str = 'event-editorial',
+        context_asset: VerifiedContextAsset | None = None,
     ) -> EventEditorialStudyReceipt:
         if not isinstance(composition, EventEditorialComposition):
             raise TypeError('composition must be EventEditorialComposition')
@@ -160,34 +194,60 @@ class EventEditorialStudyRenderer:
             raise ValueError('headline and kicker are required')
         if not Path(font_path).is_file():
             raise FileNotFoundError(font_path)
+        if context_asset is not None and not isinstance(context_asset, VerifiedContextAsset):
+            raise TypeError('context_asset must be VerifiedContextAsset or None')
 
         accent = self._rgb(accent_hex)
-        surface = PremiumEditorialSurface()
-        canvas = surface.render(
-            size=(profile.width, profile.height),
-            style=EditorialSurfaceStyle(
-                base_top=(7, 13, 24), base_bottom=(2, 6, 12), accent=accent,
-                secondary_accent=(36, 91, 126), glow_strength=94,
-                grain_strength=12, vignette_strength=112,
-            ),
-            seed_key=seed_key,
-        )
+        context_receipt = None
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+
+        if context_asset is None:
+            surface = PremiumEditorialSurface()
+            canvas = surface.render(
+                size=(profile.width, profile.height),
+                style=EditorialSurfaceStyle(
+                    base_top=(7, 13, 24), base_bottom=(2, 6, 12), accent=accent,
+                    secondary_accent=(36, 91, 126), glow_strength=94,
+                    grain_strength=12, vignette_strength=112,
+                ),
+                seed_key=seed_key,
+            )
+            atmosphere_contract = PremiumEditorialSurface.CONTRACT
+        else:
+            context_base = target.with_name(target.stem + '.context.png')
+            context_receipt = VerifiedContextSurfaceRenderer().render(
+                asset=context_asset,
+                output_path=str(context_base),
+                canvas_size=(profile.width, profile.height),
+                accent_hex=accent_hex,
+                focal_x_ratio=0.43,
+                focal_y_ratio=0.50,
+            )
+            with Image.open(context_base) as loaded:
+                canvas = self._finish_photographic_context(loaded.convert('RGBA'), accent=accent)
+            context_base.unlink(missing_ok=True)
+            atmosphere_contract = context_receipt.contract
+
         self._draw_anchor(canvas, self._box(composition.anchor_box, profile), accent=accent, kind=anchor_kind)
         draw = ImageDraw.Draw(canvas, 'RGBA')
 
         hx0, hy0, hx1, hy1 = self._box(composition.headline_box, profile)
         headline_font = self._fit_font(draw, headline, font_path, hx1-hx0, hy1-hy0, round((hy1-hy0)*0.59))
         hb = draw.textbbox((0, 0), headline, font=headline_font)
-        draw.text((profile.width/2 - (hb[2]-hb[0])/2, hy0), headline, font=headline_font, fill=(242, 247, 250, 255))
+        tx = profile.width/2 - (hb[2]-hb[0])/2
+        # restrained text shadow makes the type feel embedded in the scene
+        draw.text((tx+2, hy0+3), headline, font=headline_font, fill=(0, 0, 0, 150))
+        draw.text((tx, hy0), headline, font=headline_font, fill=(242, 247, 250, 255))
 
-        # Kicker sits just above the monument, never as a paragraph/card.
         ax0, ay0, ax1, _ = self._box(composition.anchor_box, profile)
         kicker_font = self._fit_font(draw, kicker, font_path, round((ax1-ax0)*0.58), round(profile.height*0.05), round(profile.height*0.025))
         kb = draw.textbbox((0, 0), kicker, font=kicker_font)
-        draw.text((profile.width/2-(kb[2]-kb[0])/2, ay0-round(profile.height*0.055)), kicker, font=kicker_font, fill=(162, 183, 199, 240))
+        kx = profile.width/2-(kb[2]-kb[0])/2
+        ky = ay0-round(profile.height*0.055)
+        draw.text((kx+1, ky+2), kicker, font=kicker_font, fill=(0, 0, 0, 135))
+        draw.text((kx, ky), kicker, font=kicker_font, fill=(180, 199, 214, 245))
 
-        target = Path(output_path)
-        target.parent.mkdir(parents=True, exist_ok=True)
         prebrand = target.with_name(target.stem + '.prebrand.png')
         canvas.convert('RGB').save(prebrand, format='PNG')
         brand = AdaptiveBrandOverlayRenderer().render_on_file(
@@ -200,5 +260,8 @@ class EventEditorialStudyRenderer:
             anchor_kind=anchor_kind.value, single_anchor_used=True, person_used=False,
             full_pitch_used=False, decorative_stats_used=False, brand_zone=brand.zone,
             brand_width=brand.width, brand_height=brand.height,
-            atmosphere_contract=PremiumEditorialSurface.CONTRACT,
+            atmosphere_contract=atmosphere_contract,
+            photographic_context_used=context_receipt is not None,
+            context_contract=context_receipt.contract if context_receipt else None,
+            context_source_reference=context_receipt.source_reference if context_receipt else None,
         )
