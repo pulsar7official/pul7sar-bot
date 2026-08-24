@@ -61,7 +61,9 @@ This file is the authoritative continuation record for Change Set 110 on `phase1
 - The next attempt on `5989199291fb0c67473bd81dc6a4e98d9c88c565` triggered Run `32714080186` / run 1520 and failed with 23 errors. The root cause was not the VisualGrammar decision itself: `GenerationPackage.metadata` contained the grammar fields, but `LocalBackendRequestCompiler` did not preserve them in the locked request. Golden batch/smoke/verifier tests correctly failed rather than infer missing metadata.
 - Commit `d06807140a463943ea44cfc4581abe9e7dddda32` fixed the backend boundary by preserving the VisualGrammar metadata in the local handoff.
 - GitHub Actions Run `32714229033` / run 1526 completed with `success` for commit `d06807140a463943ea44cfc4581abe9e7dddda32`.
-- A further explicit local-backend regression test was added after that success so this exact metadata boundary cannot regress silently. Any CI run produced by the later test/documentation commits must be observed independently before attributing success to the final documentation head.
+- A further explicit local-backend regression test was added so this exact metadata boundary cannot regress silently.
+- GitHub Actions Run `32714384468` / run 1533 then completed with `success` on the final Change Set 110 regression/documentation head `d26650a5c6da3ae0e8ad67fdf0f89c788c18e797`.
+- That successful run covered syntax checks, the full discover-based Phase 18 validation, completion audit, production isolation, Golden Hybrid v5 handoff/batch build, batch integrity and current contract assertions.
 - CPU CI did not fabricate or claim a GPU visual proof.
 
 ## Why this advances the first genuine Golden Visual
@@ -88,12 +90,11 @@ Current intended path:
 - No paid provider, secret, model weights, font files, fake PNG, fabricated benchmark or fabricated review score was added.
 
 ## Remaining work
-1. Observe CI for the final Change Set 110 regression/documentation head and repair any failure without weakening gates.
-2. Obtain a compatible CUDA/BF16 host and generate genuine Golden Hybrid v5 Candidate 1 using the now-aligned VisualGrammar handoff.
-3. Require generation-provenance acceptance and semantic/layer ownership on the exact produced bytes.
-4. For the preview benchmark, verify that surface context remains visually restrained and does not become the generated hero.
-5. Apply deterministic football geometry only after base-scene approval and inspect integration on the exact bytes.
-6. Require receipt-backed HybridVisualEvidence / HybridVisualQualityGate on the exact composed bytes.
-7. Complete pitch review/SHA lock, Qwen HYBRID_SURFACE inspection and SHA-bound Golden visual review.
-8. Resolve and SHA-lock the approved PUL7SAR logo/brand geometry/font assets before publication composition.
-9. Run exact brand/typography composition, SemanticPublicationGate and final publication-readiness checks; no earlier stage can waive them.
+1. Obtain a compatible CUDA/BF16 host and generate genuine Golden Hybrid v5 Candidate 1 using the now-aligned VisualGrammar handoff.
+2. Require generation-provenance acceptance and semantic/layer ownership on the exact produced bytes.
+3. For the preview benchmark, verify that surface context remains visually restrained and does not become the generated hero.
+4. Apply deterministic football geometry only after base-scene approval and inspect integration on the exact bytes.
+5. Require receipt-backed HybridVisualEvidence / HybridVisualQualityGate on the exact composed bytes.
+6. Complete pitch review/SHA lock, Qwen HYBRID_SURFACE inspection and SHA-bound Golden visual review.
+7. Resolve and SHA-lock the approved PUL7SAR logo/brand geometry/font assets before publication composition.
+8. Run exact brand/typography composition, SemanticPublicationGate and final publication-readiness checks; no earlier stage can waive them.
