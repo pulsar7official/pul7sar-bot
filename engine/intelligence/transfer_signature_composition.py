@@ -3,8 +3,8 @@
 Transfer coverage is one story family, not the default template. It is hero-led,
 uses destination-club context without requiring a full pitch, reserves concise
 headline space, and keeps the PUL7SAR signature subordinate to the verified hero.
-The v2 geometry separates verified-person and copy zones so visual energy comes
-from art direction rather than uncontrolled text/face overlap.
+The v2 geometry separates verified-person, copy and lower signature lanes so
+visual energy comes from art direction rather than uncontrolled collisions.
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ class TransferSignatureComposition:
     generated_crest_allowed: bool = False
     generated_brand_allowed: bool = False
     protected_person_copy_overlap_allowed: bool = False
+    lower_brand_lane_reserved: bool = True
     publication_ready: bool = False
     contract: str = "pul7sar-transfer-signature-composition-v2-safe-separated"
 
@@ -45,6 +46,8 @@ class TransferSignatureComposition:
             raise ValueError("TRANSFER_EXACT_MARKS_MAY_NOT_BE_GENERATED")
         if self.protected_person_copy_overlap_allowed:
             raise ValueError("TRANSFER_VERIFIED_PERSON_COPY_OVERLAP_FORBIDDEN")
+        if not self.lower_brand_lane_reserved:
+            raise ValueError("TRANSFER_LOWER_BRAND_LANE_MUST_BE_RESERVED")
         if self.publication_ready:
             raise ValueError("COMPOSITION_CONTRACT_ALONE_CANNOT_AUTHORIZE_PUBLICATION")
 
@@ -69,16 +72,28 @@ class TransferSignatureComposer:
 
         portrait = profile.height >= profile.width
         if portrait:
-            hero = NormalizedBox(0.05, 0.15, 0.50, 0.70)
+            hero = NormalizedBox(0.05, 0.15, 0.50, 0.60)
             headline = NormalizedBox(0.58, 0.17, 0.34, 0.22)
             context = NormalizedBox(0.60, 0.44, 0.28, 0.12)
         else:
-            hero = NormalizedBox(0.05, 0.10, 0.47, 0.82)
+            hero = NormalizedBox(0.05, 0.10, 0.47, 0.70)
             headline = NormalizedBox(0.57, 0.18, 0.36, 0.26)
             context = NormalizedBox(0.60, 0.50, 0.28, 0.13)
 
         if self._intersects(hero, headline) or self._intersects(hero, context):
             raise ValueError("TRANSFER_VERIFIED_PERSON_COPY_ZONE_COLLISION")
+        # Conservative normalized lower lane derived from the adaptive placement
+        # ceiling; exact pixel collision is still checked by the hybrid renderer.
+        brand_half_w = brand.max_width_ratio / 2
+        brand_half_h = brand.max_height_ratio / 2
+        brand_box = NormalizedBox(
+            max(0.0, brand.center_x_ratio - brand_half_w),
+            max(0.0, brand.center_y_ratio - brand_half_h),
+            min(1.0, brand.max_width_ratio),
+            min(1.0, brand.max_height_ratio),
+        )
+        if self._intersects(hero, brand_box):
+            raise ValueError("TRANSFER_VERIFIED_PERSON_BRAND_LANE_COLLISION")
         return TransferSignatureComposition(
             hero_box=hero,
             headline_box=headline,
