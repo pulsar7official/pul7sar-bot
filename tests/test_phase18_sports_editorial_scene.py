@@ -58,9 +58,15 @@ class SportsEditorialSceneDirectorTests(unittest.TestCase):
     def test_brand_master_is_hybrid_adaptive_and_legacy_logo_forbidden(self):
         scene = self.scene(EditorialEvent.TRANSFER_CONFIRMED)
         self.assertEqual(scene.brand_identity_id, "pul7sar-hybrid-adaptive-v1")
-        self.assertIn("PUL7SAR metallic wordmark geometry", scene.deterministic_ownership)
-        self.assertIn("PUL7SAR dynamic pulse/7 geometry", scene.deterministic_ownership)
+        self.assertIn("PUL7SAR fixed metallic wordmark geometry", scene.deterministic_ownership)
+        self.assertIn("PUL7SAR enlarged 7 geometry", scene.deterministic_ownership)
+        self.assertIn("PUL7SAR pulse-below-wordmark geometry", scene.deterministic_ownership)
+        self.assertIn("PUL7SAR small football near R geometry", scene.deterministic_ownership)
         self.assertIn("legacy repository logo as canonical identity", scene.forbidden)
+        self.assertIn("lower_composition_when_clear", scene.brand_placement)
+        self.assertTrue(scene.metadata["brand_seven_larger_than_letters"])
+        self.assertEqual(scene.metadata["brand_pulse_position"], "below_wordmark")
+        self.assertTrue(scene.metadata["brand_small_football_near_r"])
 
 
 if __name__ == "__main__":
