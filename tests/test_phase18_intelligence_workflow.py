@@ -16,25 +16,19 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn("generated_branding_allowed", self.text)
         self.assertIn("dynamic_deterministic_after_generation", self.text)
 
-    def test_editorial_study_assertion_uses_embedded_reference_brand_v4(self):
-        self.assertIn('pul7sar-editorial-scene-study-v4-reference-brand', self.text)
-        self.assertIn('pul7sar-editorial-reference-scene-study-renderer-v4', self.text)
+    def test_editorial_study_uses_reference_brand_without_identity_shelf(self):
+        self.assertIn('pul7sar-editorial-scene-study-v5-reference-brand', self.text)
+        self.assertIn('pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground', self.text)
         self.assertIn('transfer-signature-v1', self.text)
         self.assertIn('verified_player_asset_used', self.text)
         self.assertIn('subject_placeholder_used', self.text)
         self.assertIn('subject_placeholder_is_identity_evidence', self.text)
         self.assertIn('arabic_raqm_used', self.text)
         self.assertIn('embedded-reference-derived-layered-master-v1', self.text)
-        self.assertIn('manifest["brand_source_mode"] == "embedded-reference-master"', self.text)
-        self.assertIn('manifest["approximate_brand_zone_removed"] is True', self.text)
-        self.assertIn('manifest["exact_reference_shape_used"] is True', self.text)
-        self.assertIn('manifest["transparent_reference_layers_used"] is True', self.text)
+        self.assertIn('manifest["identity_shelf_used"] is False', self.text)
         self.assertIn('manifest["final_brand_font_recreation_used"] is False', self.text)
         self.assertIn('manifest["final_brand_generic_ecg_recreation_used"] is False', self.text)
-        self.assertIn('manifest["final_brand_generator_used"] is False', self.text)
-        self.assertIn('manifest["final_brand_network_used"] is False', self.text)
-        self.assertNotIn('approximate-study-only-v5-measured-reference-pulse', self.text)
-        self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v3"', self.text)
+        self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v4-reference-brand"', self.text)
 
     def test_self_contained_reference_brand_study_is_built_and_uploaded(self):
         self.assertIn("phase18_build_reference_brand_study.py", self.text)
