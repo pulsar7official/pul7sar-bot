@@ -5,7 +5,6 @@ CUDA, or a specific image backend is installed. Runtime probing is best-effort;
 provider execution remains blocked unless the declared model requirements are
 proven compatible.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -122,7 +121,9 @@ class LocalModelRuntimeGate:
         reasons: list[str] = []
         if not runtime.cuda_available:
             reasons.append("CUDA GPU runtime is not available")
-        if runtime.gpu_vram_gb is None:
+        if candidate.minimum_vram_gb is None or not candidate.runtime_floor_proven:
+            reasons.append("model VRAM floor has not been proven for PUL7SAR local execution")
+        elif runtime.gpu_vram_gb is None:
             reasons.append("GPU VRAM could not be proven")
         elif runtime.gpu_vram_gb < candidate.minimum_vram_gb:
             reasons.append(
