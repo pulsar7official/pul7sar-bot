@@ -94,18 +94,15 @@ class EventEditorialStudyRenderer:
         width, height = canvas.size
         image = canvas.convert('RGBA')
 
-        # Copy-side shadow gives typography a clean editorial lane while retaining
-        # recognisable photographic texture rather than hiding the source image.
         shade = Image.new('RGBA', image.size, (0, 0, 0, 0))
         sd = ImageDraw.Draw(shade, 'RGBA')
         for i in range(18):
-            x = round(width * (0.43 + i * 0.035))
+            x = min(width, round(width * (0.43 + i * 0.035)))
             alpha = min(165, 28 + i * 8)
             sd.rectangle((x, 0, width, height), fill=(2, 6, 12, alpha))
         shade = shade.filter(ImageFilter.GaussianBlur(max(18, width // 42)))
         image = Image.alpha_composite(image, shade)
 
-        # Two restrained optical accents create lens depth, not fake objects.
         optics = Image.new('RGBA', image.size, (0, 0, 0, 0))
         od = ImageDraw.Draw(optics, 'RGBA')
         od.ellipse(
@@ -236,7 +233,6 @@ class EventEditorialStudyRenderer:
         headline_font = self._fit_font(draw, headline, font_path, hx1-hx0, hy1-hy0, round((hy1-hy0)*0.59))
         hb = draw.textbbox((0, 0), headline, font=headline_font)
         tx = profile.width/2 - (hb[2]-hb[0])/2
-        # restrained text shadow makes the type feel embedded in the scene
         draw.text((tx+2, hy0+3), headline, font=headline_font, fill=(0, 0, 0, 150))
         draw.text((tx, hy0), headline, font=headline_font, fill=(242, 247, 250, 255))
 
