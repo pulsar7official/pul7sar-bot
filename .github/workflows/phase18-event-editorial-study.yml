@@ -1,0 +1,81 @@
+name: Phase 18 Event Editorial Visual Study
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/event_editorial_composition.py'
+      - 'engine/intelligence/event_editorial_study_renderer.py'
+      - 'engine/intelligence/premium_editorial_surface.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_event_editorial_study.py'
+      - 'tests/test_phase18_event_editorial_study_renderer.py'
+      - '.github/workflows/phase18-event-editorial-study.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/event_editorial_composition.py'
+      - 'engine/intelligence/event_editorial_study_renderer.py'
+      - 'engine/intelligence/premium_editorial_surface.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_event_editorial_study.py'
+      - 'tests/test_phase18_event_editorial_study_renderer.py'
+      - '.github/workflows/phase18-event-editorial-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-event-editorial-study:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run event editorial regressions
+        run: python -m unittest -v tests.test_phase18_event_editorial_study_renderer
+      - name: Build premium event editorial PNG
+        run: python tools/phase18_build_event_editorial_study.py --output-dir output/phase18_event_editorial_study
+      - name: Verify event editorial manifest and PNG
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('output/phase18_event_editorial_study')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          png=root/m['png']
+          assert m['manifest_version']=='pul7sar-event-editorial-study-v1-premium-anchor'
+          assert m['renderer_contract']=='pul7sar-event-editorial-study-renderer-v1-premium-anchor'
+          assert m['composition_contract']=='pul7sar-event-editorial-composition-v1'
+          assert m['atmosphere_contract']=='pul7sar-premium-editorial-surface-v1'
+          assert m['family']=='event_editorial' and m['platform']=='instagram_feed'
+          assert m['anchor_kind']=='announcement' and m['single_anchor_used'] is True
+          assert m['person_used'] is False and m['full_pitch_used'] is False and m['decorative_stats_used'] is False
+          assert m['person_required'] is False and m['full_pitch_required'] is False and m['decorative_stats_required'] is False
+          assert m['dense_copy_allowed'] is False
+          assert m['brand_max_width_ratio'] <= 0.25 and m['brand_max_height_ratio'] <= 0.085
+          assert m['generator_used'] is False and m['network_used'] is False
+          assert m['study_only'] is True and m['publication_ready'] is False
+          assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
+          print('Premium Event Editorial study PASS')
+          PY
+      - name: Upload event editorial study
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-event-editorial-study-${{ github.sha }}'
+          path: output/phase18_event_editorial_study/
+          if-no-files-found: error
+          retention-days: 14
