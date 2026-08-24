@@ -58,8 +58,7 @@ jobs:
           PY
       - name: Build locked story-family visual study handoffs
         run: |
-          python tools/phase18_build_visual_study_handoffs.py \
-            --output-dir output/phase18_visual_study_handoffs
+          python tools/phase18_build_visual_study_handoffs.py --output-dir output/phase18_visual_study_handoffs
       - name: Assert visual study batch is pre-image and publication-blocked
         run: |
           python - <<'PY'
@@ -82,8 +81,7 @@ jobs:
           PY
       - name: Build project-native editorial visual study
         run: |
-          python tools/phase18_build_editorial_scene_study.py \
-            --output-dir output/phase18_editorial_scene_study
+          python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
       - name: Assert editorial visual study safety contract
         run: |
           python - <<'PY'
@@ -102,28 +100,25 @@ jobs:
           assert manifest["arabic_raqm_used"] is True
           assert manifest["study_only"] is True
           assert manifest["publication_ready"] is False
-          assert manifest["brand_geometry_mode"] == "approximate-study-only-v2"
+          assert manifest["brand_geometry_mode"] == "approximate-study-only-v3-reference-pulse-integrated"
+          assert manifest["brand_pulse_waveform"] == "reference-pulse-v1"
+          assert manifest["brand_pulse_baseline_under_wordmark"] is True
+          assert manifest["brand_pulse_visually_linked_to_seven"] is True
           assert manifest["exact_brand_master_still_required_for_publication"] is True
           assert manifest["verified_subject_asset_still_required_for_real_transfer_publication"] is True
           png = root / manifest["png"]
           assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          print("Editorial visual study v3 safety contract PASS")
+          print("Editorial visual study v3 integrated-reference-pulse contract PASS")
           PY
       - name: Build portable Golden Hybrid v5 GPU handoff
         run: |
-          python tools/phase18_build_golden_handoff.py \
-            --output output/phase18_handoffs/golden-season-opener-hybrid-v5.json \
-            --seed 7007001 \
-            --request-id golden-season-opener-hybrid-v5-001
+          python tools/phase18_build_golden_handoff.py --output output/phase18_handoffs/golden-season-opener-hybrid-v5.json --seed 7007001 --request-id golden-season-opener-hybrid-v5-001
       - name: Build quality-first Golden Hybrid v5 batch
         run: |
-          python tools/phase18_build_golden_batch.py \
-            --output-dir output/phase18_handoffs/golden-batch \
-            --seeds 7007001 7007002 7007003 7007004
+          python tools/phase18_build_golden_batch.py --output-dir output/phase18_handoffs/golden-batch --seeds 7007001 7007002 7007003 7007004
       - name: Verify Golden Hybrid v5 batch integrity
         run: |
-          python tools/phase18_verify_golden_batch.py \
-            --manifest output/phase18_handoffs/golden-batch/manifest.json
+          python tools/phase18_verify_golden_batch.py --manifest output/phase18_handoffs/golden-batch/manifest.json
       - name: Assert current Golden Hybrid v5 contract
         run: |
           python - <<'PY'
