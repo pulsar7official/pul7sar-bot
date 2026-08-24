@@ -69,7 +69,9 @@ Untouched.
 ## Test status
 
 - Baseline before Change Set 126: Run `32747053259` / 1891 = `success`.
-- Code/test head `b931b994d0c7e317ffa0ea42f3ecdc19d7e3ca07` started Run `32748327053` / 1901. At the time this log was first written the run was still in progress; no CI success is claimed here until GitHub reports a completed successful conclusion.
+- Code/test head `b931b994d0c7e317ffa0ea42f3ecdc19d7e3ca07`: Run `32748327053` / 1901 completed with `success`.
+- That successful run includes the new repository-integrity tests and the updated first-PNG ordering tests, plus the existing discover-based Phase 18 suite and Golden Hybrid v5 CPU verification. No GPU PNG was fabricated by CI.
+- The later documentation-only commits record the verified result; they do not change the tested runtime behavior.
 
 ## Invariants preserved
 
