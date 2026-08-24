@@ -1,27 +1,20 @@
-"""Self-contained reference-derived PUL7SAR layered study master.
+"""Self-contained compact PUL7SAR reference-derived study master.
 
-The binary bundle is stored as base64 text so the repository can carry the
-approved-reference-derived raster without depending on ChatGPT Library, Colab,
-network storage, or a paid provider at runtime.
+The approved-reference geometry is stored as small Base85+zlib raster payloads,
+not as one large ZIP/base64 blob. Each transport fragment and each decoded raster
+is SHA-256 pinned. The loader therefore needs no Colab, network, external board,
+font, or image generator and fails closed on any byte drift.
 
-Integrity is intentionally pinned at the semantic payload boundary: the exact
-member set and SHA-256 of texture + masks are authoritative. ZIP container bytes
-are audit evidence only because harmless archive metadata/repacking can change a
-container hash without changing any brand pixel source. Any member drift still
-fails closed before a layer is exposed.
-
-This remains a study master derived from the approved identity board. It is not
-a publication-authorizing vector/original master asset.
+This is still a reference-derived study master; publication approval remains a
+separate owner gate.
 """
 from __future__ import annotations
 
 import base64
-import binascii
+import zlib
 from dataclasses import dataclass
 from hashlib import sha256
-from io import BytesIO
 from pathlib import Path
-from zipfile import BadZipFile, ZipFile
 
 from engine.intelligence.brand_reference_master import APPROVED_BRAND_REFERENCE_MASTER
 
@@ -37,6 +30,8 @@ class EmbeddedBrandMasterReceipt:
     source_reference_sha256: str
     width: int
     height: int
+    compact_source_width: int = 300
+    compact_source_height: int = 97
     member_integrity_pinned: bool = True
     container_sha_authoritative: bool = False
     self_contained: bool = True
@@ -46,7 +41,7 @@ class EmbeddedBrandMasterReceipt:
     reference_derived: bool = True
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-embedded-layered-brand-master-v2-member-pinned"
+    contract: str = "pul7sar-embedded-layered-brand-master-v3-compact-member-pinned"
 
 
 @dataclass(frozen=True)
@@ -58,119 +53,113 @@ class EmbeddedBrandMaster:
 
 
 class EmbeddedBrandMasterLoader:
-    BUNDLE_RELATIVE_PATH = Path("assets/brand/pul7sar_reference_master_v1.zip.b64")
-    MEMBER_SHA256 = {
-        "texture.webp": "3a7ab1f8771d1a4e79ba2a271bfb121a04bd0e6c6e38419f7e723aec837f43a3",
-        "metal_mask.png": "ebc4e41281ad757c5c0538b13d1b9fa365426bf1dd762fcef566e4340a6d99b5",
-        "accent_mask.png": "b4bd96d9ca30776efd898db4f9f583ed81b3346434f5963f07c1d1d22a220a06",
-        "ball_mask.png": "4a229ff5e8c4c5b0bf934718d3069dc68713ddc6a2b40ad4b0e5ef60764c6601",
+    DATA_DIR = Path("assets/brand/compact_v1")
+    COMPACT_SIZE = (300, 97)
+    OUTPUT_SIZE = (820, 266)
+    TRANSPORT_SHA256 = {
+        "metal.b85": "871c2f2dae67b93d3331568419613105214d2638812c3395955f6fe2ef5ce204",
+        "accent.b85": "1c0d61f2c88eb17aa75124b7cb6f434cf2e675a3df550c17575f0e749dc6ebe4",
+        "ball.b85": "b8cf88cce77ecf47d2f3ed5277d9f86a60cfc752abfd91db757fac7b0518f2be",
+        "luma.part1.b85": "a5afb71485225abe4a486ac04848042047a2dbbc37332b2b9a71df0bc769e0a9",
+        "luma.part2.b85": "8df8fd96b071df45eec61145db8e7e3ebfa9a0da47e7b88f01232507db130f8b",
     }
-    WIDTH = 820
-    HEIGHT = 266
-    _BASE64_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
-    _KNOWN_TRUNCATION_MARKERS = ("[...ELLIPSIZATION...]", "...ELLIPSIZATION...")
+    RAW_SHA256 = {
+        "metal": "cd51de19fdff9fb30ee8ed172dadac51c5cdb1cea9e247b23444b8e384a01adc",
+        "accent": "1cfe80ba9632fe343e0caa9bd5d40f92f76c4be43305094f37ff612d362ace9d",
+        "ball": "245fa887c2cc2fad10167f197c1178ef01beaa40b594158e36317c046b64bd5c",
+        "luma": "bfba33655a6724bd1111252d4d81ae7776ae3687f925f6800a04b24d30beae38",
+    }
 
     @staticmethod
     def _sha(data: bytes) -> str:
         return sha256(data).hexdigest()
 
     @classmethod
-    def _resolve_bundle_path(cls, repository_root: str | Path | None) -> Path:
+    def _root(cls, repository_root: str | Path | None) -> Path:
         if repository_root is None:
             repository_root = Path(__file__).resolve().parents[2]
-        return Path(repository_root) / cls.BUNDLE_RELATIVE_PATH
+        return Path(repository_root) / cls.DATA_DIR
 
     @classmethod
-    def _assert_transport_not_truncated(cls, encoded: str) -> None:
-        for marker in cls._KNOWN_TRUNCATION_MARKERS:
-            if marker in encoded:
-                raise ValueError("PUL7SAR_EMBEDDED_BRAND_TRANSPORT_TRUNCATED")
-
-    @classmethod
-    def _decode_bundle_text(cls, encoded: str) -> bytes:
-        """Decode textual transport without weakening member-byte integrity."""
-        cls._assert_transport_not_truncated(encoded)
-        try:
-            return base64.b64decode(encoded, validate=True)
-        except binascii.Error:
-            try:
-                return base64.b64decode(encoded, validate=False)
-            except Exception as exc:
-                raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
-
-    @classmethod
-    def _read_verified_members(
-        cls, repository_root: str | Path | None = None
-    ) -> tuple[Path, str, dict[str, bytes]]:
-        path = cls._resolve_bundle_path(repository_root)
+    def _read_text(cls, root: Path, name: str) -> str:
+        path = root / name
         if not path.is_file():
             raise FileNotFoundError(path)
-        try:
-            encoded = "".join(path.read_text(encoding="ascii").split())
-            archive = cls._decode_bundle_text(encoded)
-        except UnicodeError as exc:
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
+        text = path.read_text(encoding="ascii").strip()
+        if cls._sha(text.encode("ascii")) != cls.TRANSPORT_SHA256[name]:
+            raise ValueError(f"PUL7SAR_COMPACT_BRAND_TRANSPORT_SHA_MISMATCH:{name}")
+        return text
 
-        # Container SHA is retained for provenance/audit only. The exact member
-        # bytes below are the canonical integrity boundary.
-        observed_bundle_sha = cls._sha(archive)
-        members: dict[str, bytes] = {}
+    @classmethod
+    def _decode(cls, encoded: str, kind: str) -> bytes:
         try:
-            with ZipFile(BytesIO(archive), "r") as bundle:
-                names = set(bundle.namelist())
-                if names != set(cls.MEMBER_SHA256):
-                    raise ValueError("PUL7SAR_EMBEDDED_BRAND_MEMBER_SET_CHANGED")
-                for name, expected_sha in cls.MEMBER_SHA256.items():
-                    payload = bundle.read(name)
-                    if cls._sha(payload) != expected_sha:
-                        raise ValueError(f"PUL7SAR_EMBEDDED_BRAND_MEMBER_SHA_MISMATCH:{name}")
-                    members[name] = payload
-        except BadZipFile as exc:
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_ARCHIVE_INVALID") from exc
-        return path, observed_bundle_sha, members
+            raw = zlib.decompress(base64.b85decode(encoded.encode("ascii")))
+        except Exception as exc:
+            raise ValueError(f"PUL7SAR_COMPACT_BRAND_DECODE_FAILED:{kind}") from exc
+        expected_len = cls.COMPACT_SIZE[0] * cls.COMPACT_SIZE[1]
+        if len(raw) != expected_len:
+            raise ValueError(f"PUL7SAR_COMPACT_BRAND_LENGTH_MISMATCH:{kind}")
+        if cls._sha(raw) != cls.RAW_SHA256[kind]:
+            raise ValueError(f"PUL7SAR_COMPACT_BRAND_RAW_SHA_MISMATCH:{kind}")
+        return raw
+
+    @classmethod
+    def _read_rasters(cls, repository_root: str | Path | None = None):
+        root = cls._root(repository_root)
+        metal = cls._decode(cls._read_text(root, "metal.b85"), "metal")
+        accent = cls._decode(cls._read_text(root, "accent.b85"), "accent")
+        ball = cls._decode(cls._read_text(root, "ball.b85"), "ball")
+        luma_text = cls._read_text(root, "luma.part1.b85") + cls._read_text(root, "luma.part2.b85")
+        luma = cls._decode(luma_text, "luma")
+        return root, metal, accent, ball, luma
 
     @staticmethod
-    def _layer_from_texture(texture, mask):
-        if texture.size != mask.size:
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_LAYER_DIMENSION_MISMATCH")
-        layer = texture.convert("RGBA").copy()
-        layer.putalpha(mask.convert("L"))
+    def _cool_texture(luma):
+        from PIL import Image
+        src = luma.load()
+        image = Image.new("RGBA", luma.size, (0, 0, 0, 0))
+        out = image.load()
+        for y in range(luma.height):
+            for x in range(luma.width):
+                v = src[x, y]
+                out[x, y] = (v, min(255, v + 3), min(255, v + 9), 255)
+        return image
+
+    @staticmethod
+    def _layer(texture, mask):
+        layer = texture.copy()
+        layer.putalpha(mask)
         return layer
 
     def load(self, repository_root: str | Path | None = None) -> EmbeddedBrandMaster:
         from PIL import Image
-
         APPROVED_BRAND_REFERENCE_MASTER.assert_safe()
-        path, observed_bundle_sha, members = self._read_verified_members(repository_root)
-        with Image.open(BytesIO(members["texture.webp"])) as raw:
-            texture = raw.convert("RGBA")
-        masks = {}
-        for name in ("metal_mask.png", "accent_mask.png", "ball_mask.png"):
-            with Image.open(BytesIO(members[name])) as raw:
-                masks[name] = raw.convert("L")
+        root, metal_raw, accent_raw, ball_raw, luma_raw = self._read_rasters(repository_root)
+        compact = self.COMPACT_SIZE
+        luma = Image.frombytes("L", compact, luma_raw)
+        metal_mask = Image.frombytes("L", compact, metal_raw)
+        accent_mask = Image.frombytes("L", compact, accent_raw)
+        ball_mask = Image.frombytes("L", compact, ball_raw)
+        texture = self._cool_texture(luma)
 
-        if texture.size != (self.WIDTH, self.HEIGHT):
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_TEXTURE_DIMENSIONS_CHANGED")
-        if any(mask.size != texture.size for mask in masks.values()):
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_MASK_DIMENSIONS_CHANGED")
+        metallic = self._layer(texture, metal_mask)
+        accent = self._layer(texture, accent_mask)
+        football = self._layer(texture, ball_mask)
+        resample = Image.Resampling.LANCZOS
+        metallic = metallic.resize(self.OUTPUT_SIZE, resample)
+        accent = accent.resize(self.OUTPUT_SIZE, resample)
+        football = football.resize(self.OUTPUT_SIZE, resample)
 
-        metallic = self._layer_from_texture(texture, masks["metal_mask.png"])
-        accent = self._layer_from_texture(texture, masks["accent_mask.png"])
-        football = self._layer_from_texture(texture, masks["ball_mask.png"])
+        canonical = metal_raw + accent_raw + ball_raw + luma_raw
         receipt = EmbeddedBrandMasterReceipt(
-            bundle_path=str(path),
-            bundle_sha256=observed_bundle_sha,
-            texture_sha256=self.MEMBER_SHA256["texture.webp"],
-            metallic_mask_sha256=self.MEMBER_SHA256["metal_mask.png"],
-            accent_mask_sha256=self.MEMBER_SHA256["accent_mask.png"],
-            football_mask_sha256=self.MEMBER_SHA256["ball_mask.png"],
+            bundle_path=str(root),
+            bundle_sha256=self._sha(canonical),
+            texture_sha256=self.RAW_SHA256["luma"],
+            metallic_mask_sha256=self.RAW_SHA256["metal"],
+            accent_mask_sha256=self.RAW_SHA256["accent"],
+            football_mask_sha256=self.RAW_SHA256["ball"],
             source_reference_sha256=APPROVED_BRAND_REFERENCE_MASTER.source_sha256,
-            width=self.WIDTH,
-            height=self.HEIGHT,
+            width=self.OUTPUT_SIZE[0],
+            height=self.OUTPUT_SIZE[1],
         )
-        return EmbeddedBrandMaster(
-            metallic=metallic,
-            accent=accent,
-            football=football,
-            receipt=receipt,
-        )
+        return EmbeddedBrandMaster(metallic=metallic, accent=accent, football=football, receipt=receipt)
