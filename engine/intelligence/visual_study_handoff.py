@@ -6,7 +6,7 @@ budget, approved identity semantics and accepted visual-reference qualities.
 """
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass, fields
 from hashlib import sha256
 import json
 from types import MappingProxyType
@@ -68,6 +68,18 @@ class VisualStudyHandoffCompiler:
 
     def __init__(self) -> None:
         self._readiness = VisualReviewReadinessGate()
+
+    @staticmethod
+    def _payload_from_handoff(handoff: VisualStudyHandoff) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        for item in fields(handoff):
+            if item.name == "payload_sha256":
+                continue
+            value = getattr(handoff, item.name)
+            if item.name == "metadata":
+                value = dict(value)
+            payload[item.name] = value
+        return payload
 
     def compile(
         self,
@@ -135,15 +147,14 @@ class VisualStudyHandoffCompiler:
         digest = sha256(canonical.encode("utf-8")).hexdigest()
         return VisualStudyHandoff(**payload, payload_sha256=digest)
 
-    @staticmethod
-    def verify(handoff: VisualStudyHandoff) -> None:
+    @classmethod
+    def verify(cls, handoff: VisualStudyHandoff) -> None:
         if not isinstance(handoff, VisualStudyHandoff):
             raise TypeError("handoff must be VisualStudyHandoff")
-        payload = asdict(handoff)
-        expected = payload.pop("payload_sha256")
+        payload = cls._payload_from_handoff(handoff)
         canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
         actual = sha256(canonical.encode("utf-8")).hexdigest()
-        if actual != expected:
+        if actual != handoff.payload_sha256:
             raise ValueError("VISUAL_STUDY_HANDOFF_CHECKSUM_MISMATCH")
         if handoff.publication_ready:
             raise ValueError("VISUAL_STUDY_HANDOFF_MAY_NOT_CLAIM_PUBLICATION_READY")
