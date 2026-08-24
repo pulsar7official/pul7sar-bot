@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from engine.intelligence.brand_master_contract import APPROVED_PUL7SAR_BRAND_MASTER
+from engine.intelligence.brand_pulse_signature import APPROVED_PUL7SAR_PULSE_SIGNATURE
 
 
 REFERENCE_PULSE_WAVEFORM_V1: tuple[tuple[float, float], ...] = (
@@ -20,8 +21,8 @@ REFERENCE_PULSE_WAVEFORM_V1: tuple[tuple[float, float], ...] = (
     (0.385, 0.58),
     (0.415, 0.30),
     (0.445, 0.72),
-    (0.475, 0.035),  # dominant spike visually enters the enlarged 7 zone
-    (0.515, 0.94),   # deep trough below the baseline
+    (0.475, 0.035),
+    (0.515, 0.94),
     (0.555, 0.34),
     (0.590, 0.66),
     (0.620, 0.41),
@@ -35,7 +36,6 @@ REFERENCE_PULSE_WAVEFORM_V1: tuple[tuple[float, float], ...] = (
 @dataclass(frozen=True)
 class BrandStudyGeometry:
     seven_scale: float = 1.36
-    # Band begins high enough for the dominant spike to overlap the lower 7 area.
     pulse_band_start: float = 0.22
     pulse_band_height: float = 0.55
     pulse_waveform_id: str = "reference-pulse-v1"
@@ -51,6 +51,7 @@ class BrandStudyGeometry:
     def __post_init__(self) -> None:
         brand = APPROVED_PUL7SAR_BRAND_MASTER
         brand.assert_safe()
+        APPROVED_PUL7SAR_PULSE_SIGNATURE.assert_safe()
         if self.seven_scale <= 1.0:
             raise ValueError("STUDY_SEVEN_MUST_BE_LARGER_THAN_LETTERS")
         if not 0.14 <= self.pulse_band_start <= 0.34:
