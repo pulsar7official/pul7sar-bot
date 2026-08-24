@@ -62,6 +62,7 @@ class EmbeddedBrandMasterLoader:
     }
     WIDTH = 820
     HEIGHT = 266
+    _BASE64_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
 
     @staticmethod
     def _sha(data: bytes) -> str:
@@ -98,6 +99,28 @@ class EmbeddedBrandMasterLoader:
                 raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
 
     @classmethod
+    def _transport_diagnostic(cls, encoded: str, decoded: bytes) -> str:
+        """Return bounded diagnostics for a corrupted textual transport.
+
+        This deliberately exposes only the first non-base64 position, a tiny
+        escaped context window, input length and decoded SHA. It never prints the
+        full embedded asset and does not change acceptance behavior.
+        """
+        invalid = [(index, char) for index, char in enumerate(encoded) if char not in cls._BASE64_ALPHABET]
+        if invalid:
+            index, char = invalid[0]
+            left = max(0, index - 20)
+            right = min(len(encoded), index + 40)
+            context = encoded[left:right].replace("\n", "\\n").replace("\r", "\\r")
+            invalid_detail = f"first_invalid_index={index};first_invalid_char={char!r};context={context!r}"
+        else:
+            invalid_detail = "first_invalid_index=none"
+        return (
+            f"encoded_length={len(encoded)};decoded_sha256={cls._sha(decoded)};"
+            f"invalid_count={len(invalid)};{invalid_detail}"
+        )
+
+    @classmethod
     def _read_verified_members(cls, repository_root: str | Path | None = None) -> tuple[Path, dict[str, bytes]]:
         path = cls._resolve_bundle_path(repository_root)
         if not path.is_file():
@@ -108,7 +131,8 @@ class EmbeddedBrandMasterLoader:
         except UnicodeError as exc:
             raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
         if cls._sha(archive) != cls.BUNDLE_SHA256:
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_BUNDLE_SHA_MISMATCH")
+            diagnostic = cls._transport_diagnostic(encoded, archive)
+            raise ValueError("PUL7SAR_EMBEDDED_BRAND_BUNDLE_SHA_MISMATCH:" + diagnostic)
 
         members: dict[str, bytes] = {}
         with ZipFile(BytesIO(archive), "r") as bundle:
