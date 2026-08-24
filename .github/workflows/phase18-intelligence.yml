@@ -56,6 +56,30 @@ jobs:
                       raise SystemExit(f"Phase 18 isolation violation in {path}: {forbidden}")
           print("Phase 18 production-isolation check PASS")
           PY
+      - name: Build locked story-family visual study handoffs
+        run: |
+          python tools/phase18_build_visual_study_handoffs.py \
+            --output-dir output/phase18_visual_study_handoffs
+      - name: Assert visual study batch is pre-image and publication-blocked
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("output/phase18_visual_study_handoffs")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          assert manifest["manifest_version"] == "pul7sar-visual-study-handoff-batch-v1"
+          assert manifest["handoff_count"] == 3
+          assert manifest["candidate_image_count"] == 0
+          assert manifest["publication_ready"] is False
+          assert manifest["exact_brand_geometry_ready"] is False
+          assert not list(root.glob("*.png"))
+          for entry in manifest["handoffs"]:
+              payload = json.loads((root / entry["path"]).read_text(encoding="utf-8"))
+              assert payload["human_review_allowed"] is True
+              assert payload["publication_ready"] is False
+              assert payload["metadata"]["legacy_repo_logo_allowed"] is False
+          print("Visual study handoff batch PASS")
+          PY
       - name: Build portable Golden Hybrid v5 GPU handoff
         run: |
           python tools/phase18_build_golden_handoff.py \
@@ -101,6 +125,13 @@ jobs:
           assert APPROVED_PUL7SAR_BRAND_MASTER.legacy_repo_logo_is_canonical is False
           print("Legacy repo logos are non-canonical; no CPU proof PNG will be uploaded as Golden.")
           PY
+      - name: Upload visual study handoffs
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-visual-study-handoffs-${{ github.sha }}
+          path: output/phase18_visual_study_handoffs/
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload Golden Hybrid v5 GPU handoff
         uses: actions/upload-artifact@v7
         with:
