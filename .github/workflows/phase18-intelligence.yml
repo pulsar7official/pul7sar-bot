@@ -100,16 +100,17 @@ jobs:
           assert manifest["arabic_raqm_used"] is True
           assert manifest["study_only"] is True
           assert manifest["publication_ready"] is False
-          assert manifest["brand_geometry_mode"] == "approximate-study-only-v4-compact-reference-pulse"
-          assert manifest["brand_pulse_waveform"] == "reference-pulse-v2-compact"
-          assert manifest["brand_pulse_full_wordmark_underline"] is False
-          assert manifest["brand_pulse_compact_shoulders"] is True
+          assert manifest["brand_geometry_mode"] == "approximate-study-only-v5-measured-reference-pulse"
+          assert manifest["brand_pulse_waveform"] == "reference-pulse-v3-measured"
+          assert manifest["brand_pulse_long_baseline"] is True
+          assert manifest["brand_pulse_active_waveform_compact"] is True
+          assert manifest["brand_pulse_vertical_depth_controlled"] is True
           assert manifest["brand_pulse_visually_linked_to_seven"] is True
           assert manifest["exact_brand_master_still_required_for_publication"] is True
           assert manifest["verified_subject_asset_still_required_for_real_transfer_publication"] is True
           png = root / manifest["png"]
           assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          print("Editorial visual study compact-reference-pulse contract PASS")
+          print("Editorial visual study measured-reference-pulse contract PASS")
           PY
       - name: Build portable Golden Hybrid v5 GPU handoff
         run: |
