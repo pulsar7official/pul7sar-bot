@@ -35,6 +35,8 @@ This file is the authoritative continuation record for Change Set 108 on `phase1
   - verifies valid receipt production and the approved renderer/integrity identifiers;
   - verifies the output SHA is carried into evidence;
   - verifies legacy opaque/unproven and tampered outputs emit neither geometry completion nor a compact receipt.
+- `docs/PHASE18_IMPLEMENTATION_LOG_108.md`
+  - updated after CI completion to record the observed verification result.
 
 ### Deleted
 - Nothing.
@@ -62,18 +64,18 @@ Current path:
 - No paid provider, secret, model weights, font files, fake PNG, fabricated benchmark or fabricated review score was added.
 
 ## Test state
-- Change Set 108 adds CPU-safe unittest coverage under the existing `test_phase18_*.py` discovery pattern.
-- A new GitHub Actions verification run is expected from the branch pushes in this change set; its final result must be observed before claiming this head is CI-green.
-- No CPU CI result is a GPU visual-quality claim.
+- Change Set 108 CPU-safe unittest coverage is included under the existing `test_phase18_*.py` discovery pattern.
+- GitHub Actions Run `32703263259` / run `1472` completed with `success` for Change Set 108.
+- Observed successful steps included syntax checks, discover-based Phase 18 validation, completion audit, production isolation, Golden Hybrid v5 handoff build, quality-first candidate batch build, batch-integrity verification and the current-contract assertion.
+- Visual-proof generation/upload remained conditional and no GPU PNG was fabricated; this CI success is not a visual-quality claim.
 
 ## Remaining work
-1. Observe the CI result for Change Set 108 and fix any regression rather than weakening a gate.
-2. Obtain a compatible CUDA/BF16 host and generate Golden Hybrid v5 Candidate 1 only.
-3. Require generation-provenance acceptance and Base semantic/layer ownership to pass on the exact produced bytes.
-4. Require deterministic football composition and receipt-backed HybridVisualQualityGate evidence to pass.
-5. Review deterministic pitch variants and explicitly select one; SHA-lock the exact chosen bytes.
-6. Run locked-pitch Qwen HYBRID_SURFACE semantic/alignment review.
-7. Complete the SHA-bound Golden visual review against those same bytes.
-8. Only if `golden_quality_approved=true`, enter the corrected final compositor and add exact approved brand/typography.
-9. Resolve and SHA-lock the approved PUL7SAR logo/brand geometry/font assets before publication composition.
-10. Run SemanticPublicationGate and final publication-readiness checks; no earlier stage can waive them.
+1. Obtain a compatible CUDA/BF16 host and generate Golden Hybrid v5 Candidate 1 only.
+2. Require generation-provenance acceptance and Base semantic/layer ownership to pass on the exact produced bytes.
+3. Require deterministic football composition and receipt-backed HybridVisualQualityGate evidence to pass.
+4. Review deterministic pitch variants and explicitly select one; SHA-lock the exact chosen bytes.
+5. Run locked-pitch Qwen HYBRID_SURFACE semantic/alignment review.
+6. Complete the SHA-bound Golden visual review against those same bytes.
+7. Only if `golden_quality_approved=true`, enter the corrected final compositor and add exact approved brand/typography.
+8. Resolve and SHA-lock the approved PUL7SAR logo/brand geometry/font assets before publication composition.
+9. Run SemanticPublicationGate and final publication-readiness checks; no earlier stage can waive them.
