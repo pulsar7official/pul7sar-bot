@@ -44,14 +44,11 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
         data.update(kwargs)
         return VerifiedEditorialStory(**data)
 
-    def execution_for(self, story):
-        return self.orchestrator.decide(story).visual_execution
-
     def test_table_story_completes_without_generation_package_provider_or_gpu(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.TABLE))
-        self.assertEqual(decision.visual_execution.route, PixelExecutionRoute.DETERMINISTIC_ONLY)
+        self.assertEqual(decision.execution_route.route, PixelExecutionRoute.DETERMINISTIC_ONLY)
         plan = self.planner.compile(
-            decision.visual_execution,
+            decision.execution_route,
             self.layout,
             self.assets,
             headline=decision.headline,
@@ -67,9 +64,9 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
 
     def test_injury_uses_verified_asset_base_without_provider(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.INJURY))
-        self.assertEqual(decision.visual_execution.route, PixelExecutionRoute.VERIFIED_ASSET_ONLY)
+        self.assertEqual(decision.execution_route.route, PixelExecutionRoute.VERIFIED_ASSET_ONLY)
         plan = self.planner.compile(
-            decision.visual_execution,
+            decision.execution_route,
             self.layout,
             self.assets,
             headline=decision.headline,
@@ -84,18 +81,18 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
         decision = self.orchestrator.decide(self.story(EditorialEvent.STATEMENT))
         assets = AssetBundle(tuple(asset for asset in self.assets.assets if asset.role is not AssetRole.VERIFIED_IDENTITY_REFERENCE))
         with self.assertRaises(ValueError):
-            self.planner.compile(decision.visual_execution, self.layout, assets, headline=decision.headline)
+            self.planner.compile(decision.execution_route, self.layout, assets, headline=decision.headline)
 
     def test_result_hybrid_route_cannot_enter_direct_execution(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.RESULT))
-        self.assertTrue(decision.visual_execution.generator_required)
+        self.assertTrue(decision.execution_route.generator_required)
         with self.assertRaises(ValueError):
-            self.planner.compile(decision.visual_execution, self.layout, self.assets, headline=decision.headline, score="2-1")
+            self.planner.compile(decision.execution_route, self.layout, self.assets, headline=decision.headline, score="2-1")
 
     def test_direct_execution_stage_order_is_complete_and_has_no_generation_stage(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.TACTICS))
         plan = self.planner.compile(
-            decision.visual_execution,
+            decision.execution_route,
             self.layout,
             self.assets,
             headline=decision.headline,
@@ -118,7 +115,7 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
         no_score_layout = DeterministicLayoutPlanner().plan(self.profile)
         decision = self.orchestrator.decide(self.story(EditorialEvent.TABLE))
         with self.assertRaises(ValueError):
-            self.planner.compile(decision.visual_execution, no_score_layout, self.assets, headline=decision.headline, score="2-1")
+            self.planner.compile(decision.execution_route, no_score_layout, self.assets, headline=decision.headline, score="2-1")
 
 
 if __name__ == "__main__":
