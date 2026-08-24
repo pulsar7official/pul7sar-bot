@@ -1,0 +1,106 @@
+name: Phase 18 Premium Hybrid Result Visual Study
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/premium_hybrid_result_study_renderer.py'
+      - 'engine/intelligence/verified_context_surface.py'
+      - 'engine/intelligence/result_statement_study_renderer.py'
+      - 'engine/intelligence/result_statement_composition.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_premium_hybrid_result_study.py'
+      - 'tests/test_phase18_premium_hybrid_result_study_renderer.py'
+      - '.github/workflows/phase18-premium-hybrid-result-study.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/premium_hybrid_result_study_renderer.py'
+      - 'engine/intelligence/verified_context_surface.py'
+      - 'engine/intelligence/result_statement_study_renderer.py'
+      - 'engine/intelligence/result_statement_composition.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_premium_hybrid_result_study.py'
+      - 'tests/test_phase18_premium_hybrid_result_study_renderer.py'
+      - '.github/workflows/phase18-premium-hybrid-result-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-premium-hybrid-result-study:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      CONTEXT_FILE: output/context/municipal-stadium-bakel.jpg
+      CONTEXT_SOURCE: https://commons.wikimedia.org/wiki/File:Municipal_Stadium,_Bakel.jpg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run premium hybrid regressions
+        run: python -m unittest -v tests.test_phase18_premium_hybrid_result_study_renderer tests.test_phase18_verified_context_surface
+      - name: Acquire CC0 photographic context benchmark
+        run: |
+          mkdir -p output/context
+          curl -L --fail --retry 3 --retry-delay 2 \
+            'https://commons.wikimedia.org/wiki/Special:Redirect/file/Municipal_Stadium,_Bakel.jpg' \
+            -o "$CONTEXT_FILE"
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import hashlib, os
+          p=Path(os.environ['CONTEXT_FILE'])
+          assert p.is_file() and p.stat().st_size > 100_000
+          with Image.open(p) as im:
+              im.verify()
+          print('context_bytes', p.stat().st_size)
+          print('context_sha256', hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Build photographic premium hybrid Result PNG
+        run: |
+          python tools/phase18_build_premium_hybrid_result_study.py \
+            --output-dir output/phase18_premium_hybrid_result_study \
+            --context-image "$CONTEXT_FILE" \
+            --source-reference "$CONTEXT_SOURCE"
+      - name: Verify premium hybrid manifest and PNG
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('output/phase18_premium_hybrid_result_study')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          png=root/m['png']
+          assert m['manifest_version']=='pul7sar-premium-hybrid-result-study-v1'
+          assert m['renderer_contract']=='pul7sar-premium-hybrid-result-study-renderer-v1-photographic-context'
+          assert m['verified_context_contract']=='pul7sar-verified-context-surface-v1'
+          assert m['family']=='result_statement' and m['platform']=='instagram_feed'
+          assert m['score_text']=='3  –  1' and m['score_is_deterministic'] is True
+          assert m['context_rights_basis']=='public_domain'
+          assert m['context_role']=='atmosphere_only_not_event_evidence'
+          assert m['context_is_match_or_venue_evidence'] is False
+          assert m['club_identity_scale_equal'] is True
+          assert m['home_identity_placeholder_used'] is True and m['away_identity_placeholder_used'] is True
+          assert m['generator_used'] is False and m['network_used_by_renderer'] is False
+          assert m['study_only'] is True and m['publication_ready'] is False
+          assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
+          print('Premium Hybrid Result visual study PASS')
+          PY
+      - name: Upload premium hybrid Result study
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-premium-hybrid-result-study-${{ github.sha }}'
+          path: output/phase18_premium_hybrid_result_study/
+          if-no-files-found: error
+          retention-days: 14
