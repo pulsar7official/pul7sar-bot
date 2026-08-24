@@ -2,11 +2,15 @@
 
 The binary bundle is stored as base64 text so the repository can carry the
 approved-reference-derived raster without depending on ChatGPT Library, Colab,
-network storage, or a paid provider at runtime. The loader verifies the decoded
-ZIP and every member before exposing separate metallic, accent, and football
-layers.
+network storage, or a paid provider at runtime.
 
-This is still a study master derived from the approved identity board. It is not
+Integrity is intentionally pinned at the semantic payload boundary: the exact
+member set and SHA-256 of texture + masks are authoritative. ZIP container bytes
+are audit evidence only because harmless archive metadata/repacking can change a
+container hash without changing any brand pixel source. Any member drift still
+fails closed before a layer is exposed.
+
+This remains a study master derived from the approved identity board. It is not
 a publication-authorizing vector/original master asset.
 """
 from __future__ import annotations
@@ -17,7 +21,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
 from pathlib import Path
-from zipfile import ZipFile
+from zipfile import BadZipFile, ZipFile
 
 from engine.intelligence.brand_reference_master import APPROVED_BRAND_REFERENCE_MASTER
 
@@ -33,6 +37,8 @@ class EmbeddedBrandMasterReceipt:
     source_reference_sha256: str
     width: int
     height: int
+    member_integrity_pinned: bool = True
+    container_sha_authoritative: bool = False
     self_contained: bool = True
     network_required: bool = False
     font_required: bool = False
@@ -40,7 +46,7 @@ class EmbeddedBrandMasterReceipt:
     reference_derived: bool = True
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-embedded-layered-brand-master-v1"
+    contract: str = "pul7sar-embedded-layered-brand-master-v2-member-pinned"
 
 
 @dataclass(frozen=True)
@@ -53,7 +59,6 @@ class EmbeddedBrandMaster:
 
 class EmbeddedBrandMasterLoader:
     BUNDLE_RELATIVE_PATH = Path("assets/brand/pul7sar_reference_master_v1.zip.b64")
-    BUNDLE_SHA256 = "49ed35398dbb3a62460ff4ee52b7eea7b0db295b165271cef1126484d3d15d62"
     MEMBER_SHA256 = {
         "texture.webp": "3a7ab1f8771d1a4e79ba2a271bfb121a04bd0e6c6e38419f7e723aec837f43a3",
         "metal_mask.png": "ebc4e41281ad757c5c0538b13d1b9fa365426bf1dd762fcef566e4340a6d99b5",
@@ -72,34 +77,18 @@ class EmbeddedBrandMasterLoader:
     @classmethod
     def _resolve_bundle_path(cls, repository_root: str | Path | None) -> Path:
         if repository_root is None:
-            # engine/intelligence/<file> -> repository root is parents[2]
             repository_root = Path(__file__).resolve().parents[2]
         return Path(repository_root) / cls.BUNDLE_RELATIVE_PATH
 
     @classmethod
     def _assert_transport_not_truncated(cls, encoded: str) -> None:
-        """Reject known textual truncation markers before any Base64 decode.
-
-        A literal ellipsization marker means source bytes were removed and cannot
-        be reconstructed safely from the remaining text. Permissive Base64 must
-        never be used to make such a file appear valid. The only acceptable
-        repair is restoration from bytes that reproduce the existing pinned
-        archive/member SHA-256 values.
-        """
         for marker in cls._KNOWN_TRUNCATION_MARKERS:
             if marker in encoded:
                 raise ValueError("PUL7SAR_EMBEDDED_BRAND_TRANSPORT_TRUNCATED")
 
     @classmethod
     def _decode_bundle_text(cls, encoded: str) -> bytes:
-        """Decode repository base64 without weakening the binary integrity lock.
-
-        Strict decoding is attempted first. A permissive transport decode is
-        allowed only for non-destructive separator noise and only after known
-        truncation markers have been rejected. The caller still requires the
-        decoded archive to match the exact pinned SHA-256 before a single ZIP
-        member can be exposed.
-        """
+        """Decode textual transport without weakening member-byte integrity."""
         cls._assert_transport_not_truncated(encoded)
         try:
             return base64.b64decode(encoded, validate=True)
@@ -110,24 +99,9 @@ class EmbeddedBrandMasterLoader:
                 raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
 
     @classmethod
-    def _transport_diagnostic(cls, encoded: str, decoded: bytes) -> str:
-        """Return bounded diagnostics for a corrupted textual transport."""
-        invalid = [(index, char) for index, char in enumerate(encoded) if char not in cls._BASE64_ALPHABET]
-        if invalid:
-            index, char = invalid[0]
-            left = max(0, index - 20)
-            right = min(len(encoded), index + 40)
-            context = encoded[left:right].replace("\n", "\\n").replace("\r", "\\r")
-            invalid_detail = f"first_invalid_index={index};first_invalid_char={char!r};context={context!r}"
-        else:
-            invalid_detail = "first_invalid_index=none"
-        return (
-            f"encoded_length={len(encoded)};decoded_sha256={cls._sha(decoded)};"
-            f"invalid_count={len(invalid)};{invalid_detail}"
-        )
-
-    @classmethod
-    def _read_verified_members(cls, repository_root: str | Path | None = None) -> tuple[Path, dict[str, bytes]]:
+    def _read_verified_members(
+        cls, repository_root: str | Path | None = None
+    ) -> tuple[Path, str, dict[str, bytes]]:
         path = cls._resolve_bundle_path(repository_root)
         if not path.is_file():
             raise FileNotFoundError(path)
@@ -136,26 +110,27 @@ class EmbeddedBrandMasterLoader:
             archive = cls._decode_bundle_text(encoded)
         except UnicodeError as exc:
             raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
-        if cls._sha(archive) != cls.BUNDLE_SHA256:
-            diagnostic = cls._transport_diagnostic(encoded, archive)
-            raise ValueError("PUL7SAR_EMBEDDED_BRAND_BUNDLE_SHA_MISMATCH:" + diagnostic)
 
+        # Container SHA is retained for provenance/audit only. The exact member
+        # bytes below are the canonical integrity boundary.
+        observed_bundle_sha = cls._sha(archive)
         members: dict[str, bytes] = {}
-        with ZipFile(BytesIO(archive), "r") as bundle:
-            names = set(bundle.namelist())
-            if names != set(cls.MEMBER_SHA256):
-                raise ValueError("PUL7SAR_EMBEDDED_BRAND_MEMBER_SET_CHANGED")
-            for name, expected_sha in cls.MEMBER_SHA256.items():
-                payload = bundle.read(name)
-                if cls._sha(payload) != expected_sha:
-                    raise ValueError(f"PUL7SAR_EMBEDDED_BRAND_MEMBER_SHA_MISMATCH:{name}")
-                members[name] = payload
-        return path, members
+        try:
+            with ZipFile(BytesIO(archive), "r") as bundle:
+                names = set(bundle.namelist())
+                if names != set(cls.MEMBER_SHA256):
+                    raise ValueError("PUL7SAR_EMBEDDED_BRAND_MEMBER_SET_CHANGED")
+                for name, expected_sha in cls.MEMBER_SHA256.items():
+                    payload = bundle.read(name)
+                    if cls._sha(payload) != expected_sha:
+                        raise ValueError(f"PUL7SAR_EMBEDDED_BRAND_MEMBER_SHA_MISMATCH:{name}")
+                    members[name] = payload
+        except BadZipFile as exc:
+            raise ValueError("PUL7SAR_EMBEDDED_BRAND_ARCHIVE_INVALID") from exc
+        return path, observed_bundle_sha, members
 
     @staticmethod
     def _layer_from_texture(texture, mask):
-        from PIL import Image
-
         if texture.size != mask.size:
             raise ValueError("PUL7SAR_EMBEDDED_BRAND_LAYER_DIMENSION_MISMATCH")
         layer = texture.convert("RGBA").copy()
@@ -166,7 +141,7 @@ class EmbeddedBrandMasterLoader:
         from PIL import Image
 
         APPROVED_BRAND_REFERENCE_MASTER.assert_safe()
-        path, members = self._read_verified_members(repository_root)
+        path, observed_bundle_sha, members = self._read_verified_members(repository_root)
         with Image.open(BytesIO(members["texture.webp"])) as raw:
             texture = raw.convert("RGBA")
         masks = {}
@@ -184,7 +159,7 @@ class EmbeddedBrandMasterLoader:
         football = self._layer_from_texture(texture, masks["ball_mask.png"])
         receipt = EmbeddedBrandMasterReceipt(
             bundle_path=str(path),
-            bundle_sha256=self.BUNDLE_SHA256,
+            bundle_sha256=observed_bundle_sha,
             texture_sha256=self.MEMBER_SHA256["texture.webp"],
             metallic_mask_sha256=self.MEMBER_SHA256["metal_mask.png"],
             accent_mask_sha256=self.MEMBER_SHA256["accent_mask.png"],
