@@ -1,8 +1,10 @@
 import unittest
 
 from engine.intelligence.editorial_headline_grammar import HeadlineTone
+from engine.intelligence.scene_complexity_policy import SurfaceVisibility
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, ProductionMode, VisualFamily
+from engine.intelligence.visual_grammar import CameraLanguage
 
 
 class StoryToVisualOrchestratorTests(unittest.TestCase):
@@ -28,6 +30,8 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertEqual(decision.plan.visual_family, VisualFamily.SCORE_MONUMENT)
         self.assertEqual(decision.plan.production_mode, ProductionMode.HYBRID)
         self.assertEqual(decision.visual_anchor, "result")
+        self.assertEqual(decision.visual_grammar.surface_visibility, SurfaceVisibility.PARTIAL_DETERMINISTIC)
+        self.assertEqual(decision.visual_grammar.camera_language, CameraLanguage.GRAPHIC_FRONT)
 
     def test_football_geometry_is_explicit_and_not_left_to_diffusion(self):
         decision = self.engine.decide(self.story())
@@ -35,6 +39,7 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertIn("regulation rectangular pitch proportions", joined)
         self.assertIn("centre circle", joined)
         self.assertIn("penalty", joined)
+        self.assertIn("sport surface geometry", decision.visual_grammar.deterministic_elements)
 
     def test_tactics_routes_to_deterministic_composition(self):
         decision = self.engine.decide(self.story(
@@ -44,11 +49,25 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         ))
         self.assertEqual(decision.plan.production_mode, ProductionMode.DETERMINISTIC_COMPOSITION)
         self.assertEqual(decision.plan.visual_family, VisualFamily.TACTICAL_INTELLIGENCE)
+        self.assertEqual(decision.visual_grammar.surface_visibility, SurfaceVisibility.FULL_DETERMINISTIC)
+        self.assertEqual(decision.visual_grammar.camera_language, CameraLanguage.TACTICAL_TOP)
+        self.assertEqual(decision.visual_grammar.generated_elements, ())
+
+    def test_transfer_does_not_inherit_football_pitch_dependency(self):
+        decision = self.engine.decide(self.story(
+            event=EditorialEvent.TRANSFER_CONFIRMED,
+            fact_phrase="ينتقل رسمياً",
+            story_core="verified completed transfer",
+        ))
+        self.assertEqual(decision.visual_grammar.surface_visibility, SurfaceVisibility.NONE)
+        self.assertNotIn("sport surface geometry", decision.visual_grammar.deterministic_elements)
+        self.assertTrue(decision.visual_grammar.metadata["provider_agnostic"])
 
     def test_low_confidence_falls_back_to_verified_assets(self):
         decision = self.engine.decide(self.story(confidence=0.60))
         self.assertEqual(decision.plan.production_mode, ProductionMode.VERIFIED_ASSET_EDITORIAL)
         self.assertEqual(decision.fallback_reason, "low_story_confidence")
+        self.assertEqual(decision.visual_grammar.generated_elements, ())
 
     def test_tennis_uses_tennis_specific_geometry(self):
         decision = self.engine.decide(self.story(
@@ -75,6 +94,7 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertIn("scores", forbidden)
         self.assertIn("statistics", forbidden)
         self.assertIn("club crests", forbidden)
+        self.assertEqual(set(decision.visual_grammar.forbidden_generated_elements), forbidden)
 
     def test_unknown_sport_fails_safe_to_generic_exact_overlay_risks(self):
         decision = self.engine.decide(self.story(sport="sepaktakraw"))
