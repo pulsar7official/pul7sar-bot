@@ -28,6 +28,7 @@ jobs:
           python -m py_compile engine/intelligence/*.py tools/phase18_*.py tests/test_phase18_*.py tests/test_story_intelligence_models.py
           python tools/phase18_cpu_validate.py
           python -m unittest -v tests.test_story_intelligence_models
+          python -m unittest -v tests.test_phase18_adaptive_reference_brand_renderer
       - name: Completion and production isolation
         env: {PHASE18_CPU_VALIDATED: '1'}
         run: |
@@ -79,15 +80,16 @@ jobs:
           PY
       - name: Build project-native editorial visual study
         run: python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
-      - name: Verify v5 direct-ground reference brand study
+      - name: Verify v6 adaptive reference brand study
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           r=Path('output/phase18_editorial_scene_study'); m=json.loads((r/'manifest.json').read_text())
-          assert m['manifest_version']=='pul7sar-editorial-scene-study-v5-reference-brand'
-          assert m['renderer_contract']=='pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground'
+          assert m['manifest_version']=='pul7sar-editorial-scene-study-v6-adaptive-reference-brand'
+          assert m['renderer_contract']=='pul7sar-editorial-reference-scene-study-renderer-v6-adaptive-brand'
           assert m['benchmark_id']=='transfer-signature-v1'
+          assert m['platform']=='instagram_feed'
           assert m['generator_used_for_scene'] is False and m['verified_player_asset_used'] is False
           assert m['subject_placeholder_used'] is True and m['subject_placeholder_is_identity_evidence'] is False
           assert m['arabic_raqm_used'] is True and m['study_only'] is True and m['publication_ready'] is False
@@ -99,6 +101,13 @@ jobs:
           assert m['final_brand_font_recreation_used'] is False
           assert m['final_brand_generic_ecg_recreation_used'] is False
           assert m['final_brand_generator_used'] is False and m['final_brand_network_used'] is False
+          assert m['adaptive_brand_placement_used'] is True
+          assert m['brand_zone']=='lower_center'
+          assert m['brand_max_width_ratio'] <= 0.30 and m['brand_max_height_ratio'] <= 0.105
+          assert m['brand_width'] <= round(m['width'] * m['brand_max_width_ratio'])
+          assert m['brand_height'] <= round(m['height'] * m['brand_max_height_ratio'])
+          assert m['historic_fixed_brand_width_px']==870 and m['historic_fixed_brand_width_removed'] is True
+          assert m['brand_width'] < m['historic_fixed_brand_width_px']
           assert m['metallic_wordmark_fixed'] is True and m['seven_and_pulse_tintable'] is True and m['football_fixed'] is True
           assert m['exact_publication_master_still_requires_owner_approval'] is True
           assert m['verified_subject_asset_still_required_for_real_transfer_publication'] is True
