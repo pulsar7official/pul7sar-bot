@@ -32,6 +32,8 @@ This file is the authoritative continuation record for Change Set 107 on `phase1
   - preserves `publication_ready=false`.
 - `tests/test_phase18_colab_runner.py`
   - adds CPU-safe integration tests for the new acceptance gate while preserving existing Golden v5 contract/reuse/PNG tests.
+- `docs/PHASE18_IMPLEMENTATION_LOG_107.md`
+  - updated after CI completion to record the observed final verification result.
 
 ### Deleted
 - Nothing.
@@ -59,9 +61,10 @@ Current path:
 - No paid provider, secret, model weights, font files, fake PNG, fabricated benchmark or fabricated review score was added.
 
 ## Test state
-- Change Set 107 adds CPU-safe unittest coverage under the existing `test_phase18_*.py` discovery pattern.
-- A new GitHub Actions result must be observed for the final Change Set 107 head before this log may claim CI success.
-- No GPU result is claimed by this Change Set.
+- Change Set 107 CPU-safe unittest coverage is included under the existing `test_phase18_*.py` discovery pattern.
+- GitHub Actions Run `32695120155` / run `1458` completed with `success` for Change Set 107.
+- Observed successful steps include syntax checks, discover-based Phase 18 validation, completion audit, production isolation, Golden Hybrid v5 handoff build, quality-first batch build, batch-integrity verification, current-contract assertion and artifact upload.
+- Visual-proof generation/upload remained non-GPU/conditional; this CI success is not a claim of a new Golden PNG or visual-quality approval.
 
 ## Remaining work
 1. Obtain a compatible CUDA/BF16 host and generate Golden Hybrid v5 Candidate 1 only.
