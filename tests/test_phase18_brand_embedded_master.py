@@ -8,8 +8,14 @@ class EmbeddedBrandMasterTests(unittest.TestCase):
     def test_embedded_bundle_verifies_and_loads_three_layers(self):
         master = EmbeddedBrandMasterLoader().load()
         receipt = master.receipt
-        self.assertEqual(receipt.contract, "pul7sar-embedded-layered-brand-master-v1")
-        self.assertEqual(receipt.bundle_sha256, EmbeddedBrandMasterLoader.BUNDLE_SHA256)
+        self.assertEqual(receipt.contract, "pul7sar-embedded-layered-brand-master-v2-member-pinned")
+        self.assertEqual(len(receipt.bundle_sha256), 64)
+        self.assertTrue(receipt.member_integrity_pinned)
+        self.assertFalse(receipt.container_sha_authoritative)
+        self.assertEqual(receipt.texture_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["texture.webp"])
+        self.assertEqual(receipt.metallic_mask_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["metal_mask.png"])
+        self.assertEqual(receipt.accent_mask_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["accent_mask.png"])
+        self.assertEqual(receipt.football_mask_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["ball_mask.png"])
         self.assertEqual((receipt.width, receipt.height), (820, 266))
         self.assertEqual(master.metallic.size, (820, 266))
         self.assertEqual(master.accent.size, (820, 266))
@@ -30,23 +36,19 @@ class EmbeddedBrandMasterTests(unittest.TestCase):
         self.assertGreater(metal_alpha.getbbox()[2] - metal_alpha.getbbox()[0], 300)
         self.assertGreater(accent_alpha.getbbox()[2] - accent_alpha.getbbox()[0], 300)
         self.assertGreater(football_alpha.getbbox()[2] - football_alpha.getbbox()[0], 30)
-        # The football occupies the far-right zone; the enlarged 7/pulse owns
-        # the centre; the metallic wordmark spans both sides.
         self.assertGreater(football_alpha.getbbox()[0], 650)
         self.assertLess(accent_alpha.getbbox()[0], 80)
         self.assertGreater(accent_alpha.getbbox()[2], 600)
 
-    def test_transport_noise_can_be_ignored_only_before_binary_sha_verification(self):
+    def test_transport_noise_does_not_replace_member_integrity(self):
         original = b"PUL7SAR transport test"
         encoded = base64.b64encode(original).decode("ascii")
         noisy = encoded[:8] + "!" + encoded[8:]
         self.assertEqual(EmbeddedBrandMasterLoader._decode_bundle_text(noisy), original)
-        # The production loader still pins the exact decoded archive SHA; this
-        # recovery helper does not alter or replace that binary integrity lock.
-        self.assertEqual(
-            EmbeddedBrandMasterLoader.BUNDLE_SHA256,
-            "49ed35398dbb3a62460ff4ee52b7eea7b0db295b165271cef1126484d3d15d62",
-        )
+        self.assertEqual(set(EmbeddedBrandMasterLoader.MEMBER_SHA256), {
+            "texture.webp", "metal_mask.png", "accent_mask.png", "ball_mask.png"
+        })
+        self.assertTrue(all(len(value) == 64 for value in EmbeddedBrandMasterLoader.MEMBER_SHA256.values()))
 
     def test_literal_ellipsization_is_rejected_as_irrecoverable_truncation(self):
         original = base64.b64encode(b"PUL7SAR approved bytes").decode("ascii")
