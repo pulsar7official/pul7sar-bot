@@ -91,15 +91,18 @@ jobs:
           from pathlib import Path
           root = Path("output/phase18_editorial_scene_study")
           manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          assert manifest["manifest_version"] == "pul7sar-editorial-scene-study-v1"
+          assert manifest["manifest_version"] == "pul7sar-editorial-scene-study-v2"
+          assert manifest["benchmark_id"] == "transfer-signature-v1"
           assert manifest["generator_used"] is False
           assert manifest["legacy_logo_used"] is False
+          assert manifest["verified_player_asset_used"] is False
           assert manifest["study_only"] is True
           assert manifest["publication_ready"] is False
+          assert manifest["brand_geometry_mode"] == "approximate-study-only-v2"
           assert manifest["exact_brand_master_still_required_for_publication"] is True
           png = root / manifest["png"]
           assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          print("Editorial visual study safety contract PASS")
+          print("Editorial visual study v2 safety contract PASS")
           PY
       - name: Build portable Golden Hybrid v5 GPU handoff
         run: |
