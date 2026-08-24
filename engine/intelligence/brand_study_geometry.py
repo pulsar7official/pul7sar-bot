@@ -1,8 +1,8 @@
-"""Study-only geometry for approximating the approved PUL7SAR identity.
+"""Study-only geometry approximating the user-approved PUL7SAR identity board.
 
-The pulse is compact and centered around the enlarged 7. It must not read as a
-full-width underline beneath PUL7SAR. Numerical values remain study parameters
-until exact master geometry is registered.
+The reference contains a broad horizontal baseline, while the ACTIVE waveform is
+compact around the enlarged 7. Vertical excursion is deliberately constrained;
+the earlier study dropped the pulse too far below the wordmark.
 """
 from __future__ import annotations
 
@@ -12,36 +12,39 @@ from engine.intelligence.brand_master_contract import APPROVED_PUL7SAR_BRAND_MAS
 from engine.intelligence.brand_pulse_signature import APPROVED_PUL7SAR_PULSE_SIGNATURE
 
 
-REFERENCE_PULSE_WAVEFORM_V2: tuple[tuple[float, float], ...] = (
-    (0.215, 0.52),
-    (0.315, 0.52),
-    (0.345, 0.52),
-    (0.365, 0.45),
-    (0.385, 0.58),
-    (0.415, 0.30),
-    (0.445, 0.72),
-    (0.475, 0.035),
-    (0.515, 0.94),
-    (0.555, 0.34),
-    (0.590, 0.66),
-    (0.620, 0.41),
-    (0.650, 0.57),
-    (0.685, 0.48),
-    (0.715, 0.52),
-    (0.790, 0.52),
+# Normalized against the full brand placement. Long baseline shoulders are real;
+# the non-flat waveform stays in the 7 zone and uses reduced vertical excursion.
+REFERENCE_PULSE_WAVEFORM_V3: tuple[tuple[float, float], ...] = (
+    (0.040, 0.52),
+    (0.335, 0.52),
+    (0.350, 0.52),
+    (0.367, 0.46),
+    (0.384, 0.58),
+    (0.405, 0.33),
+    (0.430, 0.68),
+    (0.456, 0.08),
+    (0.487, 0.88),
+    (0.520, 0.37),
+    (0.548, 0.63),
+    (0.575, 0.42),
+    (0.603, 0.58),
+    (0.632, 0.47),
+    (0.662, 0.52),
+    (0.960, 0.52),
 )
 
 
 @dataclass(frozen=True)
 class BrandStudyGeometry:
     seven_scale: float = 1.36
-    pulse_band_start: float = 0.22
-    pulse_band_height: float = 0.55
-    pulse_waveform_id: str = "reference-pulse-v2-compact"
+    pulse_band_start: float = 0.33
+    pulse_band_height: float = 0.36
+    pulse_waveform_id: str = "reference-pulse-v3-measured"
     pulse_visual_link_to_seven: bool = True
-    pulse_full_wordmark_underline: bool = False
-    pulse_left_extent: float = 0.215
-    pulse_right_extent: float = 0.790
+    pulse_baseline_left_extent: float = 0.040
+    pulse_baseline_right_extent: float = 0.960
+    pulse_active_left_extent: float = 0.350
+    pulse_active_right_extent: float = 0.662
     football_center_x: float = 0.94
     football_center_y: float = 0.54
     football_radius: float = 0.035
@@ -54,22 +57,24 @@ class BrandStudyGeometry:
         APPROVED_PUL7SAR_PULSE_SIGNATURE.assert_safe()
         if self.seven_scale <= 1.0:
             raise ValueError("STUDY_SEVEN_MUST_BE_LARGER_THAN_LETTERS")
-        if not 0.14 <= self.pulse_band_start <= 0.34:
-            raise ValueError("STUDY_PULSE_MUST_INTERSECT_LOWER_WORDMARK_ZONE")
-        if not 0.44 <= self.pulse_band_height <= 0.68:
-            raise ValueError("STUDY_PULSE_HEIGHT_OUTSIDE_REFERENCE_FAMILY")
-        if self.pulse_waveform_id != "reference-pulse-v2-compact":
-            raise ValueError("STUDY_PULSE_MUST_USE_APPROVED_COMPACT_REFERENCE")
+        if not 0.28 <= self.pulse_band_start <= 0.38:
+            raise ValueError("STUDY_PULSE_VERTICAL_POSITION_DRIFTED_FROM_REFERENCE")
+        if not 0.30 <= self.pulse_band_height <= 0.42:
+            raise ValueError("STUDY_PULSE_VERTICAL_EXCURSION_TOO_DEEP")
+        if self.pulse_waveform_id != "reference-pulse-v3-measured":
+            raise ValueError("STUDY_PULSE_MUST_USE_MEASURED_REFERENCE")
         if not self.pulse_visual_link_to_seven:
             raise ValueError("STUDY_PULSE_MUST_REMAIN_VISUALLY_LINKED_TO_SEVEN")
-        if self.pulse_full_wordmark_underline:
-            raise ValueError("STUDY_PULSE_MAY_NOT_EXTEND_AS_FULL_WORDMARK_UNDERLINE")
-        if not 0.18 <= self.pulse_left_extent <= 0.28:
-            raise ValueError("STUDY_PULSE_LEFT_SHOULDER_OUTSIDE_REFERENCE")
-        if not 0.74 <= self.pulse_right_extent <= 0.83:
-            raise ValueError("STUDY_PULSE_RIGHT_SHOULDER_OUTSIDE_REFERENCE")
-        if self.pulse_right_extent - self.pulse_left_extent > 0.62:
-            raise ValueError("STUDY_PULSE_IS_TOO_WIDE_FOR_REFERENCE")
+        if not 0.02 <= self.pulse_baseline_left_extent <= 0.08:
+            raise ValueError("STUDY_PULSE_BASELINE_LEFT_DRIFT")
+        if not 0.92 <= self.pulse_baseline_right_extent <= 0.98:
+            raise ValueError("STUDY_PULSE_BASELINE_RIGHT_DRIFT")
+        if not 0.32 <= self.pulse_active_left_extent <= 0.38:
+            raise ValueError("STUDY_PULSE_ACTIVE_LEFT_DRIFT")
+        if not 0.63 <= self.pulse_active_right_extent <= 0.70:
+            raise ValueError("STUDY_PULSE_ACTIVE_RIGHT_DRIFT")
+        if self.pulse_active_right_extent - self.pulse_active_left_extent > 0.36:
+            raise ValueError("STUDY_ACTIVE_PULSE_TOO_WIDE")
         if not 0.86 <= self.football_center_x <= 1.0:
             raise ValueError("STUDY_FOOTBALL_MUST_REMAIN_NEAR_R")
         if not 0.30 <= self.football_center_y <= 0.78:
