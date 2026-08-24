@@ -18,18 +18,22 @@ class BrandStudyRendererTests(unittest.TestCase):
     def test_geometry_locks_user_confirmed_pulse_family(self):
         with self.assertRaisesRegex(ValueError, "SEVEN_MUST_BE_LARGER"):
             BrandStudyGeometry(seven_scale=1.0)
-        with self.assertRaisesRegex(ValueError, "PULSE_MUST_REMAIN_BELOW"):
-            BrandStudyGeometry(pulse_band_start=0.4)
+        with self.assertRaisesRegex(ValueError, "PULSE_MUST_INTERSECT_LOWER_WORDMARK_ZONE"):
+            BrandStudyGeometry(pulse_band_start=0.5)
         with self.assertRaisesRegex(ValueError, "APPROVED_REFERENCE_WAVEFORM"):
             BrandStudyGeometry(pulse_waveform_id="generic-ecg")
         with self.assertRaisesRegex(ValueError, "VISUALLY_LINKED_TO_SEVEN"):
             BrandStudyGeometry(pulse_visual_link_to_seven=False)
+        with self.assertRaisesRegex(ValueError, "BASELINE_MUST_RUN_UNDER_WORDMARK"):
+            BrandStudyGeometry(pulse_baseline_under_wordmark=False)
         with self.assertRaisesRegex(ValueError, "MAY_NOT_AUTHORIZE_PUBLICATION"):
             BrandStudyGeometry(publication_ready=True)
-        self.assertGreaterEqual(len(REFERENCE_PULSE_WAVEFORM_V1), 12)
+        self.assertGreaterEqual(len(REFERENCE_PULSE_WAVEFORM_V1), 14)
         ys = [y for _, y in REFERENCE_PULSE_WAVEFORM_V1]
         self.assertLess(min(ys), 0.10)
-        self.assertGreater(max(ys), 0.85)
+        self.assertGreater(max(ys), 0.90)
+        self.assertTrue(APPROVED_BRAND_STUDY_GEOMETRY.pulse_visual_link_to_seven)
+        self.assertTrue(APPROVED_BRAND_STUDY_GEOMETRY.pulse_baseline_under_wordmark)
 
     def test_renderer_creates_reference_pulse_receipt_but_never_publication_receipt(self):
         if not self.font.is_file(): self.skipTest("DejaVu system font unavailable")
