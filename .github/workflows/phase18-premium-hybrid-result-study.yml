@@ -6,6 +6,7 @@ on:
     paths:
       - 'engine/intelligence/premium_hybrid_result_study_renderer.py'
       - 'engine/intelligence/premium_hybrid_result_runtime.py'
+      - 'engine/intelligence/premium_hybrid_result_runtime_v3.py'
       - 'engine/intelligence/verified_context_surface.py'
       - 'engine/intelligence/result_statement_study_renderer.py'
       - 'engine/intelligence/result_statement_composition.py'
@@ -21,6 +22,7 @@ on:
     paths:
       - 'engine/intelligence/premium_hybrid_result_study_renderer.py'
       - 'engine/intelligence/premium_hybrid_result_runtime.py'
+      - 'engine/intelligence/premium_hybrid_result_runtime_v3.py'
       - 'engine/intelligence/verified_context_surface.py'
       - 'engine/intelligence/result_statement_study_renderer.py'
       - 'engine/intelligence/result_statement_composition.py'
@@ -83,7 +85,8 @@ jobs:
           root=Path('output/phase18_premium_hybrid_result_study')
           m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
           png=root/m['png']
-          assert m['manifest_version']=='pul7sar-premium-hybrid-result-study-v2'
+          assert m['manifest_version']=='pul7sar-premium-hybrid-result-study-v3'
+          assert m['art_direction_revision']=='sculpted_score_and_identity_monuments_v3'
           assert m['renderer_contract']=='pul7sar-premium-hybrid-result-study-renderer-v2-metallic-depth'
           assert m['verified_context_contract']=='pul7sar-verified-context-surface-v1'
           assert m['family']=='result_statement' and m['platform']=='instagram_feed'
@@ -98,7 +101,7 @@ jobs:
           assert m['study_only'] is True and m['publication_ready'] is False
           assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
           assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
-          print('Premium Hybrid Result visual study v2 PASS')
+          print('Premium Hybrid Result visual study v3 PASS')
           PY
       - name: Upload premium hybrid Result study
         uses: actions/upload-artifact@v7
