@@ -17,22 +17,35 @@ class EditorialSceneStudyRendererTests(unittest.TestCase):
 
     def handoff(self):
         decision = StoryToVisualOrchestrator().decide(VerifiedEditorialStory(
-            event=EditorialEvent.GENERAL,
+            event=EditorialEvent.TRANSFER_CONFIRMED,
             sport="football",
-            subject="Football Editorial Study",
-            fact_phrase="non-publication visual study",
-            story_core="Phase 18 general football editorial atmosphere benchmark",
+            subject="Benchmark Player",
+            fact_phrase="joins destination club",
+            story_core="fictional transfer composition study",
             tone=HeadlineTone.NEUTRAL,
             confidence=1.0,
         ))
         return VisualStudyHandoffCompiler().compile(
             decision,
-            headline="نبض كرة القدم يبدأ هنا",
+            headline="صفقة جديدة",
+            supporting_copy="وجه جديد يصل إلى النادي",
         )
 
-    def test_renderer_outputs_real_png_from_handoff_without_generator_or_legacy_logo(self):
+    def test_arabic_is_detected_and_raqm_is_required(self):
+        self.assertTrue(EditorialSceneStudyRenderer._contains_arabic("صفقة جديدة"))
+        self.assertFalse(EditorialSceneStudyRenderer._contains_arabic("TRANSFER"))
+        try:
+            EditorialSceneStudyRenderer._require_raqm()
+        except RuntimeError:
+            self.skipTest("Pillow RAQM unavailable on this host")
+
+    def test_renderer_outputs_real_png_without_generator_identity_claim_or_legacy_logo(self):
         if not self.font.is_file():
             self.skipTest("DejaVu font unavailable")
+        try:
+            EditorialSceneStudyRenderer._require_raqm()
+        except RuntimeError:
+            self.skipTest("Pillow RAQM unavailable")
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "editorial-study.png"
             handoff = self.handoff()
@@ -47,14 +60,22 @@ class EditorialSceneStudyRendererTests(unittest.TestCase):
             self.assertTrue(out.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"))
             self.assertEqual((receipt.width, receipt.height), (1080, 1350))
             self.assertEqual(receipt.handoff_sha256, handoff.payload_sha256)
+            self.assertEqual(receipt.contract, "pul7sar-editorial-scene-study-renderer-v3")
             self.assertFalse(receipt.generator_used)
             self.assertFalse(receipt.legacy_logo_used)
+            self.assertFalse(receipt.verified_player_asset_used)
+            self.assertTrue(receipt.subject_placeholder_used)
+            self.assertTrue(receipt.arabic_raqm_used)
             self.assertTrue(receipt.study_only)
             self.assertFalse(receipt.publication_ready)
 
     def test_render_is_byte_deterministic_for_same_handoff_seed_and_font(self):
         if not self.font.is_file():
             self.skipTest("DejaVu font unavailable")
+        try:
+            EditorialSceneStudyRenderer._require_raqm()
+        except RuntimeError:
+            self.skipTest("Pillow RAQM unavailable")
         with tempfile.TemporaryDirectory() as tmp:
             handoff = self.handoff()
             renderer = EditorialSceneStudyRenderer()
