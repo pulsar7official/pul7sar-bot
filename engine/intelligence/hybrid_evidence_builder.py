@@ -11,7 +11,7 @@ from typing import Optional
 
 from engine.intelligence.football_hybrid_composer import FootballHybridCompositionReceipt
 from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
-from engine.intelligence.hybrid_visual_quality_gate import HybridVisualEvidence
+from engine.intelligence.hybrid_visual_quality_gate import DeterministicGeometryReceipt, HybridVisualEvidence
 
 
 @dataclass(frozen=True)
@@ -27,6 +27,30 @@ class HybridVisualEvidenceBuilder:
     def __init__(self) -> None:
         self._integrity = HybridArtifactIntegrityGate()
 
+    @staticmethod
+    def _football_geometry_receipt(receipt: FootballHybridCompositionReceipt) -> DeterministicGeometryReceipt:
+        """Translate a validated football-composition receipt into QA evidence.
+
+        The quality gate must never trust a boolean geometry claim alone. This
+        compact receipt is created only after HybridArtifactIntegrityGate has
+        replayed the source/output hashes and the current texture-preserving
+        football-composition contract.
+        """
+        return DeterministicGeometryReceipt(
+            renderer_id="football_pitch_projective_v1",
+            integrity_status="REGULATION_FOOTBALL_GEOMETRY_READY",
+            output_ref=receipt.output_path,
+            details={
+                "camera_preset": receipt.camera_preset,
+                "canvas": receipt.canvas,
+                "composition_mode": receipt.composition_mode,
+                "source_texture_preserved": receipt.source_texture_preserved,
+                "surface_opacity": receipt.surface_opacity,
+                "surface_feather_px": receipt.surface_feather_px,
+                "output_sha256": receipt.output_sha256,
+            },
+        )
+
     def build(
         self,
         *,
@@ -37,15 +61,19 @@ class HybridVisualEvidenceBuilder:
         verified_identity_applied: bool = False,
     ) -> HybridVisualEvidence:
         geometry_applied = False
+        geometry_receipt = None
         if football_receipt is not None:
             integrity = self._integrity.validate_football(football_receipt)
             geometry_applied = integrity.valid
+            if integrity.valid:
+                geometry_receipt = self._football_geometry_receipt(football_receipt)
 
         return HybridVisualEvidence(
             generated_text_detected=inspection.generated_text_detected,
             generated_brand_detected=inspection.generated_brand_detected,
             generated_fake_logo_detected=inspection.generated_fake_logo_detected,
             deterministic_geometry_applied=geometry_applied,
+            deterministic_geometry_receipt=geometry_receipt,
             exact_brand_asset_applied=exact_brand_applied,
             exact_typography_applied=exact_typography_applied,
             verified_identity_asset_applied=verified_identity_applied,
