@@ -72,19 +72,19 @@ class DirectVisualRenderer:
             raise ValueError("missing render assets: " + ", ".join(missing))
         asset_receipts = tuple(sorted(self._verify_assets(assets, required).items()))
 
-        image = Image.new("RGB", (layout.profile.width, layout.profile.height), self._background(plan.accent_hex))
+        image = self._build_background(layout.profile.width, layout.profile.height, plan.accent_hex)
         draw = ImageDraw.Draw(image)
-
         hero = layout.box_for(LayoutRole.HERO)
+
         if plan.base_source is DirectBaseSource.VERIFIED_ASSET:
             if hero is None:
                 raise ValueError("verified-asset render requires hero layout box")
             base_id = plan.verified_base_asset_ids[0]
             self._place_cover(image, assets[base_id].path, hero.x, hero.y, hero.width, hero.height)
+            self._verified_asset_overlay(image, hero.x, hero.y, hero.width, hero.height)
         elif hero is not None:
             self._draw_programmatic_hero(draw, hero.x, hero.y, hero.width, hero.height, plan.accent_hex)
 
-        # Exact assets are deliberately composited from supplied bytes only.
         role_boxes = [LayoutRole.LOGO, LayoutRole.CREST, LayoutRole.SOCIAL_FOOTER]
         for asset_id, role in zip(plan.exact_asset_ids, role_boxes):
             box = layout.box_for(role)
@@ -94,22 +94,20 @@ class DirectVisualRenderer:
         headline_box = layout.box_for(LayoutRole.HEADLINE)
         if headline_box is None:
             raise ValueError("headline layout box is required")
-        font = self._font(font_path, max(18, round(headline_box.height * 0.22)))
-        self._draw_text_box(draw, plan.headline, headline_box.x, headline_box.y, headline_box.width, headline_box.height, font)
+        font = self._font(font_path, max(24, round(headline_box.height * 0.30)), bold=True)
+        self._draw_fitted_text_box(draw, plan.headline, headline_box.x, headline_box.y, headline_box.width, headline_box.height, font_path, font)
 
         if plan.score:
             score_box = layout.box_for(LayoutRole.SCORE)
             if score_box is None:
                 raise ValueError("score layout box is required")
-            score_font = self._font(font_path, max(20, round(score_box.height * 0.52)))
-            self._draw_text_box(draw, plan.score, score_box.x, score_box.y, score_box.width, score_box.height, score_font)
+            score_font = self._font(font_path, max(24, round(score_box.height * 0.52)), bold=True)
+            self._draw_fitted_text_box(draw, plan.score, score_box.x, score_box.y, score_box.width, score_box.height, font_path, score_font)
 
         if plan.exact_data:
-            data_font = self._font(font_path, max(16, round(layout.profile.width * 0.024)))
-            y = headline_box.y + headline_box.height + 12
-            for row in plan.exact_data:
-                draw.text((headline_box.x, y), row, font=data_font, fill="white")
-                y += round(data_font.size * 1.35)
+            if hero is None:
+                raise ValueError("exact data requires a hero/data layout box")
+            self._draw_data_rows(draw, plan.exact_data, hero.x, hero.y, hero.width, hero.height, plan.accent_hex, font_path)
 
         out = Path(output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -143,16 +141,37 @@ class DirectVisualRenderer:
         return receipts
 
     @staticmethod
-    def _background(accent_hex: str) -> tuple[int, int, int]:
+    def _build_background(width: int, height: int, accent_hex: str) -> Image.Image:
         accent = tuple(int(accent_hex[i:i+2], 16) for i in (1, 3, 5))
-        return tuple(max(8, round(channel * 0.10)) for channel in accent)
+        image = Image.new("RGB", (width, height))
+        pixels = image.load()
+        for y in range(height):
+            t = y / max(1, height - 1)
+            for x in range(width):
+                radial = max(0.0, 1.0 - (((x - width * 0.18) / width) ** 2 + ((y - height * 0.15) / height) ** 2) * 5.5)
+                base = 11 + round(9 * (1.0 - t))
+                pixels[x, y] = tuple(min(255, base + round(channel * radial * 0.055)) for channel in accent)
+        return image
 
     @staticmethod
     def _draw_programmatic_hero(draw: ImageDraw.ImageDraw, x: int, y: int, w: int, h: int, accent_hex: str) -> None:
-        draw.rounded_rectangle((x, y, x + w, y + h), radius=max(8, round(min(w, h) * 0.035)), outline=accent_hex, width=max(2, round(w * 0.006)))
-        for index in range(1, 5):
-            yy = y + round(h * index / 5)
-            draw.line((x + round(w * 0.08), yy, x + round(w * 0.92), yy), fill=accent_hex, width=1)
+        radius = max(14, round(min(w, h) * 0.04))
+        draw.rounded_rectangle((x, y, x + w, y + h), radius=radius, fill=(20, 18, 18), outline=accent_hex, width=max(2, round(w * 0.004)))
+        inner_left = x + round(w * 0.045)
+        inner_right = x + w - round(w * 0.045)
+        for index in range(1, 7):
+            yy = y + round(h * index / 7)
+            draw.line((inner_left, yy, inner_right, yy), fill=(65, 38, 38), width=1)
+        draw.rectangle((x, y, x + round(w * 0.012), y + h), fill=accent_hex)
+
+    @staticmethod
+    def _verified_asset_overlay(image: Image.Image, x: int, y: int, w: int, h: int) -> None:
+        overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        od = ImageDraw.Draw(overlay)
+        for row in range(h):
+            alpha = round(170 * (row / max(1, h - 1)) ** 1.8)
+            od.line((0, row, w, row), fill=(0, 0, 0, alpha))
+        image.paste(overlay, (x, y), overlay)
 
     @staticmethod
     def _place_cover(canvas: Image.Image, path: str, x: int, y: int, w: int, h: int) -> None:
@@ -168,31 +187,75 @@ class DirectVisualRenderer:
     def _place_contain(canvas: Image.Image, path: str, x: int, y: int, w: int, h: int) -> None:
         with Image.open(path) as source:
             source = source.convert("RGBA")
+            alpha = source.getchannel("A")
+            bbox = alpha.getbbox()
+            if bbox:
+                source = source.crop(bbox)
             source.thumbnail((w, h), Image.Resampling.LANCZOS)
             px = x + (w - source.width) // 2
             py = y + (h - source.height) // 2
             canvas.paste(source, (px, py), source)
 
     @staticmethod
-    def _font(font_path: Optional[str], size: int):
+    def _font(font_path: Optional[str], size: int, *, bold: bool = False):
         if font_path:
             return ImageFont.truetype(font_path, size=size)
+        system = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+        if system.is_file():
+            return ImageFont.truetype(str(system), size=size)
         return ImageFont.load_default(size=size)
 
+    def _draw_fitted_text_box(self, draw: ImageDraw.ImageDraw, text: str, x: int, y: int, w: int, h: int, font_path: Optional[str], initial_font) -> None:
+        size = getattr(initial_font, "size", max(18, round(h * 0.28)))
+        while size >= 18:
+            font = self._font(font_path, size, bold=True)
+            lines = self._wrap(draw, text, font, w)
+            line_height = round(size * 1.12)
+            if lines and line_height * len(lines) <= h:
+                for index, line in enumerate(lines):
+                    draw.text((x, y + index * line_height), line, font=font, fill=(245, 245, 245))
+                return
+            size -= 2
+        raise ValueError("headline cannot fit approved text box")
+
+    def _draw_data_rows(self, draw: ImageDraw.ImageDraw, rows: tuple[str, ...], x: int, y: int, w: int, h: int, accent_hex: str, font_path: Optional[str]) -> None:
+        pad_x = round(w * 0.055)
+        pad_y = round(h * 0.075)
+        usable_h = h - 2 * pad_y
+        gap = max(10, round(h * 0.025))
+        row_h = max(44, round((usable_h - gap * (len(rows) - 1)) / max(1, len(rows))))
+        font = self._font(font_path, max(18, round(row_h * 0.30)), bold=True)
+        index_font = self._font(font_path, max(16, round(row_h * 0.26)), bold=True)
+        for idx, row in enumerate(rows):
+            yy = y + pad_y + idx * (row_h + gap)
+            draw.rounded_rectangle((x + pad_x, yy, x + w - pad_x, yy + row_h), radius=max(8, round(row_h * 0.18)), fill=(29, 25, 25), outline=(67, 55, 55), width=1)
+            badge = max(34, round(row_h * 0.52))
+            bx = x + pad_x + round(row_h * 0.18)
+            by = yy + (row_h - badge) // 2
+            draw.rounded_rectangle((bx, by, bx + badge, by + badge), radius=badge // 2, fill=accent_hex)
+            label = f"{idx + 1:02d}"
+            bb = draw.textbbox((0, 0), label, font=index_font)
+            draw.text((bx + (badge - (bb[2] - bb[0])) / 2, by + (badge - (bb[3] - bb[1])) / 2 - bb[1]), label, font=index_font, fill="white")
+            text = row
+            if len(text) >= 3 and text[:2].isdigit() and text[2].isspace():
+                text = text[3:].strip()
+            tx = bx + badge + round(row_h * 0.20)
+            ty = yy + (row_h - font.size) // 2 - round(font.size * 0.08)
+            draw.text((tx, ty), text, font=font, fill=(235, 235, 235))
+
     @staticmethod
-    def _draw_text_box(draw: ImageDraw.ImageDraw, text: str, x: int, y: int, w: int, h: int, font) -> None:
+    def _wrap(draw: ImageDraw.ImageDraw, text: str, font, max_width: int) -> list[str]:
         words = text.split()
         lines: list[str] = []
         current = ""
         for word in words:
             candidate = (current + " " + word).strip()
-            if draw.textbbox((0, 0), candidate, font=font)[2] <= w or not current:
-                current = candidate
-            else:
+            width = draw.textbbox((0, 0), candidate, font=font)[2]
+            if current and width > max_width:
                 lines.append(current)
                 current = word
+            else:
+                current = candidate
         if current:
             lines.append(current)
-        line_h = max(1, round(h / max(1, len(lines))))
-        for index, line in enumerate(lines[: max(1, h // max(1, line_h))]):
-            draw.text((x, y + index * line_h), line, font=font, fill="white")
+        return lines
