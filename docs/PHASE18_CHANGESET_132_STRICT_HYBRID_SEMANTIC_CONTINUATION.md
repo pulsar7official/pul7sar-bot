@@ -18,7 +18,7 @@ A strict continuation command that:
 
 - runs only on `phase18/story-intelligence`;
 - requires Candidate 1;
-- consumes the canonical `output/phase18_colab/latest.json` first-PNG Hybrid handoff;
+- consumes **only** the canonical `output/phase18_colab/latest.json` first-PNG Hybrid handoff; an alternate summary path is rejected so the validator and the existing Hybrid consumer cannot inspect different files;
 - replays the handoff contract, BF16, `$0-local`, deterministic-surface ownership and base PNG SHA-256;
 - does **not** run FLUX and does **not** mutate the generation queue;
 - calls the existing Hybrid v5 semantic/composition implementation on the already-proven base bytes;
@@ -42,6 +42,7 @@ Regression coverage for:
 - Hybrid semantic failure remaining fail-closed;
 - publication-authority drift rejection;
 - handoff/base-PNG SHA tampering rejection before Qwen/composition;
+- rejection of a non-canonical handoff path before Qwen/composition;
 - branch and Candidate 1 locks.
 
 ### Modified
