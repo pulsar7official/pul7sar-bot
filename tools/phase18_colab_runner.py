@@ -31,6 +31,7 @@ DEFAULT_SUMMARY = "output/phase18_colab/latest.json"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.generation_provenance_lock import GenerationProvenanceLock
 from tools.phase18_build_golden_batch import build_batch
 from tools.phase18_verify_golden_batch import verify_batch
 
@@ -151,6 +152,36 @@ def _proof_from_result(result: dict[str, Any], root: Path) -> Path:
     return path.resolve()
 
 
+def _attach_generation_provenance(*, root: Path, payload: dict[str, Any], png: Path) -> dict[str, Any]:
+    """Replay durable generation evidence before a Colab base is accepted."""
+    if payload.get("publication_ready") is not False:
+        raise RuntimeError("COLAB_PROVENANCE_REQUIRES_UNPUBLISHED_INPUT")
+    provenance = GenerationProvenanceLock().verify(
+        repository_root=str(root),
+        summary=payload,
+        base_png=str(png),
+    )
+    if provenance.get("status") != "GENERATION_PROVENANCE_LOCK_VERIFIED":
+        raise RuntimeError("COLAB_GENERATION_PROVENANCE_NOT_VERIFIED")
+    if provenance.get("publication_ready") is not False:
+        raise RuntimeError("COLAB_GENERATION_PROVENANCE_CANNOT_BE_PUBLICATION_READY")
+    if provenance.get("base_png") != str(png.resolve()):
+        raise RuntimeError("COLAB_GENERATION_PROVENANCE_PNG_MISMATCH")
+    payload = dict(payload)
+    payload.update({
+        "generation_provenance_status": provenance.get("status"),
+        "base_png_sha256": provenance.get("base_png_sha256"),
+        "executor_result": provenance.get("executor_result"),
+        "executor_result_sha256": provenance.get("executor_result_sha256"),
+        "proof_metadata": provenance.get("metadata"),
+        "proof_metadata_sha256": provenance.get("metadata_sha256"),
+        "provenance_resolved_dtype": provenance.get("resolved_dtype"),
+        "provenance_cost_mode": provenance.get("cost_mode"),
+        "publication_ready": False,
+    })
+    return payload
+
+
 def _maybe_display(path: Path) -> bool:
     try:
         from IPython import get_ipython
@@ -250,7 +281,19 @@ def main() -> int:
             existing = {}
         if _result_matches_candidate(existing, selected):
             png = _proof_from_result(existing, root)
-            payload = {"status": "COLAB_GOLDEN_BASE_ALREADY_EXISTS", **base_summary, "png": str(png), "displayed_inline": _maybe_display(png)}
+            payload = {
+                "status": "COLAB_GOLDEN_BASE_ALREADY_EXISTS", **base_summary,
+                "png": str(png),
+                "executor_result": str(result_path.resolve()),
+                "displayed_inline": _maybe_display(png),
+            }
+            try:
+                payload = _attach_generation_provenance(root=root, payload=payload, png=png)
+            except (RuntimeError, FileNotFoundError, json.JSONDecodeError) as exc:
+                raise RuntimeError(
+                    "COLAB_EXISTING_BASE_PROVENANCE_FAILED: existing result cannot be reused; "
+                    "inspect durable proof evidence or rerun with --force. " + str(exc)
+                ) from exc
             _write_summary(summary_path, payload)
             print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
             return 0
@@ -296,6 +339,7 @@ def main() -> int:
         "displayed_inline": _maybe_display(png),
         "publication_note": "Atmosphere base only. Deterministic football surface and remaining exact layers are still required.",
     }
+    payload = _attach_generation_provenance(root=root, payload=payload, png=png)
     _write_summary(summary_path, payload)
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
