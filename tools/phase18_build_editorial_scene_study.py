@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a story-aware PUL7SAR transfer visual study for human review."""
+"""Build the PUL7SAR transfer composition study v3 for human visual review."""
 from __future__ import annotations
 
 import argparse
@@ -22,14 +22,15 @@ def build(output_dir: str) -> dict[str, object]:
     if not font.is_file():
         raise FileNotFoundError("required CI study font unavailable")
 
-    # This is deliberately a fictional/non-publication benchmark story. It tests
-    # the transfer visual grammar without fabricating a real-world news claim.
+    # Deliberately fictional/non-publication benchmark story. The central human
+    # shape is a non-identity composition placeholder and must never be treated as
+    # player evidence or a real news depiction.
     decision = StoryToVisualOrchestrator().decide(VerifiedEditorialStory(
         event=EditorialEvent.TRANSFER_CONFIRMED,
         sport="football",
         subject="Benchmark Player",
         fact_phrase="joins destination club",
-        story_core="fictional Phase 18 transfer benchmark",
+        story_core="fictional Phase 18 transfer composition benchmark",
         tone=HeadlineTone.NEUTRAL,
         confidence=1.0,
     ))
@@ -40,7 +41,7 @@ def build(output_dir: str) -> dict[str, object]:
     )
     VisualStudyHandoffCompiler.verify(handoff)
 
-    output = root / "pul7sar-transfer-study-v2.png"
+    output = root / "pul7sar-transfer-study-v3.png"
     receipt = EditorialSceneStudyRenderer().render(
         handoff,
         output_path=str(output),
@@ -49,7 +50,8 @@ def build(output_dir: str) -> dict[str, object]:
         seed=7007,
     )
     manifest = {
-        "manifest_version": "pul7sar-editorial-scene-study-v2",
+        "manifest_version": "pul7sar-editorial-scene-study-v3",
+        "renderer_contract": receipt.contract,
         "benchmark_id": "transfer-signature-v1",
         "png": output.name,
         "png_sha256": receipt.output_sha256,
@@ -59,14 +61,21 @@ def build(output_dir: str) -> dict[str, object]:
         "height": receipt.height,
         "generator_used": receipt.generator_used,
         "legacy_logo_used": receipt.legacy_logo_used,
+        "verified_player_asset_used": receipt.verified_player_asset_used,
+        "subject_placeholder_used": receipt.subject_placeholder_used,
+        "subject_placeholder_is_identity_evidence": False,
+        "arabic_raqm_used": receipt.arabic_raqm_used,
         "study_only": receipt.study_only,
         "publication_ready": receipt.publication_ready,
         "brand_geometry_mode": "approximate-study-only-v2",
-        "verified_player_asset_used": False,
         "exact_brand_master_still_required_for_publication": True,
+        "verified_subject_asset_still_required_for_real_transfer_publication": True,
         "human_visual_review_required": True,
     }
-    (root / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    (root / "manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     return manifest
 
 
