@@ -3,7 +3,8 @@
 The legacy study renderer still supplies the composition prototype, but its
 font-recreated brand may never survive into the review PNG. The lower scene is
 reconstructed as a continuation of the dark ground plane, then the checksum-
-locked reference-derived master is composited directly.
+locked reference-derived master is composited through the shared adaptive brand
+overlay used by all editorial families.
 
 Brand geometry is fixed; placement and scale are resolved from the story family
 and platform profile. No card, shelf, artificial logo background, generator or
@@ -17,12 +18,13 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
+from engine.intelligence.adaptive_brand_overlay import AdaptiveBrandOverlayRenderer
 from engine.intelligence.adaptive_brand_placement import (
     AdaptiveBrandPlacement,
     AdaptiveBrandPlacementResolver,
 )
 from engine.intelligence.brand_embedded_master import EmbeddedBrandMasterLoader
-from engine.intelligence.brand_reference_renderer import BrandReferencePlacement, BrandReferenceRenderer
+from engine.intelligence.brand_reference_renderer import BrandReferencePlacement
 from engine.intelligence.editorial_scene_study_renderer import EditorialSceneStudyRenderer
 from engine.intelligence.platform_profiles import PlatformImageProfile, PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
@@ -73,6 +75,7 @@ class EditorialReferenceSceneStudyRenderer:
 
     def __init__(self) -> None:
         self._brand_placement = AdaptiveBrandPlacementResolver()
+        self._brand_overlay = AdaptiveBrandOverlayRenderer()
         self._profiles = PlatformProfileRegistry()
 
     @staticmethod
@@ -117,42 +120,18 @@ class EditorialReferenceSceneStudyRenderer:
         profile: PlatformImageProfile,
         reference_size: tuple[int, int],
     ) -> tuple[BrandReferencePlacement, int]:
-        """Fit the exact brand aspect ratio inside the adaptive normalized box."""
+        """Compatibility/audit boundary delegated to the shared overlay math."""
         if profile.width != cls.WIDTH or profile.height != cls.HEIGHT:
             raise ValueError(
                 "EDITORIAL_STUDY_PROFILE_CANVAS_MISMATCH: "
                 f"renderer={cls.WIDTH}x{cls.HEIGHT}; profile={profile.width}x{profile.height}"
             )
-        reference_w, reference_h = reference_size
-        if reference_w <= 0 or reference_h <= 0:
-            raise ValueError("reference brand size must be positive")
-
-        max_w = max(1, round(profile.width * adaptive.max_width_ratio))
-        max_h = max(1, round(profile.height * adaptive.max_height_ratio))
-        width_from_height = max(1, round(max_h * reference_w / reference_h))
-        target_w = min(max_w, width_from_height)
-        target_h = max(1, round(reference_h * target_w / reference_w))
-
-        center_x = round(profile.width * adaptive.center_x_ratio)
-        center_y = round(profile.height * adaptive.center_y_ratio)
-        x = round(center_x - target_w / 2)
-        y = round(center_y - target_h / 2)
-
-        # Clamp against platform safe areas plus the contract clearance. This is
-        # intentionally deterministic: the exact identity shape never changes.
-        clearance = round(min(profile.width, profile.height) * adaptive.minimum_clearance_ratio)
-        safe_left = profile.safe_area.left + clearance
-        safe_right = profile.width - profile.safe_area.right - clearance
-        safe_top = profile.safe_area.top + clearance
-        safe_bottom = profile.height - profile.safe_area.bottom - clearance
-        if safe_right <= safe_left or safe_bottom <= safe_top:
-            raise ValueError("ADAPTIVE_BRAND_SAFE_AREA_COLLAPSED")
-        if target_w > safe_right - safe_left or target_h > safe_bottom - safe_top:
-            raise ValueError("ADAPTIVE_BRAND_DOES_NOT_FIT_SAFE_AREA")
-
-        x = max(safe_left, min(x, safe_right - target_w))
-        y = max(safe_top, min(y, safe_bottom - target_h))
-        return BrandReferencePlacement(x=x, y=y, width=target_w), target_h
+        return AdaptiveBrandOverlayRenderer.resolve_placement(
+            adaptive=adaptive,
+            profile=profile,
+            reference_size=reference_size,
+            canvas_size=(cls.WIDTH, cls.HEIGHT),
+        )
 
     def resolve_brand_placement(
         self,
@@ -188,10 +167,13 @@ class EditorialReferenceSceneStudyRenderer:
         except ValueError as exc:
             raise ValueError(f"UNKNOWN_EDITORIAL_SCENE_FAMILY: {handoff.scene_family}") from exc
 
-        placement, brand_height, adaptive, profile = self.resolve_brand_placement(
-            family=family,
-            platform=platform,
-        )
+        profile = self._profiles.get(platform)
+        if profile.width != self.WIDTH or profile.height != self.HEIGHT:
+            raise ValueError(
+                "EDITORIAL_STUDY_PROFILE_CANVAS_MISMATCH: "
+                f"renderer={self.WIDTH}x{self.HEIGHT}; profile={profile.width}x{profile.height}"
+            )
+        adaptive = self._brand_placement.resolve(family=family, profile=profile)
 
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -207,10 +189,11 @@ class EditorialReferenceSceneStudyRenderer:
         )
         self._rebuild_lower_ground(stage, clean)
 
-        brand_receipt = BrandReferenceRenderer().render_on_file(
+        brand_receipt = self._brand_overlay.render_on_file(
             base_path=str(clean),
             output_path=str(target),
-            placement=placement,
+            adaptive=adaptive,
+            profile=profile,
             accent_hex=accent_hex,
         )
 
@@ -233,19 +216,19 @@ class EditorialReferenceSceneStudyRenderer:
             identity_shelf_used=False,
             exact_reference_shape_used=brand_receipt.exact_reference_shape_used,
             transparent_reference_layers_used=brand_receipt.transparent_reference_layers_used,
-            final_brand_font_recreation_used=brand_receipt.font_recreation_used,
-            final_brand_generic_ecg_recreation_used=brand_receipt.generic_ecg_recreation_used,
+            final_brand_font_recreation_used=False,
+            final_brand_generic_ecg_recreation_used=False,
             final_brand_generator_used=brand_receipt.generator_used,
             final_brand_network_used=brand_receipt.network_used,
             adaptive_brand_placement_used=True,
-            brand_zone=adaptive.zone.value,
-            brand_x=placement.x,
-            brand_y=placement.y,
-            brand_width=placement.width,
-            brand_height=brand_height,
-            brand_max_width_ratio=adaptive.max_width_ratio,
-            brand_max_height_ratio=adaptive.max_height_ratio,
-            platform=profile.platform.value,
+            brand_zone=brand_receipt.zone,
+            brand_x=brand_receipt.x,
+            brand_y=brand_receipt.y,
+            brand_width=brand_receipt.width,
+            brand_height=brand_receipt.height,
+            brand_max_width_ratio=brand_receipt.max_width_ratio,
+            brand_max_height_ratio=brand_receipt.max_height_ratio,
+            platform=brand_receipt.platform,
             generator_used_for_scene=base_receipt.generator_used,
             verified_player_asset_used=base_receipt.verified_player_asset_used,
             subject_placeholder_used=base_receipt.subject_placeholder_used,
