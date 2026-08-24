@@ -58,6 +58,7 @@ jobs:
           test -f tools/phase18_prefetch_flux2.py
           test -f tools/phase18_verify_first_png_provenance.py
           test -f tools/phase18_build_first_png_hybrid_handoff.py
+          test -f tools/phase18_continue_hybrid_from_first_png.py
           test -f tools/phase18_build_gpu_evidence_manifest.py
           test -f tools/phase18_verify_gpu_evidence_manifest.py
           if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
@@ -267,6 +268,37 @@ jobs:
                   raise SystemExit(f"Hybrid handoff illegally changed gate: {field}")
           PY
 
+      - name: Continue the proven PNG through strict Base and Hybrid semantic QA
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_continue_hybrid_from_first_png.py \
+            --candidate 1 \
+            --handoff output/phase18_colab/latest.json \
+            --output output/phase18_gpu_smoke/hybrid-semantic-continuation.json \
+            | tee output/phase18_gpu_smoke/hybrid-semantic-continuation-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("output/phase18_gpu_smoke/hybrid-semantic-continuation.json").read_text(encoding="utf-8"))
+          if receipt.get("status") != "FIRST_GOLDEN_HYBRID_SEMANTIC_PROOF_READY":
+              raise SystemExit("strict Hybrid semantic continuation did not complete")
+          if receipt.get("candidate") != 1 or receipt.get("manifest_version") != "pul7sar-golden-batch-v5":
+              raise SystemExit("Hybrid semantic continuation escaped Candidate 1 or Golden v5")
+          if receipt.get("semantic_layer_gate_approved") is not True:
+              raise SystemExit("Base semantic/layer ownership did not approve")
+          if receipt.get("hybrid_semantic_review_approved") is not True:
+              raise SystemExit("HYBRID_SURFACE semantic/alignment review did not approve")
+          if receipt.get("artifact_integrity", {}).get("valid") is not True:
+              raise SystemExit("deterministic hybrid artifact integrity did not verify")
+          hybrid_png = Path(receipt["hybrid_png"])
+          if not hybrid_png.is_file() or hybrid_png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("strict Hybrid semantic continuation did not produce a real PNG")
+          for field in ("golden_quality_approved", "publication_ready"):
+              if receipt.get(field) is not False:
+                  raise SystemExit(f"Hybrid semantic continuation illegally changed gate: {field}")
+          PY
+
       - name: Build tamper-evident Golden evidence manifest
         shell: bash
         run: |
@@ -280,6 +312,7 @@ jobs:
             --include output/phase18_gpu_smoke/readiness.json \
             --include output/phase18_gpu_smoke/first-png-provenance-postflight.json \
             --include output/phase18_gpu_smoke/first-png-hybrid-handoff.json \
+            --include output/phase18_gpu_smoke/hybrid-semantic-continuation.json \
             --include output/phase18_gpu_host/qualification.json \
             --output output/phase18_gpu_smoke/evidence-manifest.json \
             | tee output/phase18_gpu_smoke/evidence-manifest-console.json
