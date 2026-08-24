@@ -50,10 +50,11 @@ class SportsEditorialGenerationAugmenterTests(unittest.TestCase):
         package = self.augmenter.augment(self.base, self.scene(EditorialEvent.TRANSFER_CONFIRMED))
         self.assertIn("generated readable PUL7SAR wordmark", package.negative_constraints)
         self.assertIn("dense infographic copy", package.negative_constraints)
+        self.assertIn("generic ECG substituted for PUL7SAR pulse signature", package.negative_constraints)
         ownership = package.metadata["sports_editorial_deterministic_ownership"]
         self.assertIn("PUL7SAR fixed metallic wordmark geometry", ownership)
         self.assertIn("PUL7SAR enlarged 7 geometry", ownership)
-        self.assertIn("PUL7SAR pulse-below-wordmark geometry", ownership)
+        self.assertIn("PUL7SAR integrated pulse signature centered on 7", ownership)
         self.assertIn("PUL7SAR small football near R geometry", ownership)
 
 
