@@ -1,9 +1,10 @@
 """Deterministic premium sports-editorial study renderer for PUL7SAR Phase 18.
 
-Version 2 is deliberately closer to the approved 7/10 visual language: stronger
-stadium light, atmospheric depth, restrained tactical texture, two-level Arabic
-headline hierarchy and a lower adaptive brand zone. It still uses no generator,
-no legacy logo, and can never authorize publication.
+Version 3 fixes the v2 Arabic bidi/shaping defect by relying on Pillow RAQM with
+raw Arabic text. It also adds a clearly non-identity central footballer
+composition placeholder so visual hierarchy can be reviewed before any verified
+player asset is supplied. This module is study-only, zero-cost, uses no image
+provider, no legacy logo, and can never authorize publication.
 """
 from __future__ import annotations
 
@@ -27,9 +28,12 @@ class EditorialSceneStudyReceipt:
     height: int
     generator_used: bool = False
     legacy_logo_used: bool = False
+    verified_player_asset_used: bool = False
+    subject_placeholder_used: bool = True
+    arabic_raqm_used: bool = True
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-editorial-scene-study-renderer-v2"
+    contract: str = "pul7sar-editorial-scene-study-renderer-v3"
 
 
 class EditorialSceneStudyRenderer:
@@ -44,85 +48,130 @@ class EditorialSceneStudyRenderer:
         return tuple(int(text[i:i + 2], 16) for i in (1, 3, 5))
 
     @staticmethod
-    def _display_text(text: str) -> str:
-        try:
-            import arabic_reshaper
-            from bidi.algorithm import get_display
-            return get_display(arabic_reshaper.reshape(text))
-        except Exception:
-            return text
+    def _contains_arabic(text: str) -> bool:
+        return any(
+            0x0600 <= ord(char) <= 0x06FF
+            or 0x0750 <= ord(char) <= 0x077F
+            or 0x08A0 <= ord(char) <= 0x08FF
+            or 0xFB50 <= ord(char) <= 0xFDFF
+            or 0xFE70 <= ord(char) <= 0xFEFF
+            for char in text
+        )
 
     @staticmethod
-    def _fit_font(draw, text: str, font_path: str, max_width: int, start_size: int, min_size: int = 30):
+    def _require_raqm() -> None:
+        from PIL import features
+        if not features.check("raqm"):
+            raise RuntimeError("PUL7SAR Arabic visual study requires Pillow libraqm")
+
+    @classmethod
+    def _font(cls, font_path: str, size: int):
         from PIL import ImageFont
+        cls._require_raqm()
+        return ImageFont.truetype(font_path, size, layout_engine=ImageFont.Layout.RAQM)
+
+    @classmethod
+    def _direction(cls, text: str) -> str | None:
+        return "rtl" if cls._contains_arabic(text) else None
+
+    @classmethod
+    def _fit_font(cls, draw, text: str, font_path: str, max_width: int, start_size: int, min_size: int = 28):
+        direction = cls._direction(text)
         for size in range(start_size, min_size - 1, -2):
-            font = ImageFont.truetype(font_path, size)
-            box = draw.textbbox((0, 0), text, font=font, stroke_width=1)
+            font = cls._font(font_path, size)
+            box = draw.textbbox((0, 0), text, font=font, direction=direction, stroke_width=1)
             if box[2] - box[0] <= max_width:
                 return font
-        return ImageFont.truetype(font_path, min_size)
+        return cls._font(font_path, min_size)
 
-    @staticmethod
-    def _headline_lines(text: str) -> tuple[str, str | None]:
-        words = tuple(word for word in text.strip().split() if word)
-        if len(words) <= 3:
-            return " ".join(words), None
-        split = max(2, len(words) - 2)
-        return " ".join(words[:split]), " ".join(words[split:])
+    @classmethod
+    def _center_text(cls, draw, text: str, font, center_x: int, y: int, *, fill, stroke_width: int = 0, stroke_fill=None):
+        direction = cls._direction(text)
+        box = draw.textbbox((0, 0), text, font=font, direction=direction, stroke_width=stroke_width)
+        width = box[2] - box[0]
+        x = center_x - width // 2
+        draw.text(
+            (x, y), text, font=font, fill=fill, direction=direction,
+            stroke_width=stroke_width, stroke_fill=stroke_fill,
+        )
+        return x, width
 
-    @staticmethod
-    def _metallic_text(image, text: str, font, center_x: int, y: int, *, max_width: int):
+    @classmethod
+    def _metallic_headline(cls, image, text: str, font, center_x: int, y: int):
         from PIL import Image, ImageDraw, ImageFilter
+        direction = cls._direction(text)
         draw = ImageDraw.Draw(image)
-        box = draw.textbbox((0, 0), text, font=font, stroke_width=2)
+        box = draw.textbbox((0, 0), text, font=font, direction=direction, stroke_width=2)
         width, height = box[2] - box[0], box[3] - box[1]
         x = center_x - width // 2
 
         shadow = Image.new("RGBA", image.size, (0, 0, 0, 0))
         sd = ImageDraw.Draw(shadow)
-        sd.text((x + 8, y + 10), text, font=font, fill=(0, 0, 0, 220), stroke_width=5, stroke_fill=(0, 0, 0, 220))
-        shadow = shadow.filter(ImageFilter.GaussianBlur(3))
-        image.alpha_composite(shadow)
+        sd.text((x + 8, y + 10), text, font=font, direction=direction,
+                fill=(0, 0, 0, 220), stroke_width=5, stroke_fill=(0, 0, 0, 220))
+        image.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(4)))
 
         mask = Image.new("L", image.size, 0)
         md = ImageDraw.Draw(mask)
-        md.text((x, y), text, font=font, fill=255, stroke_width=2, stroke_fill=255)
+        md.text((x, y), text, font=font, direction=direction, fill=255, stroke_width=2, stroke_fill=255)
         gradient = Image.new("RGBA", image.size, (0, 0, 0, 0))
         gd = ImageDraw.Draw(gradient)
-        top = max(0, y)
-        bottom = min(image.height, y + height + 20)
+        top, bottom = max(0, y), min(image.height, y + height + 20)
         for yy in range(top, bottom):
             t = (yy - top) / max(1, bottom - top - 1)
-            if t < 0.32:
-                c = int(250 - 55 * (t / 0.32))
-            elif t < 0.67:
-                c = int(195 + 35 * ((t - 0.32) / 0.35))
+            if t < 0.28:
+                c = int(252 - 50 * (t / 0.28))
+            elif t < 0.62:
+                c = int(202 - 52 * ((t - 0.28) / 0.34))
             else:
-                c = int(230 - 95 * ((t - 0.67) / 0.33))
-            gd.line((x - 10, yy, x + min(max_width, width) + 10, yy), fill=(c, c + min(8, 255-c), min(255, c + 14), 255))
+                c = int(150 + 80 * ((t - 0.62) / 0.38))
+            gd.line((x - 8, yy, x + width + 8, yy), fill=(c, min(255, c + 6), min(255, c + 14), 255))
         image.alpha_composite(Image.composite(gradient, Image.new("RGBA", image.size, (0, 0, 0, 0)), mask))
-        highlight = ImageDraw.Draw(image)
-        highlight.text((x, y - 2), text, font=font, fill=(255, 255, 255, 42), stroke_width=1, stroke_fill=(255, 255, 255, 25))
+        ImageDraw.Draw(image).text((x, y - 2), text, font=font, direction=direction,
+                                   fill=(255, 255, 255, 48), stroke_width=1, stroke_fill=(255, 255, 255, 24))
 
     @staticmethod
-    def _accent_text(image, text: str, font, center_x: int, y: int, accent: tuple[int, int, int]):
+    def _draw_subject_placeholder(image, accent: tuple[int, int, int]):
+        """Draw a non-identity footballer silhouette used only for composition review."""
         from PIL import Image, ImageDraw, ImageFilter
-        draw = ImageDraw.Draw(image)
-        box = draw.textbbox((0, 0), text, font=font, stroke_width=2)
-        width = box[2] - box[0]
-        x = center_x - width // 2
-        glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        gd = ImageDraw.Draw(glow)
-        gd.text((x, y), text, font=font, fill=(*accent, 230), stroke_width=5, stroke_fill=(*accent, 105))
-        glow = glow.filter(ImageFilter.GaussianBlur(12))
-        image.alpha_composite(glow)
-        d = ImageDraw.Draw(image)
-        d.text((x + 5, y + 7), text, font=font, fill=(0, 0, 0, 210), stroke_width=3, stroke_fill=(0, 0, 0, 210))
-        d.text((x, y), text, font=font, fill=(*accent, 255), stroke_width=2, stroke_fill=tuple(max(0, c - 50) for c in accent) + (255,))
-        d.text((x, y - 2), text, font=font, fill=(255, 255, 255, 55))
+        layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(layer)
+        cx = 540
+
+        # Wide rim glow behind the subject gives a premium hero silhouette without a face.
+        halo = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        hd = ImageDraw.Draw(halo)
+        hd.ellipse((285, 250, 795, 980), fill=(*accent, 32))
+        image.alpha_composite(halo.filter(ImageFilter.GaussianBlur(55)))
+
+        # Head deliberately has no facial detail: this may not be mistaken for a real person.
+        draw.ellipse((cx - 70, 330, cx + 70, 470), fill=(11, 15, 22, 252), outline=(*accent, 150), width=3)
+        # Neck and torso/jersey.
+        draw.rounded_rectangle((cx - 54, 446, cx + 54, 520), radius=22, fill=(10, 14, 21, 255))
+        torso = [(cx - 205, 500), (cx - 105, 455), (cx, 500), (cx + 105, 455), (cx + 205, 500),
+                 (cx + 155, 900), (cx, 965), (cx - 155, 900)]
+        draw.polygon(torso, fill=(8, 13, 21, 252), outline=(*accent, 175))
+        # Shoulder/arm silhouettes.
+        draw.polygon([(cx - 205, 505), (cx - 300, 600), (cx - 255, 790), (cx - 150, 660)], fill=(7, 11, 18, 246))
+        draw.polygon([(cx + 205, 505), (cx + 300, 600), (cx + 255, 790), (cx + 150, 660)], fill=(7, 11, 18, 246))
+
+        # Jersey seam language and a soft accent center stripe, but no crest or invented mark.
+        draw.line((cx, 505, cx, 920), fill=(*accent, 115), width=3)
+        draw.arc((cx - 105, 475, cx + 105, 585), 10, 170, fill=(210, 220, 232, 70), width=3)
+        draw.line((cx - 140, 545, cx - 175, 870), fill=(220, 230, 240, 28), width=2)
+        draw.line((cx + 140, 545, cx + 175, 870), fill=(220, 230, 240, 28), width=2)
+
+        # Rim-light accents on silhouette edges.
+        rim = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        rd = ImageDraw.Draw(rim)
+        rd.arc((cx - 75, 326, cx + 75, 474), 120, 300, fill=(*accent, 230), width=5)
+        rd.line((cx - 205, 500, cx - 300, 600), fill=(*accent, 180), width=5)
+        rd.line((cx + 205, 500, cx + 300, 600), fill=(*accent, 180), width=5)
+        image.alpha_composite(rim.filter(ImageFilter.GaussianBlur(2)))
+        image.alpha_composite(layer)
 
     def render(self, handoff: VisualStudyHandoff, *, output_path: str, accent_hex: str, font_path: str, seed: int = 7007) -> EditorialSceneStudyReceipt:
-        from PIL import Image, ImageDraw, ImageFilter, ImageFont
+        from PIL import Image, ImageDraw, ImageFilter
 
         if not isinstance(handoff, VisualStudyHandoff):
             raise TypeError("handoff must be VisualStudyHandoff")
@@ -133,154 +182,117 @@ class EditorialSceneStudyRenderer:
         fpath = Path(font_path)
         if not fpath.is_file():
             raise FileNotFoundError(font_path)
+        self._require_raqm()
         accent = self._rgb(accent_hex)
         rng = random.Random(seed)
 
-        # Base premium charcoal/navy atmosphere.
-        image = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (3, 7, 13, 255))
+        image = Image.new("RGBA", (self.WIDTH, self.HEIGHT), (2, 7, 14, 255))
         draw = ImageDraw.Draw(image)
+        # Deep navy/charcoal gradient with restrained club tint.
         for y in range(self.HEIGHT):
-            horizon = 1.0 - min(1.0, abs(y - 620) / 780)
-            lower = max(0.0, (y - 760) / 590)
-            base = (3 + int(6*horizon), 7 + int(10*horizon), 13 + int(16*horizon))
-            tint = tuple(int(v * (0.032*horizon + 0.018*lower)) for v in accent)
-            draw.line((0, y, self.WIDTH, y), fill=tuple(min(255, base[i] + tint[i]) for i in range(3)) + (255,))
+            horizon = max(0.0, 1.0 - abs(y - 600) / 760)
+            base = (2 + int(5 * horizon), 7 + int(9 * horizon), 14 + int(14 * horizon))
+            tint = tuple(int(v * 0.035 * horizon) for v in accent)
+            draw.line((0, y, self.WIDTH, y), fill=tuple(base[i] + tint[i] for i in range(3)) + (255,))
 
-        # Large atmospheric glows and diagonal editorial depth.
-        atmosphere = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        ad = ImageDraw.Draw(atmosphere)
-        ad.ellipse((-280, 80, 520, 900), fill=(*accent, 24))
-        ad.ellipse((650, 40, 1320, 760), fill=(210, 225, 245, 13))
-        ad.polygon([(0, 250), (500, 80), (360, 1060), (0, 1140)], fill=(6, 17, 31, 115))
-        ad.polygon([(1080, 160), (735, 250), (850, 1030), (1080, 910)], fill=(*accent, 14))
-        atmosphere = atmosphere.filter(ImageFilter.GaussianBlur(35))
-        image = Image.alpha_composite(image, atmosphere)
-
-        # Stadium floodlight banks with visible lamps and wide haze beams.
+        # Stadium floodlights and beams; contextual atmosphere, not a full pitch dependency.
         lights = Image.new("RGBA", image.size, (0, 0, 0, 0))
         ld = ImageDraw.Draw(lights)
         for side in (0, 1):
-            bank_x = 90 if side == 0 else self.WIDTH - 90
+            bank_x = 95 if side == 0 else self.WIDTH - 95
             for row in range(3):
                 for col in range(6):
-                    cx = bank_x + (col - 2.5) * 22
-                    cy = 105 + row * 22
-                    ld.ellipse((cx-7, cy-7, cx+7, cy+7), fill=(245, 250, 255, 245))
+                    cx = int(bank_x + (col - 2.5) * 22)
+                    cy = 92 + row * 22
+                    ld.ellipse((cx - 7, cy - 7, cx + 7, cy + 7), fill=(245, 250, 255, 242))
             if side == 0:
-                ld.polygon([(35, 145), (230, 160), (570, 865), (145, 640)], fill=(205, 225, 255, 23))
-                ld.polygon([(65, 145), (165, 155), (390, 650), (190, 550)], fill=(*accent, 21))
+                ld.polygon([(25, 140), (215, 150), (470, 850), (110, 700)], fill=(225, 238, 255, 22))
+                ld.polygon([(65, 145), (145, 155), (345, 720), (170, 630)], fill=(*accent, 22))
             else:
-                ld.polygon([(1045, 145), (850, 160), (510, 865), (935, 640)], fill=(205, 225, 255, 23))
-                ld.polygon([(1015, 145), (915, 155), (690, 650), (890, 550)], fill=(*accent, 21))
-        blurred = lights.filter(ImageFilter.GaussianBlur(20))
-        image = Image.alpha_composite(image, blurred)
+                ld.polygon([(1055, 140), (865, 150), (610, 850), (970, 700)], fill=(225, 238, 255, 22))
+                ld.polygon([(1015, 145), (935, 155), (735, 720), (910, 630)], fill=(*accent, 22))
+        image = Image.alpha_composite(image, lights.filter(ImageFilter.GaussianBlur(22)))
         image = Image.alpha_composite(image, lights)
 
-        # Stadium/turf horizon only as atmosphere — not a full pitch requirement.
-        ground = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        gd = ImageDraw.Draw(ground)
-        gd.polygon([(0, 845), (1080, 845), (1080, 1350), (0, 1350)], fill=(3, 14, 20, 145))
-        for i in range(9):
-            x_top = 540 + (i - 4) * 45
-            x_bottom = 540 + (i - 4) * 175
-            gd.line((x_top, 850, x_bottom, 1350), fill=(*accent, 18), width=2)
-        for yy in (910, 1000, 1105, 1230):
-            gd.line((130, yy, 950, yy), fill=(170, 205, 225, 14), width=2)
-        ground = ground.filter(ImageFilter.GaussianBlur(1))
-        image = Image.alpha_composite(image, ground)
-
-        # Tactical overlay: prominent enough to feel football-specific, quiet enough not to dominate.
+        # Sparse tactical geometry on the outer thirds only.
         tactical = Image.new("RGBA", image.size, (0, 0, 0, 0))
         td = ImageDraw.Draw(tactical)
-        line = (*accent, 88)
-        td.arc((55, 330, 390, 665), 205, 40, fill=line, width=3)
-        td.ellipse((135, 435, 245, 545), outline=line, width=3)
-        td.line((185, 490, 410, 365), fill=line, width=3)
-        td.line((410, 365, 500, 420), fill=line, width=3)
-        for px, py in ((185,490),(410,365),(500,420)):
-            td.ellipse((px-10,py-10,px+10,py+10), outline=line, width=3)
-        td.arc((735, 360, 1050, 675), 140, 325, fill=line, width=3)
-        for (x1,y1,x2,y2) in ((870,445,770,580),(770,580,915,655)):
-            td.line((x1,y1,x2,y2), fill=line, width=3)
-        for px,py in ((870,445),(770,580),(915,655)):
-            td.line((px-9,py-9,px+9,py+9), fill=line, width=3)
-            td.line((px+9,py-9,px-9,py+9), fill=line, width=3)
-        tactical = tactical.filter(ImageFilter.GaussianBlur(0.35))
-        image = Image.alpha_composite(image, tactical)
+        line = (*accent, 78)
+        td.arc((60, 330, 330, 600), 205, 35, fill=line, width=3)
+        td.ellipse((125, 425, 215, 515), outline=line, width=3)
+        td.line((170, 470, 360, 365), fill=line, width=3)
+        td.line((360, 365, 430, 410), fill=line, width=3)
+        for px, py in ((170, 470), (360, 365), (430, 410)):
+            td.ellipse((px - 8, py - 8, px + 8, py + 8), outline=line, width=3)
+        td.arc((750, 350, 1020, 620), 145, 325, fill=line, width=3)
+        td.line((875, 440, 785, 570), fill=line, width=3)
+        td.line((785, 570, 910, 625), fill=line, width=3)
+        image = Image.alpha_composite(image, tactical.filter(ImageFilter.GaussianBlur(0.4)))
 
-        # Fine particles, mostly near light beams and ground.
-        particles = Image.new("RGBA", image.size, (0,0,0,0))
+        # Ground perspective and controlled particles create depth without a literal full pitch.
+        ground = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        gd = ImageDraw.Draw(ground)
+        gd.polygon([(0, 870), (1080, 870), (1080, 1350), (0, 1350)], fill=(2, 13, 19, 150))
+        for i in range(9):
+            gd.line((540 + (i - 4) * 36, 875, 540 + (i - 4) * 180, 1350), fill=(*accent, 18), width=2)
+        for yy in (930, 1030, 1145, 1270):
+            gd.line((115, yy, 965, yy), fill=(180, 205, 225, 18), width=2)
+        image = Image.alpha_composite(image, ground)
+        particles = Image.new("RGBA", image.size, (0, 0, 0, 0))
         pd = ImageDraw.Draw(particles)
-        for _ in range(115):
-            x = rng.randrange(20, self.WIDTH-20)
-            y = rng.randrange(150, 1160)
-            r = rng.choice((1,1,1,2,2))
-            alpha = rng.randrange(28, 105)
-            color = accent if rng.random() < 0.65 else (210,225,240)
-            pd.ellipse((x-r,y-r,x+r,y+r), fill=(*color,alpha))
+        for _ in range(90):
+            x = rng.randrange(25, self.WIDTH - 25)
+            y = rng.randrange(160, 1110)
+            r = rng.choice((1, 1, 1, 2))
+            c = accent if rng.random() < 0.6 else (210, 225, 240)
+            pd.ellipse((x - r, y - r, x + r, y + r), fill=(*c, rng.randrange(28, 90)))
         image = Image.alpha_composite(image, particles)
 
-        # Upper-right compact editorial badge, based on the approved guide language.
-        badge = Image.new("RGBA", image.size, (0,0,0,0))
-        bd = ImageDraw.Draw(badge)
-        bd.polygon([(675, 205), (1005, 205), (1028, 238), (1005, 274), (675, 274), (650, 239)], fill=(6,18,30,205), outline=(*accent,190))
-        badge_font = ImageFont.truetype(str(fpath), 23)
-        badge_text = self._display_text("أخبار • تحليلات • نبض كرة القدم")
-        bb = bd.textbbox((0,0), badge_text, font=badge_font)
-        bw = bb[2]-bb[0]
-        bd.text((835-bw//2, 224), badge_text, font=badge_font, fill=(226,234,242,240))
-        image = Image.alpha_composite(image, badge)
+        # Composition-only subject placeholder. Never used as identity evidence.
+        self._draw_subject_placeholder(image, accent)
 
-        # Small contextual kicker, no duplicate PUL7SAR wordmark at the top.
+        # Top micro-labels, rendered with real RAQM RTL instead of reshaper/bidi output.
         draw = ImageDraw.Draw(image)
-        kicker_font = ImageFont.truetype(str(fpath), 27)
-        kicker = self._display_text("هوية رياضية • خبر واحد • تركيز واحد")
-        kb = draw.textbbox((0,0), kicker, font=kicker_font)
-        draw.text((76, 285), kicker, font=kicker_font, fill=(190,202,214,215))
-        draw.line((76, 326, 345, 326), fill=(*accent,225), width=4)
+        small = self._font(str(fpath), 23)
+        badge = "أخبار • تحليلات • نبض كرة القدم"
+        bx, bw = self._center_text(draw, badge, small, 830, 225, fill=(228, 235, 242, 235))
+        draw.rounded_rectangle((bx - 22, 212, bx + bw + 22, 270), radius=16, outline=(*accent, 175), fill=(5, 16, 28, 170), width=2)
+        # redraw text over badge after rectangle
+        self._center_text(draw, badge, small, 830, 225, fill=(228, 235, 242, 235))
+        kicker = "دراسة تركيب بصري • ليست خبراً للنشر"
+        kicker_font = self._font(str(fpath), 24)
+        self._center_text(draw, kicker, kicker_font, 300, 292, fill=(181, 195, 210, 205))
+        draw.line((95, 334, 355, 334), fill=(*accent, 215), width=4)
 
-        first, second = self._headline_lines(handoff.headline)
-        first_display = self._display_text(first)
-        second_display = self._display_text(second) if second else None
-        first_font = self._fit_font(draw, first_display, str(fpath), 900, 118, 54)
-        if second_display:
-            second_font = self._fit_font(draw, second_display, str(fpath), 820, 124, 58)
-            first_y, second_y = 515, 655
-        else:
-            second_font = None
-            first_y, second_y = 590, 0
-        self._metallic_text(image, first_display, first_font, self.WIDTH//2, first_y, max_width=900)
-        if second_display and second_font:
-            self._accent_text(image, second_display, second_font, self.WIDTH//2, second_y, accent)
+        # Headline is intentionally short and placed across the subject at chest level.
+        headline = handoff.headline.strip()
+        headline_font = self._fit_font(draw, headline, str(fpath), 820, 112, 58)
+        self._metallic_headline(image, headline, headline_font, self.WIDTH // 2, 690)
 
-        draw = ImageDraw.Draw(image)
         if handoff.supporting_copy:
-            support = self._display_text(handoff.supporting_copy)
-            sf = self._fit_font(draw, support, str(fpath), 760, 36, 24)
-            sb = draw.textbbox((0,0), support, font=sf)
-            sw = sb[2]-sb[0]
-            draw.text(((self.WIDTH-sw)//2, 815), support, font=sf, fill=(185,197,209,225))
+            support = handoff.supporting_copy.strip()
+            support_font = self._fit_font(draw, support, str(fpath), 700, 34, 24)
+            self._center_text(ImageDraw.Draw(image), support, support_font, self.WIDTH // 2, 825, fill=(190, 202, 214, 225))
 
-        # Accent flare and lower brand stage separation.
-        flare = Image.new("RGBA", image.size, (0,0,0,0))
-        fd = ImageDraw.Draw(flare)
-        fd.line((260, 875, 820, 875), fill=(*accent,105), width=2)
-        fd.line((430, 875, 650, 875), fill=(*accent,255), width=5)
-        fd.ellipse((500, 858, 580, 892), fill=(*accent,38))
-        flare = flare.filter(ImageFilter.GaussianBlur(9))
-        image = Image.alpha_composite(image, flare)
+        # Small transfer cue—not an exact club crest, contract, score or factual data.
+        cue = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        cd = ImageDraw.Draw(cue)
+        cd.rounded_rectangle((390, 900, 690, 955), radius=18, fill=(5, 17, 29, 205), outline=(*accent, 190), width=2)
+        cue_text = "TRANSFER VISUAL STUDY"
+        cue_font = self._font(str(fpath), 20)
+        self._center_text(cd, cue_text, cue_font, 540, 916, fill=(220, 229, 238, 235))
+        image = Image.alpha_composite(image, cue)
 
+        # Separate lower identity stage preserves the approved hybrid-adaptive semantics.
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
         stage = target.with_name(target.stem + ".scene-stage.png")
         image.convert("RGB").save(stage, format="PNG")
         BrandStudyRenderer().render_on_file(
-            base_path=str(stage),
-            output_path=str(target),
-            placement=BrandStudyPlacement(150, 1030, 780, 245),
+            base_path=str(stage), output_path=str(target),
+            placement=BrandStudyPlacement(175, 1040, 730, 230),
             geometry=APPROVED_BRAND_STUDY_GEOMETRY,
-            accent_hex=accent_hex,
-            font_path=str(fpath),
+            accent_hex=accent_hex, font_path=str(fpath),
         )
         stage.unlink(missing_ok=True)
 
