@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the PUL7SAR transfer composition study v3 for human visual review."""
+"""Build the PUL7SAR transfer composition study v4 for human visual review."""
 from __future__ import annotations
 
 import argparse
@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from engine.intelligence.editorial_headline_grammar import HeadlineTone
-from engine.intelligence.editorial_scene_study_renderer import EditorialSceneStudyRenderer
+from engine.intelligence.editorial_reference_scene_study_renderer import EditorialReferenceSceneStudyRenderer
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent
 from engine.intelligence.visual_study_handoff import VisualStudyHandoffCompiler
@@ -38,8 +38,8 @@ def build(output_dir: str) -> dict[str, object]:
     )
     VisualStudyHandoffCompiler.verify(handoff)
 
-    output = root / "pul7sar-transfer-study-v3.png"
-    receipt = EditorialSceneStudyRenderer().render(
+    output = root / "pul7sar-transfer-study-v4-reference-brand.png"
+    receipt = EditorialReferenceSceneStudyRenderer().render(
         handoff,
         output_path=str(output),
         accent_hex="#034694",
@@ -47,7 +47,7 @@ def build(output_dir: str) -> dict[str, object]:
         seed=7007,
     )
     manifest = {
-        "manifest_version": "pul7sar-editorial-scene-study-v3",
+        "manifest_version": "pul7sar-editorial-scene-study-v4-reference-brand",
         "renderer_contract": receipt.contract,
         "benchmark_id": "transfer-signature-v1",
         "png": output.name,
@@ -56,21 +56,27 @@ def build(output_dir: str) -> dict[str, object]:
         "accent_hex": receipt.accent_hex,
         "width": receipt.width,
         "height": receipt.height,
-        "generator_used": receipt.generator_used,
-        "legacy_logo_used": receipt.legacy_logo_used,
+        "generator_used_for_scene": receipt.generator_used_for_scene,
         "verified_player_asset_used": receipt.verified_player_asset_used,
         "subject_placeholder_used": receipt.subject_placeholder_used,
         "subject_placeholder_is_identity_evidence": False,
         "arabic_raqm_used": receipt.arabic_raqm_used,
         "study_only": receipt.study_only,
         "publication_ready": receipt.publication_ready,
-        "brand_geometry_mode": "approximate-study-only-v5-measured-reference-pulse",
-        "brand_pulse_waveform": "reference-pulse-v3-measured",
-        "brand_pulse_long_baseline": True,
-        "brand_pulse_active_waveform_compact": True,
-        "brand_pulse_vertical_depth_controlled": True,
-        "brand_pulse_visually_linked_to_seven": True,
-        "exact_brand_master_still_required_for_publication": True,
+        "brand_geometry_mode": "embedded-reference-derived-layered-master-v1",
+        "brand_source_mode": receipt.brand_source_mode,
+        "embedded_bundle_sha256": receipt.embedded_bundle_sha256,
+        "approximate_brand_zone_removed": receipt.approximate_brand_zone_removed,
+        "exact_reference_shape_used": receipt.exact_reference_shape_used,
+        "transparent_reference_layers_used": receipt.transparent_reference_layers_used,
+        "final_brand_font_recreation_used": receipt.final_brand_font_recreation_used,
+        "final_brand_generic_ecg_recreation_used": receipt.final_brand_generic_ecg_recreation_used,
+        "final_brand_generator_used": receipt.final_brand_generator_used,
+        "final_brand_network_used": receipt.final_brand_network_used,
+        "metallic_wordmark_fixed": True,
+        "seven_and_pulse_tintable": True,
+        "football_fixed": True,
+        "exact_publication_master_still_requires_owner_approval": True,
         "verified_subject_asset_still_required_for_real_transfer_publication": True,
         "human_visual_review_required": True,
     }
