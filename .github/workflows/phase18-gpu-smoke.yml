@@ -48,7 +48,9 @@ jobs:
           test "$(git branch --show-current)" = "phase18/story-intelligence"
           test -f engine/intelligence/golden_smoke.py
           test -f engine/intelligence/golden_evidence_bundle.py
+          test -f engine/intelligence/pre_gpu_repository_integrity.py
           test -f tools/phase18_first_png.py
+          test -f tools/phase18_preflight_repository_integrity.py
           test -f tools/phase18_preflight_semantic_gpu.py
           test -f tools/phase18_prefetch_qwen.py
           test -f tools/phase18_prefetch_flux2.py
@@ -58,6 +60,39 @@ jobs:
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 3
           fi
+
+      - name: Prove CPU repository and reference integrity before GPU work
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_preflight_repository_integrity.py \
+            --output output/phase18_gpu_smoke/repository-integrity.json \
+            | tee output/phase18_gpu_smoke/repository-integrity-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("output/phase18_gpu_smoke/repository-integrity.json").read_text(encoding="utf-8"))
+          if payload.get("schema") != "pul7sar-phase18-pre-gpu-repository-integrity-v1":
+              raise SystemExit("unexpected pre-GPU repository-integrity schema")
+          if payload.get("branch") != "phase18/story-intelligence":
+              raise SystemExit("repository integrity escaped the protected Phase 18 branch")
+          if payload.get("ready") is not True or payload.get("blockers") != []:
+              raise SystemExit("repository/reference integrity must pass before GPU work")
+          if payload.get("cost_mode") != "$0-local":
+              raise SystemExit("repository integrity escaped the Phase 18 zero-cost mode")
+          if payload.get("compact_brand_member_integrity_pinned") is not True:
+              raise SystemExit("compact reference member integrity is not pinned")
+          if payload.get("compact_brand_self_contained") is not True:
+              raise SystemExit("compact reference master is not self-contained")
+          if payload.get("compact_brand_study_only") is not True:
+              raise SystemExit("compact reference master illegally gained publication authority")
+          if payload.get("legacy_transport_authoritative") is not False:
+              raise SystemExit("legacy truncated brand transport became authoritative")
+          for field in ("network_required", "gpu_required", "generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+              if payload.get(field) is not False:
+                  raise SystemExit(f"repository preflight illegally changed gate: {field}")
+          PY
 
       - name: Prove CUDA-enabled PyTorch exists before dependency installation
         shell: bash
@@ -184,6 +219,7 @@ jobs:
           set -euo pipefail
           python tools/phase18_build_gpu_evidence_manifest.py \
             --result output/phase18_gpu_smoke/first-png-result.json \
+            --include output/phase18_gpu_smoke/repository-integrity.json \
             --include output/phase18_gpu_smoke/semantic-preflight.json \
             --include output/phase18_gpu_smoke/qwen-model-cache.json \
             --include output/phase18_gpu_smoke/model-cache.json \
