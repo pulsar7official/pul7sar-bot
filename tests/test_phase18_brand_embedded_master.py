@@ -1,21 +1,23 @@
-import base64
+import tempfile
 import unittest
+from pathlib import Path
 
 from engine.intelligence.brand_embedded_master import EmbeddedBrandMasterLoader
 
 
 class EmbeddedBrandMasterTests(unittest.TestCase):
-    def test_embedded_bundle_verifies_and_loads_three_layers(self):
+    def test_compact_master_verifies_and_loads_three_reference_layers(self):
         master = EmbeddedBrandMasterLoader().load()
         receipt = master.receipt
-        self.assertEqual(receipt.contract, "pul7sar-embedded-layered-brand-master-v2-member-pinned")
+        self.assertEqual(receipt.contract, "pul7sar-embedded-layered-brand-master-v3-compact-member-pinned")
         self.assertEqual(len(receipt.bundle_sha256), 64)
         self.assertTrue(receipt.member_integrity_pinned)
         self.assertFalse(receipt.container_sha_authoritative)
-        self.assertEqual(receipt.texture_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["texture.webp"])
-        self.assertEqual(receipt.metallic_mask_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["metal_mask.png"])
-        self.assertEqual(receipt.accent_mask_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["accent_mask.png"])
-        self.assertEqual(receipt.football_mask_sha256, EmbeddedBrandMasterLoader.MEMBER_SHA256["ball_mask.png"])
+        self.assertEqual(receipt.texture_sha256, EmbeddedBrandMasterLoader.RAW_SHA256["luma"])
+        self.assertEqual(receipt.metallic_mask_sha256, EmbeddedBrandMasterLoader.RAW_SHA256["metal"])
+        self.assertEqual(receipt.accent_mask_sha256, EmbeddedBrandMasterLoader.RAW_SHA256["accent"])
+        self.assertEqual(receipt.football_mask_sha256, EmbeddedBrandMasterLoader.RAW_SHA256["ball"])
+        self.assertEqual((receipt.compact_source_width, receipt.compact_source_height), (300, 97))
         self.assertEqual((receipt.width, receipt.height), (820, 266))
         self.assertEqual(master.metallic.size, (820, 266))
         self.assertEqual(master.accent.size, (820, 266))
@@ -40,21 +42,27 @@ class EmbeddedBrandMasterTests(unittest.TestCase):
         self.assertLess(accent_alpha.getbbox()[0], 80)
         self.assertGreater(accent_alpha.getbbox()[2], 600)
 
-    def test_transport_noise_does_not_replace_member_integrity(self):
-        original = b"PUL7SAR transport test"
-        encoded = base64.b64encode(original).decode("ascii")
-        noisy = encoded[:8] + "!" + encoded[8:]
-        self.assertEqual(EmbeddedBrandMasterLoader._decode_bundle_text(noisy), original)
-        self.assertEqual(set(EmbeddedBrandMasterLoader.MEMBER_SHA256), {
-            "texture.webp", "metal_mask.png", "accent_mask.png", "ball_mask.png"
+    def test_every_transport_fragment_and_decoded_raster_is_sha_pinned(self):
+        self.assertEqual(set(EmbeddedBrandMasterLoader.TRANSPORT_SHA256), {
+            "metal.b85", "accent.b85", "ball.b85", "luma.part1.b85", "luma.part2.b85"
         })
-        self.assertTrue(all(len(value) == 64 for value in EmbeddedBrandMasterLoader.MEMBER_SHA256.values()))
+        self.assertEqual(set(EmbeddedBrandMasterLoader.RAW_SHA256), {"metal", "accent", "ball", "luma"})
+        self.assertTrue(all(len(value) == 64 for value in EmbeddedBrandMasterLoader.TRANSPORT_SHA256.values()))
+        self.assertTrue(all(len(value) == 64 for value in EmbeddedBrandMasterLoader.RAW_SHA256.values()))
 
-    def test_literal_ellipsization_is_rejected_as_irrecoverable_truncation(self):
-        original = base64.b64encode(b"PUL7SAR approved bytes").decode("ascii")
-        truncated = original[:12] + "[...ELLIPSIZATION...]" + original[12:]
-        with self.assertRaisesRegex(ValueError, "PUL7SAR_EMBEDDED_BRAND_TRANSPORT_TRUNCATED"):
-            EmbeddedBrandMasterLoader._decode_bundle_text(truncated)
+    def test_transport_tampering_fails_closed(self):
+        source = Path("assets/brand/compact_v1")
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "assets/brand/compact_v1"
+            root.mkdir(parents=True)
+            for path in source.iterdir():
+                if path.is_file():
+                    (root / path.name).write_bytes(path.read_bytes())
+            path = root / "accent.b85"
+            text = path.read_text(encoding="ascii")
+            path.write_text(("A" if text[0] != "A" else "B") + text[1:], encoding="ascii")
+            with self.assertRaisesRegex(ValueError, "TRANSPORT_SHA_MISMATCH"):
+                EmbeddedBrandMasterLoader().load(repository_root=tmp)
 
 
 if __name__ == "__main__":
