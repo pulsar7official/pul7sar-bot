@@ -60,13 +60,16 @@ class SportsEditorialSceneDirectorTests(unittest.TestCase):
         self.assertEqual(scene.brand_identity_id, "pul7sar-hybrid-adaptive-v1")
         self.assertIn("PUL7SAR fixed metallic wordmark geometry", scene.deterministic_ownership)
         self.assertIn("PUL7SAR enlarged 7 geometry", scene.deterministic_ownership)
-        self.assertIn("PUL7SAR pulse-below-wordmark geometry", scene.deterministic_ownership)
+        self.assertIn("PUL7SAR integrated pulse signature centered on 7", scene.deterministic_ownership)
         self.assertIn("PUL7SAR small football near R geometry", scene.deterministic_ownership)
         self.assertIn("legacy repository logo as canonical identity", scene.forbidden)
-        self.assertIn("lower_composition_when_clear", scene.brand_placement)
+        self.assertIn("adaptive brand placement", scene.brand_placement)
+        self.assertIn("generic ECG substituted for PUL7SAR pulse signature", scene.forbidden)
         self.assertTrue(scene.metadata["brand_seven_larger_than_letters"])
-        self.assertEqual(scene.metadata["brand_pulse_position"], "below_wordmark")
+        self.assertEqual(scene.metadata["brand_pulse_topology"], "integrated_signature_centered_on_seven")
+        self.assertTrue(scene.metadata["brand_pulse_active_waveform_compact_around_seven"])
         self.assertTrue(scene.metadata["brand_small_football_near_r"])
+        self.assertTrue(scene.metadata["brand_placement_requires_adaptive_resolver"])
 
 
 if __name__ == "__main__":
