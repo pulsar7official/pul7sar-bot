@@ -1,9 +1,11 @@
 import json
 import tempfile
 import unittest
+from dataclasses import fields
 from pathlib import Path
 
-from tools.phase18_review_golden_batch import REVIEW_VERSION, evaluate
+from engine.intelligence.golden_visual_quality import GoldenVisualBlockers
+from tools.phase18_review_golden_batch import REVIEW_VERSION, _BLOCKER_FIELDS, evaluate
 
 
 class ReviewGoldenBatchTests(unittest.TestCase):
@@ -38,6 +40,10 @@ class ReviewGoldenBatchTests(unittest.TestCase):
             "blockers": blockers or {},
         }
 
+    def test_blocker_schema_tracks_dataclass_without_drift(self):
+        self.assertEqual(set(_BLOCKER_FIELDS), {item.name for item in fields(GoldenVisualBlockers)})
+        self.assertEqual(REVIEW_VERSION, "pul7sar-golden-visual-review-v2")
+
     def test_selects_highest_approved_visual(self):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(temp, [
@@ -71,6 +77,28 @@ class ReviewGoldenBatchTests(unittest.TestCase):
             blocked = next(item for item in result["ranked"] if item["request_id"] == "a")
             self.assertEqual(blocked["quality_tier"], "below_golden")
 
+    def test_generated_platform_brand_blocker_cannot_be_silently_waived(self):
+        with tempfile.TemporaryDirectory() as temp:
+            execution, review = self.write_inputs(temp, [
+                self.review("a", 1, 9.9, {"generated_platform_brand_or_wordmark": True}),
+                self.review("b", 2, 8.6),
+            ])
+            result = evaluate(str(execution), str(review))
+            self.assertEqual(result["selected"]["request_id"], "b")
+            blocked = next(item for item in result["ranked"] if item["request_id"] == "a")
+            self.assertIn("generated_platform_brand_or_wordmark", blocked["blockers"])
+
+    def test_broken_sport_surface_geometry_blocker_cannot_be_silently_waived(self):
+        with tempfile.TemporaryDirectory() as temp:
+            execution, review = self.write_inputs(temp, [
+                self.review("a", 1, 9.9, {"broken_sport_surface_geometry": True}),
+                self.review("b", 2, 8.6),
+            ])
+            result = evaluate(str(execution), str(review))
+            self.assertEqual(result["selected"]["request_id"], "b")
+            blocked = next(item for item in result["ranked"] if item["request_id"] == "a")
+            self.assertIn("broken_sport_surface_geometry", blocked["blockers"])
+
     def test_review_must_cover_every_generated_candidate(self):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(temp, [self.review("a", 1, 8.6)])
@@ -91,6 +119,16 @@ class ReviewGoldenBatchTests(unittest.TestCase):
             first["scores"]["editorial_realism"] = None
             execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.6)])
             with self.assertRaisesRegex(ValueError, "still null"):
+                evaluate(str(execution), str(review))
+
+    def test_stale_v1_review_is_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            execution, review = self.write_inputs(
+                temp,
+                [self.review("a", 1, 8.6), self.review("b", 2, 8.6)],
+                review_version="pul7sar-golden-visual-review-v1",
+            )
+            with self.assertRaisesRegex(ValueError, "review version"):
                 evaluate(str(execution), str(review))
 
     def test_unknown_review_version_fails_closed(self):
