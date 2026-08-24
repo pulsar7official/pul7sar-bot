@@ -23,6 +23,18 @@ class HybridVisualEvidenceBuilderTests(unittest.TestCase):
                 football_receipt=receipt,
             )
             self.assertTrue(evidence.deterministic_geometry_applied)
+            self.assertIsNotNone(evidence.deterministic_geometry_receipt)
+            self.assertEqual(evidence.deterministic_geometry_receipt.renderer_id, "football_pitch_projective_v1")
+            self.assertEqual(
+                evidence.deterministic_geometry_receipt.integrity_status,
+                "REGULATION_FOOTBALL_GEOMETRY_READY",
+            )
+            self.assertEqual(evidence.deterministic_geometry_receipt.output_ref, str(out))
+            self.assertEqual(
+                evidence.deterministic_geometry_receipt.details["output_sha256"],
+                receipt.output_sha256,
+            )
+            self.assertTrue(evidence.deterministic_geometry_receipt.is_valid())
 
     def test_legacy_opaque_or_unproven_surface_does_not_count_as_geometry_completion(self):
         receipt = FootballHybridCompositionReceipt(
@@ -42,6 +54,7 @@ class HybridVisualEvidenceBuilderTests(unittest.TestCase):
             football_receipt=receipt,
         )
         self.assertFalse(evidence.deterministic_geometry_applied)
+        self.assertIsNone(evidence.deterministic_geometry_receipt)
 
     def test_tampered_hybrid_artifact_cannot_count_as_geometry_completion(self):
         try:
@@ -60,6 +73,7 @@ class HybridVisualEvidenceBuilderTests(unittest.TestCase):
                 football_receipt=receipt,
             )
             self.assertFalse(evidence.deterministic_geometry_applied)
+            self.assertIsNone(evidence.deterministic_geometry_receipt)
 
     def test_inspection_failures_are_preserved(self):
         flags = VisualInspectionFlags(
@@ -71,6 +85,7 @@ class HybridVisualEvidenceBuilderTests(unittest.TestCase):
         self.assertTrue(evidence.generated_text_detected)
         self.assertTrue(evidence.generated_brand_detected)
         self.assertTrue(evidence.collage_or_split_scene_detected)
+        self.assertIsNone(evidence.deterministic_geometry_receipt)
 
     def test_exact_layers_require_explicit_completion_flags(self):
         evidence = HybridVisualEvidenceBuilder().build(
