@@ -1,3 +1,4 @@
+import base64
 import unittest
 
 from engine.intelligence.brand_embedded_master import EmbeddedBrandMasterLoader
@@ -34,6 +35,18 @@ class EmbeddedBrandMasterTests(unittest.TestCase):
         self.assertGreater(football_alpha.getbbox()[0], 650)
         self.assertLess(accent_alpha.getbbox()[0], 80)
         self.assertGreater(accent_alpha.getbbox()[2], 600)
+
+    def test_transport_noise_can_be_ignored_only_before_binary_sha_verification(self):
+        original = b"PUL7SAR transport test"
+        encoded = base64.b64encode(original).decode("ascii")
+        noisy = encoded[:8] + "!" + encoded[8:]
+        self.assertEqual(EmbeddedBrandMasterLoader._decode_bundle_text(noisy), original)
+        # The production loader still pins the exact decoded archive SHA; this
+        # recovery helper does not alter or replace that binary integrity lock.
+        self.assertEqual(
+            EmbeddedBrandMasterLoader.BUNDLE_SHA256,
+            "49ed35398dbb3a62460ff4ee52b7eea7b0db295b165271cef1126484d3d15d62",
+        )
 
 
 if __name__ == "__main__":
