@@ -156,6 +156,8 @@ def run(*, candidate: int = 1, handoff_path: Path = LATEST, output_path: Path = 
         raise RuntimeError(f"HYBRID_CONTINUATION_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
     if candidate != 1:
         raise RuntimeError("HYBRID_CONTINUATION_REQUIRES_CANDIDATE_1")
+    if handoff_path.resolve() != LATEST.resolve():
+        raise RuntimeError("HYBRID_CONTINUATION_CANONICAL_HANDOFF_REQUIRED")
 
     _load_handoff(handoff_path, candidate=candidate)
     result = _compose_hybrid(candidate, "qwen")
