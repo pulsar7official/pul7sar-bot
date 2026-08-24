@@ -4,12 +4,47 @@ Generation success is not visual success. This gate checks whether exact layers
 remained exact, whether the generative base leaked text/branding into forbidden
 regions, and whether deterministic sport geometry was actually used when the
 plan required it.
+
+Phase 18 rule: a boolean saying that deterministic geometry was applied is not
+sufficient publication evidence. Required sport geometry must carry a compact,
+auditable receipt produced by the deterministic renderer/integrity layer.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Mapping
 
 from engine.intelligence.hybrid_layer_planner import HybridLayerPlan, LayerSource
+
+
+@dataclass(frozen=True)
+class DeterministicGeometryReceipt:
+    """Provider-neutral proof that an exact geometry layer was really applied.
+
+    ``renderer_id`` identifies the approved deterministic renderer contract.
+    ``integrity_status`` is the geometry-owned integrity result (for football the
+    canonical value is ``REGULATION_FOOTBALL_GEOMETRY_READY``).
+    ``output_ref`` points to the produced hybrid/overlay artifact or durable
+    render output used by the caller.
+
+    The receipt deliberately stays provider-neutral: FLUX or any future image
+    model remains responsible only for the generative scene, never for this
+    geometry evidence.
+    """
+
+    renderer_id: str
+    integrity_status: str
+    output_ref: str
+    details: Mapping[str, object] | None = None
+
+    def is_valid(self) -> bool:
+        if not self.renderer_id.strip():
+            return False
+        if not self.integrity_status.strip():
+            return False
+        if not self.output_ref.strip():
+            return False
+        return True
 
 
 @dataclass(frozen=True)
@@ -18,6 +53,7 @@ class HybridVisualEvidence:
     generated_brand_detected: bool = False
     generated_fake_logo_detected: bool = False
     deterministic_geometry_applied: bool = False
+    deterministic_geometry_receipt: DeterministicGeometryReceipt | None = None
     exact_brand_asset_applied: bool = False
     exact_typography_applied: bool = False
     verified_identity_asset_applied: bool = False
@@ -51,8 +87,14 @@ class HybridVisualQualityGate:
             blockers.append("collage_or_split_scene")
 
         geometry = plan.by_name("sport_surface_geometry")
-        if geometry.required and geometry.source is LayerSource.DETERMINISTIC and not evidence.deterministic_geometry_applied:
-            blockers.append("required_deterministic_sport_geometry_missing")
+        if geometry.required and geometry.source is LayerSource.DETERMINISTIC:
+            if not evidence.deterministic_geometry_applied:
+                blockers.append("required_deterministic_sport_geometry_missing")
+            receipt = evidence.deterministic_geometry_receipt
+            if receipt is None:
+                blockers.append("deterministic_geometry_receipt_missing")
+            elif not isinstance(receipt, DeterministicGeometryReceipt) or not receipt.is_valid():
+                blockers.append("deterministic_geometry_receipt_invalid")
 
         brand = plan.by_name("pul7sar_brand")
         if brand.required and brand.source is LayerSource.VERIFIED_ASSET and not evidence.exact_brand_asset_applied:
