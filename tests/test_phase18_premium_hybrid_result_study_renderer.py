@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
-from engine.intelligence.premium_hybrid_result_runtime_v3 import PremiumHybridResultStudyRenderer
+from engine.intelligence.premium_hybrid_result_runtime_v4 import PremiumHybridResultStudyRenderer
 from engine.intelligence.result_statement_composition import ResultStatementComposer
 from engine.intelligence.verified_context_surface import ContextRightsBasis, VerifiedContextAsset
 
