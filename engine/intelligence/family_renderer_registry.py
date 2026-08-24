@@ -1,8 +1,8 @@
 """Explicit renderer capability registry for PUL7SAR Phase 18 editorial families.
 
-No family may silently fall back to another family's renderer. A family is either
-implemented with its own pixel contract or remains contract-only and must fail
-closed at render time until its renderer is built.
+No family may silently fall back to another family's renderer. All six editorial
+families now own explicit pixel contracts. Exact facts, identity and branding
+remain deterministic and the zero-cost core requires no network provider.
 """
 from __future__ import annotations
 
@@ -50,7 +50,7 @@ class FamilyRendererCapability:
 
 
 class FamilyRendererRegistry:
-    VERSION = "pul7sar-family-renderer-registry-v1"
+    VERSION = "pul7sar-family-renderer-registry-v2-six-family-pixel"
 
     def __init__(self) -> None:
         capabilities = {
@@ -96,20 +96,20 @@ class FamilyRendererRegistry:
             ),
             EditorialSceneFamily.DATA_MONUMENT: FamilyRendererCapability(
                 family=EditorialSceneFamily.DATA_MONUMENT,
-                status=FamilyRendererStatus.CONTRACT_ONLY,
-                renderer_module=None,
-                renderer_class=None,
-                renderer_contract=None,
+                status=FamilyRendererStatus.IMPLEMENTED,
+                renderer_module="engine.intelligence.data_monument_study_renderer",
+                renderer_class="DataMonumentStudyRenderer",
+                renderer_contract="pul7sar-data-monument-study-renderer-v1-premium",
                 exact_assets_required=("fact_locked_data", "embedded_pul7sar_brand_master"),
                 generator_required=False,
                 network_required=False,
             ),
             EditorialSceneFamily.EVENT_EDITORIAL: FamilyRendererCapability(
                 family=EditorialSceneFamily.EVENT_EDITORIAL,
-                status=FamilyRendererStatus.CONTRACT_ONLY,
-                renderer_module=None,
-                renderer_class=None,
-                renderer_contract=None,
+                status=FamilyRendererStatus.IMPLEMENTED,
+                renderer_module="engine.intelligence.event_editorial_study_renderer",
+                renderer_class="EventEditorialStudyRenderer",
+                renderer_contract="pul7sar-event-editorial-study-renderer-v1-premium-anchor",
                 exact_assets_required=("fact_locked_event_context", "embedded_pul7sar_brand_master"),
                 generator_required=False,
                 network_required=False,
