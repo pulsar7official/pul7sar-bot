@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build exact-shape PUL7SAR brand studies from the approved identity board.
+"""Build self-contained exact-shape PUL7SAR reference-brand studies.
 
-This command is intentionally local and zero-cost. It requires the exact approved
-identity-board file as input, verifies its SHA through BrandReferenceRenderer,
-and renders club/story accent variants from the same separated raster geometry.
-It performs no network access and invokes no image generator.
+Default execution loads the checksum-locked reference-derived layered master from
+this repository. An approved source identity board may be supplied only as an
+audit/re-derivation input. No network access, image generator, paid provider, or
+font recreation is used for the brand mark.
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def _base(path: Path, *, width: int = 1080, height: int = 420) -> None:
     image.save(path, format="PNG")
 
 
-def build(*, source_board: str, output_dir: str) -> dict[str, object]:
+def build(*, output_dir: str, source_board: str | None = None) -> dict[str, object]:
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
     base = root / ".reference-brand-base.png"
@@ -61,31 +61,38 @@ def build(*, source_board: str, output_dir: str) -> dict[str, object]:
             "accent_hex": receipt.accent_hex,
             "png": target.name,
             "png_sha256": receipt.output_sha256,
-            "source_sha256": receipt.source_sha256,
-            "crop_pixel_sha256": receipt.crop_pixel_sha256,
-            "metallic_pixel_sha256": receipt.metallic_pixel_sha256,
-            "accent_pixel_sha256": receipt.accent_pixel_sha256,
-            "football_pixel_sha256": receipt.football_pixel_sha256,
+            "source_reference_sha256": receipt.source_reference_sha256,
+            "brand_source_mode": receipt.brand_source_mode,
+            "embedded_bundle_sha256": receipt.embedded_bundle_sha256,
+            "metallic_layer_sha256": receipt.metallic_layer_sha256,
+            "accent_layer_sha256": receipt.accent_layer_sha256,
+            "football_layer_sha256": receipt.football_layer_sha256,
             "exact_reference_shape_used": receipt.exact_reference_shape_used,
             "transparent_reference_layers_used": receipt.transparent_reference_layers_used,
             "background_board_pixels_composited": receipt.background_board_pixels_composited,
             "font_recreation_used": receipt.font_recreation_used,
             "generic_ecg_recreation_used": receipt.generic_ecg_recreation_used,
+            "generator_used": receipt.generator_used,
+            "network_used": receipt.network_used,
             "publication_ready": receipt.publication_ready,
         })
 
     base.unlink(missing_ok=True)
     manifest = {
-        "manifest_version": "pul7sar-reference-brand-study-v1",
-        "renderer_contract": "pul7sar-brand-reference-renderer-v2-layered",
+        "manifest_version": "pul7sar-reference-brand-study-v2-self-contained",
+        "renderer_contract": "pul7sar-brand-reference-renderer-v3-embedded-layered",
         "zero_cost": True,
         "network_used": False,
         "image_generator_used": False,
-        "source_board_required": True,
+        "external_source_board_required": False,
+        "embedded_master_is_default": source_board is None,
+        "source_board_audit_mode": source_board is not None,
         "reference_shape_is_source_of_truth": True,
         "metallic_wordmark_fixed": True,
         "seven_and_pulse_tintable": True,
         "football_fixed": True,
+        "font_recreation_for_brand": False,
+        "generic_ecg_recreation": False,
         "human_owner_approval_required": True,
         "publication_ready": False,
         "variants": entries,
@@ -99,10 +106,10 @@ def build(*, source_board: str, output_dir: str) -> dict[str, object]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source-board", required=True)
+    parser.add_argument("--source-board", default=None, help="Optional approved-board audit/re-derivation path")
     parser.add_argument("--output-dir", default="output/phase18_reference_brand_study")
     args = parser.parse_args()
-    print(json.dumps(build(source_board=args.source_board, output_dir=args.output_dir), ensure_ascii=False, indent=2))
+    print(json.dumps(build(output_dir=args.output_dir, source_board=args.source_board), ensure_ascii=False, indent=2))
     return 0
 
 
