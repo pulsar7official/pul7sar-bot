@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
-from engine.intelligence.premium_hybrid_result_runtime_v3 import PremiumHybridResultStudyRenderer
+from engine.intelligence.premium_hybrid_result_runtime_v4 import PremiumHybridResultStudyRenderer
 from engine.intelligence.result_statement_composition import ResultStatementComposer
 from engine.intelligence.verified_context_surface import ContextRightsBasis, VerifiedContextAsset
 
@@ -42,7 +42,7 @@ def build(output_dir: str, context_image: str, source_reference: str) -> dict[st
 
     profile = PlatformProfileRegistry().get(SocialPlatform.INSTAGRAM_FEED)
     composition = ResultStatementComposer().plan(profile)
-    output = root / "pul7sar-premium-hybrid-result-study-v3.png"
+    output = root / "pul7sar-premium-hybrid-result-study-v4.png"
     receipt = PremiumHybridResultStudyRenderer().render(
         composition,
         profile=profile,
@@ -63,8 +63,8 @@ def build(output_dir: str, context_image: str, source_reference: str) -> dict[st
     )
 
     manifest = {
-        "manifest_version": "pul7sar-premium-hybrid-result-study-v3",
-        "art_direction_revision": "sculpted_score_and_identity_monuments_v3",
+        "manifest_version": "pul7sar-premium-hybrid-result-study-v4",
+        "art_direction_revision": "editorial_steel_score_monument_v4",
         "renderer_contract": receipt.contract,
         "composition_contract": composition.contract,
         "verified_context_contract": receipt.verified_context_contract,
