@@ -75,8 +75,9 @@ Current intended path:
 
 ## Test state
 - The pre-change head `815acebab4caa0a847cfeaef50643e07cce75d57` had GitHub Actions Run `32708003712` / run `1488` completed with `success`.
-- Change Set 109 code and regression tests are committed under the existing Phase 18 CI discovery paths.
-- Final CI status for the documented Change Set 109 head is pending at the time this log entry is first written; no success is claimed until GitHub reports a completed successful run.
+- Change Set 109 code/test head `675e05da546111b61733416ffa23a43b6ab24142` completed GitHub Actions Run `32708563566` / run `1496` with `success`.
+- The successful run covered the existing Phase 18 verification workflow; no GPU visual proof was fabricated by CPU CI.
+- Documentation-only follow-up commits record this result and do not change runtime behavior.
 
 ## Remaining work
 1. Obtain a compatible CUDA/BF16 host and generate a genuine Golden Hybrid v5 Candidate 1 using the current story-specific visual grammar.
