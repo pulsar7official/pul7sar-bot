@@ -2,9 +2,9 @@
 """Build the current PUL7SAR Golden Visual hybrid base-scene handoff.
 
 Golden v5 deliberately stops asking diffusion to draw exact football markings or
-platform branding. The model owns stadium atmosphere and an unmarked reserved
-surface plane; regulation pitch geometry is composited deterministically after
-GPU generation.
+platform branding. The model owns atmosphere and only the restrained contextual
+surface allowed by the story-level VisualGrammar; exact regulation geometry is
+composited deterministically after GPU generation.
 """
 from __future__ import annotations
 
@@ -23,6 +23,7 @@ from engine.intelligence.platform_profiles import PlatformProfileRegistry, Socia
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
 from engine.intelligence.story_visual_editorial import EditorialEvent, StoryVisualEditorialEngine
+from engine.intelligence.visual_grammar import VisualGrammar
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
@@ -42,6 +43,7 @@ def build_request(*, seed: int, request_id: str):
         headline_short="The season returns",
         confidence=1.0,
     )
+    visual_grammar = VisualGrammar().direct(editorial)
     sport_rule = SportVisualRuleRegistry().get("football")
     layers = HybridVisualLayerPlanner().plan(editorial, sport_rule)
     base_contract = HybridBaseSceneContractCompiler().compile(layers)
@@ -63,28 +65,28 @@ def build_request(*, seed: int, request_id: str):
         family="general_world",
         concept=(
             "premium European football season-opening anticipation inside one continuous elite stadium world, "
-            "with the stadium atmosphere as the generative hero and a clean reserved pitch plane for later exact geometry"
+            "with atmosphere as the generative hero and only restrained contextual turf reserved for later exact geometry"
         ),
         subject=None,
         identity_reference=None,
         environment=(
             "one photorealistic elite European football stadium at dusk, coherent architecture, floodlights, realistic supporter atmosphere, "
-            "deep stands and cinematic air. A broad grass-colored playing-surface plane may occupy the lower-middle frame but it must remain plain, "
-            "unmarked and visually simple because deterministic code will replace that entire region with regulation pitch geometry after generation. "
+            "deep stands and cinematic air. Only a restrained partial grass-colored playing-surface context should enter the lower frame; it must remain "
+            "plain and unmarked because exact regulation geometry belongs to deterministic composition. Do not make a full pitch the visual subject. "
             "Advertising boards, screens, banners and sponsor surfaces must be visually neutral with no readable words, numerals, logos or pseudo-text"
         ),
         composition=(
-            "single full-bleed cinematic magazine-cover composition from a high wide central lower-stand/endline-oriented camera. Preserve a clear "
-            "symmetrical trapezoidal surface region extending from the lower foreground toward the middle distance, suitable for deterministic projective "
-            "pitch replacement. Keep one coherent vanishing direction, strong foreground-to-background depth and clean overlay space. Do not paint any "
-            "football markings into the reserved surface plane"
+            "single full-bleed cinematic magazine-cover composition from a high wide central lower-stand/endline-oriented camera. Preserve a coherent "
+            "partial trapezoidal turf context in the lower foreground/middle distance for later deterministic projective geometry, but keep stadium atmosphere "
+            "and depth as the primary visual experience. Keep one coherent vanishing direction, strong foreground-to-background depth and clean overlay space. "
+            "Do not paint any football markings into the reserved surface context"
         ),
         camera_direction=(
-            "high wide central stadium camera with the long axis of the reserved playing surface receding into depth; no extreme fisheye, no tilted horizon, "
+            "high wide central stadium camera with a restrained partial playing-surface context receding into depth; no extreme fisheye, no tilted horizon, "
             "no low touchline distortion and no artificial framing devices"
         ),
         emotional_mood=Sentiment.ANTICIPATORY.value,
-        palette_strategy="premium dark stadium atmosphere, natural floodlight whites and restrained contextual red accents outside the reserved surface plane",
+        palette_strategy="premium dark stadium atmosphere, natural floodlight whites and restrained contextual red accents outside the reserved surface context",
         factual_constraints=(
             "the domestic football season is approaching rather than already decided",
             "the scene is general and must not imply a result, champion, transfer or specific real-person claim",
@@ -96,7 +98,7 @@ def build_request(*, seed: int, request_id: str):
             "no collage or multi-panel layout",
             "no split-screen, grid, diptych, triptych or contact-sheet framing",
             "no image-within-image composition",
-            "no football pitch markings in the reserved surface plane",
+            "no football pitch markings in the reserved surface context",
             "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines",
             "no generated branding, wordmarks, readable text, numerals or pseudo-text",
         ),
@@ -108,9 +110,11 @@ def build_request(*, seed: int, request_id: str):
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
             "hybrid_surface_replacement_required": True,
+            "hybrid_surface_visibility": visual_grammar.surface_visibility.value,
             "football_camera_preset": "high_wide_central",
+            "visual_grammar_contract": visual_grammar.metadata["contract"],
             "visual_failures_addressed": (
-                "collage composition, malformed generated pitch proportions/markings, and incorrect generated platform wordmark"
+                "collage composition, over-dominant generated pitch dependency, malformed generated pitch proportions/markings, and incorrect generated platform wordmark"
             ),
         },
     )
@@ -119,6 +123,7 @@ def build_request(*, seed: int, request_id: str):
         assets,
         planned_layout=layout,
         base_scene_contract=base_contract,
+        visual_grammar=visual_grammar,
     )
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
@@ -146,6 +151,7 @@ def main() -> int:
         "canvas": f"{request.width}x{request.height}",
         "cost_mode": request.metadata["cost_mode"],
         "portable_handoff": request.metadata["portable_handoff"],
+        "visual_grammar_surface_visibility": request.metadata["visual_grammar_surface_visibility"],
         "generated_sport_geometry_allowed": False,
         "hybrid_surface_replacement_required": True,
     }, ensure_ascii=False, indent=2))
