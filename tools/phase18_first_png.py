@@ -7,13 +7,14 @@ weaken any gate. On a compatible GPU host it:
 
 1. builds the deterministic Golden batch if needed,
 2. verifies the complete batch SHA-256/canvas/cost contract,
-3. qualifies the physical CUDA/BF16 host before downloads or queue mutation,
-4. proves the exact local Qwen runtime/model are ready before FLUX preparation,
-5. verifies/prefetches the exact approved FLUX.2 Klein snapshot,
-6. proves CUDA + FLUX.2 Klein + native BF16 readiness,
-7. prepares/reuses exactly one candidate-1 durable smoke job,
-8. executes one normal GPU-worker cycle,
-9. verifies that the durable job ended in `succeeded` and points to a real PNG.
+3. verifies CPU-only repository/reference-brand integrity before GPU work,
+4. qualifies the physical CUDA/BF16 host before downloads or queue mutation,
+5. proves the exact local Qwen runtime/model are ready before FLUX preparation,
+6. verifies/prefetches the exact approved FLUX.2 Klein snapshot,
+7. proves CUDA + FLUX.2 Klein + native BF16 readiness,
+8. prepares/reuses exactly one candidate-1 durable smoke job,
+9. executes one normal GPU-worker cycle,
+10. verifies that the durable job ended in `succeeded` and points to a real PNG.
 
 On a CPU/incompatible host it fails before model download and before enqueueing
 work. No placeholder PNG is ever created.
@@ -43,6 +44,7 @@ from tools.phase18_build_golden_batch import build_batch
 from tools.phase18_verify_golden_batch import verify_batch
 
 
+EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA = "pul7sar-phase18-pre-gpu-repository-integrity-v1"
 EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA = "pul7sar-phase18-semantic-gpu-preflight-v1"
 EXPECTED_QWEN_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 EXPECTED_COST_MODE = "$0-local"
@@ -66,6 +68,42 @@ def _run_json_command(command: list[str], *, repository_root: Path, label: str) 
         raise RuntimeError(
             f"{label} failed\n" + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
         )
+    return payload
+
+
+def _run_repository_integrity_preflight(repository_root: Path, receipt_path: Path) -> dict[str, object]:
+    payload = _run_json_command(
+        [
+            sys.executable,
+            str(repository_root / "tools" / "phase18_preflight_repository_integrity.py"),
+            "--repository-root",
+            str(repository_root),
+            "--output",
+            str(receipt_path),
+        ],
+        repository_root=repository_root,
+        label="Pre-GPU repository integrity",
+    )
+    failures: list[str] = []
+    if payload.get("schema") != EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA:
+        failures.append("repository_preflight_schema_drift")
+    if payload.get("ready") is not True:
+        failures.append("repository_integrity_not_ready")
+    if payload.get("cost_mode") != EXPECTED_COST_MODE:
+        failures.append("repository_preflight_escaped_zero_cost_policy")
+    if payload.get("compact_brand_member_integrity_pinned") is not True:
+        failures.append("compact_brand_member_integrity_not_pinned")
+    if payload.get("compact_brand_self_contained") is not True:
+        failures.append("compact_brand_not_self_contained")
+    if payload.get("compact_brand_study_only") is not True:
+        failures.append("compact_brand_study_authority_drift")
+    if payload.get("legacy_transport_authoritative") is not False:
+        failures.append("legacy_truncated_brand_transport_reauthorized")
+    for field in ("network_required", "gpu_required", "generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+        if payload.get(field) is not False:
+            failures.append(f"repository_preflight_{field}_drift")
+    if failures:
+        raise RuntimeError("PRE_GPU_REPOSITORY_INTEGRITY_CONTRACT_FAILED: " + ", ".join(failures))
     return payload
 
 
@@ -215,6 +253,7 @@ def main() -> int:
     parser.add_argument("--telemetry-root", default="output/phase18_worker_telemetry")
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
+    parser.add_argument("--repository-integrity-receipt", default="output/phase18_gpu_smoke/repository-integrity.json")
     parser.add_argument("--host-qualification-receipt", default="output/phase18_gpu_host/qualification.json")
     parser.add_argument("--semantic-preflight-receipt", default="output/phase18_gpu_smoke/semantic-preflight.json")
     parser.add_argument("--qwen-cache-receipt", default="output/phase18_gpu_smoke/qwen-model-cache.json")
@@ -246,13 +285,16 @@ def main() -> int:
     integrity = verify_batch(str(manifest_path))
     candidate = load_first_candidate(manifest_path)
 
-    # Fail closed in strict order. Hardware must be proven before any large model
-    # download, semantic readiness must be proven before FLUX preparation, and
-    # every generation prerequisite must pass before the durable queue is mutated.
+    # Fail closed in strict order. CPU repository/reference integrity is proven
+    # before hardware/model work. Hardware is then proven before any large model
+    # download, semantic readiness before FLUX preparation, and every generation
+    # prerequisite before the durable queue is mutated.
+    repository_receipt_path = _resolve_output_path(repository_root, args.repository_integrity_receipt)
     host_receipt_path = _resolve_output_path(repository_root, args.host_qualification_receipt)
     semantic_receipt_path = _resolve_output_path(repository_root, args.semantic_preflight_receipt)
     qwen_cache_receipt_path = _resolve_output_path(repository_root, args.qwen_cache_receipt)
     cache_receipt_path = _resolve_output_path(repository_root, args.model_cache_receipt)
+    repository_integrity = _run_repository_integrity_preflight(repository_root, repository_receipt_path)
     host_qualification = _run_host_qualification(repository_root, host_receipt_path)
     semantic_preflight = _run_semantic_preflight(
         repository_root,
@@ -277,6 +319,10 @@ def main() -> int:
     )
 
     evidence = {
+        "repository_integrity_receipt": str(repository_receipt_path),
+        "repository_integrity_ready": repository_integrity.get("ready"),
+        "compact_brand_bundle_sha256": repository_integrity.get("compact_brand_bundle_sha256"),
+        "legacy_brand_transport_authoritative": repository_integrity.get("legacy_transport_authoritative"),
         "host_qualification_receipt": str(host_receipt_path),
         "semantic_preflight_receipt": str(semantic_receipt_path),
         "qwen_model_cache_receipt": str(qwen_cache_receipt_path),
