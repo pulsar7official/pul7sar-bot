@@ -27,8 +27,9 @@ class VerifiedSubjectNewsComposition:
     fabricated_expression_allowed: bool = False
     fantasy_medical_scene_allowed: bool = False
     brand_must_not_overlap_face: bool = True
+    subject_text_overlap_allowed: bool = False
     publication_ready: bool = False
-    contract: str = "pul7sar-verified-subject-news-composition-v1"
+    contract: str = "pul7sar-verified-subject-news-composition-v2-separated-zones"
 
     def __post_init__(self) -> None:
         if not self.verified_subject_required:
@@ -41,6 +42,8 @@ class VerifiedSubjectNewsComposition:
             raise ValueError("INJURY_NEWS_MAY_NOT_USE_FANTASY_MEDICAL_SCENE")
         if not self.brand_must_not_overlap_face:
             raise ValueError("BRAND_MAY_NOT_OVERLAP_VERIFIED_FACE")
+        if self.subject_text_overlap_allowed:
+            raise ValueError("VERIFIED_SUBJECT_TEXT_MAY_NOT_OVERLAP_SUBJECT_ZONE")
         if self.publication_ready:
             raise ValueError("COMPOSITION_CONTRACT_ALONE_CANNOT_AUTHORIZE_PUBLICATION")
 
@@ -48,6 +51,15 @@ class VerifiedSubjectNewsComposition:
 class VerifiedSubjectNewsComposer:
     def __init__(self, brand_resolver: AdaptiveBrandPlacementResolver | None = None) -> None:
         self._brand = brand_resolver or AdaptiveBrandPlacementResolver()
+
+    @staticmethod
+    def _overlap(a: NormalizedBox, b: NormalizedBox) -> bool:
+        return not (
+            a.x + a.width <= b.x
+            or b.x + b.width <= a.x
+            or a.y + a.height <= b.y
+            or b.y + b.height <= a.y
+        )
 
     def plan(self, profile: PlatformImageProfile) -> VerifiedSubjectNewsComposition:
         if not isinstance(profile, PlatformImageProfile):
@@ -58,13 +70,16 @@ class VerifiedSubjectNewsComposer:
 
         portrait = profile.height >= profile.width
         if portrait:
-            subject = NormalizedBox(0.06, 0.19, 0.57, 0.67)
-            headline = NormalizedBox(0.55, 0.18, 0.37, 0.23)
-            context = NormalizedBox(0.58, 0.44, 0.31, 0.12)
+            subject = NormalizedBox(0.055, 0.16, 0.46, 0.70)
+            headline = NormalizedBox(0.56, 0.19, 0.36, 0.20)
+            context = NormalizedBox(0.58, 0.44, 0.31, 0.13)
         else:
-            subject = NormalizedBox(0.05, 0.12, 0.47, 0.78)
+            subject = NormalizedBox(0.045, 0.11, 0.46, 0.79)
             headline = NormalizedBox(0.55, 0.17, 0.38, 0.28)
             context = NormalizedBox(0.58, 0.49, 0.30, 0.13)
+
+        if self._overlap(subject, headline) or self._overlap(subject, context):
+            raise ValueError("CANONICAL_VERIFIED_SUBJECT_ZONES_MUST_NOT_OVERLAP")
 
         return VerifiedSubjectNewsComposition(
             subject_box=subject,
