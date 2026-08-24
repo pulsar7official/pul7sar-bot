@@ -17,7 +17,8 @@ Because the legacy review tooling used a hand-maintained blocker tuple, a stale 
 - Score fields are derived directly from `GoldenVisualScores` dataclass fields.
 - Hard-blocker fields are derived directly from `GoldenVisualBlockers` dataclass fields.
 - Stale v1 review files are rejected.
-- Generated PUL7SAR branding and broken sport-surface geometry can no longer be omitted by schema drift.
+- The blocker object must contain the exact complete blocker field set; deleted/missing fields fail closed instead of defaulting to `False`.
+- Generated PUL7SAR branding and broken sport-surface geometry can no longer be omitted by schema drift or by editing a review file.
 
 ### Modified `tools/phase18_build_golden_review_template.py`
 - Uses the same v2 review version as the evaluator.
@@ -32,6 +33,7 @@ Because the legacy review tooling used a hand-maintained blocker tuple, a stale 
 - `tests/test_phase18_review_golden_batch.py`
   - proves the review schema exactly matches `GoldenVisualBlockers`;
   - proves stale v1 reviews fail closed;
+  - proves deleting a required blocker field fails closed;
   - proves `generated_platform_brand_or_wordmark=true` rejects an otherwise 9.9-scored candidate;
   - proves `broken_sport_surface_geometry=true` rejects an otherwise 9.9-scored candidate.
 
@@ -48,6 +50,6 @@ Unchanged:
 - Exact official brand/typography asset integrity remains required before final publication composition.
 
 ## Why this materially reduces the remaining gap
-The next genuine Candidate 1 must ultimately cross Golden Visual review after semantic/alignment validation. This change prevents that final visual-quality review from silently missing exactly the two blocker classes most relevant to previous rejected proofs: generated PUL7SAR branding and broken football-surface geometry.
+The next genuine Candidate 1 must ultimately cross Golden Visual review after semantic/alignment validation. This change prevents that final visual-quality review from silently missing exactly the two blocker classes most relevant to previous rejected proofs: generated PUL7SAR branding and broken football-surface geometry. It also prevents a manually edited review from deleting a required blocker key to recover the old permissive-default behavior.
 
 No GPU PNG is claimed by this change. It is CPU-safe preparatory hardening for the first genuine Golden Visual review.
