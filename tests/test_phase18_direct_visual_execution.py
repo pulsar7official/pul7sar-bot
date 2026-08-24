@@ -28,7 +28,8 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
             AssetReference("pul7sar-logo", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT),
             AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT),
             AssetReference("club-crest", AssetRole.TEAM_CREST, AssetTreatment.EXACT),
-            AssetReference("verified-subject", AssetRole.VERIFIED_IDENTITY_REFERENCE, AssetTreatment.REFERENCE_ONLY),
+            AssetReference("verified-subject-reference", AssetRole.VERIFIED_IDENTITY_REFERENCE, AssetTreatment.REFERENCE_ONLY),
+            AssetReference("verified-subject-visual", AssetRole.VERIFIED_SUBJECT_VISUAL, AssetTreatment.EXACT, source_reference="trusted-source-image"),
         ))
 
     def story(self, event, **kwargs):
@@ -47,40 +48,36 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
     def test_table_story_completes_without_generation_package_provider_or_gpu(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.TABLE))
         self.assertEqual(decision.execution_route.route, PixelExecutionRoute.DETERMINISTIC_ONLY)
-        plan = self.planner.compile(
-            decision.execution_route,
-            self.layout,
-            self.assets,
-            headline=decision.headline,
-            exact_data=("1 Arsenal 9 pts", "2 Chelsea 7 pts"),
-        )
+        plan = self.planner.compile(decision.execution_route, self.layout, self.assets, headline=decision.headline, exact_data=("1 Arsenal 9 pts", "2 Chelsea 7 pts"))
         self.assertEqual(plan.base_source, DirectBaseSource.PROGRAMMATIC_CANVAS)
         self.assertFalse(plan.metadata["generation_package_created"])
         self.assertFalse(plan.metadata["provider_selection_performed"])
         self.assertFalse(plan.metadata["gpu_job_required"])
         self.assertTrue(plan.metadata["generator_bypassed"])
         self.assertEqual(plan.exact_data, ("1 Arsenal 9 pts", "2 Chelsea 7 pts"))
-        self.assertNotIn("verified-subject", plan.steps[0].asset_ids)
+        self.assertFalse(plan.steps[0].asset_ids)
 
-    def test_injury_uses_verified_asset_base_without_provider(self):
+    def test_injury_uses_separate_verified_visual_and_identity_reference_without_provider(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.INJURY))
         self.assertEqual(decision.execution_route.route, PixelExecutionRoute.VERIFIED_ASSET_ONLY)
-        plan = self.planner.compile(
-            decision.execution_route,
-            self.layout,
-            self.assets,
-            headline=decision.headline,
-        )
+        plan = self.planner.compile(decision.execution_route, self.layout, self.assets, headline=decision.headline)
         self.assertEqual(plan.base_source, DirectBaseSource.VERIFIED_ASSET)
-        self.assertEqual(plan.verified_base_asset_ids, ("verified-subject",))
+        self.assertEqual(plan.verified_base_asset_ids, ("verified-subject-visual",))
         self.assertEqual(plan.steps[0].stage, DirectExecutionStage.PREPARE_BASE)
-        self.assertEqual(plan.steps[0].asset_ids, ("verified-subject",))
+        self.assertEqual(plan.steps[0].asset_ids, ("verified-subject-visual",))
+        self.assertEqual(plan.metadata["identity_reference_ids"], ("verified-subject-reference",))
         self.assertFalse(plan.metadata["provider_selection_performed"])
 
-    def test_verified_asset_route_fails_closed_without_verified_source(self):
+    def test_verified_asset_route_fails_without_identity_reference(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.STATEMENT))
         assets = AssetBundle(tuple(asset for asset in self.assets.assets if asset.role is not AssetRole.VERIFIED_IDENTITY_REFERENCE))
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(ValueError, "VERIFIED_IDENTITY_REFERENCE"):
+            self.planner.compile(decision.execution_route, self.layout, assets, headline=decision.headline)
+
+    def test_verified_asset_route_fails_without_subject_visual(self):
+        decision = self.orchestrator.decide(self.story(EditorialEvent.STATEMENT))
+        assets = AssetBundle(tuple(asset for asset in self.assets.assets if asset.role is not AssetRole.VERIFIED_SUBJECT_VISUAL))
+        with self.assertRaisesRegex(ValueError, "VERIFIED_SUBJECT_VISUAL"):
             self.planner.compile(decision.execution_route, self.layout, assets, headline=decision.headline)
 
     def test_result_hybrid_route_cannot_enter_direct_execution(self):
@@ -91,24 +88,8 @@ class DirectVisualExecutionPlannerTests(unittest.TestCase):
 
     def test_direct_execution_stage_order_is_complete_and_has_no_generation_stage(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.TACTICS))
-        plan = self.planner.compile(
-            decision.execution_route,
-            self.layout,
-            self.assets,
-            headline=decision.headline,
-            exact_data=("4-3-3",),
-        )
-        self.assertEqual(
-            [step.stage for step in plan.steps],
-            [
-                DirectExecutionStage.PREPARE_BASE,
-                DirectExecutionStage.APPLY_EXACT_ASSETS,
-                DirectExecutionStage.APPLY_EXACT_DATA_GEOMETRY,
-                DirectExecutionStage.APPLY_EDITORIAL_TEXT,
-                DirectExecutionStage.QUALITY_VERIFY,
-                DirectExecutionStage.EXPORT,
-            ],
-        )
+        plan = self.planner.compile(decision.execution_route, self.layout, self.assets, headline=decision.headline, exact_data=("4-3-3",))
+        self.assertEqual([step.stage for step in plan.steps], [DirectExecutionStage.PREPARE_BASE, DirectExecutionStage.APPLY_EXACT_ASSETS, DirectExecutionStage.APPLY_EXACT_DATA_GEOMETRY, DirectExecutionStage.APPLY_EDITORIAL_TEXT, DirectExecutionStage.QUALITY_VERIFY, DirectExecutionStage.EXPORT])
         self.assertTrue(all(step.stage.value != "generate_base_scene" for step in plan.steps))
 
     def test_score_requires_score_layout_box(self):
