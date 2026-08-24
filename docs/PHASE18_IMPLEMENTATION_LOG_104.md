@@ -57,9 +57,15 @@ The same code also returned `deterministic_geometry_applied=true` whenever `appl
 - No paid provider, secret, model weights, font files, fake PNG, fabricated benchmark or fabricated review score was added.
 
 ## Test state
-- Updated tests are CPU-safe and included by the existing `tests/test_phase18_*.py` discovery workflow.
-- The Phase 18 workflow should trigger from these engine/test/docs changes.
-- At the time this log entry is created, the final GitHub Actions result for Change Set 104 is not yet recorded here. Do not describe Change Set 104 as CI-green until the workflow reports success.
+- GitHub Actions Run `32684487716` / run number `1426` completed with `success` on the Change Set 104 head.
+- Syntax check passed.
+- Discover-based Phase 18 validation passed, including the updated final-composer tests.
+- Phase 18 completion audit passed.
+- Production isolation passed.
+- Golden Hybrid v5 handoff build passed.
+- Golden Hybrid v5 candidate-batch build and integrity verification passed.
+- Current Golden Hybrid v5 contract assertion passed.
+- Visual-proof upload was correctly skipped because CPU CI produced no GPU PNG.
 - No GPU result is claimed by this Change Set.
 
 ## Remaining work
