@@ -39,15 +39,16 @@ class DirectVisualRendererTests(unittest.TestCase):
             confidence=0.98,
         )
 
+    @staticmethod
+    def verified_assets():
+        return AssetBundle((
+            AssetReference("verified-subject-reference", AssetRole.VERIFIED_IDENTITY_REFERENCE, AssetTreatment.REFERENCE_ONLY),
+            AssetReference("verified-subject-visual", AssetRole.VERIFIED_SUBJECT_VISUAL, AssetTreatment.EXACT, source_reference="trusted-source"),
+        ))
+
     def test_deterministic_table_renders_real_png_with_sha_receipt(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.TABLE))
-        plan = self.planner.compile(
-            decision.execution_route,
-            self.layout,
-            self.assets,
-            headline=decision.headline,
-            exact_data=("1 Arsenal 9 pts", "2 Chelsea 7 pts"),
-        )
+        plan = self.planner.compile(decision.execution_route, self.layout, self.assets, headline=decision.headline, exact_data=("1 Arsenal 9 pts", "2 Chelsea 7 pts"))
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "table.png"
             receipt = self.renderer.render(plan, self.layout, output_path=str(out))
@@ -70,19 +71,17 @@ class DirectVisualRendererTests(unittest.TestCase):
 
     def test_verified_asset_checksum_is_fail_closed(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.INJURY))
-        assets = AssetBundle((AssetReference("verified-subject", AssetRole.VERIFIED_IDENTITY_REFERENCE, AssetTreatment.REFERENCE_ONLY),))
-        plan = self.planner.compile(decision.execution_route, self.layout, assets, headline=decision.headline)
+        plan = self.planner.compile(decision.execution_route, self.layout, self.verified_assets(), headline=decision.headline)
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "subject.png"
             Image.new("RGB", (200, 300), (50, 50, 50)).save(source)
-            render_asset = RenderAsset("verified-subject", str(source), "0" * 64)
+            render_asset = RenderAsset("verified-subject-visual", str(source), "0" * 64)
             with self.assertRaisesRegex(ValueError, "checksum mismatch"):
-                self.renderer.render(plan, self.layout, output_path=str(Path(tmp) / "out.png"), assets={"verified-subject": render_asset})
+                self.renderer.render(plan, self.layout, output_path=str(Path(tmp) / "out.png"), assets={"verified-subject-visual": render_asset})
 
-    def test_verified_asset_route_uses_exact_source_bytes_and_receipts_them(self):
+    def test_verified_asset_route_uses_exact_subject_visual_bytes_and_receipts_them(self):
         decision = self.orchestrator.decide(self.story(EditorialEvent.INJURY))
-        assets = AssetBundle((AssetReference("verified-subject", AssetRole.VERIFIED_IDENTITY_REFERENCE, AssetTreatment.REFERENCE_ONLY),))
-        plan = self.planner.compile(decision.execution_route, self.layout, assets, headline=decision.headline)
+        plan = self.planner.compile(decision.execution_route, self.layout, self.verified_assets(), headline=decision.headline)
         with tempfile.TemporaryDirectory() as tmp:
             source = Path(tmp) / "subject.png"
             Image.new("RGB", (200, 300), (80, 90, 100)).save(source)
@@ -91,10 +90,11 @@ class DirectVisualRendererTests(unittest.TestCase):
                 plan,
                 self.layout,
                 output_path=str(Path(tmp) / "injury.png"),
-                assets={"verified-subject": RenderAsset("verified-subject", str(source), digest)},
+                assets={"verified-subject-visual": RenderAsset("verified-subject-visual", str(source), digest)},
             )
-            self.assertIn(("verified-subject", digest), receipt.asset_sha256)
+            self.assertIn(("verified-subject-visual", digest), receipt.asset_sha256)
             self.assertEqual(receipt.base_source, "verified_asset")
+            self.assertEqual(plan.metadata["identity_reference_ids"], ("verified-subject-reference",))
 
 
 if __name__ == "__main__":
