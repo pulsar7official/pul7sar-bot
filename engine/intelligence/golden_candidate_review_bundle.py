@@ -1,9 +1,10 @@
 """Prepare a fail-closed review bundle for a genuine Golden Hybrid v5 base PNG.
 
 The bundle is deliberately non-publication. It binds the Colab generation summary
-to the exact base-image bytes and expands that one GPU result into the approved
-CPU-only football pitch diagnostic matrix. This lets visual review continue after
-one genuine Candidate 1 generation without spending GPU time on additional seeds.
+to the exact base-image bytes, replays the durable executor/proof provenance, and
+expands that one GPU result into the approved CPU-only football pitch diagnostic
+matrix. This lets visual review continue after one genuine Candidate 1 generation
+without spending GPU time on additional seeds.
 """
 from __future__ import annotations
 
@@ -13,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from engine.intelligence.football_pitch_diagnostics import FootballPitchDiagnosticBuilder
+from engine.intelligence.generation_provenance_lock import GenerationProvenanceLock
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_MANIFEST = "pul7sar-golden-batch-v5"
@@ -50,7 +52,7 @@ def _repository_path(root: Path, value: str) -> Path:
 
 
 class GoldenCandidateReviewBundleBuilder:
-    """Bind one genuine Colab base to deterministic CPU review artifacts."""
+    """Bind one genuine Colab base to durable provenance and CPU review artifacts."""
 
     def build(
         self,
@@ -101,6 +103,16 @@ class GoldenCandidateReviewBundleBuilder:
                 raise RuntimeError("GOLDEN_REVIEW_BASE_IS_NOT_REAL_PNG")
         base_sha = _sha256(base_png)
 
+        provenance = GenerationProvenanceLock().verify(
+            repository_root=str(root),
+            summary=summary,
+            base_png=str(base_png),
+        )
+        if provenance.get("base_png_sha256") != base_sha:
+            raise RuntimeError("GOLDEN_REVIEW_PROVENANCE_BASE_SHA_MISMATCH")
+        if provenance.get("publication_ready") is not False:
+            raise RuntimeError("GOLDEN_REVIEW_PROVENANCE_CANNOT_BE_PUBLICATION_READY")
+
         target_dir = _repository_path(root, output_dir)
         target_dir.mkdir(parents=True, exist_ok=True)
         diagnostics = FootballPitchDiagnosticBuilder().build(
@@ -123,6 +135,13 @@ class GoldenCandidateReviewBundleBuilder:
             "base_png_sha256": base_sha,
             "source_summary": str(summary_file),
             "source_summary_sha256": _sha256(summary_file),
+            "executor_result": provenance.get("executor_result"),
+            "executor_result_sha256": provenance.get("executor_result_sha256"),
+            "proof_metadata": provenance.get("metadata"),
+            "proof_metadata_sha256": provenance.get("metadata_sha256"),
+            "generation_provenance_status": provenance.get("status"),
+            "resolved_dtype": provenance.get("resolved_dtype"),
+            "cost_mode": provenance.get("cost_mode"),
             "pitch_diagnostics_manifest": diagnostics.get("manifest"),
             "pitch_variant_count": diagnostics.get("variant_count"),
             "candidate_pixels_untouched": diagnostics.get("candidate_pixels_untouched"),
