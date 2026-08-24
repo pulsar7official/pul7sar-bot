@@ -16,10 +16,10 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn("generated_branding_allowed", self.text)
         self.assertIn("dynamic_deterministic_after_generation", self.text)
 
-    def test_editorial_study_uses_reference_brand_without_identity_shelf(self):
+    def test_editorial_study_uses_adaptive_reference_brand_without_identity_shelf(self):
         required = (
-            "pul7sar-editorial-scene-study-v5-reference-brand",
-            "pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground",
+            "pul7sar-editorial-scene-study-v6-adaptive-reference-brand",
+            "pul7sar-editorial-reference-scene-study-renderer-v6-adaptive-brand",
             "transfer-signature-v1",
             "verified_player_asset_used",
             "subject_placeholder_used",
@@ -31,14 +31,19 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
             "final_brand_generic_ecg_recreation_used",
             "final_brand_generator_used",
             "final_brand_network_used",
+            "adaptive_brand_placement_used",
+            "brand_max_width_ratio",
+            "brand_max_height_ratio",
+            "historic_fixed_brand_width_removed",
         )
         for token in required:
             self.assertIn(token, self.text)
-        # Contract must explicitly assert these safety flags false, but the test
-        # does not care whether the local workflow variable is named m/manifest.
         self.assertRegex(self.text, r"\[['\"]identity_shelf_used['\"]\]\s+is\s+False")
         self.assertRegex(self.text, r"\[['\"]final_brand_font_recreation_used['\"]\]\s+is\s+False")
         self.assertRegex(self.text, r"\[['\"]final_brand_generic_ecg_recreation_used['\"]\]\s+is\s+False")
+        self.assertRegex(self.text, r"\[['\"]adaptive_brand_placement_used['\"]\]\s+is\s+True")
+        self.assertRegex(self.text, r"\[['\"]historic_fixed_brand_width_removed['\"]\]\s+is\s+True")
+        self.assertNotIn("pul7sar-editorial-scene-study-v5-reference-brand", self.text)
         self.assertNotIn("pul7sar-editorial-scene-study-v4-reference-brand", self.text)
 
     def test_self_contained_reference_brand_study_is_built_and_uploaded(self):
