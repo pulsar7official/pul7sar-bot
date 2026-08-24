@@ -8,11 +8,12 @@ weaken any gate. On a compatible GPU host it:
 1. builds the deterministic Golden batch if needed,
 2. verifies the complete batch SHA-256/canvas/cost contract,
 3. qualifies the physical CUDA/BF16 host before downloads or queue mutation,
-4. verifies/prefetches the exact approved FLUX.2 Klein snapshot,
-5. proves CUDA + FLUX.2 Klein + native BF16 readiness,
-6. prepares/reuses exactly one candidate-1 durable smoke job,
-7. executes one normal GPU-worker cycle,
-8. verifies that the durable job ended in `succeeded` and points to a real PNG.
+4. proves the exact local Qwen runtime/model are ready before FLUX preparation,
+5. verifies/prefetches the exact approved FLUX.2 Klein snapshot,
+6. proves CUDA + FLUX.2 Klein + native BF16 readiness,
+7. prepares/reuses exactly one candidate-1 durable smoke job,
+8. executes one normal GPU-worker cycle,
+9. verifies that the durable job ended in `succeeded` and points to a real PNG.
 
 On a CPU/incompatible host it fails before model download and before enqueueing
 work. No placeholder PNG is ever created.
@@ -40,6 +41,11 @@ from engine.intelligence.golden_smoke import (
 )
 from tools.phase18_build_golden_batch import build_batch
 from tools.phase18_verify_golden_batch import verify_batch
+
+
+EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA = "pul7sar-phase18-semantic-gpu-preflight-v1"
+EXPECTED_QWEN_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
+EXPECTED_COST_MODE = "$0-local"
 
 
 def _run_json_command(command: list[str], *, repository_root: Path, label: str) -> dict[str, object]:
@@ -79,6 +85,55 @@ def _run_host_qualification(repository_root: Path, receipt_path: Path) -> dict[s
     return payload
 
 
+def _run_semantic_preflight(
+    repository_root: Path,
+    receipt_path: Path,
+    qwen_cache_receipt_path: Path,
+    *,
+    minimum_free_gib: float,
+) -> dict[str, object]:
+    payload = _run_json_command(
+        [
+            sys.executable,
+            str(repository_root / "tools" / "phase18_preflight_semantic_gpu.py"),
+            "--repository-root",
+            str(repository_root),
+            "--minimum-free-gib",
+            str(minimum_free_gib),
+            "--qwen-cache-receipt",
+            str(qwen_cache_receipt_path),
+            "--output",
+            str(receipt_path),
+        ],
+        repository_root=repository_root,
+        label="Semantic GPU preflight",
+    )
+    failures: list[str] = []
+    if payload.get("schema") != EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA:
+        failures.append("semantic_preflight_schema_drift")
+    if payload.get("model_id") != EXPECTED_QWEN_MODEL_ID:
+        failures.append("semantic_preflight_qwen_model_drift")
+    if payload.get("cost_mode") != EXPECTED_COST_MODE:
+        failures.append("semantic_preflight_escaped_zero_cost_policy")
+    if payload.get("semantic_runtime_ready") is not True:
+        failures.append("semantic_runtime_not_ready")
+    if payload.get("semantic_model_ready") is not True:
+        failures.append("semantic_model_not_ready")
+    if payload.get("cuda_available") is not True:
+        failures.append("semantic_cuda_not_available")
+    if payload.get("generation_authorized") is not False:
+        failures.append("semantic_preflight_generation_authority_drift")
+    if payload.get("queue_mutated") is not False:
+        failures.append("semantic_preflight_queue_mutation_detected")
+    if payload.get("png_created") is not False:
+        failures.append("semantic_preflight_png_creation_detected")
+    if payload.get("publication_ready") is not False:
+        failures.append("semantic_preflight_publication_authority_drift")
+    if failures:
+        raise RuntimeError("SEMANTIC_GPU_PREFLIGHT_CONTRACT_FAILED: " + ", ".join(failures))
+    return payload
+
+
 def _run_model_prefetch(
     repository_root: Path,
     receipt_path: Path,
@@ -99,7 +154,7 @@ def _run_model_prefetch(
     )
     if payload.get("ready") is not True:
         raise RuntimeError("FLUX.2 model cache preflight returned without ready=true")
-    if payload.get("cost_mode") != "$0-local":
+    if payload.get("cost_mode") != EXPECTED_COST_MODE:
         raise RuntimeError("FLUX.2 model cache preflight escaped the $0-local policy")
     return payload
 
@@ -161,7 +216,10 @@ def main() -> int:
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
     parser.add_argument("--host-qualification-receipt", default="output/phase18_gpu_host/qualification.json")
+    parser.add_argument("--semantic-preflight-receipt", default="output/phase18_gpu_smoke/semantic-preflight.json")
+    parser.add_argument("--qwen-cache-receipt", default="output/phase18_gpu_smoke/qwen-model-cache.json")
     parser.add_argument("--model-cache-receipt", default="output/phase18_gpu_smoke/model-cache.json")
+    parser.add_argument("--qwen-minimum-free-gib", type=float, default=12.0)
     parser.add_argument("--minimum-free-gib", type=float, default=30.0)
     parser.add_argument("--job-id", default=DEFAULT_SMOKE_JOB_ID)
     parser.add_argument("--worker-id", default="golden-smoke-worker-01")
@@ -178,6 +236,8 @@ def main() -> int:
         raise ValueError("timeout-seconds must be positive")
     if args.minimum_free_gib <= 0:
         raise ValueError("minimum-free-gib must be positive")
+    if args.qwen_minimum_free_gib <= 0:
+        raise ValueError("qwen-minimum-free-gib must be positive")
 
     batch_dir = _resolve_output_path(repository_root, args.batch_dir)
     manifest_path = batch_dir / "manifest.json"
@@ -186,12 +246,20 @@ def main() -> int:
     integrity = verify_batch(str(manifest_path))
     candidate = load_first_candidate(manifest_path)
 
-    # Fail closed in strict order. Hardware must be proven before any model
-    # download, and all generation prerequisites must be proven before the
-    # durable queue is mutated.
+    # Fail closed in strict order. Hardware must be proven before any large model
+    # download, semantic readiness must be proven before FLUX preparation, and
+    # every generation prerequisite must pass before the durable queue is mutated.
     host_receipt_path = _resolve_output_path(repository_root, args.host_qualification_receipt)
+    semantic_receipt_path = _resolve_output_path(repository_root, args.semantic_preflight_receipt)
+    qwen_cache_receipt_path = _resolve_output_path(repository_root, args.qwen_cache_receipt)
     cache_receipt_path = _resolve_output_path(repository_root, args.model_cache_receipt)
     host_qualification = _run_host_qualification(repository_root, host_receipt_path)
+    semantic_preflight = _run_semantic_preflight(
+        repository_root,
+        semantic_receipt_path,
+        qwen_cache_receipt_path,
+        minimum_free_gib=args.qwen_minimum_free_gib,
+    )
     model_cache = _run_model_prefetch(
         repository_root,
         cache_receipt_path,
@@ -210,8 +278,14 @@ def main() -> int:
 
     evidence = {
         "host_qualification_receipt": str(host_receipt_path),
+        "semantic_preflight_receipt": str(semantic_receipt_path),
+        "qwen_model_cache_receipt": str(qwen_cache_receipt_path),
         "model_cache_receipt": str(cache_receipt_path),
         "host_eligible": host_qualification.get("eligible"),
+        "semantic_runtime_ready": semantic_preflight.get("semantic_runtime_ready"),
+        "semantic_model_ready": semantic_preflight.get("semantic_model_ready"),
+        "semantic_model_id": semantic_preflight.get("model_id"),
+        "semantic_cost_mode": semantic_preflight.get("cost_mode"),
         "model_cache_ready": model_cache.get("ready"),
         "golden_generation_ready": readiness.get("golden_generation_ready"),
     }
