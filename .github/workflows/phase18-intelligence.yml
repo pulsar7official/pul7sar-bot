@@ -17,219 +17,125 @@ jobs:
     env:
       PYTHONPATH: ${{ github.workspace }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
       - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Syntax and discover validation
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
-      - name: Syntax check Phase 18 modules, tools and tests
-        run: |
-          python -m py_compile engine/intelligence/*.py
-          python -m py_compile tools/phase18_*.py
-          python -m py_compile tests/test_story_intelligence_models.py
-          python -m py_compile tests/test_phase18_*.py
-      - name: Run discover-based Phase 18 validation
-        run: |
+          python -m py_compile engine/intelligence/*.py tools/phase18_*.py tests/test_phase18_*.py tests/test_story_intelligence_models.py
           python tools/phase18_cpu_validate.py
           python -m unittest -v tests.test_story_intelligence_models
-      - name: Run Phase 18 completion audit
-        env:
-          PHASE18_CPU_VALIDATED: '1'
+      - name: Completion and production isolation
+        env: {PHASE18_CPU_VALIDATED: '1'}
         run: |
           python tools/phase18_completion_audit.py
-      - name: Verify production isolation
-        run: |
           python - <<'PY'
           from pathlib import Path
-          forbidden_imports = ("import main", "from main import")
-          for path in Path("engine/intelligence").glob("*.py"):
-              text = path.read_text(encoding="utf-8")
-              for forbidden in forbidden_imports:
-                  if forbidden in text:
-                      raise SystemExit(f"Phase 18 isolation violation in {path}: {forbidden}")
-          print("Phase 18 production-isolation check PASS")
+          for p in Path('engine/intelligence').glob('*.py'):
+              t=p.read_text(encoding='utf-8')
+              assert 'import main' not in t and 'from main import' not in t, p
+          print('Phase 18 production-isolation check PASS')
           PY
-      - name: Build locked story-family visual study handoffs
-        run: |
-          python tools/phase18_build_visual_study_handoffs.py --output-dir output/phase18_visual_study_handoffs
-      - name: Assert visual study batch is pre-image and publication-blocked
+      - name: Build visual study handoffs
+        run: python tools/phase18_build_visual_study_handoffs.py --output-dir output/phase18_visual_study_handoffs
+      - name: Verify visual study handoffs
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path("output/phase18_visual_study_handoffs")
-          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          assert manifest["manifest_version"] == "pul7sar-visual-study-handoff-batch-v1"
-          assert manifest["handoff_count"] == 3
-          assert manifest["candidate_image_count"] == 0
-          assert manifest["publication_ready"] is False
-          assert manifest["exact_brand_geometry_ready"] is False
-          assert not list(root.glob("*.png"))
-          for entry in manifest["handoffs"]:
-              payload = json.loads((root / entry["path"]).read_text(encoding="utf-8"))
-              assert payload["human_review_allowed"] is True
-              assert payload["publication_ready"] is False
-              assert payload["metadata"]["legacy_repo_logo_allowed"] is False
-          print("Visual study handoff batch PASS")
+          r=Path('output/phase18_visual_study_handoffs'); m=json.loads((r/'manifest.json').read_text())
+          assert m['manifest_version']=='pul7sar-visual-study-handoff-batch-v1' and m['handoff_count']==3
+          assert m['candidate_image_count']==0 and m['publication_ready'] is False and m['exact_brand_geometry_ready'] is False
+          assert not list(r.glob('*.png'))
+          for e in m['handoffs']:
+              p=json.loads((r/e['path']).read_text())
+              assert p['human_review_allowed'] is True and p['publication_ready'] is False
+              assert p['metadata']['legacy_repo_logo_allowed'] is False
           PY
       - name: Build project-native editorial visual study
-        run: |
-          python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
-      - name: Assert editorial visual study reference-brand contract
+        run: python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
+      - name: Verify v5 direct-ground reference brand study
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path("output/phase18_editorial_scene_study")
-          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          assert manifest["manifest_version"] == "pul7sar-editorial-scene-study-v4-reference-brand"
-          assert manifest["renderer_contract"] == "pul7sar-editorial-reference-scene-study-renderer-v4"
-          assert manifest["benchmark_id"] == "transfer-signature-v1"
-          assert manifest["generator_used_for_scene"] is False
-          assert manifest["verified_player_asset_used"] is False
-          assert manifest["subject_placeholder_used"] is True
-          assert manifest["subject_placeholder_is_identity_evidence"] is False
-          assert manifest["arabic_raqm_used"] is True
-          assert manifest["study_only"] is True
-          assert manifest["publication_ready"] is False
-          assert manifest["brand_geometry_mode"] == "embedded-reference-derived-layered-master-v1"
-          assert manifest["brand_source_mode"] == "embedded-reference-master"
-          assert isinstance(manifest["embedded_bundle_sha256"], str) and len(manifest["embedded_bundle_sha256"]) == 64
-          assert manifest["approximate_brand_zone_removed"] is True
-          assert manifest["exact_reference_shape_used"] is True
-          assert manifest["transparent_reference_layers_used"] is True
-          assert manifest["final_brand_font_recreation_used"] is False
-          assert manifest["final_brand_generic_ecg_recreation_used"] is False
-          assert manifest["final_brand_generator_used"] is False
-          assert manifest["final_brand_network_used"] is False
-          assert manifest["metallic_wordmark_fixed"] is True
-          assert manifest["seven_and_pulse_tintable"] is True
-          assert manifest["football_fixed"] is True
-          assert manifest["exact_publication_master_still_requires_owner_approval"] is True
-          assert manifest["verified_subject_asset_still_required_for_real_transfer_publication"] is True
-          png = root / manifest["png"]
-          assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          print("Editorial visual study embedded-reference-brand contract PASS")
+          r=Path('output/phase18_editorial_scene_study'); m=json.loads((r/'manifest.json').read_text())
+          assert m['manifest_version']=='pul7sar-editorial-scene-study-v5-reference-brand'
+          assert m['renderer_contract']=='pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground'
+          assert m['benchmark_id']=='transfer-signature-v1'
+          assert m['generator_used_for_scene'] is False and m['verified_player_asset_used'] is False
+          assert m['subject_placeholder_used'] is True and m['subject_placeholder_is_identity_evidence'] is False
+          assert m['arabic_raqm_used'] is True and m['study_only'] is True and m['publication_ready'] is False
+          assert m['brand_geometry_mode']=='embedded-reference-derived-layered-master-v1'
+          assert m['brand_source_mode']=='embedded-reference-master'
+          assert len(m['embedded_bundle_sha256'])==64 and m['approximate_brand_zone_removed'] is True
+          assert m['identity_shelf_used'] is False and m['exact_reference_shape_used'] is True
+          assert m['transparent_reference_layers_used'] is True
+          assert m['final_brand_font_recreation_used'] is False
+          assert m['final_brand_generic_ecg_recreation_used'] is False
+          assert m['final_brand_generator_used'] is False and m['final_brand_network_used'] is False
+          assert m['metallic_wordmark_fixed'] is True and m['seven_and_pulse_tintable'] is True and m['football_fixed'] is True
+          assert m['exact_publication_master_still_requires_owner_approval'] is True
+          assert m['verified_subject_asset_still_required_for_real_transfer_publication'] is True
+          assert (r/m['png']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
           PY
       - name: Build self-contained reference-derived brand study
-        run: |
-          python tools/phase18_build_reference_brand_study.py --output-dir output/phase18_reference_brand_study
-      - name: Assert embedded layered brand study contract
+        run: python tools/phase18_build_reference_brand_study.py --output-dir output/phase18_reference_brand_study
+      - name: Verify self-contained brand ownership
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          root = Path("output/phase18_reference_brand_study")
-          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          assert manifest["manifest_version"] == "pul7sar-reference-brand-study-v2-self-contained"
-          assert manifest["renderer_contract"] == "pul7sar-brand-reference-renderer-v3-embedded-layered"
-          assert manifest["zero_cost"] is True
-          assert manifest["network_used"] is False
-          assert manifest["image_generator_used"] is False
-          assert manifest["external_source_board_required"] is False
-          assert manifest["embedded_master_is_default"] is True
-          assert manifest["reference_shape_is_source_of_truth"] is True
-          assert manifest["metallic_wordmark_fixed"] is True
-          assert manifest["seven_and_pulse_tintable"] is True
-          assert manifest["football_fixed"] is True
-          assert manifest["font_recreation_for_brand"] is False
-          assert manifest["generic_ecg_recreation"] is False
-          assert manifest["publication_ready"] is False
-          assert len(manifest["variants"]) == 4
-          bundle_shas = {entry["embedded_bundle_sha256"] for entry in manifest["variants"]}
-          assert len(bundle_shas) == 1 and None not in bundle_shas
-          for entry in manifest["variants"]:
-              assert entry["brand_source_mode"] == "embedded-reference-master"
-              assert entry["exact_reference_shape_used"] is True
-              assert entry["transparent_reference_layers_used"] is True
-              assert entry["background_board_pixels_composited"] is False
-              assert entry["font_recreation_used"] is False
-              assert entry["generic_ecg_recreation_used"] is False
-              assert entry["generator_used"] is False
-              assert entry["network_used"] is False
-              assert entry["publication_ready"] is False
-              png = root / entry["png"]
-              assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          print("Embedded layered PUL7SAR brand study PASS")
+          r=Path('output/phase18_reference_brand_study'); m=json.loads((r/'manifest.json').read_text())
+          assert m['manifest_version']=='pul7sar-reference-brand-study-v2-self-contained'
+          assert m['renderer_contract']=='pul7sar-brand-reference-renderer-v3-embedded-layered'
+          assert m['zero_cost'] is True and m['network_used'] is False and m['image_generator_used'] is False
+          assert m['external_source_board_required'] is False and m['embedded_master_is_default'] is True
+          assert m['reference_shape_is_source_of_truth'] is True
+          assert m['metallic_wordmark_fixed'] is True and m['seven_and_pulse_tintable'] is True and m['football_fixed'] is True
+          assert m['font_recreation_for_brand'] is False and m['generic_ecg_recreation'] is False and m['publication_ready'] is False
+          assert len(m['variants'])==4
+          assert len({e['embedded_bundle_sha256'] for e in m['variants']})==1
+          for e in m['variants']:
+              assert e['brand_source_mode']=='embedded-reference-master'
+              assert e['exact_reference_shape_used'] is True and e['transparent_reference_layers_used'] is True
+              assert e['background_board_pixels_composited'] is False and e['font_recreation_used'] is False
+              assert e['generic_ecg_recreation_used'] is False and e['generator_used'] is False and e['network_used'] is False
+              assert e['publication_ready'] is False and (r/e['png']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
           PY
-      - name: Build portable Golden Hybrid v5 GPU handoff
+      - name: Build and verify Golden Hybrid v5
         run: |
           python tools/phase18_build_golden_handoff.py --output output/phase18_handoffs/golden-season-opener-hybrid-v5.json --seed 7007001 --request-id golden-season-opener-hybrid-v5-001
-      - name: Build quality-first Golden Hybrid v5 batch
-        run: |
           python tools/phase18_build_golden_batch.py --output-dir output/phase18_handoffs/golden-batch --seeds 7007001 7007002 7007003 7007004
-      - name: Verify Golden Hybrid v5 batch integrity
-        run: |
           python tools/phase18_verify_golden_batch.py --manifest output/phase18_handoffs/golden-batch/manifest.json
-      - name: Assert current Golden Hybrid v5 contract
-        run: |
           python - <<'PY'
           import json
           from pathlib import Path
-          manifest = json.loads(Path("output/phase18_handoffs/golden-batch/manifest.json").read_text(encoding="utf-8"))
-          expected = {
-              "manifest_version": "pul7sar-golden-batch-v5",
-              "composition_grammar": "single_continuous_scene",
-              "sport_geometry": "deterministic_football_pitch_projective_v1",
-              "generated_sport_geometry_allowed": False,
-              "hybrid_surface_replacement_required": True,
-              "football_camera_preset": "high_wide_central",
-              "generated_branding_allowed": False,
-              "brand_composition_policy": "dynamic_deterministic_after_generation",
-          }
-          failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
-          if failures:
-              raise SystemExit("stale Golden Hybrid contract in CI: " + "; ".join(failures))
-          print("Golden Hybrid v5 contract PASS")
+          m=json.loads(Path('output/phase18_handoffs/golden-batch/manifest.json').read_text())
+          expected={'manifest_version':'pul7sar-golden-batch-v5','composition_grammar':'single_continuous_scene','sport_geometry':'deterministic_football_pitch_projective_v1','generated_sport_geometry_allowed':False,'hybrid_surface_replacement_required':True,'football_camera_preset':'high_wide_central','generated_branding_allowed':False,'brand_composition_policy':'dynamic_deterministic_after_generation'}
+          assert all(m.get(k)==v for k,v in expected.items()), m
           PY
-      - name: Assert legacy direct proof is not a Golden visual
+      - name: Assert legacy logo remains non-canonical
         run: |
           python - <<'PY'
-          from engine.intelligence.brand_master_contract import APPROVED_PUL7SAR_BRAND_MASTER
-          APPROVED_PUL7SAR_BRAND_MASTER.assert_safe()
-          assert APPROVED_PUL7SAR_BRAND_MASTER.legacy_repo_logo_is_canonical is False
-          print("Legacy repo logos are non-canonical; no CPU proof PNG will be uploaded as Golden.")
+          from engine.intelligence.brand_master_contract import APPROVED_PUL7SAR_BRAND_MASTER as b
+          b.assert_safe(); assert b.legacy_repo_logo_is_canonical is False
           PY
       - name: Upload visual study handoffs
         uses: actions/upload-artifact@v7
-        with:
-          name: PUL7SAR-visual-study-handoffs-${{ github.sha }}
-          path: output/phase18_visual_study_handoffs/
-          if-no-files-found: error
-          retention-days: 14
+        with: {name: 'PUL7SAR-visual-study-handoffs-${{ github.sha }}', path: output/phase18_visual_study_handoffs/, if-no-files-found: error, retention-days: 14}
       - name: Upload project-native editorial visual study
         uses: actions/upload-artifact@v7
-        with:
-          name: PUL7SAR-editorial-visual-study-${{ github.sha }}
-          path: output/phase18_editorial_scene_study/
-          if-no-files-found: error
-          retention-days: 14
+        with: {name: 'PUL7SAR-editorial-visual-study-${{ github.sha }}', path: output/phase18_editorial_scene_study/, if-no-files-found: error, retention-days: 14}
       - name: Upload self-contained reference brand study
         uses: actions/upload-artifact@v7
-        with:
-          name: PUL7SAR-reference-brand-study-${{ github.sha }}
-          path: output/phase18_reference_brand_study/
-          if-no-files-found: error
-          retention-days: 14
+        with: {name: 'PUL7SAR-reference-brand-study-${{ github.sha }}', path: output/phase18_reference_brand_study/, if-no-files-found: error, retention-days: 14}
       - name: Upload Golden Hybrid v5 GPU handoff
         uses: actions/upload-artifact@v7
-        with:
-          name: golden-season-opener-hybrid-v5.json
-          path: output/phase18_handoffs/golden-season-opener-hybrid-v5.json
-          archive: false
-          if-no-files-found: error
-          retention-days: 14
+        with: {name: golden-season-opener-hybrid-v5.json, path: output/phase18_handoffs/golden-season-opener-hybrid-v5.json, archive: false, if-no-files-found: error, retention-days: 14}
       - name: Upload Golden Hybrid v5 candidate batch
         uses: actions/upload-artifact@v7
-        with:
-          name: PUL7SAR-golden-hybrid-v5-candidate-batch-${{ github.sha }}
-          path: output/phase18_handoffs/golden-batch/
-          if-no-files-found: error
-          retention-days: 14
+        with: {name: 'PUL7SAR-golden-hybrid-v5-candidate-batch-${{ github.sha }}', path: output/phase18_handoffs/golden-batch/, if-no-files-found: error, retention-days: 14}
