@@ -34,6 +34,7 @@ This was an orchestration gap. It did not justify another FLUX generation and di
 1. `tools/phase18_continue_hybrid_from_first_png.py`
    - Phase 18 branch lock;
    - Candidate 1 lock;
+   - canonical `output/phase18_colab/latest.json` lock so validation and the existing Hybrid consumer cannot read different summaries;
    - Golden v5 / BF16 / `$0-local` handoff replay;
    - base PNG SHA-256 replay;
    - no FLUX invocation and no queue mutation;
@@ -49,6 +50,7 @@ This was an orchestration gap. It did not justify another FLUX generation and di
    - semantic fail-closed behavior;
    - publication-authority drift rejection;
    - base-PNG SHA tampering rejection before Qwen/composition;
+   - non-canonical handoff rejection before Qwen/composition;
    - branch and Candidate 1 locks.
 
 3. `docs/PHASE18_CHANGESET_132_STRICT_HYBRID_SEMANTIC_CONTINUATION.md`
@@ -79,9 +81,11 @@ Nothing.
 
 ## Tests and verification
 
-New CPU-safe regression tests were pushed on code/test head `386a99f95bdbaa704c99e8b6f3e4c9a25d7fae97`.
+The first code/test head for Change Set 132 was `386a99f95bdbaa704c99e8b6f3e4c9a25d7fae97`; GitHub Actions started Story Intelligence Verification run `32781959399` / run `2212` plus the Phase 18 companion workflows.
 
-GitHub Actions started for that head, including Story Intelligence Verification run `32781959399` / run `2212` and the Phase 18 companion workflows. At the time this log was created those runs were still queued, so no Change Set 132 CI success is claimed in advance.
+A follow-up hardening pass locked the continuation to the canonical handoff file and added regression coverage for summary-path divergence. The resulting code/test head is `1ddc97efd190aa25766793c53e558936c24ac484`.
+
+At the time this log was updated, final Change Set 132 CI had not yet been observed as completed, so no CI-green claim is made in advance.
 
 ## Gates preserved
 
