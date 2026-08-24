@@ -13,6 +13,7 @@ from typing import Mapping, Optional
 from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGrammar, HeadlineInput, HeadlineTone
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
 from engine.intelligence.story_visual_editorial import EditorialEvent, EditorialVisualPlan, ProductionMode, StoryVisualEditorialEngine
+from engine.intelligence.visual_execution_route import VisualExecutionDecision, VisualExecutionRouter
 from engine.intelligence.visual_grammar import VisualGrammar, VisualGrammarDecision
 
 
@@ -51,6 +52,7 @@ class StoryToVisualDecision:
     visual_anchor: str
     plan: EditorialVisualPlan
     visual_grammar: VisualGrammarDecision
+    execution_route: VisualExecutionDecision
     sport_geometry_requirements: tuple[str, ...]
     high_risk_generated_elements: tuple[str, ...]
     fallback_reason: Optional[str]
@@ -62,6 +64,7 @@ class StoryToVisualOrchestrator:
         self._sports = SportVisualRuleRegistry()
         self._visuals = StoryVisualEditorialEngine()
         self._grammar = VisualGrammar()
+        self._execution = VisualExecutionRouter()
 
     def decide(self, story: VerifiedEditorialStory) -> StoryToVisualDecision:
         rule = self._sports.get(story.sport)
@@ -120,6 +123,7 @@ class StoryToVisualOrchestrator:
             fallback_reason = "low_story_confidence"
 
         grammar = self._grammar.direct(plan)
+        execution_route = self._execution.route(grammar)
 
         return StoryToVisualDecision(
             headline=headline.headline,
@@ -127,6 +131,7 @@ class StoryToVisualOrchestrator:
             visual_anchor=headline.visual_anchor,
             plan=plan,
             visual_grammar=grammar,
+            execution_route=execution_route,
             sport_geometry_requirements=geometry,
             high_risk_generated_elements=rule.high_risk_generated_elements,
             fallback_reason=fallback_reason,
