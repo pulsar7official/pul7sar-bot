@@ -49,11 +49,13 @@ jobs:
           test -f engine/intelligence/golden_smoke.py
           test -f engine/intelligence/golden_evidence_bundle.py
           test -f engine/intelligence/pre_gpu_repository_integrity.py
+          test -f engine/intelligence/first_png_provenance_postflight.py
           test -f tools/phase18_first_png.py
           test -f tools/phase18_preflight_repository_integrity.py
           test -f tools/phase18_preflight_semantic_gpu.py
           test -f tools/phase18_prefetch_qwen.py
           test -f tools/phase18_prefetch_flux2.py
+          test -f tools/phase18_verify_first_png_provenance.py
           test -f tools/phase18_build_gpu_evidence_manifest.py
           test -f tools/phase18_verify_gpu_evidence_manifest.py
           if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
@@ -213,6 +215,30 @@ jobs:
           print(json.dumps({"png": str(png), "bytes": png.stat().st_size}, indent=2))
           PY
 
+      - name: Replay first-PNG executor and proof provenance before evidence sealing
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_png_provenance.py \
+            --output output/phase18_gpu_smoke/first-png-provenance-postflight.json \
+            | tee output/phase18_gpu_smoke/first-png-provenance-postflight-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("output/phase18_gpu_smoke/first-png-provenance-postflight.json").read_text(encoding="utf-8"))
+          if receipt.get("status") != "FIRST_GOLDEN_PNG_PROVENANCE_POSTFLIGHT_VERIFIED":
+              raise SystemExit("first-PNG provenance postflight did not verify")
+          if receipt.get("candidate") != 1:
+              raise SystemExit("first-PNG provenance escaped Candidate 1")
+          if receipt.get("cost_mode") != "$0-local":
+              raise SystemExit("first-PNG provenance escaped zero-cost mode")
+          if receipt.get("resolved_dtype") not in {"bfloat16", "bf16"}:
+              raise SystemExit("first-PNG provenance did not replay BF16 execution")
+          for field in ("semantic_approved", "golden_quality_approved", "publication_ready"):
+              if receipt.get(field) is not False:
+                  raise SystemExit(f"provenance postflight illegally changed gate: {field}")
+          PY
+
       - name: Build tamper-evident Golden evidence manifest
         shell: bash
         run: |
@@ -224,6 +250,7 @@ jobs:
             --include output/phase18_gpu_smoke/qwen-model-cache.json \
             --include output/phase18_gpu_smoke/model-cache.json \
             --include output/phase18_gpu_smoke/readiness.json \
+            --include output/phase18_gpu_smoke/first-png-provenance-postflight.json \
             --include output/phase18_gpu_host/qualification.json \
             --output output/phase18_gpu_smoke/evidence-manifest.json \
             | tee output/phase18_gpu_smoke/evidence-manifest-console.json
