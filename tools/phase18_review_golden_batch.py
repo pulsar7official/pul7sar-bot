@@ -86,11 +86,11 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
             raise ValueError(f"review seed mismatch for {request_id}")
 
         scores_data = item.get("scores")
-        blockers_data = item.get("blockers", {})
+        blockers_data = item.get("blockers")
         if not isinstance(scores_data, dict):
             raise ValueError(f"review scores missing for {request_id}")
         if not isinstance(blockers_data, dict):
-            raise ValueError(f"review blockers invalid for {request_id}")
+            raise ValueError(f"review blockers missing or invalid for {request_id}")
         if set(scores_data) != set(_SCORE_FIELDS):
             missing = sorted(set(_SCORE_FIELDS) - set(scores_data))
             unknown = sorted(set(scores_data) - set(_SCORE_FIELDS))
@@ -100,11 +100,17 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
             if unknown:
                 details.append("unknown=" + ",".join(unknown))
             raise ValueError(f"review score schema mismatch for {request_id}: {'; '.join(details)}")
-        unknown_blockers = sorted(set(blockers_data) - set(_BLOCKER_FIELDS))
-        if unknown_blockers:
-            raise ValueError(f"unknown review blockers for {request_id}: {', '.join(unknown_blockers)}")
+        if set(blockers_data) != set(_BLOCKER_FIELDS):
+            missing = sorted(set(_BLOCKER_FIELDS) - set(blockers_data))
+            unknown = sorted(set(blockers_data) - set(_BLOCKER_FIELDS))
+            details = []
+            if missing:
+                details.append("missing=" + ",".join(missing))
+            if unknown:
+                details.append("unknown=" + ",".join(unknown))
+            raise ValueError(f"review blocker schema mismatch for {request_id}: {'; '.join(details)}")
         for field in _BLOCKER_FIELDS:
-            value = blockers_data.get(field, False)
+            value = blockers_data[field]
             if not isinstance(value, bool):
                 raise ValueError(f"review blocker {field} must be boolean for {request_id}")
 
@@ -112,7 +118,7 @@ def evaluate(execution_report: str, review_file: str) -> dict[str, object]:
             field: _validated_score(scores_data[field], field=field, request_id=request_id)
             for field in _SCORE_FIELDS
         })
-        blockers = GoldenVisualBlockers(**{field: blockers_data.get(field, False) for field in _BLOCKER_FIELDS})
+        blockers = GoldenVisualBlockers(**{field: blockers_data[field] for field in _BLOCKER_FIELDS})
         evaluations.append(GoldenVisualEvaluation(request_id, seed, scores, blockers))
 
     if seen != set(generated_by_id):
