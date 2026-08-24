@@ -26,6 +26,23 @@ class FirstPngPreflightTests(unittest.TestCase):
         self.assertLess(cache, readiness)
         self.assertLess(readiness, queue)
 
+    def test_generation_path_runs_provenance_postflight_before_success_report(self) -> None:
+        source = Path(phase18_first_png.__file__).read_text(encoding="utf-8")
+        main_source = source[source.index("def main()") :]
+        worker = main_source.index("_run_worker_once(")
+        postflight = main_source.rindex("_run_provenance_postflight(")
+        success = main_source.index('"status": "FIRST_REAL_GOLDEN_PNG_GENERATED"')
+        self.assertLess(worker, postflight)
+        self.assertLess(postflight, success)
+
+    def test_existing_succeeded_job_is_replayed_before_reuse_report(self) -> None:
+        source = Path(phase18_first_png.__file__).read_text(encoding="utf-8")
+        main_source = source[source.index("def main()") :]
+        existing_branch = main_source.index("if preparation.job.state is GenerationJobState.SUCCEEDED:")
+        postflight = main_source.index("_run_provenance_postflight(", existing_branch)
+        reused = main_source.index('"status": "FIRST_REAL_GOLDEN_PNG_ALREADY_EXISTS"', existing_branch)
+        self.assertLess(postflight, reused)
+
     def test_repository_preflight_requires_complete_non_authorizing_contract(self) -> None:
         payload = {
             "schema": phase18_first_png.EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA,
@@ -202,6 +219,68 @@ class FirstPngPreflightTests(unittest.TestCase):
             command = runner.call_args.args[0]
             self.assertIn("phase18_prefetch_flux2.py", " ".join(command))
             self.assertEqual(command[command.index("--minimum-free-gib") + 1], "31.5")
+
+    def test_provenance_postflight_requires_zero_cost_bf16_and_no_downstream_authority(self) -> None:
+        payload = {
+            "status": phase18_first_png.EXPECTED_POSTFLIGHT_STATUS,
+            "candidate": 1,
+            "job_id": "golden-job",
+            "cost_mode": "$0-local",
+            "resolved_dtype": "bfloat16",
+            "png": "/tmp/candidate.png",
+            "semantic_approved": False,
+            "golden_quality_approved": False,
+            "publication_ready": False,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ) as runner:
+            root = Path(temp)
+            result = phase18_first_png._run_provenance_postflight(
+                root,
+                root / "postflight.json",
+                queue_root=root / "queue",
+                job_id="golden-job",
+            )
+            self.assertEqual(result["status"], phase18_first_png.EXPECTED_POSTFLIGHT_STATUS)
+            command = runner.call_args.args[0]
+            self.assertIn("phase18_verify_first_png_provenance.py", " ".join(command))
+            self.assertEqual(command[command.index("--job-id") + 1], "golden-job")
+
+    def test_provenance_postflight_rejects_precision_or_publication_drift(self) -> None:
+        payload = {
+            "status": phase18_first_png.EXPECTED_POSTFLIGHT_STATUS,
+            "candidate": 1,
+            "job_id": "golden-job",
+            "cost_mode": "$0-local",
+            "resolved_dtype": "float16",
+            "semantic_approved": False,
+            "golden_quality_approved": False,
+            "publication_ready": True,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ):
+            with self.assertRaisesRegex(RuntimeError, "FIRST_PNG_PROVENANCE_POSTFLIGHT_CONTRACT_FAILED"):
+                phase18_first_png._run_provenance_postflight(
+                    Path(temp),
+                    Path(temp) / "postflight.json",
+                    queue_root=Path(temp) / "queue",
+                    job_id="golden-job",
+                )
+
+    def test_postflight_png_must_match_reported_png(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            png = root / "candidate.png"
+            png.write_bytes(b"png")
+            with self.assertRaisesRegex(RuntimeError, "POSTFLIGHT_PNG_DRIFT"):
+                phase18_first_png._assert_postflight_png_matches(
+                    png,
+                    {"png": str(root / "other.png")},
+                )
 
     def test_relative_evidence_paths_are_repository_scoped(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
