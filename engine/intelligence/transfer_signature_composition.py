@@ -3,8 +3,8 @@
 Transfer coverage is one story family, not the default template. It is hero-led,
 uses destination-club context without requiring a full pitch, reserves concise
 headline space, and keeps the PUL7SAR signature subordinate to the verified hero.
-The v2 geometry separates verified-person, copy and lower signature lanes so
-visual energy comes from art direction rather than uncontrolled collisions.
+The v3 geometry derives the hero bottom from the platform-specific adaptive brand
+lane, so Story/TikTok safe areas cannot push branding into verified-person pixels.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class TransferSignatureComposition:
     protected_person_copy_overlap_allowed: bool = False
     lower_brand_lane_reserved: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-transfer-signature-composition-v2-safe-separated"
+    contract: str = "pul7sar-transfer-signature-composition-v3-adaptive-brand-lane"
 
     def __post_init__(self) -> None:
         if not self.verified_hero_required:
@@ -70,20 +70,6 @@ class TransferSignatureComposer:
         if brand.zone is not BrandZone.LOWER_CENTER:
             raise ValueError("CANONICAL_TRANSFER_BENCHMARK_EXPECTS_LOWER_CENTER_SIGNATURE")
 
-        portrait = profile.height >= profile.width
-        if portrait:
-            hero = NormalizedBox(0.05, 0.15, 0.50, 0.60)
-            headline = NormalizedBox(0.58, 0.17, 0.34, 0.22)
-            context = NormalizedBox(0.60, 0.44, 0.28, 0.12)
-        else:
-            hero = NormalizedBox(0.05, 0.10, 0.47, 0.70)
-            headline = NormalizedBox(0.57, 0.18, 0.36, 0.26)
-            context = NormalizedBox(0.60, 0.50, 0.28, 0.13)
-
-        if self._intersects(hero, headline) or self._intersects(hero, context):
-            raise ValueError("TRANSFER_VERIFIED_PERSON_COPY_ZONE_COLLISION")
-        # Conservative normalized lower lane derived from the adaptive placement
-        # ceiling; exact pixel collision is still checked by the hybrid renderer.
         brand_half_w = brand.max_width_ratio / 2
         brand_half_h = brand.max_height_ratio / 2
         brand_box = NormalizedBox(
@@ -92,6 +78,25 @@ class TransferSignatureComposer:
             min(1.0, brand.max_width_ratio),
             min(1.0, brand.max_height_ratio),
         )
+        # Reserve the actual platform-specific signature lane before sizing the
+        # verified hero. This matters on Story/TikTok where safe-bottom is high.
+        hero_clearance = max(0.025, brand.minimum_clearance_ratio)
+        hero_bottom_limit = max(0.52, brand_box.y - hero_clearance)
+
+        portrait = profile.height >= profile.width
+        if portrait:
+            hero_y = 0.15
+            hero = NormalizedBox(0.05, hero_y, 0.50, min(0.60, hero_bottom_limit - hero_y))
+            headline = NormalizedBox(0.58, 0.17, 0.34, 0.22)
+            context = NormalizedBox(0.60, 0.44, 0.28, 0.12)
+        else:
+            hero_y = 0.10
+            hero = NormalizedBox(0.05, hero_y, 0.47, min(0.70, hero_bottom_limit - hero_y))
+            headline = NormalizedBox(0.57, 0.18, 0.36, 0.26)
+            context = NormalizedBox(0.60, 0.50, 0.28, 0.13)
+
+        if self._intersects(hero, headline) or self._intersects(hero, context):
+            raise ValueError("TRANSFER_VERIFIED_PERSON_COPY_ZONE_COLLISION")
         if self._intersects(hero, brand_box):
             raise ValueError("TRANSFER_VERIFIED_PERSON_BRAND_LANE_COLLISION")
         return TransferSignatureComposition(
