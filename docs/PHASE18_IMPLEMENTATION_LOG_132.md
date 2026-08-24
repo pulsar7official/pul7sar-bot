@@ -81,11 +81,15 @@ Nothing.
 
 ## Tests and verification
 
-The first code/test head for Change Set 132 was `386a99f95bdbaa704c99e8b6f3e4c9a25d7fae97`; GitHub Actions started Story Intelligence Verification run `32781959399` / run `2212` plus the Phase 18 companion workflows.
+The hardened code/test head for Change Set 132 is `1ddc97efd190aa25766793c53e558936c24ac484`.
 
-A follow-up hardening pass locked the continuation to the canonical handoff file and added regression coverage for summary-path divergence. The resulting code/test head is `1ddc97efd190aa25766793c53e558936c24ac484`.
+GitHub Actions completed successfully on that head:
 
-At the time this log was updated, final Change Set 132 CI had not yet been observed as completed, so no CI-green claim is made in advance.
+- Phase 18 Story Intelligence Verification run `32782098203` / run `2219`: `success`;
+- Phase 18 Composition Matrix Verification run `32782098122` / run `139`: `success`;
+- Adaptive Brand Pixel, Result Statement, Data Monument, Tactical Intelligence, Event Editorial, Event Hybrid Context and Premium Hybrid Result companion workflows: `success`.
+
+The Story Intelligence run passed Syntax and discover validation, completion/production isolation, all active visual-study handoff verification, Golden Hybrid v5 CPU handoff/batch/integrity checks and artifact upload steps. This is CPU/CI verification only; it is not a fabricated GPU or visual-quality result.
 
 ## Gates preserved
 
