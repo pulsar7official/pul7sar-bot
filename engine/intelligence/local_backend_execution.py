@@ -90,16 +90,11 @@ class LocalImageBackend(Protocol):
 class LocalBackendResultGate:
     """Require the local backend to preserve every locked execution identity field."""
 
-    def validate(
-        self,
-        request: LocalBackendGenerationRequest,
-        result: LocalBackendGenerationResult,
-    ) -> LocalGenerationProvenance:
+    def validate(self, request: LocalBackendGenerationRequest, result: LocalBackendGenerationResult) -> LocalGenerationProvenance:
         if not isinstance(request, LocalBackendGenerationRequest):
             raise TypeError("request must be LocalBackendGenerationRequest")
         if not isinstance(result, LocalBackendGenerationResult):
             raise TypeError("result must be LocalBackendGenerationResult")
-
         locked = (
             ("provider_id", request.provider_id, result.provider_id),
             ("model_id", request.model_id, result.model_id),
@@ -116,7 +111,7 @@ class LocalBackendResultGate:
 
 
 class LocalBackendRequestCompiler:
-    """Compile exact local-backend requests while keeping brand tokens out of diffusion."""
+    """Compile exact local-backend requests while keeping protected layers out of generation."""
 
     def __init__(self, constraints: PromptConstraintCompiler | None = None, cost_policy: DevelopmentCostPolicy | None = None) -> None:
         self._constraints = constraints or PromptConstraintCompiler()
@@ -198,6 +193,12 @@ class LocalBackendRequestCompiler:
                 "visual_grammar_generated_elements": tuple(package.metadata.get("visual_grammar_generated_elements") or ()),
                 "visual_grammar_deterministic_elements": tuple(package.metadata.get("visual_grammar_deterministic_elements") or ()),
                 "visual_grammar_forbidden_generated_elements": tuple(package.metadata.get("visual_grammar_forbidden_generated_elements") or ()),
+                "image_quality_tier": model.quality_tier.value,
+                "image_model_role": model.intended_role.value,
+                "image_runtime_adapter": model.runtime_adapter,
+                "model_runtime_floor_proven": model.runtime_floor_proven,
+                "model_minimum_vram_gb": model.minimum_vram_gb,
+                "model_repository_size_gb": model.repository_size_gb,
             },
         )
 
