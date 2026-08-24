@@ -36,18 +36,32 @@ class BrandReferenceLayerExtractorTests(unittest.TestCase):
     def test_seed_masks_separate_metal_accent_and_ball(self):
         crop = self._synthetic_crop()
         metal, accent, football = BrandReferenceLayerExtractor._seed_masks(crop)
-        # Metallic P sample.
         self.assertGreater(metal.getpixel((80, 110)), 0)
         self.assertEqual(accent.getpixel((80, 110)), 0)
-        # Accent 7 sample.
         self.assertGreater(accent.getpixel((500, 70)), 0)
         self.assertEqual(metal.getpixel((500, 70)), 0)
-        # Baseline is accent-owned.
         self.assertGreater(accent.getpixel((200, 215)), 0)
-        # Football is fixed and separate.
         self.assertGreater(football.getpixel((920, 235)), 0)
-        # Distractor outside measured accent zones is ignored.
         self.assertEqual(accent.getpixel((940, 50)), 0)
+
+    def test_resolved_ownership_blocks_tint_leakage_into_letters(self):
+        crop = self._synthetic_crop()
+        metal, accent, football = BrandReferenceLayerExtractor._seed_masks(crop)
+        metal = BrandReferenceLayerExtractor._expand(metal, size=7, blur=1.1)
+        accent = BrandReferenceLayerExtractor._expand(accent, size=11, blur=1.15)
+        football = BrandReferenceLayerExtractor._expand(football, size=7, blur=1.0)
+        metal, accent, football = BrandReferenceLayerExtractor._resolve_ownership(metal, accent, football)
+        # Baseline crosses the U letter box in the source, but club tint must not
+        # paint over the metallic letter surface.
+        self.assertEqual(accent.getpixel((200, 215)), 0)
+        self.assertGreater(metal.getpixel((200, 205)), 0)
+        # The enlarged 7 remains foreground-owned in its central overlap zone.
+        self.assertGreater(accent.getpixel((500, 70)), 0)
+        self.assertEqual(metal.getpixel((500, 70)), 0)
+        # Ball wins every overlap.
+        self.assertGreater(football.getpixel((920, 235)), 0)
+        self.assertEqual(accent.getpixel((920, 235)), 0)
+        self.assertEqual(metal.getpixel((920, 235)), 0)
 
     def test_unverified_source_can_never_enter_exact_extraction(self):
         with self.assertRaises((FileNotFoundError, ValueError)):
