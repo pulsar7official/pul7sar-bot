@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build an independent deterministic PUL7SAR Result Statement visual study."""
+"""Build an independent deterministic PUL7SAR Result Statement score-monument study."""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +27,7 @@ def build(output_dir: str) -> dict[str, object]:
     profile = PlatformProfileRegistry().get(SocialPlatform.INSTAGRAM_FEED)
     composition = ResultStatementComposer().plan(profile)
 
-    output = root / "pul7sar-result-statement-study-v1.png"
+    output = root / "pul7sar-result-statement-study-v2-score-monument.png"
     receipt = ResultStatementStudyRenderer().render(
         composition,
         profile=profile,
@@ -45,11 +45,12 @@ def build(output_dir: str) -> dict[str, object]:
     )
 
     manifest = {
-        "manifest_version": "pul7sar-result-statement-study-v1",
+        "manifest_version": "pul7sar-result-statement-study-v2-score-monument",
         "renderer_contract": receipt.contract,
         "composition_contract": composition.contract,
         "brand_overlay_contract": receipt.brand_overlay_contract,
         "family": "result_statement",
+        "visual_grammar": receipt.visual_grammar,
         "platform": profile.platform.value,
         "png": output.name,
         "png_sha256": receipt.output_sha256,
@@ -62,6 +63,7 @@ def build(output_dir: str) -> dict[str, object]:
         "home_identity_placeholder_used": receipt.home_identity_placeholder_used,
         "away_identity_placeholder_used": receipt.away_identity_placeholder_used,
         "identity_placeholders_are_crest_evidence": False,
+        "identity_initial_letters_used": receipt.identity_initial_letters_used,
         "club_identity_scale_equal": receipt.club_identity_scale_equal,
         "winner_emphasis_mode": composition.winner_emphasis_mode,
         "loser_treatment": receipt.loser_treatment,
@@ -69,6 +71,9 @@ def build(output_dir: str) -> dict[str, object]:
         "inherits_transfer_renderer": False,
         "inherits_transfer_layout": False,
         "full_pitch_required": False,
+        "full_pitch_used": receipt.full_pitch_used,
+        "giant_color_panels_used": receipt.giant_color_panels_used,
+        "club_color_role": "restrained_side_light_and_micro_accents",
         "brand_zone": receipt.brand_zone,
         "brand_width": receipt.brand_width,
         "brand_height": receipt.brand_height,
