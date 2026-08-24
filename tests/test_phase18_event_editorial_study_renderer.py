@@ -1,10 +1,14 @@
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
 
+from PIL import Image, ImageDraw
+
 from engine.intelligence.event_editorial_composition import EventEditorialComposer
 from engine.intelligence.event_editorial_study_renderer import EventAnchorKind, EventEditorialStudyRenderer
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
+from engine.intelligence.verified_context_surface import ContextRightsBasis, VerifiedContextAsset
 
 
 class EventEditorialStudyRendererTests(unittest.TestCase):
@@ -18,7 +22,7 @@ class EventEditorialStudyRendererTests(unittest.TestCase):
         if self.font is None:
             self.skipTest('DejaVu font unavailable')
 
-    def _render(self, output: Path):
+    def _render(self, output: Path, *, context_asset=None):
         return EventEditorialStudyRenderer().render(
             self.composition,
             profile=self.profile,
@@ -29,6 +33,26 @@ class EventEditorialStudyRendererTests(unittest.TestCase):
             accent_hex='#C71925',
             font_path=str(self.font),
             seed_key='event-editorial-regression',
+            context_asset=context_asset,
+        )
+
+    @staticmethod
+    def _fixture_asset(root: Path) -> VerifiedContextAsset:
+        path = root / 'context.jpg'
+        image = Image.new('RGB', (1600, 1000), (18, 28, 44))
+        draw = ImageDraw.Draw(image)
+        for y in range(0, 1000, 40):
+            draw.rectangle((0, y, 1600, y + 20), fill=(20 + y // 60, 33 + y // 80, 54 + y // 70))
+        draw.ellipse((120, 180, 900, 900), fill=(64, 82, 106))
+        draw.rectangle((980, 100, 1590, 920), fill=(7, 13, 25))
+        image.save(path, quality=94)
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        return VerifiedContextAsset(
+            asset_id='fixture-context',
+            path=str(path),
+            sha256=digest,
+            source_reference='test://fixture-context',
+            rights_basis=ContextRightsBasis.OWNER_SUPPLIED,
         )
 
     def test_renderer_uses_one_abstract_anchor_without_forced_motifs(self):
@@ -39,11 +63,24 @@ class EventEditorialStudyRendererTests(unittest.TestCase):
             self.assertFalse(receipt.person_used)
             self.assertFalse(receipt.full_pitch_used)
             self.assertFalse(receipt.decorative_stats_used)
+            self.assertFalse(receipt.photographic_context_used)
+            self.assertIsNone(receipt.context_contract)
             self.assertFalse(receipt.generator_used)
             self.assertFalse(receipt.network_used)
             self.assertTrue(receipt.study_only)
             self.assertFalse(receipt.publication_ready)
             self.assertLess(receipt.brand_width, 870)
+
+    def test_verified_photographic_context_is_optional_and_provenance_pinned(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            asset = self._fixture_asset(root)
+            receipt = self._render(root / 'hybrid.png', context_asset=asset)
+            self.assertTrue(receipt.photographic_context_used)
+            self.assertEqual(receipt.context_contract, 'pul7sar-verified-context-surface-v1')
+            self.assertEqual(receipt.context_source_reference, 'test://fixture-context')
+            self.assertEqual(receipt.atmosphere_contract, 'pul7sar-verified-context-surface-v1')
+            self.assertTrue((root / 'hybrid.png').is_file())
 
     def test_same_input_is_byte_deterministic(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -51,6 +88,17 @@ class EventEditorialStudyRendererTests(unittest.TestCase):
             b = Path(tmp) / 'b.png'
             first = self._render(a)
             second = self._render(b)
+            self.assertEqual(first.output_sha256, second.output_sha256)
+            self.assertEqual(a.read_bytes(), b.read_bytes())
+
+    def test_same_verified_context_is_byte_deterministic(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            asset = self._fixture_asset(root)
+            a = root / 'a-hybrid.png'
+            b = root / 'b-hybrid.png'
+            first = self._render(a, context_asset=asset)
+            second = self._render(b, context_asset=asset)
             self.assertEqual(first.output_sha256, second.output_sha256)
             self.assertEqual(a.read_bytes(), b.read_bytes())
 
