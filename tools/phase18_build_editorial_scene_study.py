@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the first story-aware deterministic PUL7SAR editorial visual study."""
+"""Build a story-aware PUL7SAR transfer visual study for human review."""
 from __future__ import annotations
 
 import argparse
@@ -22,22 +22,25 @@ def build(output_dir: str) -> dict[str, object]:
     if not font.is_file():
         raise FileNotFoundError("required CI study font unavailable")
 
+    # This is deliberately a fictional/non-publication benchmark story. It tests
+    # the transfer visual grammar without fabricating a real-world news claim.
     decision = StoryToVisualOrchestrator().decide(VerifiedEditorialStory(
-        event=EditorialEvent.GENERAL,
+        event=EditorialEvent.TRANSFER_CONFIRMED,
         sport="football",
-        subject="Football Editorial Study",
-        fact_phrase="non-publication visual study",
-        story_core="Phase 18 general football editorial atmosphere benchmark",
+        subject="Benchmark Player",
+        fact_phrase="joins destination club",
+        story_core="fictional Phase 18 transfer benchmark",
         tone=HeadlineTone.NEUTRAL,
         confidence=1.0,
     ))
     handoff = VisualStudyHandoffCompiler().compile(
         decision,
-        headline="نبض كرة القدم يبدأ هنا",
+        headline="صفقة جديدة",
+        supporting_copy="وجه جديد يصل إلى النادي",
     )
     VisualStudyHandoffCompiler.verify(handoff)
 
-    output = root / "pul7sar-editorial-study-v1.png"
+    output = root / "pul7sar-transfer-study-v2.png"
     receipt = EditorialSceneStudyRenderer().render(
         handoff,
         output_path=str(output),
@@ -46,7 +49,8 @@ def build(output_dir: str) -> dict[str, object]:
         seed=7007,
     )
     manifest = {
-        "manifest_version": "pul7sar-editorial-scene-study-v1",
+        "manifest_version": "pul7sar-editorial-scene-study-v2",
+        "benchmark_id": "transfer-signature-v1",
         "png": output.name,
         "png_sha256": receipt.output_sha256,
         "handoff_sha256": receipt.handoff_sha256,
@@ -57,7 +61,8 @@ def build(output_dir: str) -> dict[str, object]:
         "legacy_logo_used": receipt.legacy_logo_used,
         "study_only": receipt.study_only,
         "publication_ready": receipt.publication_ready,
-        "brand_geometry_mode": "approximate-study-only",
+        "brand_geometry_mode": "approximate-study-only-v2",
+        "verified_player_asset_used": False,
         "exact_brand_master_still_required_for_publication": True,
         "human_visual_review_required": True,
     }
