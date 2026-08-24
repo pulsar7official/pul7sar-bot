@@ -3,6 +3,8 @@
 Transfer coverage is one story family, not the default template. It is hero-led,
 uses destination-club context without requiring a full pitch, reserves concise
 headline space, and keeps the PUL7SAR signature subordinate to the verified hero.
+The v2 geometry separates verified-person and copy zones so visual energy comes
+from art direction rather than uncontrolled text/face overlap.
 """
 from __future__ import annotations
 
@@ -26,8 +28,9 @@ class TransferSignatureComposition:
     dense_stats_allowed: bool = False
     generated_crest_allowed: bool = False
     generated_brand_allowed: bool = False
+    protected_person_copy_overlap_allowed: bool = False
     publication_ready: bool = False
-    contract: str = "pul7sar-transfer-signature-composition-v1"
+    contract: str = "pul7sar-transfer-signature-composition-v2-safe-separated"
 
     def __post_init__(self) -> None:
         if not self.verified_hero_required:
@@ -40,6 +43,8 @@ class TransferSignatureComposition:
             raise ValueError("TRANSFER_SIGNATURE_MAY_NOT_BECOME_DENSE_INFOGRAPHIC")
         if self.generated_crest_allowed or self.generated_brand_allowed:
             raise ValueError("TRANSFER_EXACT_MARKS_MAY_NOT_BE_GENERATED")
+        if self.protected_person_copy_overlap_allowed:
+            raise ValueError("TRANSFER_VERIFIED_PERSON_COPY_OVERLAP_FORBIDDEN")
         if self.publication_ready:
             raise ValueError("COMPOSITION_CONTRACT_ALONE_CANNOT_AUTHORIZE_PUBLICATION")
 
@@ -47,6 +52,13 @@ class TransferSignatureComposition:
 class TransferSignatureComposer:
     def __init__(self, brand_resolver: AdaptiveBrandPlacementResolver | None = None) -> None:
         self._brand = brand_resolver or AdaptiveBrandPlacementResolver()
+
+    @staticmethod
+    def _intersects(a: NormalizedBox, b: NormalizedBox) -> bool:
+        return not (
+            a.x + a.width <= b.x or b.x + b.width <= a.x
+            or a.y + a.height <= b.y or b.y + b.height <= a.y
+        )
 
     def plan(self, profile: PlatformImageProfile) -> TransferSignatureComposition:
         if not isinstance(profile, PlatformImageProfile):
@@ -57,14 +69,16 @@ class TransferSignatureComposer:
 
         portrait = profile.height >= profile.width
         if portrait:
-            hero = NormalizedBox(0.06, 0.16, 0.62, 0.70)
-            headline = NormalizedBox(0.52, 0.17, 0.40, 0.22)
-            context = NormalizedBox(0.58, 0.43, 0.28, 0.12)
+            hero = NormalizedBox(0.05, 0.15, 0.50, 0.70)
+            headline = NormalizedBox(0.58, 0.17, 0.34, 0.22)
+            context = NormalizedBox(0.60, 0.44, 0.28, 0.12)
         else:
-            hero = NormalizedBox(0.06, 0.10, 0.50, 0.82)
+            hero = NormalizedBox(0.05, 0.10, 0.47, 0.82)
             headline = NormalizedBox(0.57, 0.18, 0.36, 0.26)
             context = NormalizedBox(0.60, 0.50, 0.28, 0.13)
 
+        if self._intersects(hero, headline) or self._intersects(hero, context):
+            raise ValueError("TRANSFER_VERIFIED_PERSON_COPY_ZONE_COLLISION")
         return TransferSignatureComposition(
             hero_box=hero,
             headline_box=headline,
