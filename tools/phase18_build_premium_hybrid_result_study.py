@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
-from engine.intelligence.premium_hybrid_result_study_renderer import PremiumHybridResultStudyRenderer
+from engine.intelligence.premium_hybrid_result_runtime import PremiumHybridResultStudyRenderer
 from engine.intelligence.result_statement_composition import ResultStatementComposer
 from engine.intelligence.verified_context_surface import ContextRightsBasis, VerifiedContextAsset
 
@@ -42,7 +42,7 @@ def build(output_dir: str, context_image: str, source_reference: str) -> dict[st
 
     profile = PlatformProfileRegistry().get(SocialPlatform.INSTAGRAM_FEED)
     composition = ResultStatementComposer().plan(profile)
-    output = root / "pul7sar-premium-hybrid-result-study-v1.png"
+    output = root / "pul7sar-premium-hybrid-result-study-v2.png"
     receipt = PremiumHybridResultStudyRenderer().render(
         composition,
         profile=profile,
@@ -63,7 +63,7 @@ def build(output_dir: str, context_image: str, source_reference: str) -> dict[st
     )
 
     manifest = {
-        "manifest_version": "pul7sar-premium-hybrid-result-study-v1",
+        "manifest_version": "pul7sar-premium-hybrid-result-study-v2",
         "renderer_contract": receipt.contract,
         "composition_contract": composition.contract,
         "verified_context_contract": receipt.verified_context_contract,
@@ -75,6 +75,8 @@ def build(output_dir: str, context_image: str, source_reference: str) -> dict[st
         "height": receipt.height,
         "score_text": receipt.score_text,
         "score_is_deterministic": True,
+        "metallic_score_used": receipt.metallic_score_used,
+        "optical_depth_used": receipt.optical_depth_used,
         "context_asset_id": receipt.context_asset_id,
         "context_source_sha256": receipt.context_source_sha256,
         "context_output_sha256": receipt.context_output_sha256,
