@@ -55,6 +55,28 @@ jobs:
               assert p['human_review_allowed'] is True and p['publication_ready'] is False
               assert p['metadata']['legacy_repo_logo_allowed'] is False
           PY
+      - name: Build cross-platform result composition matrix
+        run: python tools/phase18_build_result_composition_matrix.py --output output/phase18_result_composition_matrix/manifest.json
+      - name: Verify result family is independent and publication blocked
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('output/phase18_result_composition_matrix/manifest.json'); m=json.loads(p.read_text())
+          assert m['manifest_version']=='pul7sar-result-composition-matrix-v1'
+          assert m['benchmark_id']=='result-statement-v1' and m['family']=='result_statement'
+          assert m['platform_count']==7 and len(m['platforms'])==7
+          assert m['zero_cost'] is True and m['network_used'] is False
+          assert m['image_generator_used'] is False and m['image_created'] is False
+          assert m['inherits_transfer_layout'] is False and m['publication_ready'] is False
+          for e in m['platforms']:
+              assert e['score_is_primary'] is True and e['club_identity_scale_equal'] is True
+              assert e['winner_emphasis_mode']=='accent_and_hierarchy_only'
+              assert e['loser_treatment']=='neutral_respectful_no_degradation'
+              assert e['generated_score_allowed'] is False and e['generated_crest_allowed'] is False
+              assert e['brand']['contract']=='pul7sar-adaptive-brand-placement-v1'
+              assert e['brand']['max_width_ratio'] <= 0.25
+          PY
       - name: Build project-native editorial visual study
         run: python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
       - name: Verify v5 direct-ground reference brand study
@@ -127,6 +149,9 @@ jobs:
       - name: Upload visual study handoffs
         uses: actions/upload-artifact@v7
         with: {name: 'PUL7SAR-visual-study-handoffs-${{ github.sha }}', path: output/phase18_visual_study_handoffs/, if-no-files-found: error, retention-days: 14}
+      - name: Upload result composition matrix
+        uses: actions/upload-artifact@v7
+        with: {name: 'PUL7SAR-result-composition-matrix-${{ github.sha }}', path: output/phase18_result_composition_matrix/manifest.json, if-no-files-found: error, retention-days: 14}
       - name: Upload project-native editorial visual study
         uses: actions/upload-artifact@v7
         with: {name: 'PUL7SAR-editorial-visual-study-${{ github.sha }}', path: output/phase18_editorial_scene_study/, if-no-files-found: error, retention-days: 14}
