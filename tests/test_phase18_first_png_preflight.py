@@ -14,15 +14,66 @@ class FirstPngPreflightTests(unittest.TestCase):
     def test_preflight_order_is_fail_closed_before_queue_mutation(self) -> None:
         source = Path(phase18_first_png.__file__).read_text(encoding="utf-8")
         main_source = source[source.index("def main()") :]
+        repository = main_source.index("_run_repository_integrity_preflight(")
         host = main_source.index("_run_host_qualification(")
         semantic = main_source.index("_run_semantic_preflight(")
         cache = main_source.index("_run_model_prefetch(")
         readiness = main_source.index("_run_readiness(")
         queue = main_source.index("FilesystemGenerationJobStore(")
+        self.assertLess(repository, host)
         self.assertLess(host, semantic)
         self.assertLess(semantic, cache)
         self.assertLess(cache, readiness)
         self.assertLess(readiness, queue)
+
+    def test_repository_preflight_requires_complete_non_authorizing_contract(self) -> None:
+        payload = {
+            "schema": phase18_first_png.EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA,
+            "ready": True,
+            "cost_mode": "$0-local",
+            "compact_brand_member_integrity_pinned": True,
+            "compact_brand_self_contained": True,
+            "compact_brand_study_only": True,
+            "legacy_transport_authoritative": False,
+            "network_required": False,
+            "gpu_required": False,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": False,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ) as runner:
+            root = Path(temp)
+            result = phase18_first_png._run_repository_integrity_preflight(root, root / "repository.json")
+            self.assertTrue(result["ready"])
+            command = runner.call_args.args[0]
+            self.assertIn("phase18_preflight_repository_integrity.py", " ".join(command))
+
+    def test_repository_preflight_rejects_legacy_transport_authority(self) -> None:
+        payload = {
+            "schema": phase18_first_png.EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA,
+            "ready": True,
+            "cost_mode": "$0-local",
+            "compact_brand_member_integrity_pinned": True,
+            "compact_brand_self_contained": True,
+            "compact_brand_study_only": True,
+            "legacy_transport_authoritative": True,
+            "network_required": False,
+            "gpu_required": False,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": False,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ):
+            with self.assertRaisesRegex(RuntimeError, "PRE_GPU_REPOSITORY_INTEGRITY_CONTRACT_FAILED"):
+                phase18_first_png._run_repository_integrity_preflight(Path(temp), Path(temp) / "repository.json")
 
     def test_host_qualification_command_requires_eligible_true(self) -> None:
         completed = subprocess.CompletedProcess(
