@@ -6,7 +6,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw
 
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
-from engine.intelligence.premium_hybrid_result_study_renderer import PremiumHybridResultStudyRenderer
+from engine.intelligence.premium_hybrid_result_runtime import PremiumHybridResultStudyRenderer
 from engine.intelligence.result_statement_composition import ResultStatementComposer
 from engine.intelligence.verified_context_surface import ContextRightsBasis, VerifiedContextAsset
 
@@ -19,7 +19,6 @@ class PremiumHybridResultStudyRendererTests(unittest.TestCase):
         for y in range(image.height):
             t = y / image.height
             draw.line((0, y, image.width, y), fill=(round(24+36*t), round(34+42*t), round(48+58*t)))
-        # Photo-like horizon lights with no people, marks or readable text.
         for x in range(80, 1520, 105):
             draw.ellipse((x-6, 290, x+6, 302), fill=(220, 225, 210))
         draw.rectangle((0, 650, 1600, 1000), fill=(24, 58, 42))
@@ -63,6 +62,8 @@ class PremiumHybridResultStudyRendererTests(unittest.TestCase):
             self.assertTrue(receipt.club_identity_scale_equal)
             self.assertTrue(receipt.home_identity_placeholder_used)
             self.assertTrue(receipt.away_identity_placeholder_used)
+            self.assertTrue(receipt.metallic_score_used)
+            self.assertTrue(receipt.optical_depth_used)
             self.assertFalse(receipt.generator_used)
             self.assertFalse(receipt.network_used_by_renderer)
             self.assertTrue(receipt.study_only)
