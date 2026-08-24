@@ -1,10 +1,12 @@
 """Exact-shape study renderer backed by the user-approved PUL7SAR identity board.
 
-Unlike BrandStudyRenderer, this module never recreates the wordmark with a font.
-It verifies the approved board bytes, extracts the locked logo crop, optionally
-maps the approved blue accent pixels to a verified story accent, and composites
-that exact raster shape into a study canvas. This remains study-only: the source
-board has a dark design background and is not a transparent publication master.
+This renderer never recreates the wordmark with a font and never invents a new
+pulse waveform. It verifies the approved board bytes, extracts transparent
+reference-derived ownership layers, recolors only the 7 + pulse layer, and
+composites metallic wordmark + accent + football deterministically.
+
+The reference-derived raster remains study-only until the owner approves a clean
+publication master asset.
 """
 from __future__ import annotations
 
@@ -13,6 +15,7 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Tuple
 
+from engine.intelligence.brand_reference_layers import BrandReferenceLayerExtractor
 from engine.intelligence.brand_reference_master import APPROVED_BRAND_REFERENCE_MASTER
 
 
@@ -32,13 +35,19 @@ class BrandReferenceRenderReceipt:
     output_path: str
     output_sha256: str
     source_sha256: str
-    reference_crop_sha256: str
+    crop_pixel_sha256: str
+    metallic_pixel_sha256: str
+    accent_pixel_sha256: str
+    football_pixel_sha256: str
     accent_hex: str
     exact_reference_shape_used: bool
+    transparent_reference_layers_used: bool
+    background_board_pixels_composited: bool
     font_recreation_used: bool
+    generic_ecg_recreation_used: bool
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-brand-reference-renderer-v1"
+    contract: str = "pul7sar-brand-reference-renderer-v2-layered"
 
 
 class BrandReferenceRenderer:
@@ -54,63 +63,42 @@ class BrandReferenceRenderer:
         return sha256(path.read_bytes()).hexdigest()
 
     @classmethod
-    def extract_verified_crop(cls, source_path: str):
+    def _recolor_accent_layer(cls, layer, accent_hex: str):
+        """Tint only reference-owned 7/pulse pixels while preserving luminance."""
         from PIL import Image
-        ref = APPROVED_BRAND_REFERENCE_MASTER
-        ref.assert_safe()
-        source = Path(source_path)
-        if not source.is_file():
-            raise FileNotFoundError(source_path)
-        if cls._sha(source) != ref.source_sha256:
-            raise ValueError("approved brand reference source checksum mismatch")
-        with Image.open(source) as image:
-            if image.size != (ref.source_width, ref.source_height):
-                raise ValueError("approved brand reference source dimensions mismatch")
-            crop = image.convert("RGBA").crop((ref.crop_left, ref.crop_top, ref.crop_right, ref.crop_bottom))
-        # PNG encoding itself can vary across Pillow versions, so the source SHA +
-        # crop coordinates are the authoritative extraction lock. crop_sha256 is
-        # evidence from the originally measured extraction, not a cross-version
-        # encoder requirement at runtime.
-        return crop
 
-    @classmethod
-    def _recolor_reference_blue(cls, crop, accent_hex: str):
-        """Map blue 7/pulse/glow pixels while preserving exact raster geometry."""
-        from PIL import Image
-        accent = cls._rgb(accent_hex)
-        pixels = list(crop.getdata())
-        mapped = []
-        for r, g, b, a in pixels:
-            # Reference accent is electric blue. Keep metallic silver and ball
-            # untouched by requiring meaningful blue dominance and saturation.
-            mx, mn = max(r, g, b), min(r, g, b)
-            blue_owned = b >= 72 and b >= r * 1.18 and b >= g * 1.04 and (mx - mn) >= 30
-            if blue_owned:
-                intensity = max(0.12, min(1.0, mx / 255.0))
-                nr = min(255, round(accent[0] * intensity + 22 * (1.0 - intensity)))
-                ng = min(255, round(accent[1] * intensity + 22 * (1.0 - intensity)))
-                nb = min(255, round(accent[2] * intensity + 22 * (1.0 - intensity)))
-                mapped.append((nr, ng, nb, a))
-            else:
-                mapped.append((r, g, b, a))
-        result = Image.new("RGBA", crop.size)
-        result.putdata(mapped)
+        target = cls._rgb(accent_hex)
+        result = Image.new("RGBA", layer.size, (0, 0, 0, 0))
+        src = layer.load()
+        out = result.load()
+        for y in range(layer.height):
+            for x in range(layer.width):
+                r, g, b, a = src[x, y]
+                if not a:
+                    continue
+                # Preserve the reference highlight/shadow structure instead of
+                # replacing every pixel with one flat club color.
+                intensity = max(r, g, b) / 255.0
+                floor = 0.16
+                scale = floor + (1.0 - floor) * intensity
+                nr = min(255, round(target[0] * scale + 18 * (1.0 - intensity)))
+                ng = min(255, round(target[1] * scale + 18 * (1.0 - intensity)))
+                nb = min(255, round(target[2] * scale + 18 * (1.0 - intensity)))
+                out[x, y] = (nr, ng, nb, a)
         return result
 
     @staticmethod
-    def _edge_feather_alpha(width: int, height: int, feather: int):
+    def _compose_reference_layers(layers, accent_hex: str):
         from PIL import Image
-        feather = max(1, min(feather, min(width, height) // 4))
-        alpha = Image.new("L", (width, height), 255)
-        px = alpha.load()
-        for y in range(height):
-            dy = min(y, height - 1 - y)
-            for x in range(width):
-                dx = min(x, width - 1 - x)
-                edge = min(dx, dy)
-                if edge < feather:
-                    px[x, y] = round(255 * edge / feather)
-        return alpha
+
+        canvas = Image.new("RGBA", layers.metallic.size, (0, 0, 0, 0))
+        canvas = Image.alpha_composite(canvas, layers.metallic)
+        canvas = Image.alpha_composite(
+            canvas,
+            BrandReferenceRenderer._recolor_accent_layer(layers.accent, accent_hex),
+        )
+        canvas = Image.alpha_composite(canvas, layers.football)
+        return canvas
 
     def render_on_file(
         self,
@@ -120,36 +108,41 @@ class BrandReferenceRenderer:
         output_path: str,
         placement: BrandReferencePlacement,
         accent_hex: str = "#034694",
-        feather_px: int = 20,
     ) -> BrandReferenceRenderReceipt:
         from PIL import Image
+
         base = Path(base_path)
         if not base.is_file():
             raise FileNotFoundError(base_path)
-        crop = self.extract_verified_crop(source_board_path)
-        crop = self._recolor_reference_blue(crop, accent_hex)
+
+        layers = BrandReferenceLayerExtractor().extract(source_board_path)
+        reference = self._compose_reference_layers(layers, accent_hex)
 
         with Image.open(base) as raw:
             canvas = raw.convert("RGBA")
             target_w = placement.width
-            target_h = max(1, round(crop.height * target_w / crop.width))
+            target_h = max(1, round(reference.height * target_w / reference.width))
             if placement.x + target_w > canvas.width or placement.y + target_h > canvas.height:
                 raise ValueError("exact reference brand placement exceeds canvas")
-            crop = crop.resize((target_w, target_h), Image.Resampling.LANCZOS)
-            alpha = self._edge_feather_alpha(target_w, target_h, round(feather_px * target_w / 820))
-            crop.putalpha(alpha)
-            canvas.alpha_composite(crop, (placement.x, placement.y))
+            reference = reference.resize((target_w, target_h), Image.Resampling.LANCZOS)
+            canvas.alpha_composite(reference, (placement.x, placement.y))
             target = Path(output_path)
             target.parent.mkdir(parents=True, exist_ok=True)
             canvas.convert("RGB").save(target, format="PNG")
 
-        ref = APPROVED_BRAND_REFERENCE_MASTER
+        receipt = layers.receipt
         return BrandReferenceRenderReceipt(
             output_path=str(target),
             output_sha256=self._sha(target),
-            source_sha256=ref.source_sha256,
-            reference_crop_sha256=ref.crop_sha256,
+            source_sha256=APPROVED_BRAND_REFERENCE_MASTER.source_sha256,
+            crop_pixel_sha256=receipt.crop_pixel_sha256,
+            metallic_pixel_sha256=receipt.metallic_pixel_sha256,
+            accent_pixel_sha256=receipt.accent_pixel_sha256,
+            football_pixel_sha256=receipt.football_pixel_sha256,
             accent_hex=accent_hex.upper(),
             exact_reference_shape_used=True,
+            transparent_reference_layers_used=True,
+            background_board_pixels_composited=False,
             font_recreation_used=False,
+            generic_ecg_recreation_used=False,
         )
