@@ -36,6 +36,20 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v1"', self.text)
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v2"', self.text)
 
+    def test_self_contained_reference_brand_study_is_built_and_uploaded(self):
+        self.assertIn("phase18_build_reference_brand_study.py", self.text)
+        self.assertIn("pul7sar-reference-brand-study-v2-self-contained", self.text)
+        self.assertIn("pul7sar-brand-reference-renderer-v3-embedded-layered", self.text)
+        self.assertIn('manifest["external_source_board_required"] is False', self.text)
+        self.assertIn('manifest["embedded_master_is_default"] is True', self.text)
+        self.assertIn('manifest["metallic_wordmark_fixed"] is True', self.text)
+        self.assertIn('manifest["seven_and_pulse_tintable"] is True', self.text)
+        self.assertIn('manifest["football_fixed"] is True', self.text)
+        self.assertIn('entry["font_recreation_used"] is False', self.text)
+        self.assertIn('entry["generic_ecg_recreation_used"] is False', self.text)
+        self.assertIn("PUL7SAR-reference-brand-study-${{ github.sha }}", self.text)
+        self.assertIn("assets/brand/**", self.text)
+
     def test_artifacts_are_named_v5(self):
         self.assertIn("golden-season-opener-hybrid-v5.json", self.text)
         self.assertIn("PUL7SAR-golden-hybrid-v5-candidate-batch-", self.text)
