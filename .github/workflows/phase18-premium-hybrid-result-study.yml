@@ -5,6 +5,7 @@ on:
     branches: ['phase18/**']
     paths:
       - 'engine/intelligence/premium_hybrid_result_study_renderer.py'
+      - 'engine/intelligence/premium_hybrid_result_runtime.py'
       - 'engine/intelligence/verified_context_surface.py'
       - 'engine/intelligence/result_statement_study_renderer.py'
       - 'engine/intelligence/result_statement_composition.py'
@@ -19,6 +20,7 @@ on:
   pull_request:
     paths:
       - 'engine/intelligence/premium_hybrid_result_study_renderer.py'
+      - 'engine/intelligence/premium_hybrid_result_runtime.py'
       - 'engine/intelligence/verified_context_surface.py'
       - 'engine/intelligence/result_statement_study_renderer.py'
       - 'engine/intelligence/result_statement_composition.py'
@@ -81,11 +83,12 @@ jobs:
           root=Path('output/phase18_premium_hybrid_result_study')
           m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
           png=root/m['png']
-          assert m['manifest_version']=='pul7sar-premium-hybrid-result-study-v1'
+          assert m['manifest_version']=='pul7sar-premium-hybrid-result-study-v2'
           assert m['renderer_contract']=='pul7sar-premium-hybrid-result-study-renderer-v2-metallic-depth'
           assert m['verified_context_contract']=='pul7sar-verified-context-surface-v1'
           assert m['family']=='result_statement' and m['platform']=='instagram_feed'
           assert m['score_text']=='3  –  1' and m['score_is_deterministic'] is True
+          assert m['metallic_score_used'] is True and m['optical_depth_used'] is True
           assert m['context_rights_basis']=='public_domain'
           assert m['context_role']=='atmosphere_only_not_event_evidence'
           assert m['context_is_match_or_venue_evidence'] is False
