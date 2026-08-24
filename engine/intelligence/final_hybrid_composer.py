@@ -4,6 +4,10 @@ This coordinator owns the exact post-generation stack. It composes deterministic
 sport geometry, approved dynamic PUL7SAR branding and deterministic typography in
 sequence. Each stage writes a new artifact and receipt; no stage may silently
 claim completion.
+
+Football geometry is accepted only through the current HybridArtifactIntegrityGate.
+The final compositor must never revive the legacy opaque-pitch assumption or claim
+that deterministic football geometry exists when no verified receipt backs it.
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ from engine.intelligence.dynamic_brand_geometry import DynamicBrandGeometryRecip
 from engine.intelligence.dynamic_brand_renderer import DynamicBrandCompositionReceipt, DynamicBrandPlacement, PillowDynamicBrandRenderer
 from engine.intelligence.football_hybrid_composer import FootballHybridComposer, FootballHybridCompositionReceipt
 from engine.intelligence.football_pitch_placement import FootballCameraPreset
+from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
 from engine.intelligence.typography import FontReference, TextLayout
 from engine.intelligence.typography_renderer import PillowTypographyRenderer, TypographyCompositionReceipt
 
@@ -52,6 +57,14 @@ class FinalHybridComposer:
                 digest.update(chunk)
         return digest.hexdigest()
 
+    @staticmethod
+    def _assert_football_receipt_valid(receipt: FootballHybridCompositionReceipt) -> None:
+        decision = HybridArtifactIntegrityGate().validate_football(receipt)
+        if not decision.valid:
+            raise RuntimeError(
+                "football deterministic geometry receipt is invalid: " + ", ".join(decision.failures)
+            )
+
     def compose(
         self,
         *,
@@ -66,17 +79,23 @@ class FinalHybridComposer:
         typography_jobs: tuple[TypographyRenderJob, ...] = (),
         apply_football_geometry: bool = False,
         football_camera: FootballCameraPreset = FootballCameraPreset.HIGH_WIDE_CENTRAL,
+        precomposed_football_receipt: Optional[FootballHybridCompositionReceipt] = None,
     ) -> FinalHybridCompositionReceipt:
         source = Path(base_path)
         if not source.is_file():
             raise FileNotFoundError(base_path)
+        if apply_football_geometry and precomposed_football_receipt is not None:
+            raise ValueError("football geometry cannot be both newly composed and precomposed")
+
         work = Path(work_dir)
         work.mkdir(parents=True, exist_ok=True)
         target = Path(output_path)
         target.parent.mkdir(parents=True, exist_ok=True)
 
         current = source
-        football_receipt = None
+        football_receipt: Optional[FootballHybridCompositionReceipt] = None
+        deterministic_geometry_applied = False
+
         if apply_football_geometry:
             football_out = work / "01-football-geometry.png"
             football_receipt = FootballHybridComposer().compose_file(
@@ -84,9 +103,16 @@ class FinalHybridComposer:
                 output_path=str(football_out),
                 camera_preset=football_camera,
             )
-            if not football_receipt.deterministic_geometry_applied or football_receipt.surface_opacity != 255:
-                raise RuntimeError("football deterministic geometry receipt is incomplete")
+            self._assert_football_receipt_valid(football_receipt)
             current = football_out
+            deterministic_geometry_applied = True
+        elif precomposed_football_receipt is not None:
+            self._assert_football_receipt_valid(precomposed_football_receipt)
+            base_sha = self._sha256(source)
+            if precomposed_football_receipt.output_sha256 != base_sha:
+                raise RuntimeError("precomposed football receipt does not match final-composer base bytes")
+            football_receipt = precomposed_football_receipt
+            deterministic_geometry_applied = True
 
         brand_out = work / "02-dynamic-brand.png"
         brand_receipt = PillowDynamicBrandRenderer().render_on_file(
@@ -138,7 +164,7 @@ class FinalHybridComposer:
             brand_receipt=brand_receipt,
             typography_receipts=tuple(typography_receipts),
             output_sha256=self._sha256(target),
-            deterministic_geometry_applied=bool(football_receipt and football_receipt.deterministic_geometry_applied) if apply_football_geometry else True,
+            deterministic_geometry_applied=deterministic_geometry_applied,
             exact_dynamic_brand_applied=True,
             exact_typography_applied=bool(typography_receipts) if typography_jobs else True,
         )
