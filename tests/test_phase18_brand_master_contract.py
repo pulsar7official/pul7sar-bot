@@ -11,7 +11,9 @@ class BrandMasterContractTests(unittest.TestCase):
         self.assertEqual(brand.wordmark_text, "PUL7SAR")
         self.assertEqual(brand.wordmark_finish, "metallic_silver_fixed")
         self.assertTrue(brand.seven_larger_than_letters)
-        self.assertEqual(brand.pulse_position, "below_wordmark")
+        self.assertEqual(brand.pulse_topology, "integrated_signature_centered_on_seven")
+        self.assertTrue(brand.pulse_long_baseline_allowed)
+        self.assertTrue(brand.pulse_active_waveform_compact_around_seven)
         self.assertTrue(brand.small_football_near_r)
         self.assertTrue(brand.pulse_seven_dynamic)
         self.assertTrue(brand.only_pulse_and_seven_are_tintable)
@@ -28,11 +30,13 @@ class BrandMasterContractTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "GENERATOR_MAY_NOT_INVENT_PUL7SAR_BRAND"):
             forged.assert_safe()
 
-    def test_seven_size_and_pulse_position_are_identity_signatures(self):
+    def test_seven_and_integrated_pulse_are_identity_signatures(self):
         with self.assertRaisesRegex(ValueError, "SEVEN_SIZE_SIGNATURE"):
             replace(APPROVED_PUL7SAR_BRAND_MASTER, seven_larger_than_letters=False).assert_safe()
-        with self.assertRaisesRegex(ValueError, "PULSE_POSITION_CHANGED"):
-            replace(APPROVED_PUL7SAR_BRAND_MASTER, pulse_position="inside_wordmark").assert_safe()
+        with self.assertRaisesRegex(ValueError, "PULSE_TOPOLOGY_CHANGED"):
+            replace(APPROVED_PUL7SAR_BRAND_MASTER, pulse_topology="generic_ecg_below_wordmark").assert_safe()
+        with self.assertRaisesRegex(ValueError, "ACTIVE_PULSE_MUST_REMAIN_COMPACT"):
+            replace(APPROVED_PUL7SAR_BRAND_MASTER, pulse_active_waveform_compact_around_seven=False).assert_safe()
 
     def test_wordmark_cannot_be_tinted_with_club_color(self):
         with self.assertRaisesRegex(ValueError, "WORDMARK_MUST_NOT_BE_TINTED"):
