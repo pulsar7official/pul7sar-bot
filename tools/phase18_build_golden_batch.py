@@ -2,7 +2,8 @@
 """Build a deterministic quality-first batch of Golden Hybrid v5 handoffs.
 
 Only the seed varies. Atmosphere generation is compared under identical hybrid
-ownership rules; exact football geometry and PUL7SAR branding are not generated.
+ownership and story-level VisualGrammar rules; exact football geometry and
+PUL7SAR branding are not generated.
 """
 from __future__ import annotations
 
@@ -26,9 +27,19 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
     target.mkdir(parents=True, exist_ok=True)
 
     candidates: list[dict[str, object]] = []
+    observed_surface_visibility: str | None = None
+    observed_visual_grammar_contract: str | None = None
     for index, seed in enumerate(seeds, start=1):
         request_id = f"golden-season-opener-hybrid-v5-{index:03d}"
         request = build_request(seed=seed, request_id=request_id)
+        surface_visibility = str(request.metadata["visual_grammar_surface_visibility"])
+        visual_grammar_contract = str(request.metadata["visual_grammar_contract"])
+        if observed_surface_visibility is None:
+            observed_surface_visibility = surface_visibility
+            observed_visual_grammar_contract = visual_grammar_contract
+        elif surface_visibility != observed_surface_visibility or visual_grammar_contract != observed_visual_grammar_contract:
+            raise RuntimeError("Golden candidate VisualGrammar drift detected across seeds")
+
         filename = f"candidate-{index:02d}-seed-{seed}.json"
         path = target / filename
         LocalGenerationHandoff.write(request, str(path))
@@ -45,6 +56,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
             "native_canvas": f"{request.width}x{request.height}",
             "target_canvas": f"{target_width}x{target_height}",
             "canvas_normalization_required": bool(request.metadata["canvas_normalization_required"]),
+            "visual_grammar_surface_visibility": surface_visibility,
         })
 
     manifest = {
@@ -52,13 +64,15 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         "benchmark": GOLDEN_BENCHMARK_ID,
         "cost_mode": "$0-local",
         "composition_grammar": "single_continuous_scene",
+        "visual_grammar_contract": observed_visual_grammar_contract,
+        "visual_grammar_surface_visibility": observed_surface_visibility,
         "sport_geometry": "deterministic_football_pitch_projective_v1",
         "generated_sport_geometry_allowed": False,
         "hybrid_surface_replacement_required": True,
         "football_camera_preset": "high_wide_central",
         "generated_branding_allowed": False,
         "brand_composition_policy": "dynamic_deterministic_after_generation",
-        "selection_rule": "quality-first; compare atmosphere/base-scene quality after identical hybrid ownership gates, never select by seed order",
+        "selection_rule": "quality-first; compare atmosphere/base-scene quality after identical visual-grammar and hybrid ownership gates, never select by seed order",
         "candidates": candidates,
     }
     manifest_path = target / "manifest.json"
@@ -79,6 +93,8 @@ def main() -> int:
         "candidate_count": len(manifest["candidates"]),
         "cost_mode": manifest["cost_mode"],
         "composition_grammar": manifest["composition_grammar"],
+        "visual_grammar_contract": manifest["visual_grammar_contract"],
+        "visual_grammar_surface_visibility": manifest["visual_grammar_surface_visibility"],
         "sport_geometry": manifest["sport_geometry"],
         "generated_sport_geometry_allowed": manifest["generated_sport_geometry_allowed"],
         "generated_branding_allowed": manifest["generated_branding_allowed"],
