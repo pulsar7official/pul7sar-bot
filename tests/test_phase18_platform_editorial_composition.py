@@ -27,26 +27,31 @@ class PlatformEditorialCompositionTests(unittest.TestCase):
         )
         return self.orchestrator.decide(story)
 
-    def test_result_gets_result_geometry_not_transfer_layout(self):
-        profile = self.profiles.get(SocialPlatform.INSTAGRAM_FEED)
-        composition = self.resolver.resolve(self.decision(EditorialEvent.RESULT), profile)
-        self.assertEqual(composition.family, EditorialSceneFamily.RESULT_STATEMENT)
-        self.assertIsNotNone(composition.result_statement)
-        self.assertIsNone(composition.verified_subject_news)
-        self.assertIsNone(composition.tactical_intelligence)
-        self.assertFalse(composition.inherits_transfer_layout)
-        self.assertTrue(composition.result_statement.score_is_primary)
-        self.assertLessEqual(composition.brand.max_width_ratio, 0.25)
-
-    def test_transfer_has_no_dedicated_result_subject_or_tactical_contract(self):
+    def test_transfer_is_explicit_peer_family_not_hidden_default(self):
         profile = self.profiles.get(SocialPlatform.INSTAGRAM_FEED)
         composition = self.resolver.resolve(self.decision(EditorialEvent.TRANSFER_CONFIRMED), profile)
         self.assertEqual(composition.family, EditorialSceneFamily.TRANSFER_SIGNATURE)
+        self.assertIsNotNone(composition.transfer_signature)
+        self.assertTrue(composition.transfer_signature.verified_hero_required)
+        self.assertFalse(composition.transfer_signature.full_pitch_required)
+        self.assertFalse(composition.transfer_signature.dense_stats_allowed)
         self.assertIsNone(composition.result_statement)
         self.assertIsNone(composition.verified_subject_news)
         self.assertIsNone(composition.tactical_intelligence)
         self.assertFalse(composition.inherits_transfer_layout)
         self.assertLessEqual(composition.brand.max_width_ratio, 0.30)
+
+    def test_result_gets_result_geometry_not_transfer_layout(self):
+        profile = self.profiles.get(SocialPlatform.INSTAGRAM_FEED)
+        composition = self.resolver.resolve(self.decision(EditorialEvent.RESULT), profile)
+        self.assertEqual(composition.family, EditorialSceneFamily.RESULT_STATEMENT)
+        self.assertIsNotNone(composition.result_statement)
+        self.assertIsNone(composition.transfer_signature)
+        self.assertIsNone(composition.verified_subject_news)
+        self.assertIsNone(composition.tactical_intelligence)
+        self.assertFalse(composition.inherits_transfer_layout)
+        self.assertTrue(composition.result_statement.score_is_primary)
+        self.assertLessEqual(composition.brand.max_width_ratio, 0.25)
 
     def test_injury_gets_verified_subject_contract(self):
         profile = self.profiles.get(SocialPlatform.X_FEED)
@@ -56,6 +61,7 @@ class PlatformEditorialCompositionTests(unittest.TestCase):
         self.assertTrue(injury.verified_subject_news.verified_subject_required)
         self.assertFalse(injury.verified_subject_news.fabricated_pose_allowed)
         self.assertFalse(injury.verified_subject_news.fabricated_expression_allowed)
+        self.assertIsNone(injury.transfer_signature)
         self.assertIsNone(injury.result_statement)
         self.assertIsNone(injury.tactical_intelligence)
 
@@ -68,8 +74,24 @@ class PlatformEditorialCompositionTests(unittest.TestCase):
         self.assertTrue(tactics.tactical_intelligence.exact_formation_data_required)
         self.assertFalse(tactics.tactical_intelligence.generated_pitch_markings_allowed)
         self.assertFalse(tactics.tactical_intelligence.generated_player_positions_allowed)
+        self.assertIsNone(tactics.transfer_signature)
         self.assertIsNone(tactics.result_statement)
         self.assertIsNone(tactics.verified_subject_news)
+
+    def test_four_families_have_distinct_composition_contracts(self):
+        profile = self.profiles.get(SocialPlatform.INSTAGRAM_FEED)
+        transfer = self.resolver.resolve(self.decision(EditorialEvent.TRANSFER_CONFIRMED), profile)
+        result = self.resolver.resolve(self.decision(EditorialEvent.RESULT), profile)
+        injury = self.resolver.resolve(self.decision(EditorialEvent.INJURY), profile)
+        tactics = self.resolver.resolve(self.decision(EditorialEvent.TACTICS), profile)
+        contracts = {
+            transfer.transfer_signature.contract,
+            result.result_statement.contract,
+            injury.verified_subject_news.contract,
+            tactics.tactical_intelligence.contract,
+        }
+        self.assertEqual(len(contracts), 4)
+        self.assertFalse(any(x.inherits_transfer_layout for x in (transfer, result, injury, tactics)))
 
     def test_injury_and_tactics_receive_distinct_brand_behavior(self):
         profile = self.profiles.get(SocialPlatform.X_FEED)
