@@ -1,0 +1,89 @@
+name: Phase 18 Tactical Intelligence Visual Study
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/tactical_intelligence_composition.py'
+      - 'engine/intelligence/tactical_intelligence_study_renderer.py'
+      - 'engine/intelligence/football_pitch_geometry.py'
+      - 'engine/intelligence/football_pitch_projection.py'
+      - 'engine/intelligence/football_pitch_renderer.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_tactical_intelligence_study.py'
+      - 'tests/test_phase18_tactical_intelligence_study_renderer.py'
+      - '.github/workflows/phase18-tactical-study.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/tactical_intelligence_composition.py'
+      - 'engine/intelligence/tactical_intelligence_study_renderer.py'
+      - 'engine/intelligence/football_pitch_geometry.py'
+      - 'engine/intelligence/football_pitch_projection.py'
+      - 'engine/intelligence/football_pitch_renderer.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_tactical_intelligence_study.py'
+      - 'tests/test_phase18_tactical_intelligence_study_renderer.py'
+      - '.github/workflows/phase18-tactical-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-tactical-study:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run tactical renderer regressions
+        run: python -m unittest -v tests.test_phase18_tactical_intelligence_study_renderer
+      - name: Build deterministic tactical PNG
+        run: python tools/phase18_build_tactical_intelligence_study.py --output-dir output/phase18_tactical_intelligence_study
+      - name: Verify tactical study manifest and PNG
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root=Path('output/phase18_tactical_intelligence_study')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          png=root/m['png']
+          assert m['manifest_version']=='pul7sar-tactical-intelligence-study-v1'
+          assert m['renderer_contract']=='pul7sar-tactical-intelligence-study-renderer-v1'
+          assert m['composition_contract']=='pul7sar-tactical-intelligence-composition-v1'
+          assert m['brand_overlay_contract']=='pul7sar-adaptive-brand-overlay-v1'
+          assert m['family']=='tactical_board' and m['platform']=='instagram_feed'
+          assert m['position_count']==11 and m['arrow_count']==3
+          assert m['exact_pitch_geometry_used'] is True
+          assert m['generated_pitch_markings_used'] is False
+          assert m['generated_player_positions_used'] is False
+          assert m['decorative_stadium_used'] is False
+          assert m['pitch_is_information_surface'] is True
+          assert m['pitch_is_global_news_template'] is False
+          assert m['inherits_transfer_renderer'] is False and m['inherits_result_renderer'] is False
+          assert m['brand_max_width_ratio'] <= 0.21 and m['brand_max_height_ratio'] <= 0.075
+          assert m['brand_width'] <= round(m['width'] * m['brand_max_width_ratio'])
+          assert m['brand_height'] <= round(m['height'] * m['brand_max_height_ratio'])
+          assert m['generator_used'] is False and m['network_used'] is False
+          assert m['study_only'] is True and m['publication_ready'] is False
+          assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
+          print('Tactical intelligence study PASS')
+          PY
+      - name: Upload tactical intelligence study
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-tactical-intelligence-study-${{ github.sha }}'
+          path: output/phase18_tactical_intelligence_study/
+          if-no-files-found: error
+          retention-days: 14
