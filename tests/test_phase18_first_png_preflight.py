@@ -15,10 +15,12 @@ class FirstPngPreflightTests(unittest.TestCase):
         source = Path(phase18_first_png.__file__).read_text(encoding="utf-8")
         main_source = source[source.index("def main()") :]
         host = main_source.index("_run_host_qualification(")
+        semantic = main_source.index("_run_semantic_preflight(")
         cache = main_source.index("_run_model_prefetch(")
         readiness = main_source.index("_run_readiness(")
         queue = main_source.index("FilesystemGenerationJobStore(")
-        self.assertLess(host, cache)
+        self.assertLess(host, semantic)
+        self.assertLess(semantic, cache)
         self.assertLess(cache, readiness)
         self.assertLess(readiness, queue)
 
@@ -41,6 +43,87 @@ class FirstPngPreflightTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "GPU host qualification failed"):
                 phase18_first_png._run_host_qualification(Path(temp), Path(temp) / "qualification.json")
+
+    def test_semantic_preflight_requires_complete_fail_closed_contract(self) -> None:
+        payload = {
+            "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
+            "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "cost_mode": "$0-local",
+            "semantic_runtime_ready": True,
+            "semantic_model_ready": True,
+            "cuda_available": True,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": False,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ):
+            result = phase18_first_png._run_semantic_preflight(
+                Path(temp),
+                Path(temp) / "semantic-preflight.json",
+                Path(temp) / "qwen-cache.json",
+                minimum_free_gib=12.0,
+            )
+            self.assertTrue(result["semantic_runtime_ready"])
+            self.assertTrue(result["semantic_model_ready"])
+
+    def test_semantic_preflight_rejects_any_publication_or_generation_authority_drift(self) -> None:
+        payload = {
+            "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
+            "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "cost_mode": "$0-local",
+            "semantic_runtime_ready": True,
+            "semantic_model_ready": True,
+            "cuda_available": True,
+            "generation_authorized": True,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": True,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ):
+            with self.assertRaisesRegex(RuntimeError, "SEMANTIC_GPU_PREFLIGHT_CONTRACT_FAILED"):
+                phase18_first_png._run_semantic_preflight(
+                    Path(temp),
+                    Path(temp) / "semantic-preflight.json",
+                    Path(temp) / "qwen-cache.json",
+                    minimum_free_gib=12.0,
+                )
+
+    def test_semantic_preflight_command_locks_qwen_disk_headroom_and_receipts(self) -> None:
+        payload = {
+            "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
+            "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "cost_mode": "$0-local",
+            "semantic_runtime_ready": True,
+            "semantic_model_ready": True,
+            "cuda_available": True,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": False,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ) as runner:
+            root = Path(temp)
+            phase18_first_png._run_semantic_preflight(
+                root,
+                root / "semantic-preflight.json",
+                root / "qwen-cache.json",
+                minimum_free_gib=13.5,
+            )
+            command = runner.call_args.args[0]
+            self.assertIn("phase18_preflight_semantic_gpu.py", " ".join(command))
+            self.assertEqual(command[command.index("--minimum-free-gib") + 1], "13.5")
+            self.assertEqual(command[command.index("--qwen-cache-receipt") + 1], str(root / "qwen-cache.json"))
+            self.assertEqual(command[command.index("--output") + 1], str(root / "semantic-preflight.json"))
 
     def test_model_prefetch_requires_ready_and_zero_cost(self) -> None:
         bad_cost = subprocess.CompletedProcess(
