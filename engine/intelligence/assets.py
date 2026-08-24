@@ -20,6 +20,7 @@ class AssetRole(str, Enum):
     COMPETITION_MARK = "competition_mark"
     SOCIAL_ICON = "social_icon"
     VERIFIED_IDENTITY_REFERENCE = "verified_identity_reference"
+    VERIFIED_SUBJECT_VISUAL = "verified_subject_visual"
     OTHER = "other"
 
 
@@ -52,6 +53,10 @@ class AssetReference:
                 raise ValueError(f"{name} must be non-empty or None")
         if self.accent_color is not None and self.treatment is not AssetTreatment.TINTABLE_ACCENT:
             raise ValueError("accent_color is only valid for TINTABLE_ACCENT assets")
+        if self.role is AssetRole.VERIFIED_IDENTITY_REFERENCE and self.treatment is not AssetTreatment.REFERENCE_ONLY:
+            raise ValueError("verified identity references must remain REFERENCE_ONLY")
+        if self.role is AssetRole.VERIFIED_SUBJECT_VISUAL and self.treatment is not AssetTreatment.EXACT:
+            raise ValueError("verified subject visuals must be exact assets")
         object.__setattr__(self, "metadata", MappingProxyType(dict(self.metadata)))
 
 
@@ -88,3 +93,10 @@ class AssetBundle:
         for crest in self.by_role(AssetRole.TEAM_CREST):
             if crest.treatment is not AssetTreatment.EXACT:
                 raise ValueError("team crests must be exact assets and may not be regenerated")
+
+    def assert_verified_subject_visuals_exact(self) -> None:
+        for subject in self.by_role(AssetRole.VERIFIED_SUBJECT_VISUAL):
+            if subject.treatment is not AssetTreatment.EXACT:
+                raise ValueError("verified subject visuals must remain exact")
+            if not subject.source_reference:
+                raise ValueError("verified subject visual requires source_reference")
