@@ -80,6 +80,27 @@ jobs:
               assert payload["metadata"]["legacy_repo_logo_allowed"] is False
           print("Visual study handoff batch PASS")
           PY
+      - name: Build project-native editorial visual study
+        run: |
+          python tools/phase18_build_editorial_scene_study.py \
+            --output-dir output/phase18_editorial_scene_study
+      - name: Assert editorial visual study safety contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("output/phase18_editorial_scene_study")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          assert manifest["manifest_version"] == "pul7sar-editorial-scene-study-v1"
+          assert manifest["generator_used"] is False
+          assert manifest["legacy_logo_used"] is False
+          assert manifest["study_only"] is True
+          assert manifest["publication_ready"] is False
+          assert manifest["exact_brand_master_still_required_for_publication"] is True
+          png = root / manifest["png"]
+          assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+          print("Editorial visual study safety contract PASS")
+          PY
       - name: Build portable Golden Hybrid v5 GPU handoff
         run: |
           python tools/phase18_build_golden_handoff.py \
@@ -100,7 +121,6 @@ jobs:
           python - <<'PY'
           import json
           from pathlib import Path
-
           manifest = json.loads(Path("output/phase18_handoffs/golden-batch/manifest.json").read_text(encoding="utf-8"))
           expected = {
               "manifest_version": "pul7sar-golden-batch-v5",
@@ -130,6 +150,13 @@ jobs:
         with:
           name: PUL7SAR-visual-study-handoffs-${{ github.sha }}
           path: output/phase18_visual_study_handoffs/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload project-native editorial visual study
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-editorial-visual-study-${{ github.sha }}
+          path: output/phase18_editorial_scene_study/
           if-no-files-found: error
           retention-days: 14
       - name: Upload Golden Hybrid v5 GPU handoff
