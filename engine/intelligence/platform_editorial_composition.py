@@ -1,9 +1,9 @@
 """Platform boundary for story-specific PUL7SAR editorial composition.
 
 Story intelligence is platform-neutral. This resolver is where a verified story
-family meets a concrete social canvas. It guarantees that result stories use the
-result statement geometry, while other families still receive their own adaptive
-brand signature scale/zone rather than inheriting transfer layout.
+family meets a concrete social canvas. Result, verified-subject and tactical news
+receive dedicated composition contracts; no family silently inherits transfer
+layout. Remaining families still receive family-aware adaptive brand placement.
 """
 from __future__ import annotations
 
@@ -15,25 +15,49 @@ from engine.intelligence.platform_profiles import PlatformImageProfile
 from engine.intelligence.result_statement_composition import ResultStatementComposer, ResultStatementComposition
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecision
+from engine.intelligence.tactical_intelligence_composition import TacticalIntelligenceComposer, TacticalIntelligenceComposition
+from engine.intelligence.verified_subject_news_composition import VerifiedSubjectNewsComposer, VerifiedSubjectNewsComposition
 
 
 @dataclass(frozen=True)
 class PlatformEditorialComposition:
     family: EditorialSceneFamily
     brand: AdaptiveBrandPlacement
-    result_statement: Optional[ResultStatementComposition]
+    result_statement: Optional[ResultStatementComposition] = None
+    verified_subject_news: Optional[VerifiedSubjectNewsComposition] = None
+    tactical_intelligence: Optional[TacticalIntelligenceComposition] = None
     inherits_transfer_layout: bool = False
-    contract: str = "pul7sar-platform-editorial-composition-v1"
+    contract: str = "pul7sar-platform-editorial-composition-v2"
 
     def __post_init__(self) -> None:
         if self.inherits_transfer_layout:
             raise ValueError("STORY_FAMILY_MAY_NOT_INHERIT_TRANSFER_LAYOUT")
+        dedicated = tuple(
+            item is not None
+            for item in (self.result_statement, self.verified_subject_news, self.tactical_intelligence)
+        )
+        if sum(dedicated) > 1:
+            raise ValueError("PLATFORM_COMPOSITION_MAY_HAVE_ONLY_ONE_DEDICATED_FAMILY_CONTRACT")
         if self.family is EditorialSceneFamily.RESULT_STATEMENT and self.result_statement is None:
             raise ValueError("RESULT_STORY_REQUIRES_RESULT_STATEMENT_COMPOSITION")
-        if self.family is not EditorialSceneFamily.RESULT_STATEMENT and self.result_statement is not None:
-            raise ValueError("NON_RESULT_STORY_MAY_NOT_CARRY_RESULT_STATEMENT_COMPOSITION")
-        if self.result_statement is not None and self.result_statement.brand != self.brand:
-            raise ValueError("RESULT_BRAND_PLACEMENT_MUST_MATCH_PLATFORM_COMPOSITION")
+        if self.family is EditorialSceneFamily.VERIFIED_SUBJECT_NEWS and self.verified_subject_news is None:
+            raise ValueError("VERIFIED_SUBJECT_STORY_REQUIRES_SUBJECT_NEWS_COMPOSITION")
+        if self.family is EditorialSceneFamily.TACTICAL_BOARD and self.tactical_intelligence is None:
+            raise ValueError("TACTICAL_STORY_REQUIRES_TACTICAL_INTELLIGENCE_COMPOSITION")
+        expected = {
+            EditorialSceneFamily.RESULT_STATEMENT: self.result_statement,
+            EditorialSceneFamily.VERIFIED_SUBJECT_NEWS: self.verified_subject_news,
+            EditorialSceneFamily.TACTICAL_BOARD: self.tactical_intelligence,
+        }.get(self.family)
+        if self.family in {
+            EditorialSceneFamily.RESULT_STATEMENT,
+            EditorialSceneFamily.VERIFIED_SUBJECT_NEWS,
+            EditorialSceneFamily.TACTICAL_BOARD,
+        } and expected is None:
+            raise ValueError("DEDICATED_STORY_FAMILY_COMPOSITION_MISSING")
+        for item in (self.result_statement, self.verified_subject_news, self.tactical_intelligence):
+            if item is not None and item.brand != self.brand:
+                raise ValueError("DEDICATED_BRAND_PLACEMENT_MUST_MATCH_PLATFORM_COMPOSITION")
 
 
 class PlatformEditorialCompositionResolver:
@@ -42,9 +66,13 @@ class PlatformEditorialCompositionResolver:
         *,
         brand_resolver: AdaptiveBrandPlacementResolver | None = None,
         result_composer: ResultStatementComposer | None = None,
+        subject_composer: VerifiedSubjectNewsComposer | None = None,
+        tactical_composer: TacticalIntelligenceComposer | None = None,
     ) -> None:
         self._brand = brand_resolver or AdaptiveBrandPlacementResolver()
         self._result = result_composer or ResultStatementComposer(self._brand)
+        self._subject = subject_composer or VerifiedSubjectNewsComposer(self._brand)
+        self._tactical = tactical_composer or TacticalIntelligenceComposer(self._brand)
 
     def resolve(
         self,
@@ -64,10 +92,23 @@ class PlatformEditorialCompositionResolver:
                 brand=result.brand,
                 result_statement=result,
             )
+        if family is EditorialSceneFamily.VERIFIED_SUBJECT_NEWS:
+            subject = self._subject.plan(profile)
+            return PlatformEditorialComposition(
+                family=family,
+                brand=subject.brand,
+                verified_subject_news=subject,
+            )
+        if family is EditorialSceneFamily.TACTICAL_BOARD:
+            tactical = self._tactical.plan(profile)
+            return PlatformEditorialComposition(
+                family=family,
+                brand=tactical.brand,
+                tactical_intelligence=tactical,
+            )
 
         brand = self._brand.resolve(family=family, profile=profile)
         return PlatformEditorialComposition(
             family=family,
             brand=brand,
-            result_statement=None,
         )
