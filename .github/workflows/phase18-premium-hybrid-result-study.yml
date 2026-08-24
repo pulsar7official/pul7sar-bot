@@ -40,8 +40,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHONPATH: ${{ github.workspace }}
-      CONTEXT_FILE: output/context/wembley-association-football-stadium.jpg
-      CONTEXT_SOURCE: https://commons.wikimedia.org/wiki/File:Wembley_Association_Football_Stadium.jpg
+      CONTEXT_FILE: output/context/kashima-soccer-stadium-interior.jpg
+      CONTEXT_SOURCE: https://commons.wikimedia.org/wiki/File:Kashima_Soccer_Stadium_Interior_View.jpg
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -54,7 +54,7 @@ jobs:
         run: |
           mkdir -p output/context
           curl -L --fail --retry 3 --retry-delay 2 \
-            'https://commons.wikimedia.org/wiki/Special:Redirect/file/Wembley_Association_Football_Stadium.jpg' \
+            'https://commons.wikimedia.org/wiki/Special:Redirect/file/Kashima_Soccer_Stadium_Interior_View.jpg' \
             -o "$CONTEXT_FILE"
           python - <<'PY'
           from pathlib import Path
@@ -82,7 +82,7 @@ jobs:
           m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
           png=root/m['png']
           assert m['manifest_version']=='pul7sar-premium-hybrid-result-study-v1'
-          assert m['renderer_contract']=='pul7sar-premium-hybrid-result-study-renderer-v1-photographic-context'
+          assert m['renderer_contract']=='pul7sar-premium-hybrid-result-study-renderer-v2-metallic-depth'
           assert m['verified_context_contract']=='pul7sar-verified-context-surface-v1'
           assert m['family']=='result_statement' and m['platform']=='instagram_feed'
           assert m['score_text']=='3  –  1' and m['score_is_deterministic'] is True
@@ -95,7 +95,7 @@ jobs:
           assert m['study_only'] is True and m['publication_ready'] is False
           assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
           assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
-          print('Premium Hybrid Result visual study PASS')
+          print('Premium Hybrid Result visual study v2 PASS')
           PY
       - name: Upload premium hybrid Result study
         uses: actions/upload-artifact@v7
