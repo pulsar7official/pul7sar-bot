@@ -82,35 +82,41 @@ jobs:
       - name: Build project-native editorial visual study
         run: |
           python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
-      - name: Assert editorial visual study safety contract
+      - name: Assert editorial visual study reference-brand contract
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           root = Path("output/phase18_editorial_scene_study")
           manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-          assert manifest["manifest_version"] == "pul7sar-editorial-scene-study-v3"
-          assert manifest["renderer_contract"] == "pul7sar-editorial-scene-study-renderer-v3"
+          assert manifest["manifest_version"] == "pul7sar-editorial-scene-study-v4-reference-brand"
+          assert manifest["renderer_contract"] == "pul7sar-editorial-reference-scene-study-renderer-v4"
           assert manifest["benchmark_id"] == "transfer-signature-v1"
-          assert manifest["generator_used"] is False
-          assert manifest["legacy_logo_used"] is False
+          assert manifest["generator_used_for_scene"] is False
           assert manifest["verified_player_asset_used"] is False
           assert manifest["subject_placeholder_used"] is True
           assert manifest["subject_placeholder_is_identity_evidence"] is False
           assert manifest["arabic_raqm_used"] is True
           assert manifest["study_only"] is True
           assert manifest["publication_ready"] is False
-          assert manifest["brand_geometry_mode"] == "approximate-study-only-v5-measured-reference-pulse"
-          assert manifest["brand_pulse_waveform"] == "reference-pulse-v3-measured"
-          assert manifest["brand_pulse_long_baseline"] is True
-          assert manifest["brand_pulse_active_waveform_compact"] is True
-          assert manifest["brand_pulse_vertical_depth_controlled"] is True
-          assert manifest["brand_pulse_visually_linked_to_seven"] is True
-          assert manifest["exact_brand_master_still_required_for_publication"] is True
+          assert manifest["brand_geometry_mode"] == "embedded-reference-derived-layered-master-v1"
+          assert manifest["brand_source_mode"] == "embedded-reference-master"
+          assert isinstance(manifest["embedded_bundle_sha256"], str) and len(manifest["embedded_bundle_sha256"]) == 64
+          assert manifest["approximate_brand_zone_removed"] is True
+          assert manifest["exact_reference_shape_used"] is True
+          assert manifest["transparent_reference_layers_used"] is True
+          assert manifest["final_brand_font_recreation_used"] is False
+          assert manifest["final_brand_generic_ecg_recreation_used"] is False
+          assert manifest["final_brand_generator_used"] is False
+          assert manifest["final_brand_network_used"] is False
+          assert manifest["metallic_wordmark_fixed"] is True
+          assert manifest["seven_and_pulse_tintable"] is True
+          assert manifest["football_fixed"] is True
+          assert manifest["exact_publication_master_still_requires_owner_approval"] is True
           assert manifest["verified_subject_asset_still_required_for_real_transfer_publication"] is True
           png = root / manifest["png"]
           assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
-          print("Editorial visual study measured-reference-pulse contract PASS")
+          print("Editorial visual study embedded-reference-brand contract PASS")
           PY
       - name: Build self-contained reference-derived brand study
         run: |
