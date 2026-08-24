@@ -3,9 +3,9 @@ name: Phase 18 Story Intelligence Verification
 on:
   push:
     branches: ['phase18/**']
-    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/**', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'assets/brand/**', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/**', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
   pull_request:
-    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/**', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'assets/brand/**', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/**', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
   workflow_dispatch:
 
 permissions:
@@ -112,6 +112,47 @@ jobs:
           assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
           print("Editorial visual study measured-reference-pulse contract PASS")
           PY
+      - name: Build self-contained reference-derived brand study
+        run: |
+          python tools/phase18_build_reference_brand_study.py --output-dir output/phase18_reference_brand_study
+      - name: Assert embedded layered brand study contract
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("output/phase18_reference_brand_study")
+          manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+          assert manifest["manifest_version"] == "pul7sar-reference-brand-study-v2-self-contained"
+          assert manifest["renderer_contract"] == "pul7sar-brand-reference-renderer-v3-embedded-layered"
+          assert manifest["zero_cost"] is True
+          assert manifest["network_used"] is False
+          assert manifest["image_generator_used"] is False
+          assert manifest["external_source_board_required"] is False
+          assert manifest["embedded_master_is_default"] is True
+          assert manifest["reference_shape_is_source_of_truth"] is True
+          assert manifest["metallic_wordmark_fixed"] is True
+          assert manifest["seven_and_pulse_tintable"] is True
+          assert manifest["football_fixed"] is True
+          assert manifest["font_recreation_for_brand"] is False
+          assert manifest["generic_ecg_recreation"] is False
+          assert manifest["publication_ready"] is False
+          assert len(manifest["variants"]) == 4
+          bundle_shas = {entry["embedded_bundle_sha256"] for entry in manifest["variants"]}
+          assert len(bundle_shas) == 1 and None not in bundle_shas
+          for entry in manifest["variants"]:
+              assert entry["brand_source_mode"] == "embedded-reference-master"
+              assert entry["exact_reference_shape_used"] is True
+              assert entry["transparent_reference_layers_used"] is True
+              assert entry["background_board_pixels_composited"] is False
+              assert entry["font_recreation_used"] is False
+              assert entry["generic_ecg_recreation_used"] is False
+              assert entry["generator_used"] is False
+              assert entry["network_used"] is False
+              assert entry["publication_ready"] is False
+              png = root / entry["png"]
+              assert png.is_file() and png.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+          print("Embedded layered PUL7SAR brand study PASS")
+          PY
       - name: Build portable Golden Hybrid v5 GPU handoff
         run: |
           python tools/phase18_build_golden_handoff.py --output output/phase18_handoffs/golden-season-opener-hybrid-v5.json --seed 7007001 --request-id golden-season-opener-hybrid-v5-001
@@ -162,6 +203,13 @@ jobs:
         with:
           name: PUL7SAR-editorial-visual-study-${{ github.sha }}
           path: output/phase18_editorial_scene_study/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload self-contained reference brand study
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-reference-brand-study-${{ github.sha }}
+          path: output/phase18_reference_brand_study/
           if-no-files-found: error
           retention-days: 14
       - name: Upload Golden Hybrid v5 GPU handoff
