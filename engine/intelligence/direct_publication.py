@@ -1,9 +1,9 @@
 """Publication gates for generator-bypass PUL7SAR visuals.
 
 Direct deterministic and verified-asset routes must not fabricate GenerationPackage
-or provider provenance just to enter the publication pipeline. This module keeps
-the semantic/publication requirements explicit while proving that no generator,
-provider selection or GPU job was involved.
+or provider provenance just to enter the publication pipeline. Verified-person
+publication additionally requires a concrete VerifiedSubjectCompositionReceipt;
+a bare identity boolean is not sufficient evidence.
 """
 from __future__ import annotations
 
@@ -12,10 +12,8 @@ from dataclasses import dataclass
 from engine.intelligence.direct_visual_execution import DirectBaseSource, DirectVisualExecutionPlan
 from engine.intelligence.direct_visual_quality import DirectRenderQualityDecision
 from engine.intelligence.final_export import ExportAuthorization
-from engine.intelligence.vision_verification_policy import (
-    VisionVerifierProfile,
-    ZeroCostVisionVerificationGate,
-)
+from engine.intelligence.verified_subject_compositor import VerifiedSubjectCompositionReceipt
+from engine.intelligence.vision_verification_policy import VisionVerifierProfile, ZeroCostVisionVerificationGate
 
 
 @dataclass(frozen=True)
@@ -26,18 +24,14 @@ class DirectSemanticPublicationDecision:
     semantic_visual_inspection_approved: bool
     identity_required: bool
     identity_verified: bool
+    verified_subject_provenance_accepted: bool
     evidence_reference: str | None
     failures: tuple[str, ...] = ()
-    contract: str = "pul7sar-direct-semantic-publication-v1"
+    contract: str = "pul7sar-direct-semantic-publication-v2"
 
 
 class DirectSemanticPublicationGate:
-    """Authorize semantic publication evidence without inventing provider provenance.
-
-    A direct render is deterministic, but semantic inspection is still mandatory.
-    The caller must provide a concrete evidence reference for the visual inspection;
-    a bare boolean cannot silently become publication evidence.
-    """
+    """Authorize direct-route semantic evidence without invented provenance."""
 
     def __init__(self, *, verifier_gate: ZeroCostVisionVerificationGate | None = None) -> None:
         self._verifier_gate = verifier_gate or ZeroCostVisionVerificationGate()
@@ -50,7 +44,7 @@ class DirectSemanticPublicationGate:
         *,
         semantic_visual_inspection_approved: bool,
         semantic_evidence_reference: str | None,
-        identity_verified: bool | None = None,
+        verified_subject_receipt: VerifiedSubjectCompositionReceipt | None = None,
     ) -> DirectSemanticPublicationDecision:
         if not isinstance(plan, DirectVisualExecutionPlan):
             raise TypeError("plan must be DirectVisualExecutionPlan")
@@ -58,6 +52,8 @@ class DirectSemanticPublicationGate:
             raise TypeError("render_quality must be DirectRenderQualityDecision")
         if not isinstance(verifier, VisionVerifierProfile):
             raise TypeError("verifier must be VisionVerifierProfile")
+        if verified_subject_receipt is not None and not isinstance(verified_subject_receipt, VerifiedSubjectCompositionReceipt):
+            raise TypeError("verified_subject_receipt must be VerifiedSubjectCompositionReceipt or None")
 
         failures: list[str] = []
         if not render_quality.allowed:
@@ -79,9 +75,7 @@ class DirectSemanticPublicationGate:
         verifier_decision = self._verifier_gate.evaluate(verifier, identity_required=identity_required)
         if not verifier_decision.eligible:
             failures.extend("semantic_verifier:" + item for item in verifier_decision.failures)
-            failures.extend(
-                "semantic_verifier:missing:" + item.value for item in verifier_decision.missing
-            )
+            failures.extend("semantic_verifier:missing:" + item.value for item in verifier_decision.missing)
 
         evidence_ref = semantic_evidence_reference.strip() if isinstance(semantic_evidence_reference, str) else ""
         if not semantic_visual_inspection_approved:
@@ -89,9 +83,26 @@ class DirectSemanticPublicationGate:
         if semantic_visual_inspection_approved and not evidence_ref:
             failures.append("semantic_visual_inspection:evidence_reference_missing")
 
-        identity_ok = not identity_required or identity_verified is True
-        if identity_required and not identity_ok:
-            failures.append("verified_asset_identity:not_approved")
+        provenance_ok = not identity_required
+        identity_ok = not identity_required
+        if identity_required:
+            receipt = verified_subject_receipt
+            if receipt is None:
+                failures.append("verified_asset_identity:subject_provenance_receipt_missing")
+            else:
+                plan_visual_ids = tuple(plan.metadata.get("verified_subject_visual_ids") or plan.verified_base_asset_ids)
+                if receipt.subject_asset_id not in plan_visual_ids:
+                    failures.append("verified_asset_identity:subject_asset_id_drift")
+                if not receipt.identity_verified:
+                    failures.append("verified_asset_identity:not_approved")
+                if receipt.generator_used:
+                    failures.append("verified_asset_identity:subject_was_generator_owned")
+                if receipt.subject_placeholder_used:
+                    failures.append("verified_asset_identity:placeholder_subject_forbidden")
+                if not receipt.subject_sha256 or not receipt.source_reference:
+                    failures.append("verified_asset_identity:subject_provenance_incomplete")
+                provenance_ok = not any(item.startswith("verified_asset_identity:") for item in failures)
+                identity_ok = provenance_ok
 
         unique = tuple(dict.fromkeys(failures))
         return DirectSemanticPublicationDecision(
@@ -101,6 +112,7 @@ class DirectSemanticPublicationGate:
             semantic_visual_inspection_approved=semantic_visual_inspection_approved,
             identity_required=identity_required,
             identity_verified=identity_ok,
+            verified_subject_provenance_accepted=provenance_ok,
             evidence_reference=evidence_ref or None,
             failures=unique,
         )
@@ -122,7 +134,7 @@ class DirectPublicationReadinessDecision:
     ready: bool
     blockers: tuple[str, ...]
     status: str
-    contract: str = "pul7sar-direct-publication-readiness-v1"
+    contract: str = "pul7sar-direct-publication-readiness-v2"
 
 
 class DirectPublicationReadinessGate:
@@ -137,6 +149,8 @@ class DirectPublicationReadinessGate:
             blockers.extend("semantic_publication:" + item for item in evidence.semantic_publication.failures)
             if not evidence.semantic_publication.failures:
                 blockers.append("semantic_publication:not_approved")
+        if evidence.semantic_publication.identity_required and not evidence.semantic_publication.verified_subject_provenance_accepted:
+            blockers.append("verified_subject_provenance:not_approved")
         if not evidence.fact_integrity_approved:
             blockers.append("fact_integrity:not_approved")
         if not evidence.neutrality_approved:
