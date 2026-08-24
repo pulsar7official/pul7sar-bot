@@ -1,0 +1,91 @@
+name: Phase 18 Composition Matrix Verification
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/*composition*.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/family_render_plan.py'
+      - 'engine/intelligence/sports_editorial_scene.py'
+      - 'engine/intelligence/brand_master_contract.py'
+      - 'tools/phase18_build_*composition_matrix.py'
+      - 'tests/test_phase18_*composition*.py'
+      - 'tests/test_phase18_family_render_plan.py'
+      - '.github/workflows/phase18-composition-matrix.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/*composition*.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/family_render_plan.py'
+      - 'engine/intelligence/sports_editorial_scene.py'
+      - 'engine/intelligence/brand_master_contract.py'
+      - 'tools/phase18_build_*composition_matrix.py'
+      - 'tests/test_phase18_*composition*.py'
+      - 'tests/test_phase18_family_render_plan.py'
+      - '.github/workflows/phase18-composition-matrix.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-composition-matrix:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Compile family composition modules
+        run: |
+          python -m py_compile engine/intelligence/*composition*.py
+          python -m py_compile engine/intelligence/adaptive_brand_placement.py engine/intelligence/family_render_plan.py
+          python -m py_compile tools/phase18_build_result_composition_matrix.py tools/phase18_build_story_family_composition_matrix.py
+      - name: Run focused family composition tests
+        run: |
+          python -m unittest -v \
+            tests.test_phase18_adaptive_brand_placement \
+            tests.test_phase18_transfer_signature_composition \
+            tests.test_phase18_result_statement_composition \
+            tests.test_phase18_subject_and_tactical_composition \
+            tests.test_phase18_data_and_event_composition \
+            tests.test_phase18_platform_editorial_composition \
+            tests.test_phase18_result_composition_matrix \
+            tests.test_phase18_story_family_composition_matrix \
+            tests.test_phase18_family_render_plan
+      - name: Build six-family cross-platform matrix
+        run: python tools/phase18_build_story_family_composition_matrix.py --output output/phase18_story_family_composition_matrix/manifest.json
+      - name: Verify 6 x 7 family matrix invariant
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('output/phase18_story_family_composition_matrix/manifest.json')
+          m=json.loads(p.read_text(encoding='utf-8'))
+          assert m['manifest_version']=='pul7sar-story-family-composition-matrix-v1'
+          assert m['family_count']==6 and m['platform_count']==7
+          assert m['decision_count']==42 and m['expected_decision_count']==42
+          assert m['all_families_have_distinct_contracts'] is True
+          assert m['inherits_transfer_layout_anywhere'] is False
+          assert m['zero_cost'] is True and m['network_used'] is False
+          assert m['image_generator_used'] is False and m['image_created'] is False
+          assert m['publication_ready'] is False
+          assert len(m['family_contracts'])==6 and len(set(m['family_contracts'].values()))==6
+          for e in m['entries']:
+              assert e['brand_contract']=='pul7sar-adaptive-brand-placement-v1'
+              assert e['inherits_transfer_layout'] is False
+              assert e['brand_max_width_ratio'] <= 0.30
+              assert e['brand_max_height_ratio'] <= 0.105
+          print('Six-family cross-platform matrix PASS')
+          PY
+      - name: Upload six-family composition matrix
+        uses: actions/upload-artifact@v7
+        with:
+          name: PUL7SAR-story-family-composition-matrix-${{ github.sha }}
+          path: output/phase18_story_family_composition_matrix/manifest.json
+          if-no-files-found: error
+          retention-days: 14
