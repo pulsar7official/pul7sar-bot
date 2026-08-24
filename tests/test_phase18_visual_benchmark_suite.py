@@ -1,24 +1,15 @@
 import unittest
 
-from engine.intelligence.visual_benchmark_suite import (
-    BenchmarkReviewKind,
-    PHASE18_VISUAL_BENCHMARKS,
-    benchmark_for,
-)
+from engine.intelligence.visual_benchmark_suite import BenchmarkReviewKind, PHASE18_VISUAL_BENCHMARKS, benchmark_for
 from engine.intelligence.story_visual_editorial import EditorialEvent
 
 
 class VisualBenchmarkSuiteTests(unittest.TestCase):
-    def test_four_story_families_are_registered(self):
-        self.assertEqual(len(PHASE18_VISUAL_BENCHMARKS), 4)
+    def test_five_story_families_are_registered(self):
+        self.assertEqual(len(PHASE18_VISUAL_BENCHMARKS), 5)
         self.assertEqual(
             {case.event for case in PHASE18_VISUAL_BENCHMARKS},
-            {
-                EditorialEvent.TRANSFER_CONFIRMED,
-                EditorialEvent.RESULT,
-                EditorialEvent.INJURY,
-                EditorialEvent.TACTICS,
-            },
+            {EditorialEvent.TRANSFER_CONFIRMED, EditorialEvent.RESULT, EditorialEvent.INJURY, EditorialEvent.TACTICS, EditorialEvent.GENERAL},
         )
 
     def test_transfer_benchmark_rejects_legacy_logo_and_dense_stats(self):
@@ -40,6 +31,12 @@ class VisualBenchmarkSuiteTests(unittest.TestCase):
         case = benchmark_for(EditorialEvent.TACTICS)
         self.assertEqual(case.review_kind, BenchmarkReviewKind.STRUCTURAL)
         self.assertIn("deterministic sport geometry", case.must_show)
+
+    def test_general_editorial_benchmark_uses_optional_not_mandatory_football_motifs(self):
+        case = benchmark_for(EditorialEvent.GENERAL)
+        self.assertIn("optional stadium light or tactical texture only when supportive", case.must_show)
+        self.assertIn("mandatory full football pitch", case.must_avoid)
+        self.assertIn("visual clutter competing with the headline", case.must_avoid)
 
 
 if __name__ == "__main__":
