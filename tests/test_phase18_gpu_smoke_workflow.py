@@ -29,6 +29,24 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertNotIn("pip install torch", self.text)
         self.assertNotIn("pip3 install torch", self.text)
 
+    def test_semantic_preflight_is_fail_closed_before_flux_work(self):
+        self.assertIn("tools/phase18_preflight_semantic_gpu.py", self.text)
+        self.assertIn("semantic-preflight.json", self.text)
+        self.assertIn("qwen-model-cache.json", self.text)
+        self.assertIn("Qwen/Qwen2.5-VL-3B-Instruct", self.text)
+        self.assertIn('payload.get("semantic_runtime_ready") is not True', self.text)
+        self.assertIn('payload.get("semantic_model_ready") is not True', self.text)
+        self.assertIn('payload.get("generation_authorized")', self.text)
+        self.assertIn('payload.get("queue_mutated")', self.text)
+        self.assertIn('payload.get("png_created")', self.text)
+        semantic = self.text.index("python tools/phase18_preflight_semantic_gpu.py")
+        flux_prefetch = self.text.index("python tools/phase18_prefetch_flux2.py")
+        readiness = self.text.index("python tools/phase18_local_readiness.py")
+        generation = self.text.index("python tools/phase18_first_png.py")
+        self.assertLess(semantic, flux_prefetch)
+        self.assertLess(flux_prefetch, readiness)
+        self.assertLess(readiness, generation)
+
     def test_prefetches_exact_model_before_readiness_and_generation(self):
         self.assertIn("tools/phase18_prefetch_flux2.py", self.text)
         self.assertIn("model-cache.json", self.text)
@@ -50,12 +68,16 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("output/phase18_visual_proof/**", self.text)
         self.assertIn("output/phase18_worker_telemetry/**", self.text)
 
-    def test_builds_and_replays_evidence_before_upload(self):
+    def test_builds_and_replays_semantic_and_generation_evidence_before_upload(self):
         self.assertIn("tools/phase18_build_gpu_evidence_manifest.py", self.text)
         self.assertIn("tools/phase18_verify_gpu_evidence_manifest.py", self.text)
         self.assertIn("evidence-manifest.json", self.text)
         self.assertIn("evidence-verification.json", self.text)
         self.assertIn("GOLDEN_GPU_EVIDENCE_VERIFIED", self.text)
+        self.assertIn("--include output/phase18_gpu_smoke/semantic-preflight.json", self.text)
+        self.assertIn("--include output/phase18_gpu_smoke/qwen-model-cache.json", self.text)
+        self.assertIn("--include output/phase18_gpu_smoke/model-cache.json", self.text)
+        self.assertIn("--include output/phase18_gpu_smoke/readiness.json", self.text)
         build = self.text.index("python tools/phase18_build_gpu_evidence_manifest.py")
         verify = self.text.index("python tools/phase18_verify_gpu_evidence_manifest.py")
         upload = self.text.index("uses: actions/upload-artifact@v4")
