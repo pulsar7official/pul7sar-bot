@@ -9,7 +9,9 @@ from typing import Any, Mapping, Optional
 from engine.intelligence.assets import AssetBundle, AssetRole
 from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContract
 from engine.intelligence.layout_planner import PlannedLayout
+from engine.intelligence.scene_complexity_policy import SurfaceVisibility
 from engine.intelligence.scene_spec import OriginalSceneSpecification
+from engine.intelligence.visual_grammar import VisualGrammarDecision
 
 
 @dataclass(frozen=True)
@@ -58,6 +60,7 @@ class GenerationPackageCompiler:
         *,
         planned_layout: Optional[PlannedLayout] = None,
         base_scene_contract: Optional[HybridBaseSceneContract] = None,
+        visual_grammar: Optional[VisualGrammarDecision] = None,
     ) -> GenerationPackage:
         if not isinstance(specification, OriginalSceneSpecification):
             raise TypeError("specification must be OriginalSceneSpecification")
@@ -65,6 +68,8 @@ class GenerationPackageCompiler:
             raise TypeError("assets must be AssetBundle")
         if base_scene_contract is not None and not isinstance(base_scene_contract, HybridBaseSceneContract):
             raise TypeError("base_scene_contract must be HybridBaseSceneContract or None")
+        if visual_grammar is not None and not isinstance(visual_grammar, VisualGrammarDecision):
+            raise TypeError("visual_grammar must be VisualGrammarDecision or None")
         if planned_layout is not None:
             if not isinstance(planned_layout, PlannedLayout):
                 raise TypeError("planned_layout must be PlannedLayout or None")
@@ -124,6 +129,27 @@ class GenerationPackageCompiler:
                 + "."
             )
 
+        if visual_grammar is not None:
+            prompt_parts.extend((
+                f"Art-direction camera language: {visual_grammar.camera_language.value}.",
+                f"Fantasy level: {visual_grammar.fantasy_level.value}; keep any symbolism consistent with that restraint.",
+                f"Environment direction: {visual_grammar.environment_direction}.",
+                f"Lighting direction: {visual_grammar.lighting_direction}.",
+                f"Composition direction: {visual_grammar.composition_direction}.",
+            ))
+            if visual_grammar.surface_visibility is SurfaceVisibility.NONE:
+                prompt_parts.append(
+                    "Do not make a full pitch, court, rink, track, or stadium surface the visual subject. Keep sport-surface geometry out of the generated base unless incidental and non-structural; prioritize the editorial subject or story-specific environment."
+                )
+            elif visual_grammar.surface_visibility is SurfaceVisibility.PARTIAL_DETERMINISTIC:
+                prompt_parts.append(
+                    "Use at most a restrained partial sport-surface context. Do not draw exact field/court/rink markings or tactical geometry; exact sport geometry is added later by deterministic composition."
+                )
+            elif visual_grammar.surface_visibility is SurfaceVisibility.FULL_DETERMINISTIC:
+                prompt_parts.append(
+                    "The story requires a full sport-surface layer, but the generator must not draw its exact markings or tactical geometry. Preserve a clean compatible region for deterministic sport-surface composition."
+                )
+
         layout_boxes: dict[str, dict[str, int]] = {}
         accent_hex = None
         if planned_layout is not None:
@@ -181,6 +207,14 @@ class GenerationPackageCompiler:
             "identity_entity_name": identity.entity_name if identity else None,
             "identity_reference_confidence": identity.confidence if identity else None,
             "identity_reference_ids": tuple(asset.asset_id for asset in identity_assets),
+            "visual_grammar_contract": visual_grammar.metadata.get("contract") if visual_grammar else None,
+            "visual_grammar_provider_agnostic": bool(visual_grammar.metadata.get("provider_agnostic")) if visual_grammar else False,
+            "visual_grammar_surface_visibility": visual_grammar.surface_visibility.value if visual_grammar else None,
+            "visual_grammar_camera_language": visual_grammar.camera_language.value if visual_grammar else None,
+            "visual_grammar_fantasy_level": visual_grammar.fantasy_level.value if visual_grammar else None,
+            "visual_grammar_generated_elements": visual_grammar.generated_elements if visual_grammar else (),
+            "visual_grammar_deterministic_elements": visual_grammar.deterministic_elements if visual_grammar else (),
+            "visual_grammar_forbidden_generated_elements": visual_grammar.forbidden_generated_elements if visual_grammar else (),
         }
 
         return GenerationPackage(
