@@ -63,6 +63,7 @@ class EmbeddedBrandMasterLoader:
     WIDTH = 820
     HEIGHT = 266
     _BASE64_ALPHABET = frozenset("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=")
+    _KNOWN_TRUNCATION_MARKERS = ("[...ELLIPSIZATION...]", "...ELLIPSIZATION...")
 
     @staticmethod
     def _sha(data: bytes) -> str:
@@ -76,20 +77,30 @@ class EmbeddedBrandMasterLoader:
         return Path(repository_root) / cls.BUNDLE_RELATIVE_PATH
 
     @classmethod
+    def _assert_transport_not_truncated(cls, encoded: str) -> None:
+        """Reject known textual truncation markers before any Base64 decode.
+
+        A literal ellipsization marker means source bytes were removed and cannot
+        be reconstructed safely from the remaining text. Permissive Base64 must
+        never be used to make such a file appear valid. The only acceptable
+        repair is restoration from bytes that reproduce the existing pinned
+        archive/member SHA-256 values.
+        """
+        for marker in cls._KNOWN_TRUNCATION_MARKERS:
+            if marker in encoded:
+                raise ValueError("PUL7SAR_EMBEDDED_BRAND_TRANSPORT_TRUNCATED")
+
+    @classmethod
     def _decode_bundle_text(cls, encoded: str) -> bytes:
         """Decode repository base64 without weakening the binary integrity lock.
 
-        GitHub/patch transport can occasionally introduce non-base64 textual
-        separators into very large one-line artifacts. We try strict decoding
-        first. If strict decoding rejects the transport text, a permissive
-        transport decode is allowed *only* as a recovery step; the caller still
-        requires the decoded archive to match the exact pinned SHA-256 before a
-        single ZIP member can be exposed.
-
-        Therefore ignored transport characters can never authorize different
-        binary content: anything other than the one approved archive fails the
-        subsequent SHA lock.
+        Strict decoding is attempted first. A permissive transport decode is
+        allowed only for non-destructive separator noise and only after known
+        truncation markers have been rejected. The caller still requires the
+        decoded archive to match the exact pinned SHA-256 before a single ZIP
+        member can be exposed.
         """
+        cls._assert_transport_not_truncated(encoded)
         try:
             return base64.b64decode(encoded, validate=True)
         except binascii.Error:
@@ -100,12 +111,7 @@ class EmbeddedBrandMasterLoader:
 
     @classmethod
     def _transport_diagnostic(cls, encoded: str, decoded: bytes) -> str:
-        """Return bounded diagnostics for a corrupted textual transport.
-
-        This deliberately exposes only the first non-base64 position, a tiny
-        escaped context window, input length and decoded SHA. It never prints the
-        full embedded asset and does not change acceptance behavior.
-        """
+        """Return bounded diagnostics for a corrupted textual transport."""
         invalid = [(index, char) for index, char in enumerate(encoded) if char not in cls._BASE64_ALPHABET]
         if invalid:
             index, char = invalid[0]
