@@ -126,7 +126,7 @@ QWEN_IMAGE_2512_LOCAL = LocalModelCandidate(
     supports_multi_reference=False,
     notes=(
         "Elite PUL7SAR cinematic-base candidate. Official model distribution uses "
-        "QwenImagePipeline/Diffusers and is approximately 57.7 GB. The repository "
+        "Diffusers/QwenImagePipeline and is approximately 57.7 GB. The repository "
         "does not encode an official PUL7SAR-tested VRAM floor, so execution stays "
         "blocked until local hardware compatibility is proven. The 4 MP envelope "
         "is a conservative PUL7SAR production limit, not a permanent model maximum."
@@ -134,7 +134,7 @@ QWEN_IMAGE_2512_LOCAL = LocalModelCandidate(
     generation_alignment=16,
     quality_tier=ImageQualityTier.ELITE,
     intended_role=ImageModelRole.CINEMATIC_BASE_SCENE,
-    runtime_adapter="qwen_image_diffusers",
+    runtime_adapter="diffusers",
     repository_size_gb=57.7,
     runtime_floor_proven=False,
 )
@@ -157,7 +157,7 @@ HIDREAM_O1_IMAGE_DEV_LOCAL = LocalModelCandidate(
     generation_alignment=16,
     quality_tier=ImageQualityTier.ELITE,
     intended_role=ImageModelRole.SUBJECT_DRIVEN_BASE_SCENE,
-    runtime_adapter="hidream_o1_transformers",
+    runtime_adapter="hidream_o1_official",
     repository_size_gb=35.2,
     runtime_floor_proven=False,
 )
@@ -180,14 +180,11 @@ FLUX2_KLEIN_4B_LOCAL = LocalModelCandidate(
     generation_alignment=16,
     quality_tier=ImageQualityTier.LIGHTWEIGHT,
     intended_role=ImageModelRole.ENGINEERING_FALLBACK,
-    runtime_adapter="flux2_klein_diffusers",
+    runtime_adapter="diffusers",
     runtime_floor_proven=True,
 )
 
 
-# Quality order is intentional: selectors may move downward only when the caller
-# explicitly accepts a lower quality tier. No fallback may silently masquerade as
-# an Elite/Golden candidate.
 ZERO_COST_LOCAL_CANDIDATES = (
     QWEN_IMAGE_2512_LOCAL,
     HIDREAM_O1_IMAGE_DEV_LOCAL,
