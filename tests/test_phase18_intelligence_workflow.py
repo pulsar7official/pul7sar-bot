@@ -16,12 +16,17 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn("generated_branding_allowed", self.text)
         self.assertIn("dynamic_deterministic_after_generation", self.text)
 
-    def test_editorial_study_assertion_tracks_transfer_benchmark_v2(self):
-        self.assertIn('pul7sar-editorial-scene-study-v2', self.text)
+    def test_editorial_study_assertion_tracks_transfer_benchmark_v3(self):
+        self.assertIn('pul7sar-editorial-scene-study-v3', self.text)
+        self.assertIn('pul7sar-editorial-scene-study-renderer-v3', self.text)
         self.assertIn('transfer-signature-v1', self.text)
         self.assertIn('verified_player_asset_used', self.text)
+        self.assertIn('subject_placeholder_used', self.text)
+        self.assertIn('subject_placeholder_is_identity_evidence', self.text)
+        self.assertIn('arabic_raqm_used', self.text)
         self.assertIn('approximate-study-only-v2', self.text)
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v1"', self.text)
+        self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v2"', self.text)
 
     def test_artifacts_are_named_v5(self):
         self.assertIn("golden-season-opener-hybrid-v5.json", self.text)
