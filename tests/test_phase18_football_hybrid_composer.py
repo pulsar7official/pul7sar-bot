@@ -1,16 +1,19 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from engine.intelligence.football_hybrid_composer import (
     DEFAULT_STRIPE_OPACITY,
     DEFAULT_SURFACE_FEATHER_PX,
     DEFAULT_SURFACE_OPACITY,
+    FOOTBALL_GEOMETRY_RENDERER_ID,
     TEXTURE_PRESERVING_COMPOSITION_MODE,
     FootballHybridComposer,
 )
 from engine.intelligence.football_pitch_placement import FootballCameraPreset, FootballPitchPlacementPlanner
 from engine.intelligence.football_pitch_renderer import FootballPitchRenderStyle, PillowFootballPitchRenderer
+from engine.intelligence.hybrid_artifact_integrity import HybridArtifactIntegrityGate
 
 
 class FootballPitchPlacementTests(unittest.TestCase):
@@ -30,17 +33,23 @@ class FootballPitchPlacementTests(unittest.TestCase):
 
 
 class FootballHybridComposerTests(unittest.TestCase):
+    def _compose(self, root: Path):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow unavailable")
+        base = root / "base.png"
+        output = root / "hybrid.png"
+        Image.new("RGB", (640, 800), (30, 30, 30)).save(base)
+        return FootballHybridComposer().compose_file(base_path=str(base), output_path=str(output)), output
+
     def test_composer_writes_real_png_and_texture_preserving_receipt(self):
         try:
             from PIL import Image
         except ImportError:
             self.skipTest("Pillow unavailable")
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            base = root / "base.png"
-            output = root / "hybrid.png"
-            Image.new("RGB", (640, 800), (30, 30, 30)).save(base)
-            receipt = FootballHybridComposer().compose_file(base_path=str(base), output_path=str(output))
+            receipt, output = self._compose(Path(temp))
             self.assertTrue(output.is_file())
             self.assertEqual(receipt.status, "FOOTBALL_HYBRID_SURFACE_COMPOSED")
             self.assertTrue(receipt.deterministic_geometry_applied)
@@ -56,9 +65,40 @@ class FootballHybridComposerTests(unittest.TestCase):
             self.assertEqual(len(receipt.input_sha256), 64)
             self.assertEqual(len(receipt.output_sha256), 64)
             self.assertNotEqual(receipt.input_sha256, receipt.output_sha256)
+            self.assertEqual(receipt.geometry_renderer_id, FOOTBALL_GEOMETRY_RENDERER_ID)
+            self.assertIsInstance(receipt.geometry_integrity, dict)
+            self.assertEqual(receipt.geometry_integrity["status"], "REGULATION_FOOTBALL_GEOMETRY_READY")
+            self.assertEqual(receipt.geometry_integrity["length_m"], 105.0)
+            self.assertEqual(receipt.geometry_integrity["width_m"], 68.0)
+            self.assertEqual(receipt.geometry_integrity["penalty_area_count"], 2)
+            self.assertEqual(receipt.geometry_integrity["corner_arc_count"], 4)
+            self.assertTrue(receipt.geometry_integrity["symmetric_penalty_areas"])
             with Image.open(output) as image:
                 self.assertEqual(image.size, (640, 800))
                 self.assertEqual(image.format, "PNG")
+
+    def test_artifact_gate_accepts_real_regulation_geometry_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _ = self._compose(Path(temp))
+            decision = HybridArtifactIntegrityGate().validate_football(receipt)
+            self.assertTrue(decision.valid)
+            self.assertEqual(decision.failures, ())
+
+    def test_artifact_gate_rejects_tampered_geometry_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _ = self._compose(Path(temp))
+            tampered = dict(receipt.geometry_integrity or {})
+            tampered["penalty_area_count"] = 1
+            decision = HybridArtifactIntegrityGate().validate_football(replace(receipt, geometry_integrity=tampered))
+            self.assertFalse(decision.valid)
+            self.assertIn("football_geometry_penalty_area_count_mismatch", decision.failures)
+
+    def test_artifact_gate_rejects_missing_geometry_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            receipt, _ = self._compose(Path(temp))
+            decision = HybridArtifactIntegrityGate().validate_football(replace(receipt, geometry_integrity=None))
+            self.assertFalse(decision.valid)
+            self.assertIn("football_geometry_integrity_missing", decision.failures)
 
     def test_surface_normalisation_preserves_underlying_pixel_variation(self):
         try:
@@ -71,7 +111,6 @@ class FootballHybridComposerTests(unittest.TestCase):
             output = root / "hybrid.png"
             image = Image.new("RGB", (640, 800), (35, 95, 45))
             draw = ImageDraw.Draw(image)
-            # Two visibly different turf patches inside the high-wide pitch polygon.
             draw.rectangle((250, 500, 310, 560), fill=(18, 55, 28))
             draw.rectangle((330, 500, 390, 560), fill=(78, 145, 82))
             image.save(base)
