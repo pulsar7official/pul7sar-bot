@@ -9,26 +9,16 @@ PUL7SAR never fabricates visual judgments before someone actually inspects PNGs.
 from __future__ import annotations
 
 import argparse
+from dataclasses import fields
 import json
 from pathlib import Path
 
+from engine.intelligence.golden_visual_quality import GoldenVisualBlockers, GoldenVisualScores
+from tools.phase18_review_golden_batch import REVIEW_VERSION
 
-SCORE_FIELDS = (
-    "editorial_realism",
-    "composition_hierarchy",
-    "stadium_depth",
-    "controlled_lighting",
-    "protected_zone_cleanliness",
-    "platform_crop_strength",
-)
-BLOCKER_FIELDS = (
-    "fantasy_or_monumental_staging",
-    "fake_logo_or_crest",
-    "pseudo_text_or_gibberish",
-    "invented_result_or_winner",
-    "cluttered_collage",
-    "broken_geometry_or_anatomy",
-)
+
+SCORE_FIELDS = tuple(item.name for item in fields(GoldenVisualScores))
+BLOCKER_FIELDS = tuple(item.name for item in fields(GoldenVisualBlockers))
 
 
 def build_template(execution_report: str) -> dict[str, object]:
@@ -70,7 +60,7 @@ def build_template(execution_report: str) -> dict[str, object]:
         })
 
     return {
-        "review_version": "pul7sar-golden-visual-review-v1",
+        "review_version": REVIEW_VERSION,
         "instructions": (
             "Inspect each real PNG before editing scores. Enter 0-10 for every score. "
             "Mark every observed hard blocker true. Do not delete candidates or alter request_id/seed."
