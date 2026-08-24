@@ -57,7 +57,8 @@ class SportsEditorialSceneDirector:
             raise TypeError("event must be EditorialEvent")
         if not isinstance(grammar, VisualGrammarDecision):
             raise TypeError("grammar must be VisualGrammarDecision")
-        APPROVED_PUL7SAR_BRAND_MASTER.assert_safe()
+        brand = APPROVED_PUL7SAR_BRAND_MASTER
+        brand.assert_safe()
 
         family = self._family(event)
         hero, environment, composition, headline_words, support_words, support = self._directions(family)
@@ -65,15 +66,20 @@ class SportsEditorialSceneDirector:
         generated = tuple(grammar.generated_elements)
         deterministic = tuple(dict.fromkeys((
             *grammar.deterministic_elements,
-            "PUL7SAR metallic wordmark geometry",
-            "PUL7SAR dynamic pulse/7 geometry",
-            "verified entity accent application",
+            "PUL7SAR fixed metallic wordmark geometry",
+            "PUL7SAR enlarged 7 geometry",
+            "PUL7SAR pulse-below-wordmark geometry",
+            "PUL7SAR small football near R geometry",
+            "verified entity accent applied only to pulse and 7",
         )))
         forbidden = tuple(dict.fromkeys((
             *grammar.forbidden_generated_elements,
             "legacy repository logo as canonical identity",
             "generated readable PUL7SAR wordmark",
             "generated exact club crest",
+            "tinted metallic PUL7SAR wordmark body",
+            "7 reduced to ordinary letter height",
+            "pulse moved inside wordmark",
             "dense infographic copy",
             "forced full football pitch when story does not require it",
         )))
@@ -86,17 +92,22 @@ class SportsEditorialSceneDirector:
             headline_max_words=headline_words,
             supporting_copy_max_words=support_words,
             allow_supporting_copy=support,
-            club_accent_role="contextual verified accent; never universal background fill",
-            brand_identity_id=APPROVED_PUL7SAR_BRAND_MASTER.identity_id,
-            brand_placement="adaptive to focal hierarchy and safe areas; never fixed-template placement",
+            club_accent_role="verified club/story color affects pulse, 7 and restrained environmental accents; metallic wordmark body remains fixed",
+            brand_identity_id=brand.identity_id,
+            brand_placement=(
+                f"prefer {brand.preferred_brand_zone}; adapt only when lower placement collides with focal hierarchy or safe areas"
+            ),
             generated_ownership=generated,
             deterministic_ownership=deterministic,
             forbidden=forbidden,
             metadata={
-                "contract": "pul7sar-sports-editorial-scene-v1",
+                "contract": "pul7sar-sports-editorial-scene-v2",
                 "provider_agnostic": True,
                 "premium_editorial_not_data_card": True,
                 "story_specific_visual_language": True,
+                "brand_seven_larger_than_letters": brand.seven_larger_than_letters,
+                "brand_pulse_position": brand.pulse_position,
+                "brand_small_football_near_r": brand.small_football_near_r,
             },
         )
 
