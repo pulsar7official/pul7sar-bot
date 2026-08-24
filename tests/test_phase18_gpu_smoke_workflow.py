@@ -54,8 +54,6 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("Qwen/Qwen2.5-VL-3B-Instruct", self.text)
         self.assertIn('payload.get("semantic_runtime_ready") is not True', self.text)
         self.assertIn('payload.get("semantic_model_ready") is not True', self.text)
-        # Gate fields are intentionally checked through one fail-closed loop so
-        # future additions cannot silently bypass the same invariant.
         self.assertIn('for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready")', self.text)
         self.assertIn('if payload.get(field) is not False', self.text)
         self.assertIn('semantic preflight illegally changed gate', self.text)
@@ -88,7 +86,21 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("output/phase18_visual_proof/**", self.text)
         self.assertIn("output/phase18_worker_telemetry/**", self.text)
 
-    def test_builds_and_replays_repository_semantic_and_generation_evidence_before_upload(self):
+    def test_first_png_provenance_postflight_runs_before_evidence_sealing(self):
+        self.assertIn("tools/phase18_verify_first_png_provenance.py", self.text)
+        self.assertIn("first-png-provenance-postflight.json", self.text)
+        self.assertIn("FIRST_GOLDEN_PNG_PROVENANCE_POSTFLIGHT_VERIFIED", self.text)
+        self.assertIn('receipt.get("candidate") != 1', self.text)
+        self.assertIn('receipt.get("cost_mode") != "$0-local"', self.text)
+        self.assertIn('receipt.get("resolved_dtype") not in {"bfloat16", "bf16"}', self.text)
+        self.assertIn('for field in ("semantic_approved", "golden_quality_approved", "publication_ready")', self.text)
+        generation = self.text.index("python tools/phase18_first_png.py")
+        postflight = self.text.index("python tools/phase18_verify_first_png_provenance.py")
+        evidence = self.text.index("python tools/phase18_build_gpu_evidence_manifest.py")
+        self.assertLess(generation, postflight)
+        self.assertLess(postflight, evidence)
+
+    def test_builds_and_replays_repository_semantic_generation_and_postflight_evidence_before_upload(self):
         self.assertIn("tools/phase18_build_gpu_evidence_manifest.py", self.text)
         self.assertIn("tools/phase18_verify_gpu_evidence_manifest.py", self.text)
         self.assertIn("evidence-manifest.json", self.text)
@@ -99,6 +111,7 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("--include output/phase18_gpu_smoke/qwen-model-cache.json", self.text)
         self.assertIn("--include output/phase18_gpu_smoke/model-cache.json", self.text)
         self.assertIn("--include output/phase18_gpu_smoke/readiness.json", self.text)
+        self.assertIn("--include output/phase18_gpu_smoke/first-png-provenance-postflight.json", self.text)
         build = self.text.index("python tools/phase18_build_gpu_evidence_manifest.py")
         verify = self.text.index("python tools/phase18_verify_gpu_evidence_manifest.py")
         upload = self.text.index("uses: actions/upload-artifact@v4")
