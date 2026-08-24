@@ -49,6 +49,8 @@ jobs:
           test -f engine/intelligence/golden_smoke.py
           test -f engine/intelligence/golden_evidence_bundle.py
           test -f tools/phase18_first_png.py
+          test -f tools/phase18_preflight_semantic_gpu.py
+          test -f tools/phase18_prefetch_qwen.py
           test -f tools/phase18_prefetch_flux2.py
           test -f tools/phase18_build_gpu_evidence_manifest.py
           test -f tools/phase18_verify_gpu_evidence_manifest.py
@@ -80,6 +82,36 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -r requirements-phase18-gpu.txt
+
+      - name: Prove semantic runtime and exact Qwen snapshot before FLUX
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_preflight_semantic_gpu.py \
+            --qwen-cache-receipt output/phase18_gpu_smoke/qwen-model-cache.json \
+            --output output/phase18_gpu_smoke/semantic-preflight.json \
+            | tee output/phase18_gpu_smoke/semantic-preflight-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("output/phase18_gpu_smoke/semantic-preflight.json").read_text(encoding="utf-8"))
+          if payload.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v1":
+              raise SystemExit("unexpected semantic GPU preflight schema")
+          if payload.get("branch") != "phase18/story-intelligence":
+              raise SystemExit("semantic preflight escaped the protected Phase 18 branch")
+          if payload.get("model_id") != "Qwen/Qwen2.5-VL-3B-Instruct":
+              raise SystemExit("unexpected Qwen snapshot in semantic preflight")
+          if payload.get("cost_mode") != "$0-local":
+              raise SystemExit("semantic preflight escaped the Phase 18 zero-cost mode")
+          if payload.get("semantic_runtime_ready") is not True or payload.get("semantic_model_ready") is not True:
+              raise SystemExit("semantic runtime/model must be ready before FLUX")
+          if payload.get("cuda_available") is not True:
+              raise SystemExit("semantic preflight did not prove CUDA availability")
+          for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+              if payload.get(field) is not False:
+                  raise SystemExit(f"semantic preflight illegally changed gate: {field}")
+          PY
 
       - name: Prove and cache the exact approved FLUX model snapshot
         shell: bash
@@ -152,6 +184,8 @@ jobs:
           set -euo pipefail
           python tools/phase18_build_gpu_evidence_manifest.py \
             --result output/phase18_gpu_smoke/first-png-result.json \
+            --include output/phase18_gpu_smoke/semantic-preflight.json \
+            --include output/phase18_gpu_smoke/qwen-model-cache.json \
             --include output/phase18_gpu_smoke/model-cache.json \
             --include output/phase18_gpu_smoke/readiness.json \
             --include output/phase18_gpu_host/qualification.json \
