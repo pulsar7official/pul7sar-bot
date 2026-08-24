@@ -29,6 +29,24 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertNotIn("pip install torch", self.text)
         self.assertNotIn("pip3 install torch", self.text)
 
+    def test_repository_integrity_is_fail_closed_before_any_gpu_probe_or_dependency_work(self):
+        self.assertIn("tools/phase18_preflight_repository_integrity.py", self.text)
+        self.assertIn("repository-integrity.json", self.text)
+        self.assertIn("pul7sar-phase18-pre-gpu-repository-integrity-v1", self.text)
+        self.assertIn('payload.get("ready") is not True', self.text)
+        self.assertIn('payload.get("legacy_transport_authoritative") is not False', self.text)
+        self.assertIn('payload.get("compact_brand_member_integrity_pinned") is not True', self.text)
+        self.assertIn('for field in ("network_required", "gpu_required", "generation_authorized", "queue_mutated", "png_created", "publication_ready")', self.text)
+        repo_gate = self.text.index("python tools/phase18_preflight_repository_integrity.py")
+        cuda_probe = self.text.index("Prove CUDA-enabled PyTorch exists before dependency installation")
+        dependency_install = self.text.index("python -m pip install -r requirements-phase18-gpu.txt")
+        semantic = self.text.index("python tools/phase18_preflight_semantic_gpu.py")
+        generation = self.text.index("python tools/phase18_first_png.py")
+        self.assertLess(repo_gate, cuda_probe)
+        self.assertLess(repo_gate, dependency_install)
+        self.assertLess(repo_gate, semantic)
+        self.assertLess(repo_gate, generation)
+
     def test_semantic_preflight_is_fail_closed_before_flux_work(self):
         self.assertIn("tools/phase18_preflight_semantic_gpu.py", self.text)
         self.assertIn("semantic-preflight.json", self.text)
@@ -70,12 +88,13 @@ class Phase18GpuSmokeWorkflowTests(unittest.TestCase):
         self.assertIn("output/phase18_visual_proof/**", self.text)
         self.assertIn("output/phase18_worker_telemetry/**", self.text)
 
-    def test_builds_and_replays_semantic_and_generation_evidence_before_upload(self):
+    def test_builds_and_replays_repository_semantic_and_generation_evidence_before_upload(self):
         self.assertIn("tools/phase18_build_gpu_evidence_manifest.py", self.text)
         self.assertIn("tools/phase18_verify_gpu_evidence_manifest.py", self.text)
         self.assertIn("evidence-manifest.json", self.text)
         self.assertIn("evidence-verification.json", self.text)
         self.assertIn("GOLDEN_GPU_EVIDENCE_VERIFIED", self.text)
+        self.assertIn("--include output/phase18_gpu_smoke/repository-integrity.json", self.text)
         self.assertIn("--include output/phase18_gpu_smoke/semantic-preflight.json", self.text)
         self.assertIn("--include output/phase18_gpu_smoke/qwen-model-cache.json", self.text)
         self.assertIn("--include output/phase18_gpu_smoke/model-cache.json", self.text)
