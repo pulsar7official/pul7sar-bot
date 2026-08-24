@@ -31,14 +31,14 @@ class HybridVisualEvidenceBuilder:
     def _football_geometry_receipt(receipt: FootballHybridCompositionReceipt) -> DeterministicGeometryReceipt:
         """Translate a validated football-composition receipt into QA evidence.
 
-        The quality gate must never trust a boolean geometry claim alone. This
-        compact receipt is created only after HybridArtifactIntegrityGate has
-        replayed the source/output hashes and the current texture-preserving
-        football-composition contract.
+        Renderer identity and regulation geometry status are copied from the
+        actual composition receipt. They are never reconstructed from a boolean
+        claim or hard-coded after the fact.
         """
+        snapshot = receipt.geometry_integrity or {}
         return DeterministicGeometryReceipt(
-            renderer_id="football_pitch_projective_v1",
-            integrity_status="REGULATION_FOOTBALL_GEOMETRY_READY",
+            renderer_id=receipt.geometry_renderer_id,
+            integrity_status=str(snapshot.get("status", "")),
             output_ref=receipt.output_path,
             details={
                 "camera_preset": receipt.camera_preset,
@@ -48,6 +48,7 @@ class HybridVisualEvidenceBuilder:
                 "surface_opacity": receipt.surface_opacity,
                 "surface_feather_px": receipt.surface_feather_px,
                 "output_sha256": receipt.output_sha256,
+                "geometry_integrity": dict(snapshot),
             },
         )
 
