@@ -24,7 +24,12 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn('subject_placeholder_used', self.text)
         self.assertIn('subject_placeholder_is_identity_evidence', self.text)
         self.assertIn('arabic_raqm_used', self.text)
-        self.assertIn('approximate-study-only-v2', self.text)
+        self.assertIn('approximate-study-only-v3-reference-pulse-integrated', self.text)
+        self.assertIn('brand_pulse_waveform', self.text)
+        self.assertIn('reference-pulse-v1', self.text)
+        self.assertIn('brand_pulse_baseline_under_wordmark', self.text)
+        self.assertIn('brand_pulse_visually_linked_to_seven', self.text)
+        self.assertNotIn('approximate-study-only-v2', self.text)
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v1"', self.text)
         self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v2"', self.text)
 
