@@ -1,8 +1,8 @@
 """Study-only deterministic PUL7SAR identity renderer.
 
-Version 3 preserves metallic PUL/SAR, enlarged accent 7, football near R, and
-renders the user-confirmed pulse family instead of a generic ECG approximation.
-It remains study-only until exact master geometry is registered.
+Version 4 preserves metallic PUL/SAR, enlarged accent 7, football near R, and
+renders the compact user-confirmed pulse signature around the 7 instead of a
+full-width underline. It remains study-only until exact master geometry exists.
 """
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from hashlib import sha256
 from pathlib import Path
 import math
 
-from engine.intelligence.brand_study_geometry import BrandStudyGeometry, REFERENCE_PULSE_WAVEFORM_V1
+from engine.intelligence.brand_study_geometry import BrandStudyGeometry, REFERENCE_PULSE_WAVEFORM_V2
 
 
 @dataclass(frozen=True)
@@ -35,9 +35,12 @@ class BrandStudyReceipt:
     pulse_below_wordmark: bool
     football_near_r: bool
     pulse_waveform_id: str
+    pulse_full_wordmark_underline: bool
+    pulse_left_extent: float
+    pulse_right_extent: float
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-brand-study-renderer-v3"
+    contract: str = "pul7sar-brand-study-renderer-v4"
 
 
 class BrandStudyRenderer:
@@ -83,15 +86,17 @@ class BrandStudyRenderer:
                 placement.x + int(placement.width * nx),
                 band_y + int(band_h * ny),
             )
-            for nx, ny in REFERENCE_PULSE_WAVEFORM_V1
+            for nx, ny in REFERENCE_PULSE_WAVEFORM_V2
         )
 
     def render_on_file(self, *, base_path: str, output_path: str, placement: BrandStudyPlacement, geometry: BrandStudyGeometry, accent_hex: str, font_path: str) -> BrandStudyReceipt:
         from PIL import Image, ImageDraw, ImageFont, ImageFilter
         if not geometry.study_only or geometry.publication_ready:
             raise ValueError("brand study renderer accepts study-only geometry")
-        if geometry.pulse_waveform_id != "reference-pulse-v1" or not geometry.pulse_visual_link_to_seven:
-            raise ValueError("brand study renderer requires approved pulse reference topology")
+        if geometry.pulse_waveform_id != "reference-pulse-v2-compact" or not geometry.pulse_visual_link_to_seven:
+            raise ValueError("brand study renderer requires approved compact pulse reference")
+        if geometry.pulse_full_wordmark_underline:
+            raise ValueError("brand study renderer forbids full-wordmark pulse underline")
         source, target, fpath = Path(base_path), Path(output_path), Path(font_path)
         if not source.is_file(): raise FileNotFoundError(base_path)
         if not fpath.is_file(): raise FileNotFoundError(font_path)
@@ -125,15 +130,14 @@ class BrandStudyRenderer:
             draw.text((seven_x+3,seven_y+5),seven,font=seven_font,fill=(0,0,0,190),stroke_width=2,stroke_fill=(0,0,0,190))
             draw.text((seven_x,seven_y),seven,font=seven_font,fill=accent,stroke_width=2,stroke_fill=dark)
 
-            # User-confirmed signature: long baseline + compact pre-beat + tall
-            # central spike/deep trough + two recovery beats + long baseline.
+            # Compact signature: short horizontal shoulders, concentrated pulse
+            # around the enlarged 7, two recovery beats, no full-word underline.
             points=self._pulse_points(placement,geometry)
             pglow=Image.new("RGBA",image.size,(0,0,0,0)); pg=ImageDraw.Draw(pglow)
             pg.line(points,fill=(*accent_rgb,175),width=max(7,int(placement.height*0.032)),joint="curve")
             layer.alpha_composite(pglow.filter(ImageFilter.GaussianBlur(max(4,int(placement.height*0.02)))))
             draw=ImageDraw.Draw(layer)
             draw.line(points,fill=accent,width=max(2,int(placement.height*0.009)),joint="curve")
-            # bright core preserves the neon pulse signature without changing topology
             core=tuple(min(255,int(c*0.55+140)) for c in accent_rgb)+(235,)
             draw.line(points,fill=core,width=max(1,int(placement.height*0.0035)),joint="curve")
 
@@ -146,4 +150,10 @@ class BrandStudyRenderer:
             draw.polygon(pts,fill=(28,30,33,255))
             image.alpha_composite(layer); target.parent.mkdir(parents=True,exist_ok=True); image.save(target,format="PNG")
 
-        return BrandStudyReceipt(output_path=str(target),output_sha256=self._sha(target),accent_hex=accent_hex.upper(),seven_scale=geometry.seven_scale,pulse_below_wordmark=True,football_near_r=True,pulse_waveform_id=geometry.pulse_waveform_id)
+        return BrandStudyReceipt(
+            output_path=str(target), output_sha256=self._sha(target), accent_hex=accent_hex.upper(),
+            seven_scale=geometry.seven_scale, pulse_below_wordmark=True, football_near_r=True,
+            pulse_waveform_id=geometry.pulse_waveform_id,
+            pulse_full_wordmark_underline=geometry.pulse_full_wordmark_underline,
+            pulse_left_extent=geometry.pulse_left_extent, pulse_right_extent=geometry.pulse_right_extent,
+        )
