@@ -16,6 +16,9 @@ from engine.intelligence.story_to_visual_orchestrator import StoryToVisualDecisi
 from engine.intelligence.visual_benchmark_suite import BenchmarkReviewKind, VisualBenchmarkCase, benchmark_for
 
 
+CURRENT_SPORTS_EDITORIAL_SCENE_CONTRACT = "pul7sar-sports-editorial-scene-v3"
+
+
 class VisualReviewReadiness(str, Enum):
     BLOCKED = "blocked"
     STRUCTURAL_READY = "structural_ready"
@@ -56,12 +59,16 @@ class VisualReviewReadinessGate:
 
         copy = self._copy.evaluate(scene, headline=headline, supporting_copy=supporting_copy)
         failures.extend(copy.failures)
-        if scene.metadata.get("contract") != "pul7sar-sports-editorial-scene-v2":
-            failures.append("sports editorial scene contract is not current v2")
+        if scene.metadata.get("contract") != CURRENT_SPORTS_EDITORIAL_SCENE_CONTRACT:
+            failures.append("sports editorial scene contract is not current v3")
         if scene.brand_identity_id != APPROVED_PUL7SAR_BRAND_MASTER.identity_id:
             failures.append("sports editorial scene uses wrong brand identity")
         if scene.metadata.get("premium_editorial_not_data_card") is not True:
             failures.append("premium editorial policy is missing")
+        if scene.metadata.get("brand_placement_requires_adaptive_resolver") is not True:
+            failures.append("adaptive brand placement contract is missing")
+        if scene.metadata.get("brand_pulse_topology") != "integrated_signature_centered_on_seven":
+            failures.append("approved integrated pulse topology is missing")
         if "legacy repository logo as canonical identity" not in scene.forbidden:
             failures.append("legacy logo rejection is missing")
         if "dense infographic copy" not in scene.forbidden:
