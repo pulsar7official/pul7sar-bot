@@ -68,7 +68,7 @@ class SportsEditorialSceneDirector:
             *grammar.deterministic_elements,
             "PUL7SAR fixed metallic wordmark geometry",
             "PUL7SAR enlarged 7 geometry",
-            "PUL7SAR pulse-below-wordmark geometry",
+            "PUL7SAR integrated pulse signature centered on 7",
             "PUL7SAR small football near R geometry",
             "verified entity accent applied only to pulse and 7",
         )))
@@ -79,7 +79,8 @@ class SportsEditorialSceneDirector:
             "generated exact club crest",
             "tinted metallic PUL7SAR wordmark body",
             "7 reduced to ordinary letter height",
-            "pulse moved inside wordmark",
+            "generic ECG substituted for PUL7SAR pulse signature",
+            "active pulse waveform stretched away from the 7",
             "dense infographic copy",
             "forced full football pitch when story does not require it",
         )))
@@ -95,19 +96,21 @@ class SportsEditorialSceneDirector:
             club_accent_role="verified club/story color affects pulse, 7 and restrained environmental accents; metallic wordmark body remains fixed",
             brand_identity_id=brand.identity_id,
             brand_placement=(
-                f"prefer {brand.preferred_brand_zone}; adapt only when lower placement collides with focal hierarchy or safe areas"
+                f"resolve through adaptive brand placement; prefer {brand.preferred_brand_zone} only when focal hierarchy and safe areas remain clear"
             ),
             generated_ownership=generated,
             deterministic_ownership=deterministic,
             forbidden=forbidden,
             metadata={
-                "contract": "pul7sar-sports-editorial-scene-v2",
+                "contract": "pul7sar-sports-editorial-scene-v3",
                 "provider_agnostic": True,
                 "premium_editorial_not_data_card": True,
                 "story_specific_visual_language": True,
                 "brand_seven_larger_than_letters": brand.seven_larger_than_letters,
-                "brand_pulse_position": brand.pulse_position,
+                "brand_pulse_topology": brand.pulse_topology,
+                "brand_pulse_active_waveform_compact_around_seven": brand.pulse_active_waveform_compact_around_seven,
                 "brand_small_football_near_r": brand.small_football_near_r,
+                "brand_placement_requires_adaptive_resolver": True,
             },
         )
 
