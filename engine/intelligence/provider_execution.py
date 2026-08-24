@@ -1,8 +1,9 @@
 """Provider-neutral execution planning for PUL7SAR original scenes.
 
 The execution plan deliberately separates AI scene generation from exact asset
-compositing. Image providers create the scene; PUL7SAR-owned composition keeps
-logos, crests, social icons, scores, and text deterministic and exact.
+compositing. Image providers create only generator-owned scene content; PUL7SAR-
+owned composition keeps logos, crests, social icons, scores, text and exact sport
+geometry deterministic and exact.
 """
 
 from __future__ import annotations
@@ -16,6 +17,7 @@ from engine.intelligence.assets import AssetBundle, AssetRole
 from engine.intelligence.generation_package import GenerationPackage
 from engine.intelligence.provider_capabilities import ProviderFeature, ProviderRequirements
 from engine.intelligence.provider_selection import ProviderSelection
+from engine.intelligence.visual_execution_route import VisualExecutionDecision
 
 
 class ExecutionStage(str, Enum):
@@ -58,7 +60,7 @@ class ProviderExecutionPlan:
 
 
 class ProviderExecutionPlanner:
-    """Compile a safe execution plan without invoking any external provider."""
+    """Compile a provider execution plan only when story routing authorizes one."""
 
     _POST_COMPOSITE_ROLES = {
         AssetRole.PUL7SAR_LOGO,
@@ -84,8 +86,6 @@ class ProviderExecutionPlanner:
         if package.negative_constraints:
             required.add(ProviderFeature.NEGATIVE_INSTRUCTIONS)
 
-        # Exact logos/crests/icons are intentionally NOT provider requirements;
-        # PUL7SAR composites them deterministically after base-scene generation.
         return ProviderRequirements(
             width=width,
             height=height,
@@ -101,7 +101,16 @@ class ProviderExecutionPlanner:
         selection: ProviderSelection,
         *,
         aspect_ratio: str,
+        execution_route: VisualExecutionDecision,
     ) -> ProviderExecutionPlan:
+        if not isinstance(execution_route, VisualExecutionDecision):
+            raise TypeError("execution_route must be VisualExecutionDecision")
+        if not execution_route.provider_selection_allowed or not execution_route.generator_required:
+            raise ValueError(
+                "provider execution is forbidden by VisualExecutionRouter; use deterministic/verified-asset pipeline"
+            )
+        if not execution_route.generated_elements:
+            raise ValueError("provider execution requires explicitly declared generator-owned elements")
         if not selection.found or selection.selected_provider_id is None:
             raise ValueError("cannot compile execution plan without an eligible provider")
         requirements = self.build_requirements(package, assets, aspect_ratio=aspect_ratio)
@@ -121,11 +130,19 @@ class ProviderExecutionPlanner:
                 ExecutionStage.GENERATE_BASE_SCENE,
                 asset_ids=provider_refs,
                 instructions=(
-                    "Generate only the photographic/editorial base scene.",
-                    "Do not render official logos, crests, social icons, score typography, or final headline text into the base image.",
+                    "Generate only the approved generator-owned scene elements: "
+                    + ", ".join(execution_route.generated_elements)
+                    + ".",
+                    "Do not render official logos, crests, social icons, score typography, final headline text, exact data, or exact sport geometry into the base image.",
                     "Respect factual and negative constraints from the approved generation package.",
                 ),
-                metadata={"canvas": package.canvas, "layout_boxes": dict(package.layout_boxes)},
+                metadata={
+                    "canvas": package.canvas,
+                    "layout_boxes": dict(package.layout_boxes),
+                    "visual_execution_route": execution_route.route.value,
+                    "generator_owned_elements": execution_route.generated_elements,
+                    "visual_execution_contract": execution_route.metadata.get("contract"),
+                },
             ),
             ExecutionStep(
                 ExecutionStage.APPLY_EXACT_ASSETS,
@@ -138,7 +155,7 @@ class ProviderExecutionPlanner:
             ExecutionStep(
                 ExecutionStage.APPLY_EDITORIAL_TEXT,
                 instructions=(
-                    "Render approved headline, score, English club/team names, and compact destination footer deterministically outside the image model.",
+                    "Render approved headline, score, English club/team names, exact data, and compact destination footer deterministically outside the image model.",
                 ),
             ),
             ExecutionStep(
