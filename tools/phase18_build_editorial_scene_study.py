@@ -22,9 +22,6 @@ def build(output_dir: str) -> dict[str, object]:
     if not font.is_file():
         raise FileNotFoundError("required CI study font unavailable")
 
-    # Deliberately fictional/non-publication benchmark story. The central human
-    # shape is a non-identity composition placeholder and must never be treated as
-    # player evidence or a real news depiction.
     decision = StoryToVisualOrchestrator().decide(VerifiedEditorialStory(
         event=EditorialEvent.TRANSFER_CONFIRMED,
         sport="football",
@@ -67,7 +64,10 @@ def build(output_dir: str) -> dict[str, object]:
         "arabic_raqm_used": receipt.arabic_raqm_used,
         "study_only": receipt.study_only,
         "publication_ready": receipt.publication_ready,
-        "brand_geometry_mode": "approximate-study-only-v2",
+        "brand_geometry_mode": "approximate-study-only-v3-reference-pulse-integrated",
+        "brand_pulse_waveform": "reference-pulse-v1",
+        "brand_pulse_baseline_under_wordmark": True,
+        "brand_pulse_visually_linked_to_seven": True,
         "exact_brand_master_still_required_for_publication": True,
         "verified_subject_asset_still_required_for_real_transfer_publication": True,
         "human_visual_review_required": True,
