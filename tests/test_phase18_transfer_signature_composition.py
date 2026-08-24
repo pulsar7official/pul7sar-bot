@@ -18,6 +18,7 @@ class TransferSignatureCompositionTests(unittest.TestCase):
         self.assertFalse(plan.dense_stats_allowed)
         self.assertFalse(plan.generated_crest_allowed)
         self.assertFalse(plan.generated_brand_allowed)
+        self.assertFalse(plan.protected_person_copy_overlap_allowed)
         self.assertEqual(plan.brand.zone, BrandZone.LOWER_CENTER)
         self.assertLessEqual(plan.brand.max_width_ratio, 0.30)
         self.assertFalse(plan.publication_ready)
@@ -29,9 +30,15 @@ class TransferSignatureCompositionTests(unittest.TestCase):
         self.assertNotEqual(portrait.headline_box, landscape.headline_box)
         self.assertNotEqual(portrait.club_context_box, landscape.club_context_box)
 
+    def test_verified_hero_never_intersects_copy_zones(self):
+        for platform in SocialPlatform:
+            plan = self.composer.plan(self.profiles.get(platform))
+            self.assertFalse(self.composer._intersects(plan.hero_box, plan.headline_box))
+            self.assertFalse(self.composer._intersects(plan.hero_box, plan.club_context_box))
+
     def test_transfer_contract_is_distinct_and_non_authorizing(self):
         plan = self.composer.plan(self.profiles.get(SocialPlatform.FACEBOOK_FEED))
-        self.assertEqual(plan.contract, "pul7sar-transfer-signature-composition-v1")
+        self.assertEqual(plan.contract, "pul7sar-transfer-signature-composition-v2-safe-separated")
         self.assertFalse(plan.publication_ready)
 
 
