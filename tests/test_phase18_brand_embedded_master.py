@@ -48,6 +48,12 @@ class EmbeddedBrandMasterTests(unittest.TestCase):
             "49ed35398dbb3a62460ff4ee52b7eea7b0db295b165271cef1126484d3d15d62",
         )
 
+    def test_literal_ellipsization_is_rejected_as_irrecoverable_truncation(self):
+        original = base64.b64encode(b"PUL7SAR approved bytes").decode("ascii")
+        truncated = original[:12] + "[...ELLIPSIZATION...]" + original[12:]
+        with self.assertRaisesRegex(ValueError, "PUL7SAR_EMBEDDED_BRAND_TRANSPORT_TRUNCATED"):
+            EmbeddedBrandMasterLoader._decode_bundle_text(truncated)
+
 
 if __name__ == "__main__":
     unittest.main()
