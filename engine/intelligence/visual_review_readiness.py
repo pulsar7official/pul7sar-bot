@@ -102,5 +102,6 @@ class VisualReviewReadinessGate:
             "result-statement-v1": "result_statement",
             "verified-subject-news-v1": "verified_subject_news",
             "tactical-intelligence-v1": "tactical_board",
+            "football-editorial-atmosphere-v1": "event_editorial",
         }
         return expected.get(benchmark.benchmark_id) == scene_family
