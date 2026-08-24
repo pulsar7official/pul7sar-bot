@@ -9,6 +9,7 @@ hard blockers, seed/request identity and quality-first selection semantics.
 from __future__ import annotations
 
 import argparse
+from dataclasses import fields
 import json
 from pathlib import Path
 
@@ -20,23 +21,12 @@ from engine.intelligence.golden_visual_quality import (
 )
 
 
-REVIEW_VERSION = "pul7sar-golden-visual-review-v1"
-_SCORE_FIELDS = (
-    "editorial_realism",
-    "composition_hierarchy",
-    "stadium_depth",
-    "controlled_lighting",
-    "protected_zone_cleanliness",
-    "platform_crop_strength",
-)
-_BLOCKER_FIELDS = (
-    "fantasy_or_monumental_staging",
-    "fake_logo_or_crest",
-    "pseudo_text_or_gibberish",
-    "invented_result_or_winner",
-    "cluttered_collage",
-    "broken_geometry_or_anatomy",
-)
+# v2 locks the review schema to every field in GoldenVisualScores/Blockers.
+# v1 predated generated-platform-brand and broken-sport-surface blockers and is
+# intentionally rejected so a stale review cannot silently waive a hard blocker.
+REVIEW_VERSION = "pul7sar-golden-visual-review-v2"
+_SCORE_FIELDS = tuple(item.name for item in fields(GoldenVisualScores))
+_BLOCKER_FIELDS = tuple(item.name for item in fields(GoldenVisualBlockers))
 
 
 def _load_json(path: str) -> dict[str, object]:
