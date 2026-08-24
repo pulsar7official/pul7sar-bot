@@ -33,6 +33,11 @@ Implemented a **GPU Smoke Repository Integrity Gate** so the self-hosted Golden 
   - verifies `repository-integrity.json` participates in evidence-manifest construction;
   - preserves existing manual/self-hosted/CUDA/BF16/$0-local/no-provider-secret workflow assertions.
 
+- `tests/test_phase18_family_render_readiness.py`
+  - CI exposed a stale regression test that attempted to construct `FamilyRenderPlan(publication_ready=True)` and expected the later readiness gate to reject it;
+  - the runtime contract is now stronger and rejects that forged plan directly in `FamilyRenderPlan.__post_init__` with `RENDER_PLAN_ALONE_CANNOT_AUTHORIZE_PUBLICATION`;
+  - the test was aligned with the fail-fast invariant and now asserts the constructor-level rejection instead of trying to create an invalid object.
+
 ### Deleted
 
 Nothing.
@@ -43,8 +48,10 @@ Untouched.
 
 ## Test status
 
-- Code changes were committed to `phase18/story-intelligence`.
-- GitHub Actions result for the new code/test head is pending at the time this log entry is created; no CI success is claimed until a real workflow run completes.
+- Composition Matrix Verification Run `32753233998` / run 6 completed with `success` on the Change Set 127 code/test head.
+- Story Intelligence Verification Run `32753233997` / run 1980 reached the full Phase 18 discover suite; all new GPU-smoke repository-integrity tests passed, but the run failed on one pre-existing stale test: `test_render_plan_cannot_self_authorize_publication`.
+- The failure was not a weakening or regression of a runtime gate. It occurred because `FamilyRenderPlan.__post_init__` now rejects publication authority earlier than the stale test expected. The regression test has been corrected to assert that stronger fail-fast behavior.
+- A fresh Story Intelligence CI result for the corrected head is pending; no green status for that corrected head is claimed until GitHub completes it.
 - CPU CI must not fabricate a Golden GPU PNG; any successful CI result is software/integrity verification only.
 
 ## Invariants preserved
