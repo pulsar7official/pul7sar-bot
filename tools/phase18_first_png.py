@@ -13,8 +13,9 @@ weaken any gate. On a compatible GPU host it:
 6. verifies/prefetches the exact approved FLUX.2 Klein snapshot,
 7. proves CUDA + FLUX.2 Klein + native BF16 readiness,
 8. prepares/reuses exactly one candidate-1 durable smoke job,
-9. executes one normal GPU-worker cycle,
-10. verifies that the durable job ended in `succeeded` and points to a real PNG.
+9. executes one normal GPU-worker cycle when generation is still required,
+10. verifies that the durable job ended in `succeeded` and points to a real PNG,
+11. replays the first-PNG provenance postflight before reporting reusable success.
 
 On a CPU/incompatible host it fails before model download and before enqueueing
 work. No placeholder PNG is ever created.
@@ -46,8 +47,10 @@ from tools.phase18_verify_golden_batch import verify_batch
 
 EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA = "pul7sar-phase18-pre-gpu-repository-integrity-v1"
 EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA = "pul7sar-phase18-semantic-gpu-preflight-v1"
+EXPECTED_POSTFLIGHT_STATUS = "FIRST_GOLDEN_PNG_PROVENANCE_POSTFLIGHT_VERIFIED"
 EXPECTED_QWEN_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
 EXPECTED_COST_MODE = "$0-local"
+EXPECTED_DTYPE = "bfloat16"
 
 
 def _run_json_command(command: list[str], *, repository_root: Path, label: str) -> dict[str, object]:
@@ -208,6 +211,48 @@ def _run_readiness(repository_root: Path) -> dict[str, object]:
     return payload
 
 
+def _run_provenance_postflight(
+    repository_root: Path,
+    receipt_path: Path,
+    *,
+    queue_root: Path,
+    job_id: str,
+) -> dict[str, object]:
+    payload = _run_json_command(
+        [
+            sys.executable,
+            str(repository_root / "tools" / "phase18_verify_first_png_provenance.py"),
+            "--repository-root",
+            str(repository_root),
+            "--queue-root",
+            str(queue_root),
+            "--job-id",
+            job_id,
+            "--output",
+            str(receipt_path),
+        ],
+        repository_root=repository_root,
+        label="First-PNG provenance postflight",
+    )
+    failures: list[str] = []
+    if payload.get("status") != EXPECTED_POSTFLIGHT_STATUS:
+        failures.append("first_png_postflight_status_drift")
+    if payload.get("candidate") != 1:
+        failures.append("first_png_postflight_candidate_drift")
+    if payload.get("job_id") != job_id:
+        failures.append("first_png_postflight_job_id_drift")
+    if payload.get("cost_mode") != EXPECTED_COST_MODE:
+        failures.append("first_png_postflight_escaped_zero_cost_policy")
+    if payload.get("resolved_dtype") != EXPECTED_DTYPE:
+        failures.append("first_png_postflight_precision_drift")
+    for field in ("semantic_approved", "golden_quality_approved", "publication_ready"):
+        if payload.get(field) is not False:
+            failures.append(f"first_png_postflight_{field}_authority_drift")
+    if failures:
+        raise RuntimeError("FIRST_PNG_PROVENANCE_POSTFLIGHT_CONTRACT_FAILED: " + ", ".join(failures))
+    return payload
+
+
 def _run_worker_once(
     *,
     repository_root: Path,
@@ -245,6 +290,14 @@ def _resolve_output_path(repository_root: Path, value: str) -> Path:
     return path if path.is_absolute() else repository_root / path
 
 
+def _assert_postflight_png_matches(png: Path, postflight: dict[str, object]) -> None:
+    value = postflight.get("png")
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError("FIRST_PNG_PROVENANCE_POSTFLIGHT_PNG_MISSING")
+    if Path(value).resolve() != png.resolve():
+        raise RuntimeError("FIRST_PNG_PROVENANCE_POSTFLIGHT_PNG_DRIFT")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate the first genuine PUL7SAR Phase 18 Golden PNG")
     parser.add_argument("--repository-root", default=str(ROOT))
@@ -258,6 +311,7 @@ def main() -> int:
     parser.add_argument("--semantic-preflight-receipt", default="output/phase18_gpu_smoke/semantic-preflight.json")
     parser.add_argument("--qwen-cache-receipt", default="output/phase18_gpu_smoke/qwen-model-cache.json")
     parser.add_argument("--model-cache-receipt", default="output/phase18_gpu_smoke/model-cache.json")
+    parser.add_argument("--provenance-postflight-receipt", default="output/phase18_gpu_smoke/first-png-provenance-postflight.json")
     parser.add_argument("--qwen-minimum-free-gib", type=float, default=12.0)
     parser.add_argument("--minimum-free-gib", type=float, default=30.0)
     parser.add_argument("--job-id", default=DEFAULT_SMOKE_JOB_ID)
@@ -294,6 +348,7 @@ def main() -> int:
     semantic_receipt_path = _resolve_output_path(repository_root, args.semantic_preflight_receipt)
     qwen_cache_receipt_path = _resolve_output_path(repository_root, args.qwen_cache_receipt)
     cache_receipt_path = _resolve_output_path(repository_root, args.model_cache_receipt)
+    postflight_receipt_path = _resolve_output_path(repository_root, args.provenance_postflight_receipt)
     repository_integrity = _run_repository_integrity_preflight(repository_root, repository_receipt_path)
     host_qualification = _run_host_qualification(repository_root, host_receipt_path)
     semantic_preflight = _run_semantic_preflight(
@@ -327,6 +382,7 @@ def main() -> int:
         "semantic_preflight_receipt": str(semantic_receipt_path),
         "qwen_model_cache_receipt": str(qwen_cache_receipt_path),
         "model_cache_receipt": str(cache_receipt_path),
+        "provenance_postflight_receipt": str(postflight_receipt_path),
         "host_eligible": host_qualification.get("eligible"),
         "semantic_runtime_ready": semantic_preflight.get("semantic_runtime_ready"),
         "semantic_model_ready": semantic_preflight.get("semantic_model_ready"),
@@ -342,6 +398,13 @@ def main() -> int:
             png = repository_root / png
         if not png.is_file() or png.suffix.lower() != ".png":
             raise RuntimeError("existing succeeded smoke job does not point to a real PNG")
+        postflight = _run_provenance_postflight(
+            repository_root,
+            postflight_receipt_path,
+            queue_root=queue_root,
+            job_id=args.job_id,
+        )
+        _assert_postflight_png_matches(png, postflight)
         print(json.dumps({
             "status": "FIRST_REAL_GOLDEN_PNG_ALREADY_EXISTS",
             "png": str(png),
@@ -349,6 +412,7 @@ def main() -> int:
             "evidence": evidence,
             "readiness": readiness,
             "job": smoke_status_payload(preparation),
+            "provenance_postflight": postflight,
             "publication_ready": False,
         }, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
@@ -389,6 +453,14 @@ def main() -> int:
     if not png.is_file() or png.suffix.lower() != ".png":
         raise RuntimeError("successful smoke job result is not an existing PNG")
 
+    postflight = _run_provenance_postflight(
+        repository_root,
+        postflight_receipt_path,
+        queue_root=queue_root,
+        job_id=args.job_id,
+    )
+    _assert_postflight_png_matches(png, postflight)
+
     print(json.dumps({
         "status": "FIRST_REAL_GOLDEN_PNG_GENERATED",
         "png": str(png),
@@ -398,6 +470,7 @@ def main() -> int:
         "payload_sha256": final_job.payload_sha256,
         "integrity": integrity,
         "evidence": evidence,
+        "provenance_postflight": postflight,
         "readiness": {
             "golden_generation_ready": readiness.get("golden_generation_ready"),
             "recommended_dtype": readiness.get("recommended_dtype"),
