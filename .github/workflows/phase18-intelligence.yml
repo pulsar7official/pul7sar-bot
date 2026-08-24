@@ -93,6 +93,10 @@ jobs:
               raise SystemExit("stale Golden Hybrid contract in CI: " + "; ".join(failures))
           print("Golden Hybrid v5 contract PASS")
           PY
+      - name: Build Golden Direct Visual CPU proof
+        run: |
+          python tools/phase18_build_golden_direct_visual.py \
+            --output-dir output/phase18_visual_proof/golden-direct-v1
       - name: Upload Golden Hybrid v5 GPU handoff
         uses: actions/upload-artifact@v7
         with:
