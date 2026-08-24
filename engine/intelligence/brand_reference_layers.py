@@ -1,17 +1,17 @@
 """Deterministic layer extraction from the approved PUL7SAR identity board.
 
 The approved identity board is the visual source of truth for the Phase 18 brand
-study.  This module does not recreate PUL7SAR with a font and does not invent a
-new ECG curve.  It verifies the source-board bytes, crops the locked logo region,
-and separates three raster ownership layers:
+study. This module never recreates PUL7SAR with a font and never invents a new
+ECG curve. It verifies the source-board bytes, crops the locked logo region, and
+separates three raster ownership layers:
 
-* metallic wordmark (PUL + SAR), fixed;
+* metallic wordmark (PUL + SAR), fixed and neutral-metallic;
 * enlarged 7 + pulse, tintable;
 * football near R, fixed.
 
-The extraction is deliberately reference-derived and study-only.  It is a bridge
-toward a clean publication master, not permission to publish the identity-board
-crop as a final logo asset.
+The extraction is reference-derived and study-only. It is a bridge toward a clean
+publication master, not permission to publish the identity-board crop as a final
+logo asset.
 """
 from __future__ import annotations
 
@@ -33,13 +33,15 @@ class BrandReferenceLayerReceipt:
     height: int
     background_removed: bool = True
     metallic_fixed: bool = True
+    metallic_neutralized: bool = True
     accent_tintable: bool = True
     football_fixed: bool = True
+    explicit_layer_ownership: bool = True
     font_recreation_used: bool = False
     generic_ecg_recreation_used: bool = False
     study_only: bool = True
     publication_ready: bool = False
-    contract: str = "pul7sar-reference-layer-extractor-v1"
+    contract: str = "pul7sar-reference-layer-extractor-v2"
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,8 @@ class BrandReferenceLayerExtractor:
     )
     _ACCENT_BASELINE = (0, 170, 842, 252)
     _ACCENT_CENTRE = (338, 0, 620, 320)
+    # The enlarged 7 is visually in front of the wordmark in this measured zone.
+    _SEVEN_FOREGROUND = (386, 0, 592, 245)
     _FOOTBALL_BOX = (858, 177, 980, 317)
 
     @staticmethod
@@ -117,7 +121,7 @@ class BrandReferenceLayerExtractor:
 
         for y in range(height):
             for x in range(width):
-                r, g, b, a = src[x, y]
+                r, g, b, _ = src[x, y]
                 maximum, minimum = max(r, g, b), min(r, g, b)
                 saturation = maximum - minimum
                 luminance = (299 * r + 587 * g + 114 * b) // 1000
@@ -132,21 +136,22 @@ class BrandReferenceLayerExtractor:
                     and saturation >= 20
                 )
                 if blue_owned:
-                    # Strong accent pixels become seeds; low-intensity glow is
-                    # recovered by deterministic mask expansion below.
                     ap[x, y] = max(96, min(255, (b - 24) * 2))
 
                 if cls._inside(cls._FOOTBALL_BOX, x, y) and luminance >= 45:
                     fp[x, y] = max(90, min(255, (luminance - 16) * 3))
 
                 in_letter = cls._inside_any(cls._LETTER_BOXES, x, y)
+                # Silver letters own neutral/light source pixels. Saturated blue
+                # source light is not automatically promoted to accent ownership;
+                # ownership is resolved explicitly after mask expansion.
                 neutral_metal = (
                     in_letter
-                    and luminance >= 72
-                    and ((saturation <= 105) or luminance >= 142)
+                    and luminance >= 58
+                    and (saturation <= 125 or luminance >= 145)
                 )
-                if neutral_metal and not blue_owned:
-                    mp[x, y] = max(84, min(255, (luminance - 22) * 2))
+                if neutral_metal:
+                    mp[x, y] = max(84, min(255, (luminance - 18) * 2))
 
         return metal, accent, football
 
@@ -158,27 +163,61 @@ class BrandReferenceLayerExtractor:
             raise ValueError("mask expansion size must be odd")
         return mask.filter(ImageFilter.MaxFilter(size)).filter(ImageFilter.GaussianBlur(blur))
 
-    @staticmethod
-    def _subtract(mask, owner_a, owner_b):
-        from PIL import ImageChops
+    @classmethod
+    def _resolve_ownership(cls, metal_alpha, accent_alpha, football_alpha):
+        """Resolve overlaps without allowing club tint to leak into PUL/SAR."""
+        mp, ap, fp = metal_alpha.load(), accent_alpha.load(), football_alpha.load()
+        for y in range(metal_alpha.height):
+            for x in range(metal_alpha.width):
+                if fp[x, y] > 24:
+                    mp[x, y] = 0
+                    ap[x, y] = 0
+                    continue
+                in_letter = cls._inside_any(cls._LETTER_BOXES, x, y)
+                seven_front = cls._inside(cls._SEVEN_FOREGROUND, x, y)
+                if in_letter and not seven_front:
+                    # PUL/SAR remain metallic even when the source board contains
+                    # blue rim-light reflections in the same pixels.
+                    ap[x, y] = 0
+                elif seven_front and ap[x, y] > 24:
+                    # Enlarged 7 is the foreground identity element around the
+                    # central overlap, so silver extraction may not cover it.
+                    mp[x, y] = 0
+        return metal_alpha, accent_alpha, football_alpha
 
-        owned = ImageChops.lighter(owner_a, owner_b)
-        return ImageChops.subtract(mask, owned)
-
     @staticmethod
-    def _layer(crop, alpha):
+    def _metallic_layer(crop, alpha):
+        """Keep source texture while neutralising source-board blue cast."""
         from PIL import Image
 
         layer = Image.new("RGBA", crop.size, (0, 0, 0, 0))
-        pixels = []
-        src = crop.load()
-        ap = alpha.load()
+        src, ap, out = crop.load(), alpha.load(), layer.load()
         for y in range(crop.height):
             for x in range(crop.width):
-                r, g, b, _ = src[x, y]
                 a = ap[x, y]
-                pixels.append((r, g, b, a) if a else (0, 0, 0, 0))
-        layer.putdata(pixels)
+                if not a:
+                    continue
+                r, g, b, _ = src[x, y]
+                luminance = (299 * r + 587 * g + 114 * b) // 1000
+                # Slight cool-silver bias, preserving cracks/highlights/shadows.
+                nr = min(255, round(luminance * 1.02 + 8))
+                ng = min(255, round(luminance * 1.04 + 10))
+                nb = min(255, round(luminance * 1.08 + 14))
+                out[x, y] = (nr, ng, nb, a)
+        return layer
+
+    @staticmethod
+    def _source_layer(crop, alpha):
+        from PIL import Image
+
+        layer = Image.new("RGBA", crop.size, (0, 0, 0, 0))
+        src, ap, out = crop.load(), alpha.load(), layer.load()
+        for y in range(crop.height):
+            for x in range(crop.width):
+                a = ap[x, y]
+                if a:
+                    r, g, b, _ = src[x, y]
+                    out[x, y] = (r, g, b, a)
         return layer
 
     def extract(self, source_path: str) -> BrandReferenceLayers:
@@ -188,16 +227,13 @@ class BrandReferenceLayerExtractor:
         accent_alpha = self._expand(accent_seed, size=11, blur=1.15)
         football_alpha = self._expand(football_seed, size=7, blur=1.0)
         metal_alpha = self._expand(metal_seed, size=7, blur=1.1)
+        metal_alpha, accent_alpha, football_alpha = self._resolve_ownership(
+            metal_alpha, accent_alpha, football_alpha
+        )
 
-        # Layer ownership is exclusive: football wins over accent, and both win
-        # over metallic. This prevents club tint from leaking into the ball or
-        # silver wordmark.
-        accent_alpha = self._subtract(accent_alpha, football_alpha, football_alpha)
-        metal_alpha = self._subtract(metal_alpha, accent_alpha, football_alpha)
-
-        metallic = self._layer(crop, metal_alpha)
-        accent = self._layer(crop, accent_alpha)
-        football = self._layer(crop, football_alpha)
+        metallic = self._metallic_layer(crop, metal_alpha)
+        accent = self._source_layer(crop, accent_alpha)
+        football = self._source_layer(crop, football_alpha)
 
         receipt = BrandReferenceLayerReceipt(
             source_sha256=APPROVED_BRAND_REFERENCE_MASTER.source_sha256,
