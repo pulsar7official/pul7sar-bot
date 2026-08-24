@@ -15,10 +15,10 @@ from pathlib import Path
 
 from engine.intelligence.assets import AssetBundle, AssetReference, AssetRole, AssetTreatment
 from engine.intelligence.direct_visual_execution import DirectVisualExecutionPlanner
+from engine.intelligence.direct_visual_layout import DirectDataLayoutPlanner
 from engine.intelligence.direct_visual_quality import DirectRenderQualityGate
 from engine.intelligence.direct_visual_renderer import DirectVisualRenderer, RenderAsset
 from engine.intelligence.editorial_headline_grammar import HeadlineTone
-from engine.intelligence.layout_planner import DeterministicLayoutPlanner, LayoutRequirements
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent
@@ -37,23 +37,12 @@ def build(output_dir: str) -> dict[str, object]:
     out.mkdir(parents=True, exist_ok=True)
 
     profile = PlatformProfileRegistry().get(SocialPlatform.INSTAGRAM_FEED)
-    layout = DeterministicLayoutPlanner().plan(
-        profile,
-        LayoutRequirements(
-            include_hero=True,
-            include_logo=True,
-            include_crest=False,
-            include_score=False,
-            include_headline=True,
-            include_social_footer=False,
-        ),
-        entity_accent_hex="#E10600",
-    )
+    layout = DirectDataLayoutPlanner().plan(profile, accent_hex="#E10600")
     story = VerifiedEditorialStory(
         event=EditorialEvent.TABLE,
         sport="football",
         subject="PUL7SAR",
-        fact_phrase="DIRECT VISUAL INTELLIGENCE",
+        fact_phrase="VISUAL INTELLIGENCE SYSTEM",
         story_core="verified non-news engineering benchmark for deterministic data composition",
         tone=HeadlineTone.NEUTRAL,
         confidence=1.0,
@@ -66,6 +55,8 @@ def build(output_dir: str) -> dict[str, object]:
     planner = DirectVisualExecutionPlanner()
     gate = DirectRenderQualityGate()
     candidates: list[dict[str, object]] = []
+    system_font = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    font_path = system_font if Path(system_font).is_file() else None
 
     for index, asset_name in enumerate(BRAND_CANDIDATES, start=1):
         asset_path = Path(asset_name)
@@ -87,10 +78,10 @@ def build(output_dir: str) -> dict[str, object]:
             assets,
             headline=decision.headline,
             exact_data=(
-                "01  STORY INTELLIGENCE",
-                "02  VERIFIED DATA OWNERSHIP",
-                "03  DIRECT CPU RENDER",
-                "04  SHA-LOCKED OUTPUT",
+                "STORY INTELLIGENCE",
+                "VERIFIED DATA OWNERSHIP",
+                "DIRECT CPU RENDER",
+                "SHA-LOCKED OUTPUT",
             ),
         )
         render_asset = RenderAsset(asset_id, str(asset_path), _sha(asset_path))
@@ -100,6 +91,7 @@ def build(output_dir: str) -> dict[str, object]:
             layout,
             output_path=str(output_path),
             assets={asset_id: render_asset},
+            font_path=font_path,
         )
         quality = gate.evaluate(plan, layout, receipt)
         if not quality.allowed:
@@ -112,6 +104,7 @@ def build(output_dir: str) -> dict[str, object]:
             "png_sha256": receipt.sha256,
             "width": receipt.width,
             "height": receipt.height,
+            "layout_strategy": layout.strategy,
             "route": receipt.route,
             "base_source": receipt.base_source,
             "generator_used": False,
