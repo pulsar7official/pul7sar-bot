@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from engine.intelligence.football_hybrid_composer import FootballHybridComposer, FootballHybridCompositionReceipt
@@ -24,17 +25,43 @@ class HybridVisualEvidenceBuilderTests(unittest.TestCase):
             )
             self.assertTrue(evidence.deterministic_geometry_applied)
             self.assertIsNotNone(evidence.deterministic_geometry_receipt)
-            self.assertEqual(evidence.deterministic_geometry_receipt.renderer_id, "football_pitch_projective_v1")
+            self.assertEqual(evidence.deterministic_geometry_receipt.renderer_id, receipt.geometry_renderer_id)
             self.assertEqual(
                 evidence.deterministic_geometry_receipt.integrity_status,
-                "REGULATION_FOOTBALL_GEOMETRY_READY",
+                receipt.geometry_integrity["status"],
             )
             self.assertEqual(evidence.deterministic_geometry_receipt.output_ref, str(out))
             self.assertEqual(
                 evidence.deterministic_geometry_receipt.details["output_sha256"],
                 receipt.output_sha256,
             )
+            geometry = evidence.deterministic_geometry_receipt.details["geometry_integrity"]
+            self.assertEqual(geometry["length_m"], 105.0)
+            self.assertEqual(geometry["width_m"], 68.0)
+            self.assertEqual(geometry["penalty_arc_count"], 2)
+            self.assertEqual(geometry["corner_arc_count"], 4)
+            self.assertTrue(geometry["symmetric_penalty_areas"])
             self.assertTrue(evidence.deterministic_geometry_receipt.is_valid())
+
+    def test_tampered_geometry_snapshot_cannot_count_as_geometry_completion(self):
+        try:
+            from PIL import Image
+        except ImportError:
+            self.skipTest("Pillow unavailable")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base.png"
+            out = root / "hybrid.png"
+            Image.new("RGB", (640, 800), (30, 30, 30)).save(base)
+            receipt = FootballHybridComposer().compose_file(base_path=str(base), output_path=str(out))
+            geometry = dict(receipt.geometry_integrity or {})
+            geometry["corner_arc_count"] = 3
+            evidence = HybridVisualEvidenceBuilder().build(
+                inspection=VisualInspectionFlags(),
+                football_receipt=replace(receipt, geometry_integrity=geometry),
+            )
+            self.assertFalse(evidence.deterministic_geometry_applied)
+            self.assertIsNone(evidence.deterministic_geometry_receipt)
 
     def test_legacy_opaque_or_unproven_surface_does_not_count_as_geometry_completion(self):
         receipt = FootballHybridCompositionReceipt(
