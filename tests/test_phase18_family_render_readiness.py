@@ -64,12 +64,9 @@ class FamilyRenderReadinessTests(unittest.TestCase):
         self.assertIn("platform composition contract is stale", verdict.failures)
 
     def test_render_plan_cannot_self_authorize_publication(self):
-        composition, plan = self.pair(EditorialEvent.INJURY)
-        forged = replace(plan, publication_ready=True)
-        verdict = self.gate.evaluate(composition, forged)
-        self.assertFalse(verdict.render_allowed)
-        self.assertFalse(verdict.publication_allowed)
-        self.assertIn("render plan may not self-authorize publication", verdict.failures)
+        _, plan = self.pair(EditorialEvent.INJURY)
+        with self.assertRaisesRegex(ValueError, "RENDER_PLAN_ALONE_CANNOT_AUTHORIZE_PUBLICATION"):
+            replace(plan, publication_ready=True)
 
     def test_assert_renderable_raises_on_mismatch(self):
         transfer, transfer_plan = self.pair(EditorialEvent.TRANSFER_CONFIRMED)
