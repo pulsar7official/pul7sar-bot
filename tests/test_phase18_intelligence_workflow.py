@@ -17,32 +17,51 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertIn("dynamic_deterministic_after_generation", self.text)
 
     def test_editorial_study_uses_reference_brand_without_identity_shelf(self):
-        self.assertIn('pul7sar-editorial-scene-study-v5-reference-brand', self.text)
-        self.assertIn('pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground', self.text)
-        self.assertIn('transfer-signature-v1', self.text)
-        self.assertIn('verified_player_asset_used', self.text)
-        self.assertIn('subject_placeholder_used', self.text)
-        self.assertIn('subject_placeholder_is_identity_evidence', self.text)
-        self.assertIn('arabic_raqm_used', self.text)
-        self.assertIn('embedded-reference-derived-layered-master-v1', self.text)
-        self.assertIn('manifest["identity_shelf_used"] is False', self.text)
-        self.assertIn('manifest["final_brand_font_recreation_used"] is False', self.text)
-        self.assertIn('manifest["final_brand_generic_ecg_recreation_used"] is False', self.text)
-        self.assertNotIn('manifest["manifest_version"] == "pul7sar-editorial-scene-study-v4-reference-brand"', self.text)
+        required = (
+            "pul7sar-editorial-scene-study-v5-reference-brand",
+            "pul7sar-editorial-reference-scene-study-renderer-v5-direct-ground",
+            "transfer-signature-v1",
+            "verified_player_asset_used",
+            "subject_placeholder_used",
+            "subject_placeholder_is_identity_evidence",
+            "arabic_raqm_used",
+            "embedded-reference-derived-layered-master-v1",
+            "identity_shelf_used",
+            "final_brand_font_recreation_used",
+            "final_brand_generic_ecg_recreation_used",
+            "final_brand_generator_used",
+            "final_brand_network_used",
+        )
+        for token in required:
+            self.assertIn(token, self.text)
+        # Contract must explicitly assert these safety flags false, but the test
+        # does not care whether the local workflow variable is named m/manifest.
+        self.assertRegex(self.text, r"\[['\"]identity_shelf_used['\"]\]\s+is\s+False")
+        self.assertRegex(self.text, r"\[['\"]final_brand_font_recreation_used['\"]\]\s+is\s+False")
+        self.assertRegex(self.text, r"\[['\"]final_brand_generic_ecg_recreation_used['\"]\]\s+is\s+False")
+        self.assertNotIn("pul7sar-editorial-scene-study-v4-reference-brand", self.text)
 
     def test_self_contained_reference_brand_study_is_built_and_uploaded(self):
-        self.assertIn("phase18_build_reference_brand_study.py", self.text)
-        self.assertIn("pul7sar-reference-brand-study-v2-self-contained", self.text)
-        self.assertIn("pul7sar-brand-reference-renderer-v3-embedded-layered", self.text)
-        self.assertIn('manifest["external_source_board_required"] is False', self.text)
-        self.assertIn('manifest["embedded_master_is_default"] is True', self.text)
-        self.assertIn('manifest["metallic_wordmark_fixed"] is True', self.text)
-        self.assertIn('manifest["seven_and_pulse_tintable"] is True', self.text)
-        self.assertIn('manifest["football_fixed"] is True', self.text)
-        self.assertIn('entry["font_recreation_used"] is False', self.text)
-        self.assertIn('entry["generic_ecg_recreation_used"] is False', self.text)
-        self.assertIn("PUL7SAR-reference-brand-study-${{ github.sha }}", self.text)
-        self.assertIn("assets/brand/**", self.text)
+        required = (
+            "phase18_build_reference_brand_study.py",
+            "pul7sar-reference-brand-study-v2-self-contained",
+            "pul7sar-brand-reference-renderer-v3-embedded-layered",
+            "external_source_board_required",
+            "embedded_master_is_default",
+            "metallic_wordmark_fixed",
+            "seven_and_pulse_tintable",
+            "football_fixed",
+            "font_recreation_used",
+            "generic_ecg_recreation_used",
+            "PUL7SAR-reference-brand-study-${{ github.sha }}",
+            "assets/brand/**",
+        )
+        for token in required:
+            self.assertIn(token, self.text)
+        self.assertRegex(self.text, r"\[['\"]external_source_board_required['\"]\]\s+is\s+False")
+        self.assertRegex(self.text, r"\[['\"]embedded_master_is_default['\"]\]\s+is\s+True")
+        self.assertRegex(self.text, r"\[['\"]font_recreation_used['\"]\]\s+is\s+False")
+        self.assertRegex(self.text, r"\[['\"]generic_ecg_recreation_used['\"]\]\s+is\s+False")
 
     def test_artifacts_are_named_v5(self):
         self.assertIn("golden-season-opener-hybrid-v5.json", self.text)
