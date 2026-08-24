@@ -1,9 +1,12 @@
 import json
 import tempfile
 import unittest
+from dataclasses import fields
 from pathlib import Path
 
+from engine.intelligence.golden_visual_quality import GoldenVisualBlockers, GoldenVisualScores
 from tools.phase18_build_golden_review_template import BLOCKER_FIELDS, SCORE_FIELDS, build_template
+from tools.phase18_review_golden_batch import REVIEW_VERSION
 
 
 class GoldenReviewTemplateTests(unittest.TestCase):
@@ -24,10 +27,17 @@ class GoldenReviewTemplateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             path = self.write_execution(temp)
             template = build_template(str(path))
-            self.assertEqual(template["review_version"], "pul7sar-golden-visual-review-v1")
+            self.assertEqual(template["review_version"], REVIEW_VERSION)
+            self.assertEqual(REVIEW_VERSION, "pul7sar-golden-visual-review-v2")
             self.assertEqual([item["request_id"] for item in template["candidates"]], ["candidate-a", "candidate-b"])
             self.assertEqual([item["seed"] for item in template["candidates"]], [101, 102])
             self.assertEqual(template["candidates"][0]["png"], "a.png")
+
+    def test_schema_is_derived_from_current_golden_dataclasses(self):
+        self.assertEqual(set(SCORE_FIELDS), {item.name for item in fields(GoldenVisualScores)})
+        self.assertEqual(set(BLOCKER_FIELDS), {item.name for item in fields(GoldenVisualBlockers)})
+        self.assertIn("generated_platform_brand_or_wordmark", BLOCKER_FIELDS)
+        self.assertIn("broken_sport_surface_geometry", BLOCKER_FIELDS)
 
     def test_scores_are_never_pre_fabricated(self):
         with tempfile.TemporaryDirectory() as temp:
