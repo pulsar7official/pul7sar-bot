@@ -93,10 +93,14 @@ jobs:
               raise SystemExit("stale Golden Hybrid contract in CI: " + "; ".join(failures))
           print("Golden Hybrid v5 contract PASS")
           PY
-      - name: Build Golden Direct Visual CPU proof
+      - name: Assert legacy direct proof is not a Golden visual
         run: |
-          python tools/phase18_build_golden_direct_visual.py \
-            --output-dir output/phase18_visual_proof/golden-direct-v1
+          python - <<'PY'
+          from engine.intelligence.brand_master_contract import APPROVED_PUL7SAR_BRAND_MASTER
+          APPROVED_PUL7SAR_BRAND_MASTER.assert_safe()
+          assert APPROVED_PUL7SAR_BRAND_MASTER.legacy_repo_logo_is_canonical is False
+          print("Legacy repo logos are non-canonical; no CPU proof PNG will be uploaded as Golden.")
+          PY
       - name: Upload Golden Hybrid v5 GPU handoff
         uses: actions/upload-artifact@v7
         with:
@@ -110,23 +114,5 @@ jobs:
         with:
           name: PUL7SAR-golden-hybrid-v5-candidate-batch-${{ github.sha }}
           path: output/phase18_handoffs/golden-batch/
-          if-no-files-found: error
-          retention-days: 14
-      - name: Detect visual proof output
-        id: visual-proof
-        shell: bash
-        run: |
-          if [ -d output/phase18_visual_proof ] && find output/phase18_visual_proof -type f -name '*.png' -print -quit | grep -q .; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "No generated visual proof PNG exists in this CPU verification run."
-          fi
-      - name: Upload PUL7SAR visual proof
-        if: steps.visual-proof.outputs.available == 'true'
-        uses: actions/upload-artifact@v7
-        with:
-          name: PUL7SAR-visual-proof-${{ github.sha }}
-          path: output/phase18_visual_proof/
           if-no-files-found: error
           retention-days: 14
