@@ -6,6 +6,8 @@ from engine.intelligence.layout_planner import DeterministicLayoutPlanner, Layou
 from engine.intelligence.models import Sentiment
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification
+from engine.intelligence.story_visual_editorial import EditorialEvent, StoryVisualEditorialEngine
+from engine.intelligence.visual_grammar import VisualGrammar
 
 
 class GenerationLayoutPackageTests(unittest.TestCase):
@@ -13,6 +15,8 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         self.registry = PlatformProfileRegistry()
         self.layout_planner = DeterministicLayoutPlanner()
         self.compiler = GenerationPackageCompiler()
+        self.editorial = StoryVisualEditorialEngine()
+        self.grammar = VisualGrammar()
         self.assets = AssetBundle((
             AssetReference("pul7sar-wordmark", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT),
             AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT),
@@ -27,6 +31,16 @@ class GenerationLayoutPackageTests(unittest.TestCase):
             environment="global sports editorial world", composition="platform-specific editorial composition",
             camera_direction="wide premium framing", emotional_mood=Sentiment.ANTICIPATORY.value, palette_strategy="brand_red",
         )
+
+    def _visual_grammar(self, event):
+        plan = self.editorial.plan(
+            event=event,
+            sport="football",
+            story_core="verified story",
+            editorial_angle="premium editorial concept",
+            headline_short="SHORT HEADLINE",
+        )
+        return self.grammar.direct(plan)
 
     def test_layout_geometry_reaches_generation_package(self):
         profile = self.registry.get(SocialPlatform.INSTAGRAM_STORY)
@@ -62,6 +76,53 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         layout = self.layout_planner.plan(profile, LayoutRequirements(include_crest=True, include_score=True))
         package = self.compiler.compile(self._spec(SocialPlatform.FACEBOOK_FEED), self.assets, planned_layout=layout)
         self.assertIn("score", package.layout_boxes); self.assertIn("crest", package.layout_boxes)
+
+    def test_transfer_visual_grammar_explicitly_avoids_pitch_dependency(self):
+        grammar = self._visual_grammar(EditorialEvent.TRANSFER_CONFIRMED)
+        package = self.compiler.compile(
+            self._spec(SocialPlatform.INSTAGRAM_FEED),
+            self.assets,
+            visual_grammar=grammar,
+        )
+        prompt = package.scene_prompt.casefold()
+        self.assertIn("do not make a full pitch", prompt)
+        self.assertIn("prioritize the editorial subject", prompt)
+        self.assertEqual(package.metadata["visual_grammar_surface_visibility"], "none")
+        self.assertTrue(package.metadata["visual_grammar_provider_agnostic"])
+        self.assertNotIn("pul7sar", prompt)
+
+    def test_result_visual_grammar_reserves_only_partial_deterministic_surface(self):
+        grammar = self._visual_grammar(EditorialEvent.RESULT)
+        package = self.compiler.compile(
+            self._spec(SocialPlatform.INSTAGRAM_FEED),
+            self.assets,
+            visual_grammar=grammar,
+        )
+        prompt = package.scene_prompt.casefold()
+        self.assertIn("restrained partial sport-surface context", prompt)
+        self.assertIn("exact sport geometry is added later", prompt)
+        self.assertEqual(package.metadata["visual_grammar_surface_visibility"], "partial_deterministic")
+
+    def test_tactics_visual_grammar_reserves_full_surface_without_generating_markings(self):
+        grammar = self._visual_grammar(EditorialEvent.TACTICS)
+        package = self.compiler.compile(
+            self._spec(SocialPlatform.INSTAGRAM_FEED),
+            self.assets,
+            visual_grammar=grammar,
+        )
+        prompt = package.scene_prompt.casefold()
+        self.assertIn("full sport-surface layer", prompt)
+        self.assertIn("must not draw its exact markings", prompt)
+        self.assertEqual(package.metadata["visual_grammar_surface_visibility"], "full_deterministic")
+        self.assertEqual(package.metadata["visual_grammar_generated_elements"], ())
+
+    def test_visual_grammar_type_is_enforced(self):
+        with self.assertRaises(TypeError):
+            self.compiler.compile(
+                self._spec(SocialPlatform.INSTAGRAM_FEED),
+                self.assets,
+                visual_grammar="not-a-grammar",
+            )
 
     def test_mismatched_platform_layout_is_rejected(self):
         x_layout = self.layout_planner.plan(self.registry.get(SocialPlatform.X_FEED))
