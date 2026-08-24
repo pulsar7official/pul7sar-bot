@@ -114,40 +114,39 @@ class DirectVisualExecutionPlanner:
             raise ValueError("score must be non-empty or None")
 
         exact_data = tuple(str(item).strip() for item in exact_data if str(item).strip())
-        verified_assets = tuple(
-            asset.asset_id for asset in assets.by_role(AssetRole.VERIFIED_IDENTITY_REFERENCE)
-        )
-        if execution.route is PixelExecutionRoute.VERIFIED_ASSET_ONLY and not verified_assets:
-            raise ValueError("verified-asset route requires at least one VERIFIED_IDENTITY_REFERENCE asset")
+        identity_references = tuple(asset.asset_id for asset in assets.by_role(AssetRole.VERIFIED_IDENTITY_REFERENCE))
+        verified_subject_visuals = tuple(asset.asset_id for asset in assets.by_role(AssetRole.VERIFIED_SUBJECT_VISUAL))
+        if execution.route is PixelExecutionRoute.VERIFIED_ASSET_ONLY:
+            if not identity_references:
+                raise ValueError("verified-asset route requires at least one VERIFIED_IDENTITY_REFERENCE asset")
+            if not verified_subject_visuals:
+                raise ValueError("verified-asset route requires at least one VERIFIED_SUBJECT_VISUAL asset")
+            assets.assert_verified_subject_visuals_exact()
 
         if layout.box_for(LayoutRole.HEADLINE) is None:
             raise ValueError("direct execution requires a headline layout box")
         if score is not None and layout.box_for(LayoutRole.SCORE) is None:
             raise ValueError("score supplied but layout has no score box")
 
-        exact_assets = tuple(
-            asset.asset_id for asset in assets.assets if asset.role in self._EXACT_ROLES
-        )
-        base_source = (
-            DirectBaseSource.VERIFIED_ASSET
-            if execution.route is PixelExecutionRoute.VERIFIED_ASSET_ONLY
-            else DirectBaseSource.PROGRAMMATIC_CANVAS
-        )
+        exact_assets = tuple(asset.asset_id for asset in assets.assets if asset.role in self._EXACT_ROLES)
+        base_source = DirectBaseSource.VERIFIED_ASSET if execution.route is PixelExecutionRoute.VERIFIED_ASSET_ONLY else DirectBaseSource.PROGRAMMATIC_CANVAS
 
-        prepare_instructions = (
-            (
-                "Prepare a clean deterministic editorial canvas from code; do not create or request an AI-generated base scene."
-                if base_source is DirectBaseSource.PROGRAMMATIC_CANVAS
-                else "Place only the approved verified source asset as the editorial base; do not synthesize, redraw or identity-swap the subject."
-            ),
-        )
+        prepare_instructions = ((
+            "Prepare a clean deterministic editorial canvas from code; do not create or request an AI-generated base scene."
+            if base_source is DirectBaseSource.PROGRAMMATIC_CANVAS
+            else "Place only the exact approved VERIFIED_SUBJECT_VISUAL as the editorial hero, using the separate VERIFIED_IDENTITY_REFERENCE for identity evidence; do not synthesize, redraw or identity-swap the subject."
+        ),)
 
         steps = (
             DirectExecutionStep(
                 DirectExecutionStage.PREPARE_BASE,
                 prepare_instructions,
-                asset_ids=verified_assets if base_source is DirectBaseSource.VERIFIED_ASSET else (),
-                metadata={"base_source": base_source.value},
+                asset_ids=verified_subject_visuals if base_source is DirectBaseSource.VERIFIED_ASSET else (),
+                metadata={
+                    "base_source": base_source.value,
+                    "identity_reference_ids": identity_references,
+                    "verified_subject_visual_ids": verified_subject_visuals,
+                },
             ),
             DirectExecutionStep(
                 DirectExecutionStage.APPLY_EXACT_ASSETS,
@@ -160,10 +159,7 @@ class DirectVisualExecutionPlanner:
                     "Render exact data and sport geometry from verified structured values/code only.",
                     "Never infer missing numbers, formations, scores, table positions or geometry from visual appearance.",
                 ),
-                metadata={
-                    "exact_data": exact_data,
-                    "deterministic_elements": execution.deterministic_elements,
-                },
+                metadata={"exact_data": exact_data, "deterministic_elements": execution.deterministic_elements},
             ),
             DirectExecutionStep(
                 DirectExecutionStage.APPLY_EDITORIAL_TEXT,
@@ -179,10 +175,9 @@ class DirectVisualExecutionPlanner:
             ),
             DirectExecutionStep(
                 DirectExecutionStage.EXPORT,
-                ("Export only after direct-layer integrity and publication gates pass.",),
+                ("Export exact platform PNG only after every direct-route quality and semantic gate passes.",),
             ),
         )
-
         return DirectVisualExecutionPlan(
             route=execution.route,
             base_source=base_source,
@@ -190,19 +185,19 @@ class DirectVisualExecutionPlanner:
             canvas=f"{layout.profile.width}x{layout.profile.height}",
             accent_hex=layout.accent_hex,
             steps=steps,
-            verified_base_asset_ids=verified_assets,
+            verified_base_asset_ids=verified_subject_visuals,
             exact_asset_ids=exact_assets,
             headline=headline.strip(),
-            score=score.strip() if score is not None else None,
+            score=score.strip() if score else None,
             exact_data=exact_data,
-            deterministic_elements=execution.deterministic_elements,
+            deterministic_elements=tuple(execution.deterministic_elements),
             metadata={
-                "contract": "pul7sar-direct-visual-execution-v1",
+                "contract": "pul7sar-direct-visual-execution-v2",
+                "generator_bypassed": True,
                 "generation_package_created": False,
                 "provider_selection_performed": False,
                 "gpu_job_required": False,
-                "generator_bypassed": True,
-                "visual_execution_contract": execution.metadata.get("contract"),
-                "visual_execution_route": execution.route.value,
+                "identity_reference_ids": identity_references,
+                "verified_subject_visual_ids": verified_subject_visuals,
             },
         )
