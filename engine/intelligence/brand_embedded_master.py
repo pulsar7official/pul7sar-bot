@@ -12,6 +12,7 @@ a publication-authorizing vector/original master asset.
 from __future__ import annotations
 
 import base64
+import binascii
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -74,14 +75,37 @@ class EmbeddedBrandMasterLoader:
         return Path(repository_root) / cls.BUNDLE_RELATIVE_PATH
 
     @classmethod
+    def _decode_bundle_text(cls, encoded: str) -> bytes:
+        """Decode repository base64 without weakening the binary integrity lock.
+
+        GitHub/patch transport can occasionally introduce non-base64 textual
+        separators into very large one-line artifacts. We try strict decoding
+        first. If strict decoding rejects the transport text, a permissive
+        transport decode is allowed *only* as a recovery step; the caller still
+        requires the decoded archive to match the exact pinned SHA-256 before a
+        single ZIP member can be exposed.
+
+        Therefore ignored transport characters can never authorize different
+        binary content: anything other than the one approved archive fails the
+        subsequent SHA lock.
+        """
+        try:
+            return base64.b64decode(encoded, validate=True)
+        except binascii.Error:
+            try:
+                return base64.b64decode(encoded, validate=False)
+            except Exception as exc:
+                raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
+
+    @classmethod
     def _read_verified_members(cls, repository_root: str | Path | None = None) -> tuple[Path, dict[str, bytes]]:
         path = cls._resolve_bundle_path(repository_root)
         if not path.is_file():
             raise FileNotFoundError(path)
         try:
             encoded = "".join(path.read_text(encoding="ascii").split())
-            archive = base64.b64decode(encoded, validate=True)
-        except Exception as exc:
+            archive = cls._decode_bundle_text(encoded)
+        except UnicodeError as exc:
             raise ValueError("PUL7SAR_EMBEDDED_BRAND_BASE64_INVALID") from exc
         if cls._sha(archive) != cls.BUNDLE_SHA256:
             raise ValueError("PUL7SAR_EMBEDDED_BRAND_BUNDLE_SHA_MISMATCH")
