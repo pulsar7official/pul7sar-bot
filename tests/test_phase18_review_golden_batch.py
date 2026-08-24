@@ -26,6 +26,9 @@ class ReviewGoldenBatchTests(unittest.TestCase):
         return execution_path, review_path
 
     def review(self, request_id, seed, score, blockers=None):
+        complete_blockers = {field: False for field in _BLOCKER_FIELDS}
+        if blockers:
+            complete_blockers.update(blockers)
         return {
             "request_id": request_id,
             "seed": seed,
@@ -37,7 +40,7 @@ class ReviewGoldenBatchTests(unittest.TestCase):
                 "protected_zone_cleanliness": score,
                 "platform_crop_strength": score,
             },
-            "blockers": blockers or {},
+            "blockers": complete_blockers,
         }
 
     def test_blocker_schema_tracks_dataclass_without_drift(self):
@@ -99,6 +102,14 @@ class ReviewGoldenBatchTests(unittest.TestCase):
             blocked = next(item for item in result["ranked"] if item["request_id"] == "a")
             self.assertIn("broken_sport_surface_geometry", blocked["blockers"])
 
+    def test_missing_blocker_field_fails_closed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            first = self.review("a", 1, 8.6)
+            first["blockers"].pop("broken_sport_surface_geometry")
+            execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.6)])
+            with self.assertRaisesRegex(ValueError, "blocker schema mismatch"):
+                evaluate(str(execution), str(review))
+
     def test_review_must_cover_every_generated_candidate(self):
         with tempfile.TemporaryDirectory() as temp:
             execution, review = self.write_inputs(temp, [self.review("a", 1, 8.6)])
@@ -143,9 +154,10 @@ class ReviewGoldenBatchTests(unittest.TestCase):
 
     def test_unknown_blocker_field_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
-            first = self.review("a", 1, 8.6, {"mystery_blocker": True})
+            first = self.review("a", 1, 8.6)
+            first["blockers"]["mystery_blocker"] = True
             execution, review = self.write_inputs(temp, [first, self.review("b", 2, 8.6)])
-            with self.assertRaisesRegex(ValueError, "unknown review blockers"):
+            with self.assertRaisesRegex(ValueError, "blocker schema mismatch"):
                 evaluate(str(execution), str(review))
 
 
