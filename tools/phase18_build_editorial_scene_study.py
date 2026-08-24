@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the PUL7SAR transfer composition study v4 for human visual review."""
+"""Build PUL7SAR transfer composition study v5 for human visual review."""
 from __future__ import annotations
 
 import argparse
@@ -38,16 +38,12 @@ def build(output_dir: str) -> dict[str, object]:
     )
     VisualStudyHandoffCompiler.verify(handoff)
 
-    output = root / "pul7sar-transfer-study-v4-reference-brand.png"
+    output = root / "pul7sar-transfer-study-v5-reference-brand.png"
     receipt = EditorialReferenceSceneStudyRenderer().render(
-        handoff,
-        output_path=str(output),
-        accent_hex="#034694",
-        font_path=str(font),
-        seed=7007,
+        handoff, output_path=str(output), accent_hex="#034694", font_path=str(font), seed=7007,
     )
     manifest = {
-        "manifest_version": "pul7sar-editorial-scene-study-v4-reference-brand",
+        "manifest_version": "pul7sar-editorial-scene-study-v5-reference-brand",
         "renderer_contract": receipt.contract,
         "benchmark_id": "transfer-signature-v1",
         "png": output.name,
@@ -67,6 +63,7 @@ def build(output_dir: str) -> dict[str, object]:
         "brand_source_mode": receipt.brand_source_mode,
         "embedded_bundle_sha256": receipt.embedded_bundle_sha256,
         "approximate_brand_zone_removed": receipt.approximate_brand_zone_removed,
+        "identity_shelf_used": receipt.identity_shelf_used,
         "exact_reference_shape_used": receipt.exact_reference_shape_used,
         "transparent_reference_layers_used": receipt.transparent_reference_layers_used,
         "final_brand_font_recreation_used": receipt.final_brand_font_recreation_used,
@@ -80,10 +77,7 @@ def build(output_dir: str) -> dict[str, object]:
         "verified_subject_asset_still_required_for_real_transfer_publication": True,
         "human_visual_review_required": True,
     }
-    (root / "manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    (root / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     return manifest
 
 
