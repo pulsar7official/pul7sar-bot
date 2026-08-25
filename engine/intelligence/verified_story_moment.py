@@ -1,9 +1,10 @@
 """Verified story-moment assets for premium photo-led editorial concepts.
 
 A story moment is stronger than generic atmosphere: it may depict the actual
-match/celebration/arrival that the article is about. Because it can contain real
-people, it must carry explicit identity verification references and publication
-rights. This path never treats an arbitrary context photo as event evidence.
+match, decisive action, celebration, arrival or verified detail that the article
+is about. A MATCH_ACTION is explicitly allowed to be real match evidence without
+claiming it depicts the decisive goal. Person-bearing moments require identity
+references, rights and checksum provenance.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from pathlib import Path
 
 
 class StoryMomentKind(str, Enum):
+    MATCH_ACTION = "match_action"
     DECISIVE_ACTION = "decisive_action"
     CELEBRATION = "celebration"
     ARRIVAL = "arrival"
