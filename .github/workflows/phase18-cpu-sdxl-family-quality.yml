@@ -18,6 +18,7 @@ on:
       - 'engine/intelligence/brand_reference_renderer.py'
       - 'engine/intelligence/brand_embedded_master.py'
       - 'tests/test_phase18_hybrid_family_compositor.py'
+      - 'tests/test_phase18_original_scene_archetype_profiles.py'
       - '.github/workflows/phase18-cpu-sdxl-family-quality.yml'
 
 permissions:
@@ -51,11 +52,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Verify hybrid compositor ownership
+      - name: Verify hybrid ownership and archetype coverage
         run: |
           python -m pip install --upgrade pip
           python -m pip install Pillow
-          python -m unittest -v tests.test_phase18_hybrid_family_compositor
+          python -m unittest -v \
+            tests.test_phase18_hybrid_family_compositor \
+            tests.test_phase18_original_scene_archetype_profiles
       - name: Install CPU SDXL runtime
         run: |
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
