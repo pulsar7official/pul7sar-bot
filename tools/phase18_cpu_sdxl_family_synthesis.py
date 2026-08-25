@@ -1,9 +1,9 @@
 """Generate one higher-quality original scene for a selected editorial family.
 
-This benchmark-only path uses SDXL Turbo on a public GitHub CPU runner. A selected
-CrossFamilyVisualSystem archetype may alter the camera/environment grammar so
-anti-repetition decisions become visible in generated pixels, while all exact
-identity/data/branding layers remain outside generation.
+This benchmark-only path uses SDXL Turbo on a public GitHub CPU runner. The
+selected archetype changes camera/environment grammar in generated pixels while
+exact identity/data/branding remain outside generation. Prompts are compiled
+against SDXL's short CLIP context before inference and fail closed on overflow.
 """
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ import torch
 from diffusers import AutoPipelineForText2Image
 
 from engine.intelligence.generation_prompt_budget import GenerationPromptBudget
-from engine.intelligence.original_scene_archetype_profiles import OriginalSceneArchetypeProfileRegistry
 from engine.intelligence.original_scene_prompt_profiles import OriginalScenePromptProfileRegistry
 from engine.intelligence.pre_generation_scene_lock import PreGenerationSceneLockRegistry
+from engine.intelligence.sdxl_compact_prompt import SDXLCompactPromptCompiler
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
 
 MODEL = os.environ.get("PUL7SAR_SDXL_T2I_MODEL", "stabilityai/sdxl-turbo")
@@ -34,7 +34,7 @@ SEEDS = {
 def parse() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--family", required=True, choices=[f.value for f in SEEDS])
-    p.add_argument("--archetype", default="")
+    p.add_argument("--archetype", required=True)
     p.add_argument("--out-dir", required=True)
     p.add_argument("--width", type=int, default=512)
     p.add_argument("--height", type=int, default=640)
@@ -52,12 +52,8 @@ def main() -> None:
 
     profile = OriginalScenePromptProfileRegistry.get(family)
     lock = PreGenerationSceneLockRegistry.get(family)
-    archetype_id = q.archetype.strip()
-    archetype_prompt = ""
-    if archetype_id:
-        archetype = OriginalSceneArchetypeProfileRegistry.get(family, archetype_id)
-        archetype_prompt = " " + archetype.atmosphere_prompt
-    prompt = PreGenerationSceneLockRegistry.locked_prompt(family, profile.prompt + archetype_prompt)
+    compact = SDXLCompactPromptCompiler.compile(family, q.archetype.strip())
+    prompt = compact.prompt
 
     pipe = AutoPipelineForText2Image.from_pretrained(
         q.model,
@@ -96,9 +92,10 @@ def main() -> None:
     image_path = out / f"{family.value}.png"
     image.save(image_path)
     manifest = {
-        "contract": "pul7sar-sdxl-family-synthesis-v2-archetype-aware",
+        "contract": "pul7sar-sdxl-family-synthesis-v3-compact-archetype",
+        "prompt_contract": compact.contract,
         "family": family.value,
-        "archetype_id": archetype_id or None,
+        "archetype_id": compact.archetype_id,
         "model": q.model,
         "device": "cpu",
         "cost_mode": "$0-github-public-runner",
