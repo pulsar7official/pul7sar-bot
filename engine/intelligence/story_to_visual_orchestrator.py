@@ -95,9 +95,12 @@ class StoryToVisualOrchestrator:
         if score_margin is not None:
             if isinstance(score_margin, bool) or not isinstance(score_margin, int):
                 raise TypeError("metadata.score_margin must be an integer")
+        # Original scene synthesis is a concept-level capability, not an Event-only
+        # shortcut. Results may request it explicitly; Event Editorial remains
+        # original-atmosphere by default unless metadata disables generation.
         safe_generated_context = (
-            family is EditorialSceneFamily.EVENT_EDITORIAL
-            and metadata.get("allow_generated_context", True) is not False
+            (family is EditorialSceneFamily.EVENT_EDITORIAL and metadata.get("allow_generated_context", True) is not False)
+            or self._flag(metadata, "allow_original_scene_generation")
         )
         return VisualConceptSignals(
             verified_subject_asset=verified_subject,
