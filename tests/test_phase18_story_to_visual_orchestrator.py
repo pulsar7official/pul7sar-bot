@@ -1,5 +1,6 @@
 import unittest
 
+from engine.intelligence.concept_renderer_registry import ConceptRendererStatus
 from engine.intelligence.editorial_headline_grammar import HeadlineTone
 from engine.intelligence.scene_complexity_policy import SurfaceVisibility
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualOrchestrator, VerifiedEditorialStory
@@ -34,9 +35,23 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertEqual(decision.visual_anchor, "result")
         self.assertEqual(decision.visual_grammar.surface_visibility, SurfaceVisibility.PARTIAL_DETERMINISTIC)
         self.assertEqual(decision.visual_grammar.camera_language, CameraLanguage.GRAPHIC_FRONT)
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.SCORE_MONUMENT)
+        self.assertEqual(decision.concept_renderer.status, ConceptRendererStatus.IMPLEMENTED)
+        self.assertEqual(decision.concept_renderer.renderer_class, 'PremiumHybridResultStudyRenderer')
         self.assertEqual(decision.execution_route.route, PixelExecutionRoute.HYBRID_GENERATIVE)
         self.assertTrue(decision.execution_route.generator_required)
         self.assertTrue(decision.execution_route.provider_selection_allowed)
+
+    def test_verified_decisive_moment_routes_to_photo_led_result_renderer(self):
+        decision = self.engine.decide(self.story(metadata={
+            "verified_action_photo": True,
+            "decisive_moment_known": True,
+            "exact_club_assets": True,
+        }))
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.DECISIVE_MOMENT)
+        self.assertEqual(decision.concept_renderer.status, ConceptRendererStatus.IMPLEMENTED)
+        self.assertEqual(decision.concept_renderer.renderer_class, 'MomentLedResultRenderer')
+        self.assertIn('verified_story_moment', decision.concept_renderer.required_asset_roles)
 
     def test_football_geometry_is_explicit_and_not_left_to_diffusion(self):
         decision = self.engine.decide(self.story())
@@ -58,6 +73,8 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertEqual(decision.visual_grammar.surface_visibility, SurfaceVisibility.FULL_DETERMINISTIC)
         self.assertEqual(decision.visual_grammar.camera_language, CameraLanguage.TACTICAL_TOP)
         self.assertEqual(decision.visual_grammar.generated_elements, ())
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.TACTICAL_SPATIAL_MAP)
+        self.assertEqual(decision.concept_renderer.status, ConceptRendererStatus.IMPLEMENTED)
         self.assertEqual(decision.execution_route.route, PixelExecutionRoute.DETERMINISTIC_ONLY)
         self.assertFalse(decision.execution_route.generator_required)
         self.assertFalse(decision.execution_route.provider_selection_allowed)
@@ -85,6 +102,9 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertIn("non-identifying", decision.visual_concept.hero)
         self.assertIn("specific real venue identity without verified context", decision.visual_concept.forbidden_motifs)
         self.assertFalse(decision.visual_concept.metadata["publication_ready"])
+        self.assertEqual(decision.concept_renderer.status, ConceptRendererStatus.CONTRACT_ONLY)
+        self.assertTrue(decision.concept_renderer.generator_required)
+        self.assertFalse(decision.concept_renderer.network_required)
 
     def test_general_event_can_explicitly_disable_generated_context(self):
         decision = self.engine.decide(self.story(
@@ -96,6 +116,7 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
             metadata={"allow_generated_context": False},
         ))
         self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL)
+        self.assertEqual(decision.concept_renderer.status, ConceptRendererStatus.IMPLEMENTED)
 
     def test_low_confidence_falls_back_to_verified_assets(self):
         decision = self.engine.decide(self.story(confidence=0.60))
