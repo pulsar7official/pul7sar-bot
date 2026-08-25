@@ -1,0 +1,148 @@
+"""Concept-level renderer routing for PUL7SAR premium visuals.
+
+Family selection is too coarse for high-end art direction. This registry maps the
+visual idea chosen by VisualConceptDirector to an explicit pixel implementation.
+No concept may silently fall back to another concept's renderer.
+"""
+from __future__ import annotations
+
+from dataclasses import dataclass
+from enum import Enum
+from types import MappingProxyType
+from typing import Mapping
+
+from engine.intelligence.visual_concept_director import VisualConceptArchetype
+
+
+class ConceptRendererStatus(str, Enum):
+    IMPLEMENTED = "implemented"
+    CONTRACT_ONLY = "contract_only"
+
+
+class ConceptSurfaceClass(str, Enum):
+    PHOTO_LED = "photo_led"
+    PREMIUM_HYBRID = "premium_hybrid"
+    VERIFIED_ASSET_LED = "verified_asset_led"
+    DETERMINISTIC_INFORMATION = "deterministic_information"
+    MINIMAL_EDITORIAL = "minimal_editorial"
+
+
+@dataclass(frozen=True)
+class ConceptRendererCapability:
+    archetype: VisualConceptArchetype
+    status: ConceptRendererStatus
+    surface_class: ConceptSurfaceClass
+    renderer_module: str | None
+    renderer_class: str | None
+    renderer_contract: str | None
+    required_asset_roles: tuple[str, ...]
+    generator_required: bool = False
+    network_required: bool = False
+    publication_ready: bool = False
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.archetype, VisualConceptArchetype):
+            raise TypeError("archetype must be VisualConceptArchetype")
+        if not isinstance(self.status, ConceptRendererStatus):
+            raise TypeError("status must be ConceptRendererStatus")
+        if not isinstance(self.surface_class, ConceptSurfaceClass):
+            raise TypeError("surface_class must be ConceptSurfaceClass")
+        object.__setattr__(self, "required_asset_roles", tuple(self.required_asset_roles))
+        if self.status is ConceptRendererStatus.IMPLEMENTED:
+            if not all((self.renderer_module, self.renderer_class, self.renderer_contract)):
+                raise ValueError("IMPLEMENTED_CONCEPT_REQUIRES_EXPLICIT_RENDERER")
+        elif any((self.renderer_module, self.renderer_class, self.renderer_contract)):
+            raise ValueError("CONTRACT_ONLY_CONCEPT_MAY_NOT_CLAIM_RENDERER")
+        if self.generator_required or self.network_required:
+            raise ValueError("CONCEPT_REGISTRY_CORE_MUST_REMAIN_ZERO_COST_LOCAL")
+        if self.publication_ready:
+            raise ValueError("CONCEPT_CAPABILITY_ALONE_CANNOT_AUTHORIZE_PUBLICATION")
+
+
+class ConceptRendererRegistry:
+    VERSION = "pul7sar-concept-renderer-registry-v1"
+
+    def __init__(self) -> None:
+        implemented = ConceptRendererStatus.IMPLEMENTED
+        contract = ConceptRendererStatus.CONTRACT_ONLY
+        entries = {
+            VisualConceptArchetype.HERO_ARRIVAL: ConceptRendererCapability(
+                VisualConceptArchetype.HERO_ARRIVAL, implemented, ConceptSurfaceClass.VERIFIED_ASSET_LED,
+                "engine.intelligence.editorial_reference_scene_study_renderer", "EditorialReferenceSceneStudyRenderer",
+                "pul7sar-editorial-reference-scene-study-renderer-v6-adaptive-brand",
+                ("verified_subject_asset", "embedded_pul7sar_brand_master"),
+            ),
+            VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL: ConceptRendererCapability(
+                VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL, contract, ConceptSurfaceClass.MINIMAL_EDITORIAL,
+                None, None, None, ("exact_club_object_or_context",),
+            ),
+            VisualConceptArchetype.DECISIVE_MOMENT: ConceptRendererCapability(
+                VisualConceptArchetype.DECISIVE_MOMENT, implemented, ConceptSurfaceClass.PHOTO_LED,
+                "engine.intelligence.moment_led_result_renderer", "MomentLedResultRenderer",
+                "pul7sar-moment-led-result-renderer-v1",
+                ("verified_story_moment", "exact_score", "exact_club_assets"),
+            ),
+            VisualConceptArchetype.CELEBRATION_MOMENT: ConceptRendererCapability(
+                VisualConceptArchetype.CELEBRATION_MOMENT, implemented, ConceptSurfaceClass.PHOTO_LED,
+                "engine.intelligence.moment_led_result_renderer", "MomentLedResultRenderer",
+                "pul7sar-moment-led-result-renderer-v1",
+                ("verified_story_moment", "exact_score", "exact_club_assets"),
+            ),
+            VisualConceptArchetype.SCORE_MONUMENT: ConceptRendererCapability(
+                VisualConceptArchetype.SCORE_MONUMENT, implemented, ConceptSurfaceClass.PREMIUM_HYBRID,
+                "engine.intelligence.premium_hybrid_result_runtime_v5", "PremiumHybridResultStudyRenderer",
+                "pul7sar-premium-hybrid-result-study-renderer-v2-metallic-depth",
+                ("exact_score", "exact_club_assets", "verified_context_photo_optional"),
+            ),
+            VisualConceptArchetype.VERIFIED_PORTRAIT: ConceptRendererCapability(
+                VisualConceptArchetype.VERIFIED_PORTRAIT, implemented, ConceptSurfaceClass.VERIFIED_ASSET_LED,
+                "engine.intelligence.verified_subject_news_study_renderer", "VerifiedSubjectNewsStudyRenderer",
+                "pul7sar-verified-subject-news-study-renderer-v1-asset-first",
+                ("verified_subject_asset", "verified_identity_plan"),
+            ),
+            VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL: ConceptRendererCapability(
+                VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL, contract, ConceptSurfaceClass.PHOTO_LED,
+                None, None, None, ("verified_detail_asset",),
+            ),
+            VisualConceptArchetype.TACTICAL_SPATIAL_MAP: ConceptRendererCapability(
+                VisualConceptArchetype.TACTICAL_SPATIAL_MAP, implemented, ConceptSurfaceClass.DETERMINISTIC_INFORMATION,
+                "engine.intelligence.tactical_intelligence_study_renderer", "TacticalIntelligenceStudyRenderer",
+                "pul7sar-tactical-intelligence-study-renderer-v1",
+                ("exact_tactical_data",),
+            ),
+            VisualConceptArchetype.DATA_MONOLITH: ConceptRendererCapability(
+                VisualConceptArchetype.DATA_MONOLITH, implemented, ConceptSurfaceClass.DETERMINISTIC_INFORMATION,
+                "engine.intelligence.data_monument_study_renderer", "DataMonumentStudyRenderer",
+                "pul7sar-data-monument-study-renderer-v1-premium",
+                ("exact_data_anchor",),
+            ),
+            VisualConceptArchetype.PHOTOGRAPHIC_EVENT: ConceptRendererCapability(
+                VisualConceptArchetype.PHOTOGRAPHIC_EVENT, implemented, ConceptSurfaceClass.PHOTO_LED,
+                "engine.intelligence.event_editorial_runtime_v2", "EventEditorialStudyRenderer",
+                "pul7sar-event-editorial-study-renderer-v1-premium-anchor",
+                ("verified_context_photo",),
+            ),
+            VisualConceptArchetype.MINIMAL_EVENT_SYMBOL: ConceptRendererCapability(
+                VisualConceptArchetype.MINIMAL_EVENT_SYMBOL, implemented, ConceptSurfaceClass.MINIMAL_EDITORIAL,
+                "engine.intelligence.event_editorial_runtime_v2", "EventEditorialStudyRenderer",
+                "pul7sar-event-editorial-study-renderer-v1-premium-anchor",
+                (),
+            ),
+        }
+        if set(entries) != set(VisualConceptArchetype):
+            raise RuntimeError("CONCEPT_RENDERER_REGISTRY_COVERAGE_DRIFT")
+        self._entries: Mapping[VisualConceptArchetype, ConceptRendererCapability] = MappingProxyType(entries)
+
+    def get(self, archetype: VisualConceptArchetype) -> ConceptRendererCapability:
+        if not isinstance(archetype, VisualConceptArchetype):
+            raise TypeError("archetype must be VisualConceptArchetype")
+        return self._entries[archetype]
+
+    def require_implemented(self, archetype: VisualConceptArchetype) -> ConceptRendererCapability:
+        capability = self.get(archetype)
+        if capability.status is not ConceptRendererStatus.IMPLEMENTED:
+            raise ValueError(f"VISUAL_CONCEPT_RENDERER_NOT_IMPLEMENTED:{archetype.value}")
+        return capability
+
+    def snapshot(self) -> tuple[ConceptRendererCapability, ...]:
+        return tuple(self._entries[item] for item in VisualConceptArchetype)
