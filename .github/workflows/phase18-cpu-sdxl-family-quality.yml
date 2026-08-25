@@ -1,0 +1,73 @@
+name: Phase 18 CPU SDXL Family Quality Benchmark
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+    paths:
+      - 'tools/phase18_cpu_sdxl_family_synthesis.py'
+      - 'engine/intelligence/original_scene_prompt_profiles.py'
+      - 'engine/intelligence/pre_generation_scene_lock.py'
+      - 'engine/intelligence/generation_prompt_budget.py'
+      - '.github/workflows/phase18-cpu-sdxl-family-quality.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  synthesize-family:
+    strategy:
+      fail-fast: false
+      matrix:
+        family:
+          - transfer_signature
+          - result_statement
+          - verified_subject_news
+          - data_monument
+          - event_editorial
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install CPU SDXL runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
+      - name: Generate family quality candidate
+        run: |
+          python tools/phase18_cpu_sdxl_family_synthesis.py \
+            --family '${{ matrix.family }}' \
+            --out-dir 'out/${{ matrix.family }}' \
+            --width 512 --height 640 --steps 4
+          test -s 'out/${{ matrix.family }}/${{ matrix.family }}.png'
+          test -s 'out/${{ matrix.family }}/manifest.json'
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          family=os.environ['FAMILY']
+          m=json.loads(Path(f'out/{family}/manifest.json').read_text())
+          assert m['contract']=='pul7sar-sdxl-family-synthesis-v1'
+          assert m['family']==family
+          assert m['sport_lock']=='association_football'
+          assert m['publication_ready'] is False
+          assert m['model']=='stabilityai/sdxl-turbo'
+          assert len(m['prompt_budgets']) >= 1
+          PY
+        env:
+          FAMILY: ${{ matrix.family }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase18-sdxl-${{ matrix.family }}
+          path: out/${{ matrix.family }}/
+          if-no-files-found: error
+          retention-days: 3
