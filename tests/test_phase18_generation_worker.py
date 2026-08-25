@@ -70,7 +70,11 @@ class MemoryStore:
 
 
 class SuccessExecutor:
+    def __init__(self):
+        self.calls = 0
+
     def execute(self, job):
+        self.calls += 1
         return WorkerExecutionResult(
             request_id=job.request_id,
             payload_sha256=job.payload_sha256,
@@ -121,6 +125,56 @@ class GenerationWorkerTests(unittest.TestCase):
         self.assertIs(store.job.state, GenerationJobState.SUCCEEDED)
         self.assertEqual(store.job.attempt, 1)
         self.assertEqual(store.job.result_path, "output/phase18_visual_proof/candidate-01.png")
+
+    def test_lease_bound_guard_runs_after_lease_before_running_and_executor(self):
+        store = MemoryStore(make_job())
+        executor = SuccessExecutor()
+        observed: list[tuple[GenerationJobState, int]] = []
+
+        def guard(job):
+            observed.append((job.state, job.attempt))
+            self.assertIs(job.state, GenerationJobState.LEASED)
+            self.assertEqual(executor.calls, 0)
+
+        service = GenerationWorkerService(
+            store=store,
+            executor=executor,
+            capabilities=make_caps(),
+            pre_execute_guard=guard,
+        )
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "succeeded")
+        self.assertEqual(observed, [(GenerationJobState.LEASED, 0)])
+        self.assertEqual(executor.calls, 1)
+        states = [item.state for item in store.history]
+        self.assertLess(states.index(GenerationJobState.LEASED), states.index(GenerationJobState.RUNNING))
+
+    def test_guard_failure_requeues_without_executor_or_attempt_consumption(self):
+        store = MemoryStore(make_job(max_attempts=3))
+        executor = SuccessExecutor()
+
+        def blocked(_job):
+            raise RuntimeError("live free VRAM fell below required floor")
+
+        service = GenerationWorkerService(
+            store=store,
+            executor=executor,
+            capabilities=make_caps(),
+            pre_execute_guard=blocked,
+        )
+        cycle = service.run_once(now=NOW)
+
+        self.assertEqual(cycle.status, "requeued")
+        self.assertEqual(executor.calls, 0)
+        self.assertIs(store.job.state, GenerationJobState.QUEUED)
+        self.assertEqual(store.job.attempt, 0)
+        self.assertIsNone(store.job.lease_owner)
+        self.assertIsNone(store.job.lease_expires_at)
+        failures = [item for item in store.history if item.state is GenerationJobState.RETRYABLE_FAILED]
+        self.assertEqual(len(failures), 1)
+        self.assertEqual(failures[0].failure_code, "pre_execute_guard_blocked")
+        self.assertIn("live free VRAM", failures[0].failure_detail)
 
     def test_result_identity_drift_is_terminal_and_never_requeued(self):
         store = MemoryStore(make_job())
