@@ -19,10 +19,13 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertNotIn("pull_request:", self.text)
         self.assertNotIn("runs-on: ubuntu", self.text)
 
-    def test_dispatch_sha_is_immutable_and_main_isolation_check_cannot_silently_skip(self):
+    def test_dispatch_sha_is_immutable_and_main_isolation_check_has_complete_ancestry(self):
         self.assertIn('DISPATCH_SHA: ${{ github.sha }}', self.text)
         self.assertIn('test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"', self.text)
-        self.assertIn("git fetch --no-tags --depth=2048 origin main:refs/remotes/origin/main", self.text)
+        self.assertIn("fetch-depth: 0", self.text)
+        self.assertNotIn("fetch-depth: 1", self.text)
+        self.assertIn("git fetch --no-tags origin main:refs/remotes/origin/main", self.text)
+        self.assertNotIn("git fetch --no-tags --depth=", self.text)
         self.assertIn('base="$(git merge-base origin/main HEAD)"', self.text)
         self.assertIn('if [ -z "$base" ]', self.text)
         self.assertIn('git diff --name-only "$base"...HEAD', self.text)
