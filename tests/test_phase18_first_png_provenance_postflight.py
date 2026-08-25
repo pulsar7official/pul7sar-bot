@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_REVISION
 from engine.intelligence.first_png_provenance_postflight import FirstPngProvenancePostflight
 from engine.intelligence.generation_jobs import GenerationJob, GenerationJobState
 from engine.intelligence.golden_smoke import GoldenSmokeCandidate
@@ -21,6 +22,7 @@ class FirstPngProvenancePostflightTests(unittest.TestCase):
             "request_id": "golden-v5-candidate-01",
             "seed": 7007001,
             "model": "black-forest-labs/FLUX.2-klein-4B",
+            "model_revision": FLUX2_KLEIN_4B_REVISION,
             "cost_mode": "$0-local",
             "output_ref": str(proof),
         }), encoding="utf-8")
