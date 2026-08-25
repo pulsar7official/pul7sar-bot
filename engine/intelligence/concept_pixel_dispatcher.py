@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from importlib import import_module
-from typing import type
 
 from engine.intelligence.concept_renderer_registry import ConceptRendererCapability, ConceptRendererRegistry
 from engine.intelligence.final_visual_execution import FinalVisualExecutionDecision, FinalVisualExecutionGate
@@ -54,9 +53,6 @@ class ConceptPixelDispatcher:
 
     @staticmethod
     def _declared_contract(renderer_type: type) -> str | None:
-        # Most Phase 18 renderers declare the receipt contract on their receipt
-        # rather than class. Import validation therefore verifies class identity;
-        # contract identity remains registry-owned and is checked on output receipt.
         value = getattr(renderer_type, "CONTRACT", None)
         return value if isinstance(value, str) and value.strip() else None
 
@@ -67,10 +63,7 @@ class ConceptPixelDispatcher:
         lower_level_route: VisualExecutionDecision,
     ) -> ConceptPixelBinding:
         capability = self._registry.get(archetype)
-        final = self._execution.resolve(
-            capability=capability,
-            lower_level_route=lower_level_route,
-        )
+        final = self._execution.resolve(capability=capability, lower_level_route=lower_level_route)
         if not final.execution_allowed:
             raise ValueError(
                 "VISUAL_CONCEPT_PIXEL_DISPATCH_BLOCKED:"
