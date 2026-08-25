@@ -69,8 +69,8 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertNotIn("runpod", lowered)
         self.assertNotIn("openai", lowered)
 
-    def test_replays_bootstrap_host_evidence_and_review_png_hashes(self):
-        self.assertIn("pul7sar-first-golden-colab-bootstrap-v3", self.text)
+    def test_replays_bootstrap_host_evidence_free_vram_and_review_png_hashes(self):
+        self.assertIn("pul7sar-first-golden-colab-bootstrap-v4", self.text)
         self.assertIn("FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY", self.text)
         self.assertIn("bootstrap_evidence", self.text)
         self.assertIn("repository_integrity", self.text)
@@ -80,8 +80,14 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertIn("sealed_review_receipt", self.text)
         self.assertIn('receipt.get("gpu_host_eligible") is not True', self.text)
         self.assertIn('receipt.get("native_bf16_proven") is not True', self.text)
+        self.assertIn('receipt.get("live_free_vram_proven") is not True', self.text)
+        self.assertIn('receipt.get("gpu_free_vram_gb")', self.text)
+        self.assertIn('receipt.get("required_vram_gb")', self.text)
         self.assertIn('host.get("eligible") is not True', self.text)
         self.assertIn('host.get("bf16_supported") is not True', self.text)
+        self.assertIn('host.get("gpu_free_vram_gb")', self.text)
+        self.assertIn('host.get("required_vram_gb")', self.text)
+        self.assertIn('policy.get("requires_live_free_vram") is not True', self.text)
         self.assertIn('host.get("model_id") != "black-forest-labs/FLUX.2-klein-4B"', self.text)
         self.assertIn("review_base_png_sha256", self.text)
         self.assertIn("review_hybrid_png_sha256", self.text)
