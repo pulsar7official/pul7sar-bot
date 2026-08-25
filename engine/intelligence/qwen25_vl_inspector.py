@@ -9,7 +9,8 @@ The Colab/T4 profile is deliberately conservative: inspection images are resized
 for semantic QA and generation is capped to a short JSON answer. Qwen inference
 runs in a fresh spawned subprocess by default so CUDA/model memory is reclaimed
 between semantic stages and a native crash/kill becomes an explicit inspection
-failure instead of taking down the Golden orchestration process.
+failure instead of taking down the Golden orchestration process. The semantic
+model repository is pinned to an immutable approved upstream commit revision.
 """
 from __future__ import annotations
 
@@ -21,10 +22,16 @@ from pathlib import Path
 import tempfile
 from typing import Any
 
+from engine.intelligence.approved_model_revisions import (
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+    assert_full_commit_sha,
+)
 from engine.intelligence.semantic_visual_verdict import InspectionState, SemanticCheck, SemanticVisualVerdict
 
-MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
-VERIFIER_ID = "qwen2.5-vl-3b-local-v5-isolated-t4"
+MODEL_ID = QWEN25_VL_3B_MODEL_ID
+MODEL_REVISION = QWEN25_VL_3B_REVISION
+VERIFIER_ID = "qwen2.5-vl-3b-local-v6-revision-pinned-isolated-t4"
 
 
 class Qwen25VLInspectionError(RuntimeError):
@@ -39,6 +46,7 @@ class SemanticInspectionStage(str, Enum):
 @dataclass(frozen=True)
 class Qwen25VLConfig:
     model_id: str = MODEL_ID
+    model_revision: str = MODEL_REVISION
     max_new_tokens: int = 256
     minimum_self_confidence: float = 0.85
     max_image_edge: int = 768
@@ -115,6 +123,7 @@ def _isolated_inspection_worker(
     try:
         config = Qwen25VLConfig(
             model_id=str(config_payload["model_id"]),
+            model_revision=str(config_payload["model_revision"]),
             max_new_tokens=int(config_payload["max_new_tokens"]),
             minimum_self_confidence=float(config_payload["minimum_self_confidence"]),
             max_image_edge=int(config_payload["max_image_edge"]),
@@ -157,12 +166,21 @@ class Qwen25VLSemanticInspector:
             return self._pipeline
         if not self.dependencies_available():
             raise Qwen25VLInspectionError("Qwen semantic inspection dependencies are unavailable")
+        if self.config.model_id != MODEL_ID:
+            raise Qwen25VLInspectionError("semantic model id drift from approved Qwen runtime")
+        try:
+            revision = assert_full_commit_sha(self.config.model_revision, label="Qwen semantic model revision")
+        except ValueError as exc:
+            raise Qwen25VLInspectionError(str(exc)) from exc
+        if revision != MODEL_REVISION:
+            raise Qwen25VLInspectionError("semantic model revision drift from approved Qwen runtime")
         try:
             import torch
             from transformers import pipeline
             self._pipeline = pipeline(
                 "image-text-to-text",
                 model=self.config.model_id,
+                revision=revision,
                 device_map="auto",
                 torch_dtype=torch.float16 if torch.cuda.is_available() else "auto",
             )
@@ -314,6 +332,7 @@ Pass sport_geometry_alignment_valid only when the final surface has plausible pr
         timeout = max(30, int(self.config.process_timeout_seconds))
         config_payload = {
             "model_id": self.config.model_id,
+            "model_revision": self.config.model_revision,
             "max_new_tokens": self.config.max_new_tokens,
             "minimum_self_confidence": self.config.minimum_self_confidence,
             "max_image_edge": self.config.max_image_edge,
