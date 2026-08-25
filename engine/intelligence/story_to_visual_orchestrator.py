@@ -88,8 +88,9 @@ class StoryToVisualOrchestrator:
             or any("verified_subject" in value or "verified_player" in value for value in exact_assets)
         )
         verified_action = self._flag(metadata, "verified_action_photo")
+        verified_match = self._flag(metadata, "verified_match_photo")
         verified_celebration = self._flag(metadata, "verified_celebration_photo")
-        verified_subject = verified_subject or verified_action or verified_celebration
+        verified_subject = verified_subject or verified_action or verified_match or verified_celebration
         score_margin = metadata.get("score_margin")
         if score_margin is not None:
             if isinstance(score_margin, bool) or not isinstance(score_margin, int):
@@ -101,6 +102,7 @@ class StoryToVisualOrchestrator:
         return VisualConceptSignals(
             verified_subject_asset=verified_subject,
             verified_action_photo=verified_action,
+            verified_match_photo=verified_match,
             verified_celebration_photo=verified_celebration,
             verified_context_photo=self._flag(metadata, "verified_context_photo"),
             verified_detail_asset=self._flag(metadata, "verified_detail_asset"),
@@ -172,10 +174,7 @@ class StoryToVisualOrchestrator:
 
         grammar = self._grammar.direct(plan)
         sports_scene = self._scene.direct(story.event, grammar)
-        visual_concept = self._concepts.direct(
-            sports_scene.family,
-            self._concept_signals(story, sports_scene.family),
-        )
+        visual_concept = self._concepts.direct(sports_scene.family, self._concept_signals(story, sports_scene.family))
         concept_renderer = self._concept_renderers.get(visual_concept.archetype)
         execution_route = self._execution.route(grammar)
 
