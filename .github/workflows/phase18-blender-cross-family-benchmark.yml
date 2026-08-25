@@ -29,10 +29,13 @@ jobs:
       - name: Render twelve original 3D scenes
         run: |
           set -euo pipefail
+          # Ubuntu 24.04 ships Blender 4 / AgX naming.
+          sed -i "s/sc.view_settings.look='Medium High Contrast'/sc.view_settings.look='AgX - Medium High Contrast'/" tools/phase18_blender_family_scene.py
           mkdir -p artifacts/phase18/blender-cross-family/base artifacts/phase18/blender-cross-family/final
           render() {
             family="$1"; variant="$2"; seed="$3"; a="$4"; b="$5"; slug="$6"
-            blender -b --python tools/phase18_blender_family_scene.py -- --family "$family" --variant "$variant" --seed "$seed" --accent-a "$a" --accent-b "$b" --output "artifacts/phase18/blender-cross-family/base/${slug}.png"
+            blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene.py -- --family "$family" --variant "$variant" --seed "$seed" --accent-a "$a" --accent-b "$b" --output "artifacts/phase18/blender-cross-family/base/${slug}.png"
+            test -s "artifacts/phase18/blender-cross-family/base/${slug}.png"
             python tools/phase18_brand_blender_scene.py --family "$family" --input "artifacts/phase18/blender-cross-family/base/${slug}.png" --output "artifacts/phase18/blender-cross-family/final/${slug}.png" --accent "#$a"
           }
           render transfer_signature a 7101 C90B22 174EA6 01-transfer-arrival
