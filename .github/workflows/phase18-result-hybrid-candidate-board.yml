@@ -11,6 +11,7 @@ on:
       - 'engine/intelligence/generated_base_provenance.py'
       - 'engine/intelligence/hybrid_final_composer.py'
       - 'engine/intelligence/hybrid_pixel_composer.py'
+      - 'engine/intelligence/visual_candidate_quality_gate.py'
       - 'engine/intelligence/original_scene_prompt_profiles.py'
       - 'engine/intelligence/pre_generation_scene_lock.py'
       - 'engine/intelligence/generation_prompt_budget.py'
@@ -55,8 +56,10 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/result-hybrid-board/manifest.json').read_text())
-          assert m['contract']=='pul7sar-result-hybrid-candidate-board-v1'
+          assert m['contract']=='pul7sar-result-hybrid-candidate-board-v2-pixel-health'
+          assert m['quality_gate_contract']=='pul7sar-visual-candidate-quality-gate-v1'
           assert m['candidate_count']==4
+          assert m['pixel_healthy_candidate_count'] >= 1
           assert all(c['provenance_verified'] for c in m['candidates'])
           assert m['exact_score']=='3-1'
           assert m['brand_applied'] is False
