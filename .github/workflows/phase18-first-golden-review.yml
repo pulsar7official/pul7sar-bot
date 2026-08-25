@@ -45,11 +45,13 @@ jobs:
             exit 4
           fi
 
-      - name: Checkout immutable dispatched Phase 18 commit
+      - name: Checkout immutable dispatched Phase 18 commit with complete ancestry
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          fetch-depth: 1
+          # merge-base isolation is fail-closed; a shallow Phase 18 checkout can make
+          # a valid shared ancestor with main unreachable on the runner.
+          fetch-depth: 0
 
       - name: Prove immutable checkout, branch isolation and canonical strict entrypoint
         shell: bash
@@ -64,8 +66,10 @@ jobs:
           test -f engine/intelligence/golden_original_scene_admission.py
           test -f engine/intelligence/first_golden_review_packet_integrity.py
 
-          # Fetch main read-only so the isolation check cannot silently disappear on a shallow checkout.
-          git fetch --no-tags --depth=2048 origin main:refs/remotes/origin/main
+          # Fetch main read-only. Full Phase 18 ancestry above is intentional: the
+          # branch is long-lived/diverged and merge-base must never depend on an
+          # arbitrary shallow-depth guess.
+          git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           if [ -z "$base" ]; then
             echo "Unable to establish merge-base with main; refusing GPU execution." >&2
