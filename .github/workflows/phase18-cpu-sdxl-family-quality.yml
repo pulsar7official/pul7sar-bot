@@ -69,7 +69,7 @@ jobs:
             --out-dir 'out/${{ matrix.family }}'
           test -s 'out/${{ matrix.family }}/${{ matrix.family }}-hybrid.png'
           test -s 'out/${{ matrix.family }}/hybrid-manifest.json'
-      - name: Verify synthesis and hybrid manifests
+      - name: Verify synthesis and fail-closed hybrid manifests
         run: |
           python - <<'PY'
           import hashlib, json, os
@@ -84,14 +84,19 @@ jobs:
           assert m['publication_ready'] is False
           assert m['model']=='stabilityai/sdxl-turbo'
           assert len(m['prompt_budgets']) >= 1
-          assert h['contract']=='pul7sar-hybrid-family-compositor-v1'
+          assert h['contract']=='pul7sar-hybrid-family-compositor-v2'
           assert h['family']==family
           assert h['exact_brand_used'] is True
           assert h['deterministic_facts_used'] is True
           assert h['fabricated_crest_used'] is False
           assert h['placeholder_used'] is False
-          assert h['generated_text_used'] is False
+          assert h['compositor_generated_text_used'] is False
           assert h['source_photo_used'] is False
+          assert h['base_scene_semantic_verified'] is False
+          assert h['base_scene_text_absence_verified'] is False
+          assert h['base_scene_identity_absence_verified'] is False
+          assert h['base_scene_geometry_absence_verified'] is False
+          assert h['semantic_gate_required_before_publication'] is True
           assert h['publication_ready'] is False
           png=root/h['png']
           assert png.is_file()
