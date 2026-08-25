@@ -10,6 +10,7 @@ from engine.intelligence.generated_base_provenance import GeneratedBaseProvenanc
 from engine.intelligence.hybrid_final_composer import HybridFinalComposer
 from engine.intelligence.hybrid_pixel_composer import HybridPixelComposer, HybridPixelRequest
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
+from engine.intelligence.visual_candidate_quality_gate import VisualCandidateQualityGate
 
 
 def parse():
@@ -62,34 +63,47 @@ def main():
             primary_value=q.score,
             generated_base_provenance=provenance,
         ))
+        quality = VisualCandidateQualityGate.inspect(str(output))
         composed.append({
             "seed": seed,
             "base": base.name,
             "output": output.name,
             "sha256": receipt.output_sha256,
             "provenance_verified": receipt.provenance_verified,
+            "pixel_health_passed": quality.passed,
+            "pixel_health_reasons": list(quality.reasons),
+            "mean_luma": quality.mean_luma,
+            "dark_fraction": quality.dark_fraction,
+            "bright_fraction": quality.bright_fraction,
+            "entropy": quality.entropy,
         })
-        images.append((seed, Image.open(output).convert("RGB")))
+        images.append((seed, quality.passed, Image.open(output).convert("RGB")))
 
-    w, h = images[0][1].size
+    if not any(c["pixel_health_passed"] for c in composed):
+        raise ValueError("ALL_RESULT_CANDIDATES_FAILED_PIXEL_HEALTH_GATE")
+
+    w, h = images[0][2].size
     cols = 2
     rows = (len(images) + cols - 1) // cols
     sheet = Image.new("RGB", (w * cols, h * rows), (10, 10, 10))
     font = ImageFont.load_default()
-    for i, (seed, image) in enumerate(images):
+    for i, (seed, passed, image) in enumerate(images):
         x = (i % cols) * w; y = (i // cols) * h
         sheet.paste(image, (x, y))
         d = ImageDraw.Draw(sheet)
-        d.rectangle((x, y, x + 138, y + 24), fill=(0, 0, 0))
-        d.text((x + 7, y + 6), f"hybrid seed {seed}", font=font, fill=(255, 255, 255))
+        label = f"seed {seed} | {'pixel-ok' if passed else 'reject'}"
+        d.rectangle((x, y, x + 190, y + 24), fill=(0, 0, 0))
+        d.text((x + 7, y + 6), label, font=font, fill=(255, 255, 255))
     sheet_path = out / "result_hybrid_candidate_board.jpg"
     sheet.save(sheet_path, quality=95)
 
     result = {
-        "contract": "pul7sar-result-hybrid-candidate-board-v1",
+        "contract": "pul7sar-result-hybrid-candidate-board-v2-pixel-health",
         "source_contract": payload.get("contract"),
+        "quality_gate_contract": "pul7sar-visual-candidate-quality-gate-v1",
         "family": family.value,
         "candidate_count": len(composed),
+        "pixel_healthy_candidate_count": sum(1 for c in composed if c["pixel_health_passed"]),
         "candidates": composed,
         "board": sheet_path.name,
         "exact_score": q.score,
