@@ -24,15 +24,31 @@ def parse():
     return p.parse_args()
 
 
+def _result_candidates(payload: dict) -> list[dict]:
+    if payload.get("contract") != "pul7sar-result-seed-sweep-v2-provenance":
+        raise ValueError(f"UNTRUSTED_RESULT_SWEEP_CONTRACT:{payload.get('contract')}")
+    scenes = payload.get("scenes")
+    if not isinstance(scenes, list):
+        raise ValueError("RESULT_SEED_SWEEP_SCENES_MISSING")
+    candidates = [s for s in scenes if s.get("family") == EditorialSceneFamily.RESULT_STATEMENT.value]
+    if not candidates:
+        raise ValueError("RESULT_SEED_SWEEP_HAS_NO_RESULT_SCENES")
+    names = [str(c.get("file", "")) for c in candidates]
+    if any(not name for name in names) or len(set(names)) != len(names):
+        raise ValueError("RESULT_SEED_SWEEP_FILE_BINDINGS_INVALID")
+    seeds = [c.get("seed") for c in candidates]
+    if any(seed is None for seed in seeds) or len(set(seeds)) != len(seeds):
+        raise ValueError("RESULT_SEED_SWEEP_SEEDS_INVALID")
+    return candidates
+
+
 def main():
     q = parse()
     seed_dir = Path(q.seed_dir)
     out = Path(q.output_dir); out.mkdir(parents=True, exist_ok=True)
     manifest_path = seed_dir / "manifest.json"
     payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-    candidates = payload.get("candidates", [])
-    if not candidates:
-        raise ValueError("RESULT_SEED_SWEEP_HAS_NO_CANDIDATES")
+    candidates = _result_candidates(payload)
 
     family = EditorialSceneFamily.RESULT_STATEMENT
     plan = HybridFinalComposer.compile(
@@ -98,7 +114,7 @@ def main():
     sheet.save(sheet_path, quality=95)
 
     result = {
-        "contract": "pul7sar-result-hybrid-candidate-board-v2-pixel-health",
+        "contract": "pul7sar-result-hybrid-candidate-board-v3-scene-contract",
         "source_contract": payload.get("contract"),
         "quality_gate_contract": "pul7sar-visual-candidate-quality-gate-v1",
         "family": family.value,
