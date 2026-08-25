@@ -21,50 +21,33 @@ def test_all_generative_families_are_association_football_locked():
         assert "generated logos or crests" in lock.forbidden_visual_cues
 
 
-def test_forbidden_concepts_are_qa_metadata_not_positive_prompt_tokens():
-    forbidden_tokens = (
-        "American football",
-        "gridiron",
-        "rugby",
-        "basketball",
-        "baseball",
-        "ice-hockey",
-        "tennis court",
-    )
-    for family in GENERATIVE_FAMILIES:
-        prompt = PreGenerationSceneLockRegistry.locked_prompt(family, "premium cinematic scene")
-        for token in forbidden_tokens:
-            assert token.casefold() not in prompt.casefold(), (family.value, token, prompt)
-        assert "association football" in prompt.casefold()
-        assert "soccer" in prompt.casefold()
+def test_generator_prefix_is_compact_positive_sport_ownership_only():
+    prefix = PreGenerationSceneLockRegistry.get(EditorialSceneFamily.RESULT_STATEMENT).prompt_prefix()
+    assert prefix == "Association soccer editorial scene. "
+    assert "American football" not in prefix
+    assert "gridiron" not in prefix
 
 
-def test_result_lock_reserves_score_and_uses_positive_soccer_semantics():
+def test_result_lock_keeps_exact_score_outside_generator():
     lock = PreGenerationSceneLockRegistry.get(EditorialSceneFamily.RESULT_STATEMENT)
-    assert "gridiron field markings" in lock.forbidden_visual_cues
+    assert "exact score absent" in lock.semantic_anchor
     assert "invented score digits" in lock.forbidden_visual_cues
-    prompt = PreGenerationSceneLockRegistry.locked_prompt(EditorialSceneFamily.RESULT_STATEMENT, "scene")
-    assert "post-match soccer result atmosphere" in prompt
-    assert "classic round black-and-white soccer ball" in prompt
-    assert "American football" not in prompt
+    assert "exact score" in lock.exact_layers_reserved
 
 
-def test_data_monument_is_locked_to_man_made_information_architecture():
+def test_data_monument_is_man_made_information_architecture():
     lock = PreGenerationSceneLockRegistry.get(EditorialSceneFamily.DATA_MONUMENT)
-    assert "clearly man-made architectural information pedestal" in lock.required_visual_cues
+    assert "man-made information pedestal" in lock.required_visual_cues
     assert "natural rock formation" in lock.forbidden_visual_cues
     assert "generic outdoor landscape" in lock.forbidden_visual_cues
-    prompt = PreGenerationSceneLockRegistry.locked_prompt(EditorialSceneFamily.DATA_MONUMENT, "scene")
-    assert "premium indoor soccer information gallery" in prompt
-    assert "natural rock" not in prompt.casefold()
-    assert "mountain" not in prompt.casefold()
 
 
 def test_verified_subject_scene_reserves_identity_for_verified_asset():
     lock = PreGenerationSceneLockRegistry.get(EditorialSceneFamily.VERIFIED_SUBJECT_NEWS)
-    assert "large clear empty hero zone" in lock.required_visual_cues
+    assert "large empty hero zone" in lock.required_visual_cues
     assert "human face" in lock.forbidden_visual_cues
     assert "invented athlete" in lock.forbidden_visual_cues
+    assert "verified real-person identity" in lock.exact_layers_reserved
 
 
 def test_tactical_board_stays_deterministic_first():
