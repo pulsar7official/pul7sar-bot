@@ -22,6 +22,7 @@ jobs:
       HF_HOME: ${{ github.workspace }}/.hf-cache
       HF_HUB_DISABLE_TELEMETRY: '1'
       TOKENIZERS_PARALLELISM: 'false'
+      PYTHONPATH: ${{ github.workspace }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
