@@ -9,6 +9,8 @@ on:
       - 'tools/phase18_cpu_sdxl_family_synthesis.py'
       - 'tools/phase18_build_sdxl_hybrid_candidate.py'
       - 'engine/intelligence/original_scene_prompt_profiles.py'
+      - 'engine/intelligence/original_scene_archetype_profiles.py'
+      - 'engine/intelligence/cross_family_visual_system.py'
       - 'engine/intelligence/pre_generation_scene_lock.py'
       - 'engine/intelligence/generation_prompt_budget.py'
       - 'engine/intelligence/hybrid_scene_contract.py'
@@ -26,12 +28,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        family:
-          - transfer_signature
-          - result_statement
-          - verified_subject_news
-          - data_monument
-          - event_editorial
+        include:
+          - family: transfer_signature
+            archetype: threshold_arrival
+          - family: result_statement
+            archetype: club_duel_space
+          - family: verified_subject_news
+            archetype: portrait_depth
+          - family: data_monument
+            archetype: number_sculpture
+          - family: event_editorial
+            archetype: anticipation_tunnel
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -53,10 +60,11 @@ jobs:
         run: |
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
-      - name: Generate family atmosphere candidate
+      - name: Generate archetype-aware family atmosphere candidate
         run: |
           python tools/phase18_cpu_sdxl_family_synthesis.py \
             --family '${{ matrix.family }}' \
+            --archetype '${{ matrix.archetype }}' \
             --out-dir 'out/${{ matrix.family }}' \
             --width 512 --height 640 --steps 4
           test -s 'out/${{ matrix.family }}/${{ matrix.family }}.png'
@@ -75,11 +83,13 @@ jobs:
           import hashlib, json, os
           from pathlib import Path
           family=os.environ['FAMILY']
+          archetype=os.environ['ARCHETYPE']
           root=Path(f'out/{family}')
           m=json.loads((root/'manifest.json').read_text())
           h=json.loads((root/'hybrid-manifest.json').read_text())
-          assert m['contract']=='pul7sar-sdxl-family-synthesis-v1'
+          assert m['contract']=='pul7sar-sdxl-family-synthesis-v2-archetype-aware'
           assert m['family']==family
+          assert m['archetype_id']==archetype
           assert m['sport_lock']=='association_football'
           assert m['publication_ready'] is False
           assert m['model']=='stabilityai/sdxl-turbo'
@@ -104,9 +114,10 @@ jobs:
           PY
         env:
           FAMILY: ${{ matrix.family }}
+          ARCHETYPE: ${{ matrix.archetype }}
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-sdxl-hybrid-${{ matrix.family }}
+          name: phase18-sdxl-hybrid-${{ matrix.family }}-${{ matrix.archetype }}
           path: out/${{ matrix.family }}/
           if-no-files-found: error
           retention-days: 7
