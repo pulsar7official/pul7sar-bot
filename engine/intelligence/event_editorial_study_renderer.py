@@ -1,10 +1,9 @@
 """Premium deterministic Event Editorial renderer for PUL7SAR Phase 18.
 
-General event stories receive one symbolic editorial anchor and cinematic depth,
-without forcing a person, football pitch, stadium, trophy or decorative stats.
-When a rights-verified photographic context is explicitly supplied for the story,
-it may own the photographic atmosphere only. Facts, readable copy, identity,
-brand geometry and the editorial anchor remain deterministic/code-owned.
+A verified photographic context, when available, is allowed to be the visual
+anchor itself. The renderer must not stack a decorative portal/card over real
+photographic texture. When no verified context exists, one minimal code-owned
+symbolic anchor is permitted. Facts, copy, identity and PUL7SAR remain exact.
 """
 from __future__ import annotations
 
@@ -19,10 +18,7 @@ from engine.intelligence.adaptive_brand_overlay import AdaptiveBrandOverlayRende
 from engine.intelligence.event_editorial_composition import EventEditorialComposition
 from engine.intelligence.platform_profiles import PlatformImageProfile
 from engine.intelligence.premium_editorial_surface import EditorialSurfaceStyle, PremiumEditorialSurface
-from engine.intelligence.verified_context_surface import (
-    VerifiedContextAsset,
-    VerifiedContextSurfaceRenderer,
-)
+from engine.intelligence.verified_context_surface import VerifiedContextAsset, VerifiedContextSurfaceRenderer
 
 
 class EventAnchorKind(str, Enum):
@@ -90,10 +86,8 @@ class EventEditorialStudyRenderer:
 
     @staticmethod
     def _finish_photographic_context(canvas: Image.Image, *, accent: tuple[int, int, int]) -> Image.Image:
-        """Build premium depth without fabricating semantic scene content."""
         width, height = canvas.size
         image = canvas.convert('RGBA')
-
         shade = Image.new('RGBA', image.size, (0, 0, 0, 0))
         sd = ImageDraw.Draw(shade, 'RGBA')
         for i in range(18):
@@ -102,22 +96,16 @@ class EventEditorialStudyRenderer:
             sd.rectangle((x, 0, width, height), fill=(2, 6, 12, alpha))
         shade = shade.filter(ImageFilter.GaussianBlur(max(18, width // 42)))
         image = Image.alpha_composite(image, shade)
-
         optics = Image.new('RGBA', image.size, (0, 0, 0, 0))
         od = ImageDraw.Draw(optics, 'RGBA')
-        od.ellipse(
-            (-round(width*.18), round(height*.18), round(width*.42), round(height*.78)),
-            fill=(*accent, 34),
-        )
-        od.ellipse(
-            (round(width*.50), -round(height*.10), round(width*1.05), round(height*.45)),
-            fill=(220, 237, 248, 15),
-        )
+        od.ellipse((-round(width*.18), round(height*.18), round(width*.42), round(height*.78)), fill=(*accent, 34))
+        od.ellipse((round(width*.50), -round(height*.10), round(width*1.05), round(height*.45)), fill=(220, 237, 248, 15))
         optics = optics.filter(ImageFilter.GaussianBlur(max(26, width // 20)))
         return Image.alpha_composite(image, optics)
 
     @staticmethod
     def _draw_anchor(canvas: Image.Image, box: tuple[int, int, int, int], *, accent: tuple[int, int, int], kind: EventAnchorKind) -> None:
+        # Legacy study hook. Runtime v2 overrides this with a pulse-free aperture.
         x0, y0, x1, y1 = box
         w, h = x1 - x0, y1 - y0
         if w <= 0 or h <= 0:
@@ -125,46 +113,9 @@ class EventEditorialStudyRenderer:
         layer = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
         draw = ImageDraw.Draw(layer, 'RGBA')
         cx, cy = x0 + w // 2, y0 + h // 2
-
-        halo = Image.new('RGBA', canvas.size, (0, 0, 0, 0))
-        hd = ImageDraw.Draw(halo, 'RGBA')
-        for step in range(8, 0, -1):
-            inset = round(min(w, h) * 0.035 * step)
-            alpha = max(3, 15 - step)
-            hd.rounded_rectangle((x0 + inset, y0 + inset, x1 - inset, y1 - inset), radius=max(12, round(w * 0.04)), outline=(*accent, alpha), width=max(1, round(w * 0.006)))
-        halo = halo.filter(ImageFilter.GaussianBlur(max(10, round(w * 0.03))))
-        canvas.alpha_composite(halo)
-
-        top_w = round(w * (0.38 if kind is EventAnchorKind.GOVERNANCE else 0.46))
-        bottom_w = round(w * 0.64)
-        top_y = y0 + round(h * 0.13)
-        bottom_y = y1 - round(h * 0.10)
-        points = (
-            (cx - top_w // 2, top_y),
-            (cx + top_w // 2, top_y),
-            (cx + bottom_w // 2, bottom_y),
-            (cx - bottom_w // 2, bottom_y),
-        )
-        draw.polygon(points, fill=(7, 17, 29, 110), outline=(*accent, 130))
-
-        band_count = {
-            EventAnchorKind.ANNOUNCEMENT: 3,
-            EventAnchorKind.CALENDAR: 4,
-            EventAnchorKind.GOVERNANCE: 2,
-            EventAnchorKind.BROADCAST: 5,
-            EventAnchorKind.GENERIC_EVENT: 3,
-        }[kind]
-        for i in range(1, band_count + 1):
-            t = i / (band_count + 1)
-            y = round(top_y * (1-t) + bottom_y * t)
-            half = round((top_w * (1-t) + bottom_w * t) / 2)
-            draw.line((cx-half, y, cx+half, y), fill=(226, 238, 246, 24 + i * 6), width=max(1, round(w * 0.003)))
-
-        core_w = round(w * 0.24)
-        core_y = cy
-        draw.line((cx-core_w, core_y, cx-round(core_w*0.35), core_y), fill=(*accent, 165), width=max(2, round(w*0.007)))
-        draw.line((cx-round(core_w*0.35), core_y, cx-round(core_w*0.15), core_y-round(h*0.055), cx+round(core_w*0.03), core_y+round(h*0.07), cx+round(core_w*0.19), core_y-round(h*0.025), cx+round(core_w*0.36), core_y), fill=(*accent, 210), width=max(2, round(w*0.007)), joint='curve')
-        draw.line((cx+round(core_w*0.36), core_y, cx+core_w, core_y), fill=(*accent, 165), width=max(2, round(w*0.007)))
+        radius = min(w, h) * 0.22
+        draw.ellipse((cx-radius, cy-radius, cx+radius, cy+radius), outline=(*accent, 66), width=max(1, round(w*0.003)))
+        layer = layer.filter(ImageFilter.GaussianBlur(max(3, round(w*0.008))))
         canvas.alpha_composite(layer)
 
     def render(
@@ -211,6 +162,8 @@ class EventEditorialStudyRenderer:
                 seed_key=seed_key,
             )
             atmosphere_contract = PremiumEditorialSurface.CONTRACT
+            self._draw_anchor(canvas, self._box(composition.anchor_box, profile), accent=accent, kind=anchor_kind)
+            single_anchor_used = True
         else:
             context_base = target.with_name(target.stem + '.context.png')
             context_receipt = VerifiedContextSurfaceRenderer().render(
@@ -225,10 +178,11 @@ class EventEditorialStudyRenderer:
                 canvas = self._finish_photographic_context(loaded.convert('RGBA'), accent=accent)
             context_base.unlink(missing_ok=True)
             atmosphere_contract = context_receipt.contract
+            # The verified photograph is the visual anchor. Do not place a graphic
+            # portal, card, waveform or symbol over it just to fill the composition.
+            single_anchor_used = False
 
-        self._draw_anchor(canvas, self._box(composition.anchor_box, profile), accent=accent, kind=anchor_kind)
         draw = ImageDraw.Draw(canvas, 'RGBA')
-
         hx0, hy0, hx1, hy1 = self._box(composition.headline_box, profile)
         headline_font = self._fit_font(draw, headline, font_path, hx1-hx0, hy1-hy0, round((hy1-hy0)*0.59))
         hb = draw.textbbox((0, 0), headline, font=headline_font)
@@ -253,7 +207,7 @@ class EventEditorialStudyRenderer:
         prebrand.unlink(missing_ok=True)
         return EventEditorialStudyReceipt(
             output_path=str(target), output_sha256=self._sha(target), width=profile.width, height=profile.height,
-            anchor_kind=anchor_kind.value, single_anchor_used=True, person_used=False,
+            anchor_kind=anchor_kind.value, single_anchor_used=single_anchor_used, person_used=False,
             full_pitch_used=False, decorative_stats_used=False, brand_zone=brand.zone,
             brand_width=brand.width, brand_height=brand.height,
             atmosphere_contract=atmosphere_contract,
