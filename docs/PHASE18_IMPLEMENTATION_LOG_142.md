@@ -20,6 +20,8 @@ The story pipeline could select a visual concept before renderer execution, but 
 
 A second issue affected the Golden season-opener benchmark: generic event news with no verified context photograph needed a way to use a cinematic generated atmosphere without implying that a specific real stadium, club, match or person had been verified. The previous event fallback was intentionally minimal and therefore could conflict with the Golden benchmark's legitimate need for a generic football atmosphere.
 
+A third integration gap became visible after the initial package change: the provider-neutral `GenerationPackage` could carry the concept metadata, but `LocalBackendRequestCompiler` did not yet propagate it into the portable FLUX handoff. That boundary is now explicitly covered.
+
 ### Added
 
 - `docs/PHASE18_CHANGESET_142_VISUAL_CONCEPT_GENERATION_BINDING.md`
@@ -49,6 +51,16 @@ A second issue affected the Golden season-opener benchmark: generic event news w
 - keeps `visual_concept_publication_ready=false`;
 - filters brand-named concept motifs from the generative prompt so PUL7SAR/PULSAR prompt redaction remains intact.
 
+#### `engine/intelligence/local_backend_execution.py`
+
+- propagates visual-concept contract, family, archetype, provider-agnostic flag, selected-before-renderer flag, asset priorities, forbidden motifs and publication-false state from `GenerationPackage` into `LocalBackendGenerationRequest`;
+- keeps the visual concept SHA/provenance boundary aligned with the existing VisualGrammar metadata path rather than inventing a parallel handoff format.
+
+#### `engine/intelligence/provider_prompting.py`
+
+- added deterministic FLUX-compatible positive reframes for `no specific identifiable real venue` and `no specific real-person depiction`;
+- preserves the existing rule that a backend without native negative prompts may not silently drop any forbidden constraint.
+
 #### `tools/phase18_build_golden_handoff.py`
 
 - Golden Hybrid v5 now constructs an `EVENT_EDITORIAL` visual concept before compiling the FLUX.2 package;
@@ -65,9 +77,10 @@ Updated:
 - `tests/test_phase18_visual_concept_director.py`
 - `tests/test_phase18_story_to_visual_orchestrator.py`
 - `tests/test_phase18_generation_layout.py`
+- `tests/test_phase18_local_backend_execution.py`
 - `tests/test_phase18_golden_handoff.py`
 
-Coverage now verifies safe generated event atmosphere, explicit minimal fallback, prompt propagation, metadata propagation, brand-name redaction, Golden venue/person non-identification and unchanged deterministic seed behavior.
+Coverage now verifies safe generated event atmosphere, explicit minimal fallback, prompt propagation, package metadata propagation, provider-neutral → local handoff metadata propagation, brand-name redaction, complete positive reframing of non-identifying constraints, Golden venue/person non-identification and unchanged deterministic seed behavior.
 
 ### Deleted
 
@@ -97,9 +110,9 @@ No paid provider, hosted GPU fallback, secret, fake PNG, fake benchmark or publi
 
 ## Testing status
 
-The code, tests and documentation were pushed to `phase18/story-intelligence`.
+The branch head at the start of the work was verified green. The Change Set 142 code, tests and documentation were pushed to `phase18/story-intelligence`, and new GitHub Actions runs were triggered.
 
-The branch head at the start of the work was verified green. A new GitHub Actions run is expected for the Change Set 142 head; this log does not claim CI-green status for the new head until an actual run completes successfully.
+This log intentionally does not claim the new head is CI-green until the Story Intelligence verification run for the final code/test state has completed successfully.
 
 ## Remaining blocker to the first genuine Golden Visual PNG
 
@@ -107,4 +120,4 @@ A genuine Golden Hybrid v5 Candidate 1 still requires a compatible NVIDIA CUDA +
 
 The current automation environment does not provide that execution capability. No PNG, benchmark or visual-quality result was fabricated.
 
-The next genuine GPU session should still run Candidate 1 only. The difference after Change Set 142 is that the portable handoff now carries the story-specific picture idea itself, rather than relying only on generic scene/family directions, while continuing to keep all exact factual, identity, brand, text and football-geometry layers outside generation.
+The next genuine GPU session should still run Candidate 1 only. The difference after Change Set 142 is that the portable handoff now carries the story-specific picture idea itself end-to-end from concept selection through the local FLUX request, rather than relying only on generic scene/family directions, while continuing to keep all exact factual, identity, brand, text and football-geometry layers outside generation.
