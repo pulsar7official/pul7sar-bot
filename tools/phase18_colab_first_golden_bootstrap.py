@@ -22,7 +22,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_SMOKE = ROOT / "output" / "phase18_gpu_smoke"
+GPU_HOST = ROOT / "output" / "phase18_gpu_host"
 REPOSITORY_INTEGRITY = GPU_SMOKE / "repository-integrity.json"
+HOST_QUALIFICATION = GPU_HOST / "qualification.json"
 CACHE_BUDGET = GPU_SMOKE / "first-golden-cache-budget.json"
 QWEN_MODEL_CACHE = GPU_SMOKE / "qwen-model-cache.json"
 SEALED_REVIEW = GPU_SMOKE / "first-golden-human-review-sealed.json"
@@ -91,6 +93,44 @@ def _evidence_record(path: Path, *, label: str) -> dict[str, object]:
     return {"path": str(target), "sha256": digest, "bytes": target.stat().st_size}
 
 
+def _validate_host_qualification(payload: dict[str, object]) -> None:
+    failures: list[str] = []
+    if payload.get("eligible") is not True:
+        failures.append("host_not_eligible")
+    if payload.get("model_id") != "black-forest-labs/FLUX.2-klein-4B":
+        failures.append("host_model_identity_drift")
+    if payload.get("runtime_kind") != "local_cuda":
+        failures.append("host_runtime_kind_drift")
+    if payload.get("torch_available") is not True:
+        failures.append("host_torch_not_proven")
+    if payload.get("cuda_available") is not True:
+        failures.append("host_cuda_not_proven")
+    if payload.get("bf16_supported") is not True:
+        failures.append("host_native_bf16_not_proven")
+    if payload.get("cost_mode") != "$0-local":
+        failures.append("host_qualification_escaped_zero_cost_policy")
+    policy = payload.get("policy")
+    if not isinstance(policy, dict):
+        failures.append("host_policy_missing")
+    else:
+        if policy.get("queue_mutation") is not False:
+            failures.append("host_policy_queue_mutation_drift")
+        if policy.get("downloads_model_weights") is not False:
+            failures.append("host_policy_download_drift")
+        if policy.get("installs_dependencies") is not False:
+            failures.append("host_policy_install_drift")
+        if policy.get("uses_paid_api") is not False:
+            failures.append("host_policy_paid_api_drift")
+        if policy.get("required_dtype") != "bfloat16":
+            failures.append("host_policy_dtype_drift")
+        if policy.get("required_provider") != "black-forest-labs":
+            failures.append("host_policy_provider_drift")
+        if policy.get("required_model") != "black-forest-labs/FLUX.2-klein-4B":
+            failures.append("host_policy_model_drift")
+    if failures:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_GPU_HOST_QUALIFICATION_BLOCKED: " + ", ".join(failures))
+
+
 def run(
     *,
     worker_id: str,
@@ -123,10 +163,25 @@ def run(
             raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_REPOSITORY_{field.upper()}_DRIFT")
 
     # Fresh runtime repair is reused from the already-tested Colab bootstrap.
-    # Once huggingface_hub is available, prove combined Qwen+FLUX cache headroom
-    # before either approved model is allowed to download.
+    # Immediately after runtime repair, prove that the physical host itself is
+    # Golden-qualified before any Qwen/FLUX model download is permitted. This
+    # prevents a rare GPU window from being consumed on an under-VRAM or
+    # non-native-BF16 device that can never execute the locked Golden path.
     if not skip_repair:
         runtime_bootstrap._repair_runtime()
+    host = _run_json(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "phase18_qualify_gpu_host.py"),
+            "--output",
+            str(HOST_QUALIFICATION),
+        ],
+        label="FIRST_GOLDEN_GPU_HOST_QUALIFICATION",
+    )
+    _validate_host_qualification(host)
+
+    # Once huggingface_hub is available and hardware is proven, verify combined
+    # Qwen+FLUX cache headroom before either approved model is allowed to download.
     cache_budget = _run_json(
         [
             sys.executable,
@@ -180,22 +235,26 @@ def run(
 
     evidence = {
         "repository_integrity": _evidence_record(REPOSITORY_INTEGRITY, label="REPOSITORY_INTEGRITY"),
+        "gpu_host_qualification": _evidence_record(HOST_QUALIFICATION, label="GPU_HOST_QUALIFICATION"),
         "first_golden_cache_budget": _evidence_record(CACHE_BUDGET, label="CACHE_BUDGET"),
         "qwen_model_cache": _evidence_record(QWEN_MODEL_CACHE, label="QWEN_MODEL_CACHE"),
         "sealed_review_receipt": _evidence_record(SEALED_REVIEW, label="SEALED_REVIEW"),
     }
 
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-golden-colab-bootstrap-v2",
+        "schema": "pul7sar-first-golden-colab-bootstrap-v3",
         "status": "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
         "repository_integrity": str(REPOSITORY_INTEGRITY),
+        "gpu_host_qualification": str(HOST_QUALIFICATION),
         "first_golden_cache_budget": str(CACHE_BUDGET),
         "qwen_model_cache": str(QWEN_MODEL_CACHE),
         "semantic_runtime_ready": True,
         "semantic_model_ready": True,
+        "gpu_host_eligible": True,
+        "native_bf16_proven": True,
         "sealed_review_receipt": str(SEALED_REVIEW),
         "bootstrap_evidence": evidence,
         "review_base_png": staged["review_base_png"],
