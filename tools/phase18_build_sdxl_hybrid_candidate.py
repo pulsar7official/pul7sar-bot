@@ -1,7 +1,8 @@
 """Build a 1080x1350 hybrid family candidate from an SDXL atmosphere image.
 
 Benchmark facts are intentionally explicit and synthetic/non-news-specific. They
-exercise exact composition only; no candidate is publication-ready.
+exercise exact composition only. Base-scene semantic cleanliness is deliberately
+left unverified until a separate visual gate inspects the generated pixels.
 """
 from __future__ import annotations
 
@@ -67,8 +68,13 @@ def main():
         "deterministic_facts_used": receipt.deterministic_facts_used,
         "fabricated_crest_used": receipt.fabricated_crest_used,
         "placeholder_used": receipt.placeholder_used,
-        "generated_text_used": receipt.generated_text_used,
+        "compositor_generated_text_used": receipt.compositor_generated_text_used,
         "source_photo_used": receipt.source_photo_used,
+        "base_scene_semantic_verified": receipt.base_scene_semantic_verified,
+        "base_scene_text_absence_verified": receipt.base_scene_text_absence_verified,
+        "base_scene_identity_absence_verified": receipt.base_scene_identity_absence_verified,
+        "base_scene_geometry_absence_verified": receipt.base_scene_geometry_absence_verified,
+        "semantic_gate_required_before_publication": True,
         "publication_ready": receipt.publication_ready,
         "base_role": "original_generated_atmosphere_only",
         "study_only": True,
