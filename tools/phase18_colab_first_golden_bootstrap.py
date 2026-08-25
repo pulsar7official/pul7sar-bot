@@ -33,6 +33,11 @@ FINAL = GPU_SMOKE / "first-golden-colab-bootstrap.json"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.approved_model_revisions import (
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+    assert_snapshot_revision,
+)
 import tools.phase18_colab_bootstrap as runtime_bootstrap
 
 
@@ -141,6 +146,24 @@ def _validate_host_qualification(payload: dict[str, object]) -> None:
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_GPU_HOST_QUALIFICATION_BLOCKED: " + ", ".join(failures))
 
 
+def _validate_qwen_cache(payload: dict[str, object]) -> None:
+    if payload.get("schema") != "pul7sar-phase18-qwen-model-cache-v2" or payload.get("ready") is not True:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_CONTRACT_MISMATCH")
+    if payload.get("model_id") != QWEN25_VL_3B_MODEL_ID or payload.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_IDENTITY_DRIFT")
+    if payload.get("model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_REVISION_DRIFT")
+    if payload.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or payload.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_REVISION_UNPROVEN")
+    snapshot = payload.get("snapshot_path")
+    if not isinstance(snapshot, str) or not snapshot.strip():
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_SNAPSHOT_MISSING")
+    try:
+        assert_snapshot_revision(snapshot, QWEN25_VL_3B_REVISION)
+    except (RuntimeError, ValueError) as exc:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_SNAPSHOT_REVISION_DRIFT") from exc
+
+
 def run(
     *,
     worker_id: str,
@@ -208,10 +231,7 @@ def run(
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_NOT_READY")
 
     qwen_cache = _load_json_file(QWEN_MODEL_CACHE, label="QWEN_MODEL_CACHE")
-    if qwen_cache.get("schema") != "pul7sar-phase18-qwen-model-cache-v1" or qwen_cache.get("ready") is not True:
-        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_CONTRACT_MISMATCH")
-    if qwen_cache.get("model_id") != "Qwen/Qwen2.5-VL-3B-Instruct" or qwen_cache.get("cost_mode") != "$0-local":
-        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_IDENTITY_DRIFT")
+    _validate_qwen_cache(qwen_cache)
 
     staged = _run_json(
         [
@@ -252,6 +272,8 @@ def run(
         "required_vram_gb": host["required_vram_gb"],
         "first_golden_cache_budget": str(CACHE_BUDGET),
         "qwen_model_cache": str(QWEN_MODEL_CACHE),
+        "qwen_model_revision": QWEN25_VL_3B_REVISION,
+        "qwen_revision_pinned": True,
         "semantic_runtime_ready": True,
         "semantic_model_ready": True,
         "gpu_host_eligible": True,
