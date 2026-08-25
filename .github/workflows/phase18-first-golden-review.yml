@@ -49,8 +49,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.sha }}
-          # merge-base isolation is fail-closed; a shallow Phase 18 checkout can make
-          # a valid shared ancestor with main unreachable on the runner.
           fetch-depth: 0
 
       - name: Prove immutable checkout, attach exact Phase 18 branch, and verify isolation
@@ -60,11 +58,6 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
-
-          # actions/checkout with an immutable commit SHA leaves HEAD detached. The
-          # Phase 18 runtime intentionally fails closed unless the current branch is
-          # exactly phase18/story-intelligence, so attach a local branch to the exact
-          # dispatched SHA without following a moving remote branch.
           git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
           test "$(git branch --show-current)" = "phase18/story-intelligence"
           test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
@@ -76,9 +69,6 @@ jobs:
           test -f engine/intelligence/golden_original_scene_admission.py
           test -f engine/intelligence/first_golden_review_packet_integrity.py
 
-          # Fetch main read-only. Full Phase 18 ancestry above is intentional: the
-          # branch is long-lived/diverged and merge-base must never depend on an
-          # arbitrary shallow-depth guess.
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           if [ -z "$base" ]; then
@@ -131,7 +121,7 @@ jobs:
           if not receipt_path.is_file():
               raise SystemExit("first-Golden bootstrap receipt missing")
           receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-          if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v3":
+          if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v4":
               raise SystemExit("unexpected first-Golden bootstrap schema")
           if receipt.get("status") != "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY":
               raise SystemExit("first-Golden bootstrap did not reach sealed review readiness")
@@ -141,6 +131,14 @@ jobs:
               raise SystemExit("first-Golden bootstrap escaped zero-cost mode")
           if receipt.get("gpu_host_eligible") is not True or receipt.get("native_bf16_proven") is not True:
               raise SystemExit("first-Golden GPU host/native BF16 not proven")
+          if receipt.get("live_free_vram_proven") is not True:
+              raise SystemExit("first-Golden live free VRAM was not proven")
+          free_vram = receipt.get("gpu_free_vram_gb")
+          required_vram = receipt.get("required_vram_gb")
+          if not isinstance(free_vram, (int, float)) or isinstance(free_vram, bool):
+              raise SystemExit("first-Golden live free VRAM value missing")
+          if not isinstance(required_vram, (int, float)) or isinstance(required_vram, bool) or float(free_vram) < float(required_vram):
+              raise SystemExit("first-Golden live free VRAM is below required model floor")
           if receipt.get("semantic_runtime_ready") is not True or receipt.get("semantic_model_ready") is not True:
               raise SystemExit("first-Golden semantic runtime/model not proven")
           if receipt.get("human_visual_review_required") is not True:
@@ -194,6 +192,15 @@ jobs:
               raise SystemExit("GPU host qualification model/cost drift")
           if host.get("runtime_kind") != "local_cuda" or host.get("cuda_available") is not True:
               raise SystemExit("GPU host qualification CUDA drift")
+          host_free = host.get("gpu_free_vram_gb")
+          host_required = host.get("required_vram_gb")
+          if not isinstance(host_free, (int, float)) or isinstance(host_free, bool):
+              raise SystemExit("GPU host live free VRAM evidence missing")
+          if not isinstance(host_required, (int, float)) or isinstance(host_required, bool) or float(host_free) < float(host_required):
+              raise SystemExit("GPU host live free VRAM evidence below required floor")
+          policy = host.get("policy")
+          if not isinstance(policy, dict) or policy.get("requires_live_free_vram") is not True:
+              raise SystemExit("GPU host live free VRAM policy drift")
 
           for path_field, sha_field in (
               ("review_base_png", "review_base_png_sha256"),
