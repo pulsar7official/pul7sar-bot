@@ -29,7 +29,7 @@ class GoldenVisualHandoffTests(unittest.TestCase):
         self.assertTrue(request.metadata["visual_grammar_provider_agnostic"])
         self.assertEqual(request.metadata["visual_grammar_surface_visibility"], "partial_deterministic")
         self.assertEqual(request.metadata["visual_grammar_fantasy_level"], "restrained")
-        self.assertEqual(request.metadata["visual_concept_contract"], "pul7sar-visual-concept-director-v1")
+        self.assertEqual(request.metadata["visual_concept_contract"], "pul7sar-visual-concept-director-v2-original-first")
         self.assertTrue(request.metadata["visual_concept_provider_agnostic"])
         self.assertTrue(request.metadata["visual_concept_selected_before_renderer"])
         self.assertEqual(request.metadata["visual_concept_archetype"], "generative_event_atmosphere")
