@@ -50,7 +50,7 @@ class FamilyRendererCapability:
 
 
 class FamilyRendererRegistry:
-    VERSION = "pul7sar-family-renderer-registry-v2-six-family-pixel"
+    VERSION = "pul7sar-family-renderer-registry-v3-event-pulse-exclusive"
 
     def __init__(self) -> None:
         capabilities = {
@@ -107,9 +107,9 @@ class FamilyRendererRegistry:
             EditorialSceneFamily.EVENT_EDITORIAL: FamilyRendererCapability(
                 family=EditorialSceneFamily.EVENT_EDITORIAL,
                 status=FamilyRendererStatus.IMPLEMENTED,
-                renderer_module="engine.intelligence.event_editorial_study_renderer",
+                renderer_module="engine.intelligence.event_editorial_runtime_v2",
                 renderer_class="EventEditorialStudyRenderer",
-                renderer_contract="pul7sar-event-editorial-study-renderer-v1-premium-anchor",
+                renderer_contract="pul7sar-event-editorial-study-renderer-v2-no-duplicate-pulse",
                 exact_assets_required=("fact_locked_event_context", "embedded_pul7sar_brand_master"),
                 generator_required=False,
                 network_required=False,
