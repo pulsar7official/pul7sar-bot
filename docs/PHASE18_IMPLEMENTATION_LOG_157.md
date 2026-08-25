@@ -10,7 +10,7 @@ Starting Phase 18 HEAD reviewed before changes: `cef9988ccc0a60fc71636c44da3420e
 
 `main` was independently at `5c95eff1aaf404491304835898b719911e0647a1` when reviewed. `main` / `main.py` were not modified, merged, force-updated, or used as a write target.
 
-Change Set 156 verification is now confirmed: GitHub Actions Phase 18 Story Intelligence Verification run `32897769836` completed with `success` on `cef9988ccc0a60fc71636c44da3420edc2c77089`.
+Change Set 156 verification is confirmed: GitHub Actions Phase 18 Story Intelligence Verification run `32897769836` completed with `success` on `cef9988ccc0a60fc71636c44da3420edc2c77089`.
 
 ## Change Set 157 — Immutable FLUX Model Revision Lock
 
@@ -65,6 +65,12 @@ upstream `black-forest-labs/FLUX.2-klein-4B` revision used for this lock.
 - `tests/test_phase18_generation_provenance_lock.py`
   - fixtures include immutable model revision evidence;
   - model-revision tampering is rejected explicitly.
+- `tests/test_phase18_first_png_provenance_postflight.py`
+  - existing genuine-proof fixture now carries the newly required immutable model revision so later tampering checks still reach the intended gate.
+- `tests/test_phase18_golden_candidate_review_bundle.py`
+  - existing review-bundle fixture now carries immutable model revision evidence so review/path tests remain aligned with the stronger provenance contract.
+- `tests/test_phase18_flux_model_revision_lock.py`
+  - corrected the static prefetch assertion to cover both the helper's `revision=revision` local-only lookup and the explicit immutable revision passed to the actual download.
 
 ### Deleted
 
@@ -93,7 +99,7 @@ No change was made to:
 The revision lock adds no paid provider, no secret, no precision downgrade, no
 fake image, and no publication authority.
 
-## Tests
+## Tests and CI findings
 
 Regression coverage added/updated for:
 
@@ -104,8 +110,22 @@ Regression coverage added/updated for:
 - prefetch local lookup and download using the same revision;
 - provenance rejection if proof metadata reports another model revision.
 
-GitHub Actions status for the final Change Set 157 head must only be recorded after
-an actual run result is available. No CI success is inferred from local reasoning.
+The first Change Set 157 verification run, GitHub Actions run `32903700369` / run
+`2731`, completed with `failure` during `Syntax and discover validation` after
+running 1156 Phase 18 tests. The failure was not a production/runtime regression:
+three pre-existing provenance fixtures did not yet include the newly mandatory
+`model_revision`, which caused their later assertions to fail early, and one new
+static test incorrectly assumed both prefetch call sites used the same literal
+argument spelling. No gate was weakened to make the suite pass.
+
+The failures were corrected by updating only the affected test fixtures/assertion:
+
+- `tests/test_phase18_first_png_provenance_postflight.py` now supplies the approved revision;
+- `tests/test_phase18_golden_candidate_review_bundle.py` now supplies the approved revision;
+- `tests/test_phase18_flux_model_revision_lock.py` now checks the helper and download call forms accurately.
+
+A subsequent CI result must be observed before Change Set 157 is described as
+fully CI-green. No success is inferred from the fixes alone.
 
 ## Remaining exact blocker to first genuine Golden Visual PNG
 
