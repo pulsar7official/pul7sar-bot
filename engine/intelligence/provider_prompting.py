@@ -46,6 +46,13 @@ class PromptConstraintCompiler:
     _NO_RESERVED_MARKINGS = (
         "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
     )
+    _NON_IDENTIFYING_VENUE = (
+        "Use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, "
+        "or other visual cue that could imply a particular real stadium or arena."
+    )
+    _NO_REAL_PERSON = (
+        "Keep the generated scene free of identifiable real people or celebrity likenesses; use crowd scale, silhouettes, or distant anonymous figures only when needed for atmosphere."
+    )
 
     _REFRAMES = {
         "no humiliation": "Keep every losing or secondary side dignified and respectful; focus emotional emphasis on the winner without degrading anyone.",
@@ -76,6 +83,8 @@ class PromptConstraintCompiler:
         ),
         "no generated branding, wordmarks, readable text, or pseudo-text": _NO_BRAND_TEXT,
         "no generated branding, wordmarks, readable text, numerals or pseudo-text": _NO_BRAND_TEXT,
+        "no specific identifiable real venue": _NON_IDENTIFYING_VENUE,
+        "no specific real-person depiction": _NO_REAL_PERSON,
     }
 
     def compile(self, constraints: tuple[str, ...], *, supports_native_negative: bool) -> CompiledProviderConstraints:
