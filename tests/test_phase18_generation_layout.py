@@ -6,7 +6,9 @@ from engine.intelligence.layout_planner import DeterministicLayoutPlanner, Layou
 from engine.intelligence.models import Sentiment
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification
+from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
 from engine.intelligence.story_visual_editorial import EditorialEvent, StoryVisualEditorialEngine
+from engine.intelligence.visual_concept_director import VisualConceptArchetype, VisualConceptDirector, VisualConceptSignals
 from engine.intelligence.visual_grammar import VisualGrammar
 
 
@@ -17,6 +19,7 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         self.compiler = GenerationPackageCompiler()
         self.editorial = StoryVisualEditorialEngine()
         self.grammar = VisualGrammar()
+        self.concepts = VisualConceptDirector()
         self.assets = AssetBundle((
             AssetReference("pul7sar-wordmark", AssetRole.PUL7SAR_LOGO, AssetTreatment.EXACT),
             AssetReference("pul7sar-pulse", AssetRole.PUL7SAR_PULSE, AssetTreatment.TINTABLE_ACCENT),
@@ -115,6 +118,35 @@ class GenerationLayoutPackageTests(unittest.TestCase):
         self.assertIn("must not draw its exact markings", prompt)
         self.assertEqual(package.metadata["visual_grammar_surface_visibility"], "full_deterministic")
         self.assertEqual(package.metadata["visual_grammar_generated_elements"], ())
+
+    def test_visual_concept_reaches_generation_prompt_without_brand_leakage(self):
+        concept = self.concepts.direct(
+            EditorialSceneFamily.EVENT_EDITORIAL,
+            VisualConceptSignals(safe_generated_context=True),
+        )
+        package = self.compiler.compile(
+            self._spec(SocialPlatform.INSTAGRAM_FEED),
+            self.assets,
+            visual_concept=concept,
+        )
+        prompt = package.scene_prompt.casefold()
+        self.assertIn("story-specific visual concept archetype: generative_event_atmosphere", prompt)
+        self.assertIn("story-specific non-identifying sports atmosphere", prompt)
+        self.assertIn("specific real venue identity without verified context", prompt)
+        self.assertEqual(package.metadata["visual_concept_contract"], "pul7sar-visual-concept-director-v1")
+        self.assertEqual(package.metadata["visual_concept_archetype"], VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE.value)
+        self.assertTrue(package.metadata["visual_concept_selected_before_renderer"])
+        self.assertFalse(package.metadata["visual_concept_publication_ready"])
+        self.assertNotIn("pul7sar", prompt)
+        self.assertNotIn("pulsar", prompt)
+
+    def test_visual_concept_type_is_enforced(self):
+        with self.assertRaises(TypeError):
+            self.compiler.compile(
+                self._spec(SocialPlatform.INSTAGRAM_FEED),
+                self.assets,
+                visual_concept="not-a-concept",
+            )
 
     def test_visual_grammar_type_is_enforced(self):
         with self.assertRaises(TypeError):
