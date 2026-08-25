@@ -35,7 +35,7 @@ class OriginalScenePromptProfileRegistry:
     _MAP = {
         EditorialSceneFamily.RESULT_STATEMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.RESULT_STATEMENT,
-            "Premium cinematic post-match football stadium interior at night, monumental roof structure and deep spectator bowl, luminous floodlight haze, dramatic architectural depth, one clean dark physical foreground plinth in perspective occupying the lower center, its broad blank face naturally oriented toward camera and integrated into the venue floor, realistic contact shadow and reflected stadium light on the plinth, restrained crowd-light texture, realistic editorial photography, neutral materials.",
+            "Premium cinematic post-match soccer stadium at night, monumental stands, floodlight haze, deep architectural perspective. One clean dark physical plinth occupies the lower center foreground, broad blank face angled toward camera, grounded into the venue floor with realistic contact shadow and reflected stadium light. Restrained crowd glow, realistic editorial photography, neutral materials.",
             "roof, stands, light, haze, anonymous spectator texture and one blank perspective result-integration plinth only; sport geometry, participants, score and identity are separate layers",
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: OriginalScenePromptProfile(
