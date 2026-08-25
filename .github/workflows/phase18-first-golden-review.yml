@@ -25,34 +25,55 @@ jobs:
       PUL7SAR_PHASE18_COST_MODE: $0-local
 
     steps:
-      - name: Require explicit first-Golden confirmation
+      - name: Require explicit first-Golden confirmation and Phase 18 dispatch ref
         shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [ "${{ inputs.confirmation }}" != "RUN_PHASE18_FIRST_GOLDEN_REVIEW" ]; then
             echo "Refusing first-Golden execution: confirmation token mismatch." >&2
             exit 2
           fi
+          if [ "$DISPATCH_REF" != "refs/heads/phase18/story-intelligence" ]; then
+            echo "Refusing first-Golden execution outside phase18/story-intelligence: $DISPATCH_REF" >&2
+            exit 3
+          fi
+          if ! printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'; then
+            echo "Refusing first-Golden execution: invalid immutable dispatch SHA." >&2
+            exit 4
+          fi
 
-      - name: Checkout Phase 18 branch only
+      - name: Checkout immutable dispatched Phase 18 commit
         uses: actions/checkout@v4
         with:
-          ref: phase18/story-intelligence
+          ref: ${{ github.sha }}
           fetch-depth: 1
 
-      - name: Prove branch isolation and canonical strict entrypoint
+      - name: Prove immutable checkout, branch isolation and canonical strict entrypoint
         shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
           test -f tools/phase18_colab_first_golden_bootstrap.py
           test -f tools/phase18_colab_first_golden_review_sealed.py
           test -f tools/phase18_first_png_original_scene.py
           test -f engine/intelligence/golden_original_scene_admission.py
           test -f engine/intelligence/first_golden_review_packet_integrity.py
-          if git diff --name-only origin/main...HEAD 2>/dev/null | grep -qx 'main.py'; then
+
+          # Fetch main read-only so the isolation check cannot silently disappear on a shallow checkout.
+          git fetch --no-tags --depth=2048 origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          if [ -z "$base" ]; then
+            echo "Unable to establish merge-base with main; refusing GPU execution." >&2
+            exit 5
+          fi
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
-            exit 3
+            exit 6
           fi
 
       - name: Prove CUDA-enabled PyTorch exists without replacing it
