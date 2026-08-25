@@ -11,11 +11,23 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertTrue(self.path.is_file())
         self.assertIn("workflow_dispatch:", self.text)
         self.assertIn("RUN_PHASE18_FIRST_GOLDEN_REVIEW", self.text)
-        self.assertIn("ref: phase18/story-intelligence", self.text)
+        self.assertIn('DISPATCH_REF: ${{ github.ref }}', self.text)
+        self.assertIn('refs/heads/phase18/story-intelligence', self.text)
+        self.assertIn('ref: ${{ github.sha }}', self.text)
         self.assertIn("runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]", self.text)
         self.assertNotIn("push:", self.text)
         self.assertNotIn("pull_request:", self.text)
         self.assertNotIn("runs-on: ubuntu", self.text)
+
+    def test_dispatch_sha_is_immutable_and_main_isolation_check_cannot_silently_skip(self):
+        self.assertIn('DISPATCH_SHA: ${{ github.sha }}', self.text)
+        self.assertIn('test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"', self.text)
+        self.assertIn("git fetch --no-tags --depth=2048 origin main:refs/remotes/origin/main", self.text)
+        self.assertIn('base="$(git merge-base origin/main HEAD)"', self.text)
+        self.assertIn('if [ -z "$base" ]', self.text)
+        self.assertIn('git diff --name-only "$base"...HEAD', self.text)
+        self.assertIn("Unexpected main.py modification detected in Phase 18 diff.", self.text)
+        self.assertNotIn("2>/dev/null | grep -qx 'main.py'", self.text)
 
     def test_uses_strict_original_scene_to_sealed_review_entrypoint(self):
         self.assertIn("tools/phase18_colab_first_golden_bootstrap.py", self.text)
