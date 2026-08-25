@@ -28,15 +28,15 @@ class OriginalScenePromptProfile:
         "verified real-person identity",
         "exact sport geometry",
     )
-    contract: str = "pul7sar-original-scene-prompt-profile-v7-integration-aware"
+    contract: str = "pul7sar-original-scene-prompt-profile-v8-integration-ground"
 
 
 class OriginalScenePromptProfileRegistry:
     _MAP = {
         EditorialSceneFamily.RESULT_STATEMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.RESULT_STATEMENT,
-            "Premium cinematic post-match soccer stadium at night, monumental stands, floodlight haze, deep architectural perspective. One clean dark physical plinth occupies the lower center foreground, broad blank face angled toward camera, grounded into the venue floor with realistic contact shadow and reflected stadium light. Restrained crowd glow, realistic editorial photography, neutral materials.",
-            "roof, stands, light, haze, anonymous spectator texture and one blank perspective result-integration plinth only; sport geometry, participants, score and identity are separate layers",
+            "Premium cinematic post-match soccer stadium at night, monumental stands, floodlight haze, deep architectural perspective, low camera position close to pitch level. The lower center foreground is a broad uninterrupted dark venue-floor landing zone with natural perspective falloff, subtle surface texture, realistic reflected stadium light and generous visual breathing room for later editorial integration. Restrained crowd glow, realistic editorial photography, neutral materials, strong depth from foreground into the stadium bowl.",
+            "roof, stands, light, haze, anonymous spectator texture and clean perspective integration ground only; the result monument, sport geometry, participants, score and identity are separate deterministic layers",
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: OriginalScenePromptProfile(
             EditorialSceneFamily.TRANSFER_SIGNATURE,
