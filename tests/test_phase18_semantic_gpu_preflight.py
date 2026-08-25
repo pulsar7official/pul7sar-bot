@@ -18,6 +18,19 @@ class SemanticGpuPreflightTests(unittest.TestCase):
             cuda_available=True,
         )
 
+    def _prefetch_payload(self, snapshot_path: str) -> dict[str, object]:
+        return {
+            "schema": "pul7sar-phase18-qwen-model-cache-v2",
+            "ready": True,
+            "model_id": preflight.MODEL_ID,
+            "model_revision": preflight.MODEL_REVISION,
+            "resolved_snapshot_revision": preflight.MODEL_REVISION,
+            "revision_pinned": True,
+            "cost_mode": "$0-local",
+            "snapshot_path": snapshot_path,
+            "downloaded_now": False,
+        }
+
     def test_runtime_failure_blocks_before_model_prefetch(self):
         bad = SimpleNamespace(
             ready=False,
@@ -37,18 +50,22 @@ class SemanticGpuPreflightTests(unittest.TestCase):
                 preflight.main()
             run_prefetch.assert_not_called()
 
-    def test_prefetch_payload_requires_exact_model_and_zero_cost(self):
-        valid = {
-            "ready": True,
-            "model_id": preflight.MODEL_ID,
-            "cost_mode": "$0-local",
-            "snapshot_path": "/cache/qwen",
-        }
+    def test_prefetch_payload_requires_exact_model_revision_and_zero_cost(self):
+        canonical = f"/cache/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/{preflight.MODEL_REVISION}"
+        valid = self._prefetch_payload(canonical)
         preflight._validate_prefetch_payload(valid)
 
         wrong_model = dict(valid, model_id="other/model")
         with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_ID_DRIFT"):
             preflight._validate_prefetch_payload(wrong_model)
+
+        wrong_revision = dict(valid, model_revision="0" * 40)
+        with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_REVISION_DRIFT"):
+            preflight._validate_prefetch_payload(wrong_revision)
+
+        unpinned = dict(valid, revision_pinned=False)
+        with self.assertRaisesRegex(RuntimeError, "SNAPSHOT_REVISION_UNPROVEN"):
+            preflight._validate_prefetch_payload(unpinned)
 
         paid = dict(valid, cost_mode="paid")
         with self.assertRaisesRegex(RuntimeError, "ZERO_COST"):
@@ -61,12 +78,17 @@ class SemanticGpuPreflightTests(unittest.TestCase):
                 readiness=self._ready(),
                 prefetch={
                     "ready": True,
-                    "snapshot_path": "/cache/qwen",
+                    "snapshot_path": f"/cache/snapshots/{preflight.MODEL_REVISION}",
+                    "resolved_snapshot_revision": preflight.MODEL_REVISION,
+                    "revision_pinned": True,
                     "downloaded_now": False,
                 },
                 branch=preflight.EXPECTED_BRANCH,
                 prefetch_receipt_path=receipt_path,
             )
+        self.assertEqual(receipt["schema"], "pul7sar-phase18-semantic-gpu-preflight-v2")
+        self.assertEqual(receipt["model_revision"], preflight.MODEL_REVISION)
+        self.assertTrue(receipt["revision_pinned"])
         self.assertTrue(receipt["semantic_runtime_ready"])
         self.assertTrue(receipt["semantic_model_ready"])
         self.assertFalse(receipt["generation_authorized"])
@@ -80,13 +102,9 @@ class SemanticGpuPreflightTests(unittest.TestCase):
             (root / "engine" / "intelligence").mkdir(parents=True)
             output = root / "output" / "semantic-preflight.json"
             cache = root / "output" / "qwen-model-cache.json"
-            payload = {
-                "ready": True,
-                "model_id": preflight.MODEL_ID,
-                "cost_mode": "$0-local",
-                "snapshot_path": "/cache/qwen",
-                "downloaded_now": False,
-            }
+            snapshot = root / "cache" / "snapshots" / preflight.MODEL_REVISION
+            snapshot.mkdir(parents=True)
+            payload = self._prefetch_payload(str(snapshot))
             with (
                 patch.object(preflight, "_branch", return_value=preflight.EXPECTED_BRANCH),
                 patch.object(preflight.Qwen25VLReadinessProbe, "inspect", return_value=self._ready()),
@@ -103,6 +121,7 @@ class SemanticGpuPreflightTests(unittest.TestCase):
             text = output.read_text(encoding="utf-8")
             self.assertIn('"publication_ready": false', text)
             self.assertIn('"generation_authorized": false', text)
+            self.assertIn(preflight.MODEL_REVISION, text)
             self.assertFalse((root / "output" / "phase18_generation_queue").exists())
 
 
