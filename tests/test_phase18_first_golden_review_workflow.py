@@ -32,6 +32,22 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertIn("Unexpected main.py modification detected in Phase 18 diff.", self.text)
         self.assertNotIn("2>/dev/null | grep -qx 'main.py'", self.text)
 
+    def test_detached_sha_checkout_is_reattached_to_exact_phase18_branch_before_runtime(self):
+        self.assertIn('git checkout -B phase18/story-intelligence "$DISPATCH_SHA"', self.text)
+        self.assertIn('test "$(git branch --show-current)" = "phase18/story-intelligence"', self.text)
+        occurrences = [
+            index for index in range(len(self.text))
+            if self.text.startswith('test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"', index)
+        ]
+        self.assertGreaterEqual(len(occurrences), 2)
+        attach = self.text.index('git checkout -B phase18/story-intelligence "$DISPATCH_SHA"')
+        branch_proof = self.text.index('test "$(git branch --show-current)" = "phase18/story-intelligence"')
+        cuda = self.text.index("Prove CUDA-enabled PyTorch exists without replacing it")
+        bootstrap = self.text.index("python tools/phase18_colab_first_golden_bootstrap.py")
+        self.assertLess(attach, branch_proof)
+        self.assertLess(branch_proof, cuda)
+        self.assertLess(branch_proof, bootstrap)
+
     def test_uses_strict_original_scene_to_sealed_review_entrypoint(self):
         self.assertIn("tools/phase18_colab_first_golden_bootstrap.py", self.text)
         self.assertIn("tools/phase18_colab_first_golden_review_sealed.py", self.text)
