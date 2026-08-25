@@ -10,6 +10,8 @@ on:
       - 'engine/intelligence/original_scene_prompt_profiles.py'
       - 'engine/intelligence/pre_generation_scene_lock.py'
       - 'engine/intelligence/generation_prompt_budget.py'
+      - 'engine/intelligence/generated_base_provenance.py'
+      - 'tests/test_phase18_generated_base_provenance.py'
       - '.github/workflows/phase18-result-seed-sweep.yml'
 
 permissions:
@@ -33,7 +35,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
-          python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
+          python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow pytest
+      - name: Verify multi-candidate provenance contract
+        run: pytest -q tests/test_phase18_generated_base_provenance.py
       - name: Generate result seed sweep
         run: |
           python tools/phase18_result_seed_sweep.py --out-dir out/result-seed-sweep --width 512 --height 640 --steps 4
@@ -43,10 +47,13 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/result-seed-sweep/manifest.json').read_text())
-          assert m['contract']=='pul7sar-result-seed-sweep-v1'
-          assert len(m['candidates']) == 4
-          assert m['sport_lock']=='association_football'
-          assert m['prompt_token_count'] <= m['prompt_usable_limit']
+          assert m['contract']=='pul7sar-result-seed-sweep-v2-provenance'
+          assert len(m['scenes']) == 4
+          assert len({x['file'] for x in m['scenes']}) == 4
+          assert all(x['family']=='result_statement' for x in m['scenes'])
+          assert all(x['sport_lock']=='association_football' for x in m['scenes'])
+          assert all(x['prompt_token_count'] <= x['prompt_usable_limit'] for x in m['scenes'])
+          assert all(len(x['exact_layers_reserved']) >= 7 for x in m['scenes'])
           assert m['publication_ready'] is False
           assert m['human_visual_review_required'] is True
           PY
