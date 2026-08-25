@@ -1,4 +1,4 @@
-name: Phase 18 CPU Original Scene Synthesis Smoke
+name: Phase 18 CPU Original Scene Synthesis Benchmark
 
 on:
   workflow_dispatch:
@@ -7,6 +7,8 @@ on:
       - phase18/original-visual-benchmark
     paths:
       - 'tools/phase18_cpu_original_scene_synthesis.py'
+      - 'tools/phase18_cpu_cross_family_synthesis.py'
+      - 'engine/intelligence/original_scene_prompt_profiles.py'
       - '.github/workflows/phase18-cpu-synthesis-smoke.yml'
 
 permissions:
@@ -30,14 +32,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
-      - name: Generate original unbranded atmosphere
+      - name: Generate five original unbranded scene families
         run: |
-          python tools/phase18_cpu_original_scene_synthesis.py --output out/cpu-original-atmosphere.png --seed 181818 --width 512 --height 640 --steps 1
-          test -s out/cpu-original-atmosphere.png
-          test -s out/cpu-original-atmosphere.json
+          python tools/phase18_cpu_cross_family_synthesis.py --out-dir out --width 512 --height 640 --steps 1
+          test -s out/transfer_signature.png
+          test -s out/result_statement.png
+          test -s out/verified_subject_news.png
+          test -s out/data_monument.png
+          test -s out/event_editorial.png
+          test -s out/manifest.json
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-cpu-original-synthesis-smoke
+          name: phase18-cpu-cross-family-synthesis
           path: out/
           if-no-files-found: error
           retention-days: 3
