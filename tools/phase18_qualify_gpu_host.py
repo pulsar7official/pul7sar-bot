@@ -36,6 +36,7 @@ def build_report() -> dict[str, object]:
         "downloads_model_weights": False,
         "installs_dependencies": False,
         "uses_paid_api": False,
+        "requires_live_free_vram": True,
         "required_dtype": "bfloat16",
         "required_provider": FLUX2_KLEIN_4B_LOCAL.provider_id,
         "required_model": FLUX2_KLEIN_4B_LOCAL.model_id,
