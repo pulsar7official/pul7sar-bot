@@ -35,6 +35,15 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         }
 
     @staticmethod
+    def _qwen_cache_payload():
+        return {
+            "schema": "pul7sar-phase18-qwen-model-cache-v1",
+            "ready": True,
+            "model_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+            "cost_mode": "$0-local",
+        }
+
+    @staticmethod
     def _staged_payload():
         return {
             "status": "FIRST_GOLDEN_CANDIDATE_READY_FOR_VERIFIED_HUMAN_REVIEW",
@@ -49,6 +58,10 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "publication_ready": False,
             "seeds_2_to_4_authorized": False,
         }
+
+    @staticmethod
+    def _evidence(path, *, label):
+        return {"path": str(path), "sha256": label.lower().encode().hex().ljust(64, "0")[:64], "bytes": 123}
 
     def test_repository_and_cache_budget_precede_semantic_prefetch_and_staging(self):
         calls = []
@@ -77,6 +90,8 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
             patch.object(bootstrap, "_run_json", side_effect=fake_run_json),
+            patch.object(bootstrap, "_load_json_file", return_value=self._qwen_cache_payload()),
+            patch.object(bootstrap, "_evidence_record", side_effect=self._evidence),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime", side_effect=fake_repair),
             patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", side_effect=fake_probe),
             patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", side_effect=fake_prefetch),
@@ -93,8 +108,13 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "QWEN_PREFETCH",
             "FIRST_GOLDEN_SEALED_REVIEW_STAGING",
         ])
+        self.assertEqual(payload["schema"], "pul7sar-first-golden-colab-bootstrap-v2")
         self.assertEqual(payload["candidate"], 1)
         self.assertEqual(payload["first_golden_cache_budget"], str(bootstrap.CACHE_BUDGET))
+        self.assertEqual(payload["qwen_model_cache"], str(bootstrap.QWEN_MODEL_CACHE))
+        self.assertEqual(set(payload["bootstrap_evidence"]), {
+            "repository_integrity", "first_golden_cache_budget", "qwen_model_cache", "sealed_review_receipt"
+        })
         self.assertFalse(payload["human_visual_review_approved"])
         self.assertFalse(payload["golden_quality_approved"])
         self.assertFalse(payload["publication_ready"])
@@ -162,6 +182,37 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
 
         self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY", "FIRST_GOLDEN_CACHE_BUDGET"])
 
+    def test_qwen_cache_receipt_identity_drift_blocks_before_staging(self):
+        bad = self._qwen_cache_payload()
+        bad["model_id"] = "wrong/model"
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._cache_budget_payload()]),
+            patch.object(bootstrap, "_load_json_file", return_value=bad),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+            patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
+            patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", return_value=True),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_CACHE_IDENTITY_DRIFT"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+
+    def test_missing_bootstrap_evidence_blocks_after_staging(self):
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(
+                bootstrap,
+                "_run_json",
+                side_effect=[self._repository_payload(), self._cache_budget_payload(), self._staged_payload()],
+            ),
+            patch.object(bootstrap, "_load_json_file", return_value=self._qwen_cache_payload()),
+            patch.object(bootstrap, "_evidence_record", side_effect=RuntimeError("FIRST_GOLDEN_BOOTSTRAP_SEALED_REVIEW_EVIDENCE_MISSING")),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+            patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
+            patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", return_value=True),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "EVIDENCE_MISSING"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+
     def test_repository_authority_drift_blocks_before_runtime_repair(self):
         payload = self._repository_payload()
         payload["generation_authorized"] = True
@@ -191,6 +242,8 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
                 "_run_json",
                 side_effect=[self._repository_payload(), self._cache_budget_payload(), self._staged_payload()],
             ),
+            patch.object(bootstrap, "_load_json_file", return_value=self._qwen_cache_payload()),
+            patch.object(bootstrap, "_evidence_record", side_effect=self._evidence),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
             patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
             patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", return_value=True),
