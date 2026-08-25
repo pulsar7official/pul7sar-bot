@@ -28,7 +28,7 @@ class PreGenerationSceneLock:
         "verified real-person identity",
         "exact sport geometry",
     )
-    contract: str = "pul7sar-pre-generation-scene-lock-v3"
+    contract: str = "pul7sar-pre-generation-scene-lock-v4-integration-aware"
 
     def prompt_prefix(self) -> str:
         return "Association soccer editorial scene. "
@@ -53,9 +53,19 @@ class PreGenerationSceneLockRegistry:
         EditorialSceneFamily.RESULT_STATEMENT: PreGenerationSceneLock(
             EditorialSceneFamily.RESULT_STATEMENT,
             "association_football",
-            "completed association-football match atmosphere; exact score absent for later deterministic composition",
-            ("professional soccer stadium context", "post-match atmosphere", "clean exact-overlay zone"),
-            _COMMON_FORBIDDEN + ("pre-match ceremony", "victory humiliation of the losing side", "invented score digits"),
+            "completed association-football match atmosphere; exact score absent for later deterministic spatial integration",
+            (
+                "professional soccer stadium context",
+                "post-match atmosphere",
+                "blank lower-center physical plinth in perspective",
+                "plinth contact shadow and venue-light response",
+            ),
+            _COMMON_FORBIDDEN + (
+                "pre-match ceremony",
+                "victory humiliation of the losing side",
+                "invented score digits",
+                "floating scoreboard panel",
+            ),
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: PreGenerationSceneLock(
             EditorialSceneFamily.TRANSFER_SIGNATURE,
