@@ -6,6 +6,7 @@ on:
     paths:
       - 'engine/intelligence/event_editorial_composition.py'
       - 'engine/intelligence/event_editorial_study_renderer.py'
+      - 'engine/intelligence/event_editorial_runtime_v2.py'
       - 'engine/intelligence/premium_editorial_surface.py'
       - 'engine/intelligence/adaptive_brand_overlay.py'
       - 'engine/intelligence/adaptive_brand_placement.py'
@@ -19,6 +20,7 @@ on:
     paths:
       - 'engine/intelligence/event_editorial_composition.py'
       - 'engine/intelligence/event_editorial_study_renderer.py'
+      - 'engine/intelligence/event_editorial_runtime_v2.py'
       - 'engine/intelligence/premium_editorial_surface.py'
       - 'engine/intelligence/adaptive_brand_overlay.py'
       - 'engine/intelligence/adaptive_brand_placement.py'
@@ -56,8 +58,8 @@ jobs:
           root=Path('output/phase18_event_editorial_study')
           m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
           png=root/m['png']
-          assert m['manifest_version']=='pul7sar-event-editorial-study-v1-premium-anchor'
-          assert m['renderer_contract']=='pul7sar-event-editorial-study-renderer-v1-premium-anchor'
+          assert m['manifest_version']=='pul7sar-event-editorial-study-v2-no-duplicate-pulse'
+          assert m['renderer_contract']=='pul7sar-event-editorial-study-renderer-v2-no-duplicate-pulse'
           assert m['composition_contract']=='pul7sar-event-editorial-composition-v1'
           assert m['atmosphere_contract']=='pul7sar-premium-editorial-surface-v1'
           assert m['family']=='event_editorial' and m['platform']=='instagram_feed'
@@ -65,12 +67,13 @@ jobs:
           assert m['person_used'] is False and m['full_pitch_used'] is False and m['decorative_stats_used'] is False
           assert m['person_required'] is False and m['full_pitch_required'] is False and m['decorative_stats_required'] is False
           assert m['dense_copy_allowed'] is False
+          assert m['duplicate_brand_pulse_in_anchor'] is False
           assert m['brand_max_width_ratio'] <= 0.25 and m['brand_max_height_ratio'] <= 0.085
           assert m['generator_used'] is False and m['network_used'] is False
           assert m['study_only'] is True and m['publication_ready'] is False
           assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
           assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
-          print('Premium Event Editorial study PASS')
+          print('Premium Event Editorial v2 no-duplicate-pulse study PASS')
           PY
       - name: Upload event editorial study
         uses: actions/upload-artifact@v7
