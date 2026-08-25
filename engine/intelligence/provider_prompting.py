@@ -28,31 +28,12 @@ class CompiledProviderConstraints:
 
 
 class PromptConstraintCompiler:
-    """Deterministically translate known PUL7SAR constraints for FLUX-like models."""
-
-    _UNIFIED = (
-        "Render one single continuous full-bleed editorial scene in one physical world and one camera view; "
-        "keep the entire canvas visually unified with no separate photo regions, montage structure, or panelized storytelling."
-    )
-    _NO_SPLIT = (
-        "Use one uninterrupted photographic frame with continuous perspective and lighting across the whole canvas; "
-        "do not divide the image with seams, borders, boxes, windows, or repeated frames."
-    )
-    _NO_BRAND_TEXT = (
-        "Render a clean unbranded photographic base scene with no legible words, letters, numerals, platform names, sponsor writing, logos, wordmarks, "
-        "watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually "
-        "neutral so all exact branding and typography can be added later by deterministic post-composition."
-    )
-    _NO_RESERVED_MARKINGS = (
-        "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
-    )
-    _NON_IDENTIFYING_VENUE = (
-        "Use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, "
-        "or other visual cue that could imply a particular real stadium or arena."
-    )
-    _NO_REAL_PERSON = (
-        "Keep the generated scene free of identifiable real people or celebrity likenesses; use crowd scale, silhouettes, or distant anonymous figures only when needed for atmosphere."
-    )
+    _UNIFIED = "Render one single continuous full-bleed editorial scene in one physical world and one camera view; keep the entire canvas visually unified with no separate photo regions, montage structure, or panelized storytelling."
+    _NO_SPLIT = "Use one uninterrupted photographic frame with continuous perspective and lighting across the whole canvas; do not divide the image with seams, borders, boxes, windows, or repeated frames."
+    _NO_BRAND_TEXT = "Render a clean unbranded photographic base scene with no legible words, letters, numerals, platform names, sponsor writing, logos, wordmarks, watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually neutral so all exact branding and typography can be added later by deterministic post-composition."
+    _NO_RESERVED_MARKINGS = "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
+    _NON_IDENTIFYING_VENUE = "Use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, or other visual cue that could imply a particular real stadium or arena."
+    _NO_REAL_PERSON = "Keep the generated scene free of identifiable real people or celebrity likenesses; use crowd scale, silhouettes, or distant anonymous figures only when needed for atmosphere."
 
     _REFRAMES = {
         "no humiliation": "Keep every losing or secondary side dignified and respectful; focus emotional emphasis on the winner without degrading anyone.",
@@ -70,21 +51,16 @@ class PromptConstraintCompiler:
         "no split-screen, grid, diptych, triptych, or contact-sheet framing": _NO_SPLIT,
         "no split-screen, grid, diptych, triptych or contact-sheet framing": _NO_SPLIT,
         "no image-within-image composition": "Keep all visual information inside the same coherent physical scene rather than placing secondary pictures or framed scenes inside the main image.",
-        "no malformed football pitch geometry": (
-            "Render regulation association-football pitch geometry with straight perspective-consistent touchlines and goal lines, exactly one halfway line, exactly one circular centre circle centered on the halfway line, a correctly placed centre mark, two coherent penalty areas and goal areas aligned with the two goals, and physically plausible corner arcs."
-        ),
-        "no duplicate, missing, warped, or invented field markings": (
-            "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective."
-        ),
+        "no malformed football pitch geometry": "Render regulation association-football pitch geometry with straight perspective-consistent touchlines and goal lines, exactly one halfway line, exactly one circular centre circle centered on the halfway line, a correctly placed centre mark, two coherent penalty areas and goal areas aligned with the two goals, and physically plausible corner arcs.",
+        "no duplicate, missing, warped, or invented field markings": "Keep every visible football marking structurally consistent with one real regulation pitch; do not duplicate the halfway line or centre circle, do not invent extra boxes or transverse lines, and keep all markings continuous under perspective.",
         "no football pitch markings in the reserved surface plane": _NO_RESERVED_MARKINGS,
         "no football pitch markings in the reserved surface context": _NO_RESERVED_MARKINGS,
-        "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines": (
-            "Show no painted football markings in the reserved surface region: no centre circle, halfway line, penalty or goal areas, touchlines, goal lines, arcs or decorative field diagrams."
-        ),
+        "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines": "Show no painted football markings in the reserved surface region: no centre circle, halfway line, penalty or goal areas, touchlines, goal lines, arcs or decorative field diagrams.",
         "no generated branding, wordmarks, readable text, or pseudo-text": _NO_BRAND_TEXT,
         "no generated branding, wordmarks, readable text, numerals or pseudo-text": _NO_BRAND_TEXT,
         "no specific identifiable real venue": _NON_IDENTIFYING_VENUE,
         "no specific real-person depiction": _NO_REAL_PERSON,
+        "no fabricated identity": _NO_REAL_PERSON,
     }
 
     def compile(self, constraints: tuple[str, ...], *, supports_native_negative: bool) -> CompiledProviderConstraints:
