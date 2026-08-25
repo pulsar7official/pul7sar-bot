@@ -72,6 +72,7 @@ jobs:
           test -f tools/phase18_colab_first_golden_bootstrap.py
           test -f tools/phase18_colab_first_golden_review_sealed.py
           test -f tools/phase18_first_png_original_scene.py
+          test -f tools/phase18_qualify_gpu_host.py
           test -f engine/intelligence/golden_original_scene_admission.py
           test -f engine/intelligence/first_golden_review_packet_integrity.py
 
@@ -130,7 +131,7 @@ jobs:
           if not receipt_path.is_file():
               raise SystemExit("first-Golden bootstrap receipt missing")
           receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-          if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v2":
+          if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v3":
               raise SystemExit("unexpected first-Golden bootstrap schema")
           if receipt.get("status") != "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY":
               raise SystemExit("first-Golden bootstrap did not reach sealed review readiness")
@@ -138,6 +139,8 @@ jobs:
               raise SystemExit("first-Golden bootstrap identity drift")
           if receipt.get("cost_mode") != "$0-local":
               raise SystemExit("first-Golden bootstrap escaped zero-cost mode")
+          if receipt.get("gpu_host_eligible") is not True or receipt.get("native_bf16_proven") is not True:
+              raise SystemExit("first-Golden GPU host/native BF16 not proven")
           if receipt.get("semantic_runtime_ready") is not True or receipt.get("semantic_model_ready") is not True:
               raise SystemExit("first-Golden semantic runtime/model not proven")
           if receipt.get("human_visual_review_required") is not True:
@@ -167,6 +170,7 @@ jobs:
           evidence = receipt.get("bootstrap_evidence")
           if not isinstance(evidence, dict) or set(evidence) != {
               "repository_integrity",
+              "gpu_host_qualification",
               "first_golden_cache_budget",
               "qwen_model_cache",
               "sealed_review_receipt",
@@ -180,6 +184,16 @@ jobs:
                   raise SystemExit(f"evidence file missing: {label}")
               if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
                   raise SystemExit(f"evidence replay mismatch: {label}")
+
+          host_record = evidence["gpu_host_qualification"]
+          host_path = inside_repo(str(host_record["path"]))
+          host = json.loads(host_path.read_text(encoding="utf-8"))
+          if host.get("eligible") is not True or host.get("bf16_supported") is not True:
+              raise SystemExit("GPU host qualification evidence is not Golden-eligible")
+          if host.get("model_id") != "black-forest-labs/FLUX.2-klein-4B" or host.get("cost_mode") != "$0-local":
+              raise SystemExit("GPU host qualification model/cost drift")
+          if host.get("runtime_kind") != "local_cuda" or host.get("cuda_available") is not True:
+              raise SystemExit("GPU host qualification CUDA drift")
 
           for path_field, sha_field in (
               ("review_base_png", "review_base_png_sha256"),
