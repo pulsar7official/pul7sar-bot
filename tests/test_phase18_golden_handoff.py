@@ -21,7 +21,7 @@ class GoldenVisualHandoffTests(unittest.TestCase):
         self.assertIn("do not make a full pitch the visual subject", prompt)
         self.assertIn("story-specific visual concept archetype: generative_event_atmosphere", prompt)
         self.assertIn("story-specific non-identifying sports atmosphere", prompt)
-        self.assertIn("specific real venue identity without verified context", prompt)
+        self.assertIn("specific real venue identity without verified reference", prompt)
         self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
         self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
         self.assertTrue(request.metadata["hybrid_surface_replacement_required"])
