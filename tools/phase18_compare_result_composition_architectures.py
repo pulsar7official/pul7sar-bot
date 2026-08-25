@@ -42,6 +42,7 @@ def main():
     )
 
     rows = []
+    rejected = []
     images = []
     for item in candidates:
         seed = int(item["seed"])
@@ -49,6 +50,15 @@ def main():
         provenance = GeneratedBaseProvenance.from_manifest(
             manifest_path=str(manifest_path), family=family, image_path=str(base)
         )
+        compatibility = SpatialResultMonument.inspect_compatibility(str(base))
+        if not compatibility.compatible:
+            rejected.append({
+                "seed": seed,
+                "file": base.name,
+                "compatibility": compatibility.to_dict(),
+                "provenance_verified": True,
+            })
+            continue
 
         flat = out / f"result_flat_seed_{seed}.jpg"
         receipt = HybridPixelComposer().compose(HybridPixelRequest(
@@ -71,41 +81,48 @@ def main():
         rows.append({
             "seed": seed,
             "provenance_verified": receipt.provenance_verified,
+            "compatibility": compatibility.to_dict(),
             "flat": {"file": flat.name, "pixel_health": flat_q.passed, "entropy": flat_q.entropy},
             "spatial": {"file": spatial.name, "pixel_health": spatial_q.passed, "entropy": spatial_q.entropy},
         })
         images.append((seed, "flat", Image.open(flat).convert("RGB")))
         images.append((seed, "spatial", Image.open(spatial).convert("RGB")))
 
+    if not rows:
+        raise ValueError("NO_SPATIAL_COMPATIBLE_RESULT_CANDIDATES")
     if not any(r["spatial"]["pixel_health"] for r in rows):
         raise ValueError("ALL_SPATIAL_RESULT_CANDIDATES_FAILED_PIXEL_HEALTH")
 
     w, h = images[0][2].size
-    sheet = Image.new("RGB", (w * 2, h * len(candidates)), (8, 8, 8))
+    sheet = Image.new("RGB", (w * 2, h * len(rows)), (8, 8, 8))
     font = ImageFont.load_default()
-    for row_idx, item in enumerate(candidates):
-        seed = int(item["seed"])
+    for row_idx, row in enumerate(rows):
+        seed = int(row["seed"])
         pair = [x for x in images if x[0] == seed]
         for col, (_, mode, image) in enumerate(pair):
             x = col * w; y = row_idx * h
             sheet.paste(image, (x, y))
             d = ImageDraw.Draw(sheet)
-            d.rectangle((x, y, x + 180, y + 24), fill=(0,0,0))
+            d.rectangle((x, y, x + 210, y + 24), fill=(0,0,0))
             d.text((x+7, y+6), f"seed {seed} | {mode}", font=font, fill=(255,255,255))
     board = out / "result_architecture_comparison.jpg"
     sheet.save(board, quality=95)
 
     result = {
-        "contract": "pul7sar-result-composition-architecture-comparison-v1",
+        "contract": "pul7sar-result-composition-architecture-comparison-v2-compatible-only",
         "source_contract": payload.get("contract"),
         "flat_contract": HybridPixelComposer.CONTRACT,
         "spatial_contract": SpatialResultMonument.CONTRACT,
+        "compatibility_contract": SpatialResultMonument.COMPATIBILITY_CONTRACT,
+        "source_candidate_count": len(candidates),
         "candidate_count": len(rows),
+        "rejected_count": len(rejected),
         "pairs": rows,
+        "rejected": rejected,
         "board": board.name,
         "publication_ready": False,
         "human_visual_review_required": True,
-        "decision_rule": "pixel health may reject; aesthetic architecture selection requires visual review",
+        "decision_rule": "incompatible foregrounds are rejected before composition; pixel health may reject accepted pairs; aesthetic selection still requires visual review",
     }
     (out / "manifest.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
 
