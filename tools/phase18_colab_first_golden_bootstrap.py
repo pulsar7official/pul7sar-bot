@@ -89,7 +89,7 @@ def run(
         ],
         label="FIRST_GOLDEN_REPOSITORY_INTEGRITY",
     )
-    if repository.get("status") != "PHASE18_PRE_GPU_REPOSITORY_INTEGRITY_READY":
+    if repository.get("schema") != "pul7sar-phase18-pre-gpu-repository-integrity-v1" or repository.get("ready") is not True:
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_REPOSITORY_INTEGRITY_BLOCKED")
     if repository.get("branch") != EXPECTED_BRANCH or repository.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_REPOSITORY_IDENTITY_DRIFT")
