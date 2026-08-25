@@ -1,0 +1,58 @@
+name: Phase 18 Cinematic V4 Benchmark
+
+on:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-v4:
+    strategy:
+      fail-fast: false
+      matrix:
+        scene:
+          - {family: transfer_signature, seed: 10101, a: 'C90B22', b: '174EA6', slug: '01-transfer'}
+          - {family: result_statement, seed: 10201, a: 'D90E25', b: '1D5EFF', slug: '02-result'}
+          - {family: verified_subject_news, seed: 10301, a: 'E4312B', b: '164C8C', slug: '03-subject'}
+          - {family: tactical_board, seed: 10401, a: 'E3232A', b: '2D66D4', slug: '04-tactical'}
+          - {family: data_monument, seed: 10501, a: 'EF2B2D', b: '2655C7', slug: '05-data'}
+          - {family: event_editorial, seed: 10601, a: 'E02031', b: '2457D6', slug: '06-event'}
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Verify and sanitize primitive helper
+        run: |
+          python -m pip install Pillow
+          python -m unittest tests.test_phase18_cinematic_art_direction tests.test_phase18_visual_quality_ladder
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/phase18_blender_family_scene_v2.py')
+          p.write_text('\n'.join(line for line in p.read_text().splitlines() if '$.replace' not in line)+'\n')
+          PY
+          python -m py_compile tools/phase18_blender_family_scene_v2.py tools/phase18_blender_family_scene_v4.py
+      - name: Install Blender
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y blender xvfb libegl1 libgl1-mesa-dri libglx-mesa0
+      - name: Render V4
+        run: |
+          mkdir -p out
+          xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v4.py -- --family '${{ matrix.scene.family }}' --seed '${{ matrix.scene.seed }}' --accent-a '${{ matrix.scene.a }}' --accent-b '${{ matrix.scene.b }}' --output 'out/${{ matrix.scene.slug }}.png'
+          test -s 'out/${{ matrix.scene.slug }}.png'
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cinematic-v4-${{ matrix.scene.slug }}
+          path: out/${{ matrix.scene.slug }}.png
+          if-no-files-found: error
+          retention-days: 3
