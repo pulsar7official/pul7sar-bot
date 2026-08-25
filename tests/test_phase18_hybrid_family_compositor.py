@@ -22,9 +22,15 @@ class HybridFamilyCompositorTests(unittest.TestCase):
         self.assertTrue(receipt.deterministic_facts_used)
         self.assertFalse(receipt.fabricated_crest_used)
         self.assertFalse(receipt.placeholder_used)
-        self.assertFalse(receipt.generated_text_used)
+        self.assertFalse(receipt.compositor_generated_text_used)
         self.assertFalse(receipt.source_photo_used)
+        # Composition is not semantic inspection. These must fail closed until a visual gate proves them.
+        self.assertFalse(receipt.base_scene_semantic_verified)
+        self.assertFalse(receipt.base_scene_text_absence_verified)
+        self.assertFalse(receipt.base_scene_identity_absence_verified)
+        self.assertFalse(receipt.base_scene_geometry_absence_verified)
         self.assertFalse(receipt.publication_ready)
+        self.assertEqual(receipt.contract, "pul7sar-hybrid-family-compositor-v2")
 
     def test_all_generative_families_compose_without_placeholders(self):
         cases = [
@@ -47,8 +53,7 @@ class HybridFamilyCompositorTests(unittest.TestCase):
             root = Path(td)
             with self.assertRaises(ValueError):
                 HybridFamilyCompositor().compose(
-                    base_path=str(self._base(root)),
-                    output_path=str(root / "bad.png"),
+                    base_path=str(self._base(root)), output_path=str(root / "bad.png"),
                     facts=HybridEditorialFacts(EditorialSceneFamily.RESULT_STATEMENT, "RESULT"),
                 )
 
@@ -57,8 +62,7 @@ class HybridFamilyCompositorTests(unittest.TestCase):
             root = Path(td)
             with self.assertRaises(ValueError):
                 HybridFamilyCompositor().compose(
-                    base_path=str(self._base(root)),
-                    output_path=str(root / "bad.png"),
+                    base_path=str(self._base(root)), output_path=str(root / "bad.png"),
                     facts=HybridEditorialFacts(EditorialSceneFamily.DATA_MONUMENT, "DATA"),
                 )
 
@@ -67,8 +71,7 @@ class HybridFamilyCompositorTests(unittest.TestCase):
             root = Path(td)
             with self.assertRaises(ValueError):
                 HybridFamilyCompositor().compose(
-                    base_path=str(self._base(root)),
-                    output_path=str(root / "bad.png"),
+                    base_path=str(self._base(root)), output_path=str(root / "bad.png"),
                     facts=HybridEditorialFacts(EditorialSceneFamily.TACTICAL_BOARD, "TACTICS"),
                 )
 
