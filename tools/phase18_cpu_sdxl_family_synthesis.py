@@ -1,8 +1,9 @@
 """Generate one higher-quality original scene for a selected editorial family.
 
-This is a benchmark-only quality candidate. It uses SDXL Turbo on a public GitHub
-CPU runner, keeps all exact identity/data/branding layers outside generation, and
-fails closed when the prompt would be truncated.
+This benchmark-only path uses SDXL Turbo on a public GitHub CPU runner. A selected
+CrossFamilyVisualSystem archetype may alter the camera/environment grammar so
+anti-repetition decisions become visible in generated pixels, while all exact
+identity/data/branding layers remain outside generation.
 """
 from __future__ import annotations
 
@@ -15,6 +16,7 @@ import torch
 from diffusers import AutoPipelineForText2Image
 
 from engine.intelligence.generation_prompt_budget import GenerationPromptBudget
+from engine.intelligence.original_scene_archetype_profiles import OriginalSceneArchetypeProfileRegistry
 from engine.intelligence.original_scene_prompt_profiles import OriginalScenePromptProfileRegistry
 from engine.intelligence.pre_generation_scene_lock import PreGenerationSceneLockRegistry
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
@@ -32,10 +34,12 @@ SEEDS = {
 def parse() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--family", required=True, choices=[f.value for f in SEEDS])
+    p.add_argument("--archetype", default="")
     p.add_argument("--out-dir", required=True)
     p.add_argument("--width", type=int, default=512)
     p.add_argument("--height", type=int, default=640)
     p.add_argument("--steps", type=int, default=4)
+    p.add_argument("--seed", type=int, default=None)
     p.add_argument("--model", default=MODEL)
     return p.parse_args()
 
@@ -48,7 +52,12 @@ def main() -> None:
 
     profile = OriginalScenePromptProfileRegistry.get(family)
     lock = PreGenerationSceneLockRegistry.get(family)
-    prompt = PreGenerationSceneLockRegistry.locked_prompt(family, profile.prompt)
+    archetype_id = q.archetype.strip()
+    archetype_prompt = ""
+    if archetype_id:
+        archetype = OriginalSceneArchetypeProfileRegistry.get(family, archetype_id)
+        archetype_prompt = " " + archetype.atmosphere_prompt
+    prompt = PreGenerationSceneLockRegistry.locked_prompt(family, profile.prompt + archetype_prompt)
 
     pipe = AutoPipelineForText2Image.from_pretrained(
         q.model,
@@ -57,7 +66,6 @@ def main() -> None:
     ).to("cpu")
     pipe.set_progress_bar_config(disable=False)
 
-    # SDXL has two CLIP tokenizers. Both must fit before any inference starts.
     budgets = []
     for name in ("tokenizer", "tokenizer_2"):
         tokenizer = getattr(pipe, name, None)
@@ -72,7 +80,9 @@ def main() -> None:
     if not budgets:
         raise RuntimeError("NO_USABLE_TEXT_TOKENIZER")
 
-    seed = SEEDS[family]
+    seed = q.seed if q.seed is not None else SEEDS[family]
+    if seed < 0:
+        raise ValueError("seed must be non-negative")
     gen = torch.Generator(device="cpu").manual_seed(seed)
     image = pipe(
         prompt=prompt,
@@ -86,8 +96,9 @@ def main() -> None:
     image_path = out / f"{family.value}.png"
     image.save(image_path)
     manifest = {
-        "contract": "pul7sar-sdxl-family-synthesis-v1",
+        "contract": "pul7sar-sdxl-family-synthesis-v2-archetype-aware",
         "family": family.value,
+        "archetype_id": archetype_id or None,
         "model": q.model,
         "device": "cpu",
         "cost_mode": "$0-github-public-runner",
