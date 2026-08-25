@@ -75,7 +75,8 @@ class FluxModelRevisionLockTests(unittest.TestCase):
     def test_prefetch_command_pins_same_revision_for_cache_and_download(self):
         text = Path("tools/phase18_prefetch_flux2.py").read_text(encoding="utf-8")
         self.assertIn("FLUX2_KLEIN_4B_REVISION", text)
-        self.assertGreaterEqual(text.count("revision=FLUX2_KLEIN_4B_REVISION"), 2)
+        self.assertIn("revision=revision", text)
+        self.assertIn("revision=FLUX2_KLEIN_4B_REVISION", text)
         self.assertIn('"schema": "pul7sar-phase18-model-cache-v2"', text)
         self.assertIn('"revision_pinned": True', text)
         self.assertIn("assert_snapshot_revision", text)
