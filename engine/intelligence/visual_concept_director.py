@@ -3,8 +3,9 @@
 This layer chooses the *idea of the picture* before any renderer is selected.
 It prevents a family renderer from becoming the visual concept by default.
 A result can be moment-led, celebration-led or score-led; a transfer can be
-hero-arrival or symbolic; event editorial can be photographic or minimal.
-Exact facts, identities, readable copy and PUL7SAR branding remain deterministic.
+hero-arrival or symbolic; event editorial can be photographic, safely generative
+or minimal. Exact facts, identities, readable copy and PUL7SAR branding remain
+deterministic.
 """
 from __future__ import annotations
 
@@ -27,6 +28,7 @@ class VisualConceptArchetype(str, Enum):
     TACTICAL_SPATIAL_MAP = "tactical_spatial_map"
     DATA_MONOLITH = "data_monolith"
     PHOTOGRAPHIC_EVENT = "photographic_event"
+    GENERATIVE_EVENT_ATMOSPHERE = "generative_event_atmosphere"
     MINIMAL_EVENT_SYMBOL = "minimal_event_symbol"
 
 
@@ -43,6 +45,7 @@ class VisualConceptSignals:
     decisive_moment_known: bool = False
     story_requires_person: bool = False
     story_requires_pitch: bool = False
+    safe_generated_context: bool = False
     score_margin: int | None = None
 
     def __post_init__(self) -> None:
@@ -195,6 +198,26 @@ class VisualConceptDirector:
                 assets=("verified_context_photo",),
                 rationale="general news should use real contextual texture when it exists instead of inventing a symbolic portal",
                 extra_forbidden=("abstract portal as default hero", "duplicate PUL7SAR pulse motif"),
+            )
+        if signals.safe_generated_context:
+            return self._decision(
+                family, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
+                hero="story-specific non-identifying sports atmosphere",
+                environment=(
+                    "photorealistic but deliberately non-identifying sports-event world; "
+                    "deterministic layers own all exact facts"
+                ),
+                assets=(),
+                rationale=(
+                    "when no verified context image exists but non-factual atmosphere is safe, generate a generic event world "
+                    "without inventing a real venue, person or factual visual claim"
+                ),
+                extra_forbidden=(
+                    "specific real venue identity without verified context",
+                    "specific real-person depiction",
+                    "abstract portal as default hero",
+                    "duplicate PUL7SAR pulse motif",
+                ),
             )
         return self._decision(
             family, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL,
