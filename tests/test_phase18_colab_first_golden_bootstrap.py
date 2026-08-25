@@ -21,6 +21,20 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         }
 
     @staticmethod
+    def _cache_budget_payload():
+        return {
+            "schema": "pul7sar-first-golden-cache-budget-v1",
+            "branch": "phase18/story-intelligence",
+            "ready": True,
+            "cost_mode": "$0-local",
+            "downloads_performed": False,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": False,
+        }
+
+    @staticmethod
     def _staged_payload():
         return {
             "status": "FIRST_GOLDEN_CANDIDATE_READY_FOR_VERIFIED_HUMAN_REVIEW",
@@ -36,13 +50,15 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "seeds_2_to_4_authorized": False,
         }
 
-    def test_repository_preflight_precedes_runtime_repair_and_sealed_staging(self):
+    def test_repository_and_cache_budget_precede_semantic_prefetch_and_staging(self):
         calls = []
 
         def fake_run_json(command, *, label):
             calls.append(label)
             if label == "FIRST_GOLDEN_REPOSITORY_INTEGRITY":
                 return self._repository_payload()
+            if label == "FIRST_GOLDEN_CACHE_BUDGET":
+                return self._cache_budget_payload()
             if label == "FIRST_GOLDEN_SEALED_REVIEW_STAGING":
                 return self._staged_payload()
             raise AssertionError(label)
@@ -72,22 +88,43 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         self.assertEqual(calls, [
             "FIRST_GOLDEN_REPOSITORY_INTEGRITY",
             "RUNTIME_REPAIR",
+            "FIRST_GOLDEN_CACHE_BUDGET",
             "SEMANTIC_RUNTIME_PROBE",
             "QWEN_PREFETCH",
             "FIRST_GOLDEN_SEALED_REVIEW_STAGING",
         ])
         self.assertEqual(payload["candidate"], 1)
+        self.assertEqual(payload["first_golden_cache_budget"], str(bootstrap.CACHE_BUDGET))
         self.assertFalse(payload["human_visual_review_approved"])
         self.assertFalse(payload["golden_quality_approved"])
         self.assertFalse(payload["publication_ready"])
         self.assertFalse(payload["seeds_2_to_4_authorized"])
+
+    def test_cache_budget_failure_blocks_before_semantic_probe_prefetch_and_staging(self):
+        blocked = self._cache_budget_payload()
+        blocked["ready"] = False
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), blocked]),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+            patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe") as probe,
+            patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model") as prefetch,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "CACHE_BUDGET_BLOCKED"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+        probe.assert_not_called()
+        prefetch.assert_not_called()
 
     def test_semantic_runtime_failure_is_fatal_not_engineering_fallback(self):
         labels = []
 
         def fake_run_json(command, *, label):
             labels.append(label)
-            return self._repository_payload()
+            if label == "FIRST_GOLDEN_REPOSITORY_INTEGRITY":
+                return self._repository_payload()
+            if label == "FIRST_GOLDEN_CACHE_BUDGET":
+                return self._cache_budget_payload()
+            raise AssertionError(label)
 
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
@@ -99,7 +136,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "SEMANTIC_RUNTIME_NOT_READY"):
                 bootstrap.run(worker_id="test-worker", timeout_seconds=60)
 
-        self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY"])
+        self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY", "FIRST_GOLDEN_CACHE_BUDGET"])
         prefetch.assert_not_called()
 
     def test_qwen_prefetch_failure_blocks_before_sealed_staging(self):
@@ -107,7 +144,11 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
 
         def fake_run_json(command, *, label):
             labels.append(label)
-            return self._repository_payload()
+            if label == "FIRST_GOLDEN_REPOSITORY_INTEGRITY":
+                return self._repository_payload()
+            if label == "FIRST_GOLDEN_CACHE_BUDGET":
+                return self._cache_budget_payload()
+            raise AssertionError(label)
 
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
@@ -119,7 +160,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_NOT_READY"):
                 bootstrap.run(worker_id="test-worker", timeout_seconds=60)
 
-        self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY"])
+        self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY", "FIRST_GOLDEN_CACHE_BUDGET"])
 
     def test_repository_authority_drift_blocks_before_runtime_repair(self):
         payload = self._repository_payload()
@@ -145,7 +186,11 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
     def test_output_path_must_remain_inside_repository(self):
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
-            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._staged_payload()]),
+            patch.object(
+                bootstrap,
+                "_run_json",
+                side_effect=[self._repository_payload(), self._cache_budget_payload(), self._staged_payload()],
+            ),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
             patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
             patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", return_value=True),
