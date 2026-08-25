@@ -48,26 +48,39 @@ class FinalVisualExecutionTests(unittest.TestCase):
         self.assertFalse(final.generator_execution_allowed)
         self.assertIn('cannot override concept readiness', final.reason)
 
-    def test_contract_only_transfer_symbol_does_not_fall_back_to_family_renderer(self):
+    def test_symbolic_transfer_has_original_local_renderer(self):
         decision = self.orchestrator.decide(self._story(event=EditorialEvent.TRANSFER_CONFIRMED))
         capability = self.registry.get(decision.visual_concept.archetype)
         self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL)
         final = self.gate.resolve(capability=capability, lower_level_route=decision.execution_route)
-        self.assertFalse(final.execution_allowed)
+        self.assertTrue(final.execution_allowed)
+        self.assertTrue(final.renderer_execution_allowed)
         self.assertFalse(final.provider_selection_allowed)
 
-    def test_verified_decisive_moment_uses_admitted_photo_led_renderer(self):
+    def test_verified_photo_cannot_authorize_photo_led_publication_route(self):
         decision = self.orchestrator.decide(self._story(metadata={
             'verified_action_photo': True,
             'decisive_moment_known': True,
             'exact_club_assets': True,
         }))
         capability = self.registry.get(decision.visual_concept.archetype)
-        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.DECISIVE_MOMENT)
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.SCORE_MONUMENT)
         final = self.gate.resolve(capability=capability, lower_level_route=decision.execution_route)
         self.assertTrue(final.execution_allowed)
-        self.assertTrue(final.renderer_execution_allowed)
-        self.assertFalse(final.provider_selection_allowed)
+        self.assertFalse(capability.reference_only)
+
+    def test_original_result_generation_is_blocked_until_runtime_qualification(self):
+        decision = self.orchestrator.decide(self._story(metadata={
+            'allow_original_scene_generation': True,
+            'verified_action_photo': True,
+            'decisive_moment_known': True,
+            'exact_club_assets': True,
+        }))
+        capability = self.registry.get(decision.visual_concept.archetype)
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE)
+        final = self.gate.resolve(capability=capability, lower_level_route=decision.execution_route)
+        self.assertFalse(final.execution_allowed)
+        self.assertFalse(final.generator_execution_allowed)
 
 
 if __name__ == '__main__':
