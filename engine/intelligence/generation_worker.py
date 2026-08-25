@@ -1,7 +1,7 @@
 """Fail-closed worker orchestration for automated Phase 18 generation.
 
 This module turns the existing portable handoff/executor into a scalable worker
-contract.  It intentionally owns no queue backend and no GPU implementation.
+contract. It intentionally owns no queue backend and no GPU implementation.
 Instead, it validates capability, lease ownership, bounded retry behaviour and
 result identity around an injected executor.
 """
@@ -51,6 +51,18 @@ class LockedGenerationExecutor(Protocol):
     def execute(self, job: GenerationJob) -> WorkerExecutionResult: ...
 
 
+class LeaseBoundPreExecutionGuard(Protocol):
+    """Optional last-moment runtime guard executed after lease, before RUNNING.
+
+    The guard may inspect physical runtime state that cannot be represented by
+    static worker capabilities, such as live free VRAM. Raising an exception
+    releases the lease without consuming a generation attempt; no executor call
+    is permitted after a guard failure.
+    """
+
+    def __call__(self, job: GenerationJob) -> object: ...
+
+
 @dataclass(frozen=True)
 class WorkerCycleResult:
     worker_id: str
@@ -64,7 +76,7 @@ class GenerationWorkerService:
     """Lease and execute at most one job per cycle.
 
     A production runner can call this service continuously or from a process
-    supervisor.  Single-cycle semantics keep concurrency explicit: horizontal
+    supervisor. Single-cycle semantics keep concurrency explicit: horizontal
     scaling is achieved by more workers, while each GPU worker can independently
     control its safe local concurrency.
     """
@@ -77,6 +89,7 @@ class GenerationWorkerService:
         capabilities: GenerationWorkerCapabilities,
         lease_seconds: int = 900,
         require_bf16: bool = True,
+        pre_execute_guard: LeaseBoundPreExecutionGuard | None = None,
     ) -> None:
         if lease_seconds <= 0:
             raise ValueError("lease_seconds must be positive")
@@ -85,6 +98,7 @@ class GenerationWorkerService:
         self.capabilities = capabilities
         self.lease_seconds = lease_seconds
         self.require_bf16 = require_bf16
+        self.pre_execute_guard = pre_execute_guard
 
     def run_once(self, *, now: datetime | None = None) -> WorkerCycleResult:
         current = now or datetime.now(timezone.utc)
@@ -111,6 +125,12 @@ class GenerationWorkerService:
                 failed.state,
                 failed.failure_detail,
             )
+
+        if self.pre_execute_guard is not None:
+            try:
+                self.pre_execute_guard(job)
+            except Exception as exc:
+                return self._release_guard_blocked_lease(job, str(exc), now=current)
 
         running = job.transition(
             GenerationJobState.RUNNING,
@@ -162,6 +182,41 @@ class GenerationWorkerService:
             result.failure_detail or "executor returned no result",
             retryable=result.retryable,
             now=current,
+        )
+
+    def _release_guard_blocked_lease(
+        self,
+        leased: GenerationJob,
+        detail: str,
+        *,
+        now: datetime,
+    ) -> WorkerCycleResult:
+        """Release a lease blocked by a last-moment runtime safety guard.
+
+        The job never entered RUNNING, so a guard failure must not consume an
+        attempt. We still persist an explicit RETRYABLE_FAILED transition before
+        requeueing so the durable history records why execution did not start.
+        """
+        failed = leased.transition(
+            GenerationJobState.RETRYABLE_FAILED,
+            now=now,
+            failure_code="pre_execute_guard_blocked",
+            failure_detail=detail or "pre-execution runtime guard blocked execution",
+        )
+        self.store.save(failed)
+        requeued = failed.transition(
+            GenerationJobState.QUEUED,
+            now=now,
+            lease_owner=None,
+            lease_expires_at=None,
+        )
+        self.store.save(requeued)
+        return WorkerCycleResult(
+            self.capabilities.worker_id,
+            "requeued",
+            requeued.job_id,
+            requeued.state,
+            failed.failure_detail,
         )
 
     def _fail(
