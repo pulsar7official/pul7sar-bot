@@ -1,9 +1,11 @@
-"""Compact family prompts for original-scene synthesis.
+"""Positive-only family prompts for original-scene synthesis.
 
-The generator owns atmosphere and material world only. Prompts deliberately avoid
-objects that commonly leak exact identity, readable text or regulation geometry.
+Turbo-class diffusion can turn forbidden nouns in a positive prompt into visual
+objects even when preceded by 'no'. Therefore this registry describes only the
+atmosphere/material world the generator is allowed to own. Forbidden content is
+kept in lock metadata and visual QA, not repeated as positive-prompt vocabulary.
 Exact people, garments/crests, score, copy, data, football geometry and PUL7SAR
-branding are reserved for verified/deterministic composition.
+branding remain verified/deterministic layers.
 """
 from __future__ import annotations
 
@@ -26,35 +28,35 @@ class OriginalScenePromptProfile:
         "verified real-person identity",
         "exact sport geometry",
     )
-    contract: str = "pul7sar-original-scene-prompt-profile-v3"
+    contract: str = "pul7sar-original-scene-prompt-profile-v4-positive-only"
 
 
 class OriginalScenePromptProfileRegistry:
     _MAP = {
         EditorialSceneFamily.RESULT_STATEMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.RESULT_STATEMENT,
-            "Premium cinematic soccer post-match atmosphere beneath a vast stadium roof, luminous floodlights, deep anonymous spectator texture, restrained haze and dark architectural layers, dramatic asymmetric negative space in the foreground, no visible field markings, goal, garments, signage or people near camera, unbranded surfaces.",
-            "atmosphere and anonymous distant spectator texture only; field geometry, score and identity are separate exact layers",
+            "Premium cinematic post-match stadium atmosphere framed upward across a vast roof and deep spectator seating bowl, luminous floodlight haze, layered dark architecture, subtle crowd-light texture, dramatic asymmetric shadow foreground and broad clean editorial negative space, realistic night photography, neutral surfaces.",
+            "roof, stands, light, haze and anonymous spectator texture only; sport geometry, participants, score and identity are separate layers",
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: OriginalScenePromptProfile(
             EditorialSceneFamily.TRANSFER_SIGNATURE,
-            "Premium cinematic professional soccer arrival corridor, asymmetric tunnel depth, brushed metal, dark stone, matte acoustic fabric, practical destination light, elegant empty presentation alcove, subtle directional motion through architecture, no person, garment, locker labels, signage or logo, unbranded surfaces.",
-            "environment only; player identity, club marks and garments are separate verified assets",
+            "Premium cinematic arrival corridor inside a major football venue, asymmetric tunnel depth, brushed metal, dark stone and matte acoustic fabric, elegant empty presentation alcove, directional destination light, refined architectural detail and subtle sense of forward motion, realistic editorial photography, neutral surfaces.",
+            "architecture, materials and destination light only; subject and identity assets are separate layers",
         ),
         EditorialSceneFamily.VERIFIED_SUBJECT_NEWS: OriginalScenePromptProfile(
             EditorialSceneFamily.VERIFIED_SUBJECT_NEWS,
-            "Premium cinematic professional soccer interior corridor beside an empty technical bench zone, layered matte architecture, soft practical light and restrained lens depth, one large uncluttered hero area reserved for a verified subject, no person, mannequin, garment, jersey, ball, signage, writing or logo, unbranded surfaces.",
-            "empty editorial environment only; verified subject and identity-bearing equipment are separate assets",
+            "Premium cinematic interior media corridor beside a quiet technical seating alcove in a major football venue, layered matte architecture, soft practical light, restrained lens depth, elegant empty bench furniture and one large uncluttered hero area, realistic editorial photography, neutral surfaces.",
+            "empty architectural editorial environment only; verified subject and identity-bearing equipment are separate layers",
         ),
         EditorialSceneFamily.DATA_MONUMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.DATA_MONUMENT,
-            "Premium cinematic indoor sports information gallery, one monumental man-made brushed-metal information sculpture, frosted glass and large perfectly blank inset surfaces, precise architectural light, deep dark negative space, subtle arena-scale ambience, no people, balls, field, charts, writing, numbers, signage or logos.",
-            "architectural information environment only; all values, labels and sport identity are deterministic",
+            "Premium cinematic indoor sports information gallery, one monumental engineered brushed-metal information sculpture, frosted architectural glass, large pristine inset display planes, precise directional light, controlled reflections, deep charcoal negative space and subtle arena-scale ambience, realistic editorial photography, neutral surfaces.",
+            "engineered information architecture and blank display planes only; values, labels and sport identity are deterministic",
         ),
         EditorialSceneFamily.EVENT_EDITORIAL: OriginalScenePromptProfile(
             EditorialSceneFamily.EVENT_EDITORIAL,
-            "Premium cinematic nighttime approach to a major professional soccer venue before an event, monumental exterior entrance architecture, distant anonymous crowd-light texture, deep forward perspective, floodlight glow, restrained haze and anticipation, generous empty editorial foreground, no visible field, goal, players, garments, signs, writing or score.",
-            "venue atmosphere only; event identity, football geometry, date and readable facts are separate exact layers",
+            "Premium cinematic nighttime approach to a major football venue before an event, monumental exterior entrance architecture, deep forward perspective, distant anonymous crowd-light texture, powerful architectural floodlight glow, restrained atmospheric haze, anticipation and generous clean editorial foreground, realistic night photography, neutral surfaces.",
+            "venue exterior architecture, light and distant atmosphere only; event identity, sport geometry, date and facts are separate exact layers",
         ),
     }
 
