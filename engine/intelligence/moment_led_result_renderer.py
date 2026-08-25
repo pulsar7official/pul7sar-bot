@@ -1,8 +1,9 @@
 """Moment-led Result renderer for premium PUL7SAR coverage.
 
-When a verified decisive-action or celebration photograph exists, the photograph
-is the story hero. The exact score and club text become restrained factual layers
-instead of forcing every result into a scoreboard/monument composition.
+When a verified match-action, decisive-action or celebration photograph exists,
+the photograph is the story hero. A MATCH_ACTION is never described as decisive;
+it simply proves real match context. Exact score and club text remain restrained
+factual layers instead of forcing every result into a scoreboard composition.
 """
 from __future__ import annotations
 
@@ -15,11 +16,14 @@ from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from engine.intelligence.adaptive_brand_overlay import AdaptiveBrandOverlayRenderer
 from engine.intelligence.platform_profiles import PlatformImageProfile
 from engine.intelligence.result_statement_composition import ResultStatementComposition
-from engine.intelligence.verified_story_moment import (
-    StoryMomentKind,
-    VerifiedStoryMomentAsset,
-    VerifiedStoryMomentGate,
-)
+from engine.intelligence.verified_story_moment import StoryMomentKind, VerifiedStoryMomentAsset, VerifiedStoryMomentGate
+
+
+_ALLOWED_RESULT_MOMENTS = {
+    StoryMomentKind.MATCH_ACTION,
+    StoryMomentKind.DECISIVE_ACTION,
+    StoryMomentKind.CELEBRATION,
+}
 
 
 @dataclass(frozen=True)
@@ -50,8 +54,8 @@ class MomentLedResultReceipt:
     contract: str = "pul7sar-moment-led-result-renderer-v1"
 
     def __post_init__(self) -> None:
-        if self.moment_kind not in {StoryMomentKind.DECISIVE_ACTION.value, StoryMomentKind.CELEBRATION.value}:
-            raise ValueError("MOMENT_LED_RESULT_REQUIRES_ACTION_OR_CELEBRATION")
+        if self.moment_kind not in {item.value for item in _ALLOWED_RESULT_MOMENTS}:
+            raise ValueError("MOMENT_LED_RESULT_REQUIRES_VERIFIED_MATCH_ACTION_DECISIVE_OR_CELEBRATION")
         if not self.score_is_secondary or not self.photograph_is_primary:
             raise ValueError("MOMENT_LED_RESULT_HIERARCHY_INVALID")
         if not self.club_identity_scale_equal:
@@ -102,17 +106,12 @@ class MomentLedResultRenderer:
         image = ImageEnhance.Contrast(image).enhance(1.12)
         image = ImageEnhance.Brightness(image).enhance(0.82).convert("RGBA")
         width, height = image.size
-
-        # Preserve the photographic moment. The overlays create readable edge lanes
-        # without turning the centre into a panel/card.
         falloff = Image.new("RGBA", image.size, (0,0,0,0))
         fd = ImageDraw.Draw(falloff, "RGBA")
         for y in range(round(height*0.58), height):
             t = (y-height*0.58)/(height*0.42)
             fd.line((0,y,width,y), fill=(2,6,12,round(20+165*t*t)))
         image.alpha_composite(falloff)
-
-        # Equal restrained club-light contamination on opposite edges.
         glow = Image.new("RGBA", image.size, (0,0,0,0))
         gd = ImageDraw.Draw(glow, "RGBA")
         r = round(max(width,height)*0.30)
@@ -152,8 +151,8 @@ class MomentLedResultRenderer:
             raise TypeError("profile must be PlatformImageProfile")
         if not isinstance(moment_asset, VerifiedStoryMomentAsset):
             raise TypeError("moment_asset must be VerifiedStoryMomentAsset")
-        if moment_asset.moment_kind not in {StoryMomentKind.DECISIVE_ACTION, StoryMomentKind.CELEBRATION}:
-            raise ValueError("MOMENT_LED_RESULT_REQUIRES_ACTION_OR_CELEBRATION")
+        if moment_asset.moment_kind not in _ALLOWED_RESULT_MOMENTS:
+            raise ValueError("MOMENT_LED_RESULT_REQUIRES_VERIFIED_MATCH_ACTION_DECISIVE_OR_CELEBRATION")
         if not Path(font_path).is_file():
             raise FileNotFoundError(font_path)
         if home_score < 0 or away_score < 0:
@@ -175,14 +174,10 @@ class MomentLedResultRenderer:
         score_text = f"{home_score}  –  {away_score}"
         score_font = self._fit_font(draw, score_text, font_path, round(profile.width*0.32), round(profile.height*0.065), round(profile.height*0.055))
         name_font = self._fit_font(draw, max((home_name,away_name), key=len), font_path, round(profile.width*0.28), round(profile.height*0.04), round(profile.height*0.025))
-
-        # Score is factual but deliberately subordinate to the photographic moment.
         score_y = round(profile.height*0.115)
         self._centered(draw, score_text, score_font, profile.width/2+2, score_y+3, (0,0,0,145))
         self._centered(draw, score_text, score_font, profile.width/2, score_y, (239,244,248,242))
 
-        # Equal club naming lanes at the lower edge. No winner badge, loser fade or
-        # humiliating asymmetry: the photograph carries emotion, facts remain neutral.
         name_y = round(profile.height*0.835)
         self._centered(draw, home_name.upper(), name_font, profile.width*0.27, name_y, (235,241,246,235))
         self._centered(draw, away_name.upper(), name_font, profile.width*0.73, name_y, (235,241,246,235))
