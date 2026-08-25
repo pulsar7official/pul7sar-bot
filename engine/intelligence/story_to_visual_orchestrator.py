@@ -92,6 +92,10 @@ class StoryToVisualOrchestrator:
         if score_margin is not None:
             if isinstance(score_margin, bool) or not isinstance(score_margin, int):
                 raise TypeError("metadata.score_margin must be an integer")
+        safe_generated_context = (
+            family is EditorialSceneFamily.EVENT_EDITORIAL
+            and metadata.get("allow_generated_context", True) is not False
+        )
         return VisualConceptSignals(
             verified_subject_asset=verified_subject,
             verified_action_photo=verified_action,
@@ -104,6 +108,7 @@ class StoryToVisualOrchestrator:
             decisive_moment_known=self._flag(metadata, "decisive_moment_known"),
             story_requires_person=(family is EditorialSceneFamily.VERIFIED_SUBJECT_NEWS),
             story_requires_pitch=(family is EditorialSceneFamily.TACTICAL_BOARD),
+            safe_generated_context=safe_generated_context,
             score_margin=score_margin,
         )
 
