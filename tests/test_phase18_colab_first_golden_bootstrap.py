@@ -65,9 +65,13 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
     @staticmethod
     def _qwen_cache_payload():
         return {
-            "schema": "pul7sar-phase18-qwen-model-cache-v1",
+            "schema": "pul7sar-phase18-qwen-model-cache-v2",
             "ready": True,
-            "model_id": "Qwen/Qwen2.5-VL-3B-Instruct",
+            "model_id": bootstrap.QWEN25_VL_3B_MODEL_ID,
+            "model_revision": bootstrap.QWEN25_VL_3B_REVISION,
+            "resolved_snapshot_revision": bootstrap.QWEN25_VL_3B_REVISION,
+            "revision_pinned": True,
+            "snapshot_path": f"/tmp/hf/snapshots/{bootstrap.QWEN25_VL_3B_REVISION}",
             "cost_mode": "$0-local",
         }
 
@@ -149,6 +153,8 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         self.assertTrue(payload["native_bf16_proven"])
         self.assertEqual(payload["first_golden_cache_budget"], str(bootstrap.CACHE_BUDGET))
         self.assertEqual(payload["qwen_model_cache"], str(bootstrap.QWEN_MODEL_CACHE))
+        self.assertEqual(payload["qwen_model_revision"], bootstrap.QWEN25_VL_3B_REVISION)
+        self.assertTrue(payload["qwen_revision_pinned"])
         self.assertEqual(set(payload["bootstrap_evidence"]), {
             "repository_integrity", "gpu_host_qualification", "first_golden_cache_budget", "qwen_model_cache", "sealed_review_receipt"
         })
@@ -302,6 +308,20 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", return_value=True),
         ):
             with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_CACHE_IDENTITY_DRIFT"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+
+    def test_qwen_cache_revision_drift_blocks_before_staging(self):
+        bad = self._qwen_cache_payload()
+        bad["model_revision"] = "0" * 40
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._host_payload(), self._cache_budget_payload()]),
+            patch.object(bootstrap, "_load_json_file", return_value=bad),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+            patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
+            patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model", return_value=True),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_REVISION_DRIFT"):
                 bootstrap.run(worker_id="test-worker", timeout_seconds=60)
 
     def test_missing_bootstrap_evidence_blocks_after_staging(self):
