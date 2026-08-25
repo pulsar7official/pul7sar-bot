@@ -41,7 +41,7 @@ jobs:
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
       - name: Generate five locked original unbranded scene families
         run: |
-          python tools/phase18_cpu_cross_family_synthesis.py --out-dir out --width 512 --height 640 --steps 1
+          python tools/phase18_cpu_cross_family_synthesis.py --out-dir out --width 512 --height 640 --steps 2
           test -s out/transfer_signature.png
           test -s out/result_statement.png
           test -s out/verified_subject_news.png
@@ -52,15 +52,17 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/manifest.json').read_text())
-          assert m['contract']=='pul7sar-cpu-cross-family-synthesis-v2'
-          assert m['pre_generation_lock']=='pul7sar-pre-generation-scene-lock-v1'
+          assert m['contract']=='pul7sar-cpu-cross-family-synthesis-v3'
+          assert m['pre_generation_lock']=='pul7sar-pre-generation-scene-lock-v2'
           assert m['publication_ready'] is False
           assert len(m['scenes'])==5
           assert all(s['sport_lock']=='association_football' for s in m['scenes'])
+          assert all(s['steps']==2 for s in m['scenes'])
+          assert all(s['prompt_policy']=='positive_scene_ownership_only_forbidden_cues_are_qa_metadata' for s in m['scenes'])
           PY
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-cpu-cross-family-synthesis-v2
+          name: phase18-cpu-cross-family-synthesis-v3
           path: out/
           if-no-files-found: error
           retention-days: 3
