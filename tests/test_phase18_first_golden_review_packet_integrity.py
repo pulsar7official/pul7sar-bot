@@ -19,6 +19,7 @@ class FirstGoldenReviewPacketIntegrityTests(unittest.TestCase):
         review.mkdir(parents=True, exist_ok=True)
 
         file_fields = {
+            "original_scene_runtime_admission": output / "original-scene-runtime-admission.json",
             "first_png_result": output / "first-png-result.json",
             "hybrid_handoff": output / "first-png-hybrid-handoff.json",
             "hybrid_semantic_continuation": output / "hybrid-semantic-continuation.json",
@@ -35,12 +36,13 @@ class FirstGoldenReviewPacketIntegrityTests(unittest.TestCase):
 
         integrity = FirstGoldenReviewPacketIntegrity(root=root)
         packet = {
-            "schema": "pul7sar-first-golden-human-review-packet-v1",
+            "schema": "pul7sar-first-golden-human-review-packet-v2",
             "status": "FIRST_GOLDEN_CANDIDATE_READY_FOR_HUMAN_REVIEW",
             "branch": "phase18/story-intelligence",
             "candidate": 1,
             "cost_mode": "$0-local",
             **{key: str(value) for key, value in file_fields.items()},
+            "original_scene_runtime_admission_sha256": integrity._sha256(file_fields["original_scene_runtime_admission"]),
             "review_base_png_sha256": integrity._sha256(file_fields["review_base_png"]),
             "review_hybrid_png_sha256": integrity._sha256(file_fields["review_hybrid_png"]),
             "human_visual_review_required": True,
@@ -60,7 +62,8 @@ class FirstGoldenReviewPacketIntegrityTests(unittest.TestCase):
             integrity, packet_path, file_fields = self._fixture(root)
             manifest = integrity.build_manifest(packet_path=packet_path)
             self.assertEqual(manifest["status"], "FIRST_GOLDEN_REVIEW_PACKET_SEALED")
-            self.assertEqual(len(manifest["files"]), 7)
+            self.assertEqual(len(manifest["files"]), 8)
+            self.assertTrue(manifest["original_scene_runtime_admission_bound"])
             self.assertFalse(manifest["publication_ready"])
             self.assertFalse(manifest["golden_quality_approved"])
             self.assertFalse(manifest["human_visual_review_approved"])
@@ -74,6 +77,7 @@ class FirstGoldenReviewPacketIntegrityTests(unittest.TestCase):
             self.assertEqual(decision.failures, ())
             payload = verification_payload(decision)
             self.assertEqual(payload["status"], "FIRST_GOLDEN_REVIEW_PACKET_INTEGRITY_VERIFIED")
+            self.assertTrue(payload["original_scene_runtime_admission_bound"])
             self.assertFalse(payload["publication_ready"])
 
     def test_receipt_tampering_after_seal_is_detected(self):
@@ -85,6 +89,16 @@ class FirstGoldenReviewPacketIntegrityTests(unittest.TestCase):
             decision = integrity.verify_manifest(manifest=manifest)
             self.assertFalse(decision.verified)
             self.assertIn("human_review_template_sha256_mismatch", decision.failures)
+
+    def test_original_scene_admission_tampering_after_seal_is_detected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            integrity, packet_path, file_fields = self._fixture(root)
+            manifest = integrity.build_manifest(packet_path=packet_path)
+            file_fields["original_scene_runtime_admission"].write_text("tampered", encoding="utf-8")
+            decision = integrity.verify_manifest(manifest=manifest)
+            self.assertFalse(decision.verified)
+            self.assertIn("original_scene_runtime_admission_sha256_mismatch", decision.failures)
 
     def test_review_png_tampering_after_seal_is_detected(self):
         with tempfile.TemporaryDirectory() as temp:
