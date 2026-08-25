@@ -109,6 +109,14 @@ def _validate_host_qualification(payload: dict[str, object]) -> None:
         failures.append("host_native_bf16_not_proven")
     if payload.get("cost_mode") != "$0-local":
         failures.append("host_qualification_escaped_zero_cost_policy")
+    required_vram = payload.get("required_vram_gb")
+    free_vram = payload.get("gpu_free_vram_gb")
+    if not isinstance(required_vram, (int, float)) or isinstance(required_vram, bool) or float(required_vram) <= 0:
+        failures.append("host_required_vram_not_proven")
+    if not isinstance(free_vram, (int, float)) or isinstance(free_vram, bool):
+        failures.append("host_live_free_vram_not_proven")
+    elif isinstance(required_vram, (int, float)) and not isinstance(required_vram, bool) and float(free_vram) < float(required_vram):
+        failures.append("host_live_free_vram_below_required_floor")
     policy = payload.get("policy")
     if not isinstance(policy, dict):
         failures.append("host_policy_missing")
@@ -127,6 +135,8 @@ def _validate_host_qualification(payload: dict[str, object]) -> None:
             failures.append("host_policy_provider_drift")
         if policy.get("required_model") != "black-forest-labs/FLUX.2-klein-4B":
             failures.append("host_policy_model_drift")
+        if policy.get("requires_live_free_vram") is not True:
+            failures.append("host_policy_live_free_vram_requirement_drift")
     if failures:
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_GPU_HOST_QUALIFICATION_BLOCKED: " + ", ".join(failures))
 
@@ -143,8 +153,6 @@ def run(
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
 
-    # Repository/reference integrity is CPU-only and must pass before dependency
-    # repair, model downloads, CUDA qualification or any queue mutation.
     repository = _run_json(
         [
             sys.executable,
@@ -162,11 +170,6 @@ def run(
         if repository.get(field) is not False:
             raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_REPOSITORY_{field.upper()}_DRIFT")
 
-    # Fresh runtime repair is reused from the already-tested Colab bootstrap.
-    # Immediately after runtime repair, prove that the physical host itself is
-    # Golden-qualified before any Qwen/FLUX model download is permitted. This
-    # prevents a rare GPU window from being consumed on an under-VRAM or
-    # non-native-BF16 device that can never execute the locked Golden path.
     if not skip_repair:
         runtime_bootstrap._repair_runtime()
     host = _run_json(
@@ -180,8 +183,6 @@ def run(
     )
     _validate_host_qualification(host)
 
-    # Once huggingface_hub is available and hardware is proven, verify combined
-    # Qwen+FLUX cache headroom before either approved model is allowed to download.
     cache_budget = _run_json(
         [
             sys.executable,
@@ -201,8 +202,6 @@ def run(
         if cache_budget.get(field) is not False:
             raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_CACHE_BUDGET_{field.upper()}_DRIFT")
 
-    # The Golden path is strict: semantic degradation is fatal, not a request to
-    # fall back to the engineering-proof route.
     if not runtime_bootstrap._fresh_process_probe():
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_SEMANTIC_RUNTIME_NOT_READY")
     if not runtime_bootstrap._prefetch_semantic_model():
@@ -242,18 +241,21 @@ def run(
     }
 
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-golden-colab-bootstrap-v3",
+        "schema": "pul7sar-first-golden-colab-bootstrap-v4",
         "status": "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
         "repository_integrity": str(REPOSITORY_INTEGRITY),
         "gpu_host_qualification": str(HOST_QUALIFICATION),
+        "gpu_free_vram_gb": host["gpu_free_vram_gb"],
+        "required_vram_gb": host["required_vram_gb"],
         "first_golden_cache_budget": str(CACHE_BUDGET),
         "qwen_model_cache": str(QWEN_MODEL_CACHE),
         "semantic_runtime_ready": True,
         "semantic_model_ready": True,
         "gpu_host_eligible": True,
+        "live_free_vram_proven": True,
         "native_bf16_proven": True,
         "sealed_review_receipt": str(SEALED_REVIEW),
         "bootstrap_evidence": evidence,
