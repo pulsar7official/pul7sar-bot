@@ -1,0 +1,74 @@
+name: Phase 18 Result Composition Architecture Comparison
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+    paths:
+      - 'tools/phase18_result_seed_sweep.py'
+      - 'tools/phase18_compare_result_composition_architectures.py'
+      - 'tools/phase18_compose_result_candidate_board.py'
+      - 'engine/intelligence/result_spatial_monument.py'
+      - 'engine/intelligence/generated_base_provenance.py'
+      - 'engine/intelligence/hybrid_final_composer.py'
+      - 'engine/intelligence/hybrid_pixel_composer.py'
+      - 'engine/intelligence/visual_candidate_quality_gate.py'
+      - 'engine/intelligence/original_scene_prompt_profiles.py'
+      - 'engine/intelligence/pre_generation_scene_lock.py'
+      - 'engine/intelligence/generation_prompt_budget.py'
+      - '.github/workflows/phase18-result-architecture-comparison.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compare-result-architectures:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install CPU runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
+      - name: Generate shared provenance-safe bases
+        run: python tools/phase18_result_seed_sweep.py --out-dir out/result-seeds --width 512 --height 640 --steps 4
+      - name: Compare result composition architectures
+        run: |
+          python tools/phase18_compare_result_composition_architectures.py \
+            --seed-dir out/result-seeds \
+            --output-dir out/result-architecture-comparison \
+            --headline 'FULL TIME' \
+            --home 'NORTH CITY' \
+            --away 'SOUTH UNITED' \
+            --score '3-1'
+          test -s out/result-architecture-comparison/result_architecture_comparison.jpg
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('out/result-architecture-comparison/manifest.json').read_text())
+          assert m['contract']=='pul7sar-result-composition-architecture-comparison-v1'
+          assert m['source_contract']=='pul7sar-result-seed-sweep-v2-provenance'
+          assert m['spatial_contract']=='pul7sar-spatial-result-monument-v1'
+          assert m['candidate_count']==4
+          assert all(p['provenance_verified'] for p in m['pairs'])
+          assert any(p['spatial']['pixel_health'] for p in m['pairs'])
+          assert m['publication_ready'] is False
+          assert m['human_visual_review_required'] is True
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase18-result-architecture-comparison
+          path: out/result-architecture-comparison/
+          if-no-files-found: error
+          retention-days: 3
