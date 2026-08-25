@@ -11,6 +11,7 @@ from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContra
 from engine.intelligence.layout_planner import PlannedLayout
 from engine.intelligence.scene_complexity_policy import SurfaceVisibility
 from engine.intelligence.scene_spec import OriginalSceneSpecification
+from engine.intelligence.visual_concept_director import VisualConceptDecision
 from engine.intelligence.visual_grammar import VisualGrammarDecision
 
 
@@ -61,6 +62,7 @@ class GenerationPackageCompiler:
         planned_layout: Optional[PlannedLayout] = None,
         base_scene_contract: Optional[HybridBaseSceneContract] = None,
         visual_grammar: Optional[VisualGrammarDecision] = None,
+        visual_concept: Optional[VisualConceptDecision] = None,
     ) -> GenerationPackage:
         if not isinstance(specification, OriginalSceneSpecification):
             raise TypeError("specification must be OriginalSceneSpecification")
@@ -70,6 +72,8 @@ class GenerationPackageCompiler:
             raise TypeError("base_scene_contract must be HybridBaseSceneContract or None")
         if visual_grammar is not None and not isinstance(visual_grammar, VisualGrammarDecision):
             raise TypeError("visual_grammar must be VisualGrammarDecision or None")
+        if visual_concept is not None and not isinstance(visual_concept, VisualConceptDecision):
+            raise TypeError("visual_concept must be VisualConceptDecision or None")
         if planned_layout is not None:
             if not isinstance(planned_layout, PlannedLayout):
                 raise TypeError("planned_layout must be PlannedLayout or None")
@@ -128,6 +132,20 @@ class GenerationPackageCompiler:
                 )
                 + "."
             )
+
+        if visual_concept is not None:
+            prompt_parts.extend((
+                f"Story-specific visual concept archetype: {visual_concept.archetype.value}.",
+                f"Visual hero direction: {visual_concept.hero}.",
+                f"Environmental role: {visual_concept.environment_role}.",
+                "Treat this story-specific concept as the picture idea; the renderer is only the execution mechanism and must not replace it with a generic template.",
+            ))
+            safe_concept_forbidden = tuple(
+                motif for motif in visual_concept.forbidden_motifs
+                if "pul7sar" not in motif.casefold() and "pulsar" not in motif.casefold()
+            )
+            if safe_concept_forbidden:
+                prompt_parts.append("Concept-specific exclusions: " + "; ".join(safe_concept_forbidden) + ".")
 
         if visual_grammar is not None:
             prompt_parts.extend((
@@ -215,6 +233,14 @@ class GenerationPackageCompiler:
             "visual_grammar_generated_elements": visual_grammar.generated_elements if visual_grammar else (),
             "visual_grammar_deterministic_elements": visual_grammar.deterministic_elements if visual_grammar else (),
             "visual_grammar_forbidden_generated_elements": visual_grammar.forbidden_generated_elements if visual_grammar else (),
+            "visual_concept_contract": visual_concept.contract if visual_concept else None,
+            "visual_concept_family": visual_concept.family.value if visual_concept else None,
+            "visual_concept_archetype": visual_concept.archetype.value if visual_concept else None,
+            "visual_concept_provider_agnostic": bool(visual_concept.metadata.get("provider_agnostic")) if visual_concept else False,
+            "visual_concept_selected_before_renderer": bool(visual_concept.metadata.get("concept_selected_before_renderer")) if visual_concept else False,
+            "visual_concept_asset_priority": visual_concept.asset_priority if visual_concept else (),
+            "visual_concept_forbidden_motifs": visual_concept.forbidden_motifs if visual_concept else (),
+            "visual_concept_publication_ready": bool(visual_concept.metadata.get("publication_ready")) if visual_concept else False,
         }
 
         return GenerationPackage(
