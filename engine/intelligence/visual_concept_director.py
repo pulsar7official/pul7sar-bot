@@ -1,10 +1,10 @@
-"""Story-specific visual concept direction for premium PUL7SAR imagery.
+"""Story-specific visual concept direction for original PUL7SAR imagery.
 
 This layer chooses the *idea of the picture* before any renderer is selected.
-It prevents a family renderer from becoming the visual concept by default.
-Result coverage prioritizes verified decisive action, celebration and real match
-moments before score-led fallback. Exact facts, identities, readable copy and
-PUL7SAR branding remain deterministic.
+Production policy is ORIGINAL-FIRST: third-party/source photographs may inform
+verification and reference analysis, but they are not the default final pixels.
+Exact facts, identities, readable copy and PUL7SAR branding remain deterministic.
+Legacy photographic concepts remain explicit reference/study routes only.
 """
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ class VisualConceptDecision:
     forbidden_motifs: tuple[str, ...]
     rationale: str
     metadata: Mapping[str, object]
-    contract: str = "pul7sar-visual-concept-director-v1"
+    contract: str = "pul7sar-visual-concept-director-v2-original-first"
 
     def __post_init__(self) -> None:
         if not isinstance(self.family, EditorialSceneFamily):
@@ -89,7 +89,7 @@ class VisualConceptDecision:
 
 
 class VisualConceptDirector:
-    """Choose a picture idea from verified story evidence before pixel routing."""
+    """Choose an original-first picture idea from verified story evidence."""
 
     _COMMON_FORBIDDEN = (
         "generic one-template layout",
@@ -98,6 +98,7 @@ class VisualConceptDirector:
         "fabricated readable text",
         "fabricated club crest",
         "fabricated identity",
+        "source-news photograph as default publication canvas",
     )
 
     def direct(self, family: EditorialSceneFamily, signals: VisualConceptSignals) -> VisualConceptDecision:
@@ -110,71 +111,66 @@ class VisualConceptDirector:
             if signals.verified_subject_asset:
                 return self._decision(
                     family, VisualConceptArchetype.HERO_ARRIVAL,
-                    hero="verified player/coach presence",
-                    environment="destination-club light and architecture remain secondary",
-                    assets=("verified_subject_asset", "exact_club_assets", "context_photo_optional"),
-                    rationale="a confirmed person-led move should feel like an arrival, not a data card",
+                    hero="original identity-conditioned player/coach presence",
+                    environment="original destination-club light and architecture remain secondary",
+                    assets=("verified_subject_reference", "exact_club_assets"),
+                    rationale="a confirmed person-led move should become an original arrival scene while verified identity remains a reference constraint",
+                    extra_forbidden=("third-party subject photo as final publication pixels",),
                 )
             return self._decision(
                 family, VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL,
-                hero="one verified transfer symbol or exact club object",
-                environment="minimal premium reveal with strong negative space",
-                assets=("verified_nonperson_transfer_detail", "exact_club_assets"),
-                rationale="without a publishable verified subject, stay symbolic rather than fabricate a person",
+                hero="one exact club-owned transfer symbol or deterministic signing object",
+                environment="original minimal premium reveal with strong negative space",
+                assets=("exact_club_assets",),
+                rationale="without a safe identity-conditioned subject runtime, remain original and symbolic rather than reuse or fabricate a person",
             )
 
         if family is EditorialSceneFamily.RESULT_STATEMENT:
-            if signals.verified_action_photo and signals.decisive_moment_known:
+            # Photographs may verify the story and guide art direction, but the
+            # publication concept remains an original PUL7SAR construction.
+            if signals.safe_generated_context:
                 return self._decision(
-                    family, VisualConceptArchetype.DECISIVE_MOMENT,
-                    hero="verified decisive match moment",
-                    environment="actual match atmosphere with exact score integrated as secondary factual layer",
-                    assets=("verified_action_photo", "exact_club_assets", "exact_score"),
-                    rationale="when the decisive moment is verified, the story should be experienced before it is diagrammed",
-                    extra_forbidden=("scoreboard-first composition when decisive verified moment exists",),
-                )
-            if signals.verified_celebration_photo:
-                return self._decision(
-                    family, VisualConceptArchetype.CELEBRATION_MOMENT,
-                    hero="verified winner celebration",
-                    environment="photographic celebration atmosphere; loser remains neutral and absent from ridicule",
-                    assets=("verified_celebration_photo", "exact_club_assets", "exact_score"),
-                    rationale="a verified celebration carries more emotional truth than a generic stadium background",
-                    extra_forbidden=("humiliation or collapse imagery for losing side",),
-                )
-            if signals.verified_match_photo:
-                return self._decision(
-                    family, VisualConceptArchetype.VERIFIED_MATCH_MOMENT,
-                    hero="verified photographic moment from the actual match",
-                    environment="real match texture with restrained exact result overlay",
-                    assets=("verified_match_photo", "exact_club_assets", "exact_score"),
-                    rationale="a truthful match photograph is visually richer and more specific than generic stadium atmosphere even when it is not the decisive action",
-                    extra_forbidden=("claiming non-decisive match photo depicts decisive goal", "mandatory stadium background"),
+                    family, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
+                    hero="original story-specific match atmosphere",
+                    environment="new non-identifying football-event world; exact score and club assets remain deterministic",
+                    assets=("exact_score", "exact_club_assets", "verified_match_reference_optional"),
+                    rationale="results should become original PUL7SAR scenes; verified match imagery may guide truth and mood but not supply the default final pixels",
+                    extra_forbidden=("mandatory stadium background", "winner dominance through loser degradation", "third-party match photograph as final publication canvas"),
                 )
             return self._decision(
                 family, VisualConceptArchetype.SCORE_MONUMENT,
                 hero="exact final score",
-                environment="restrained context only; stadium is optional rather than mandatory",
-                assets=("exact_score", "exact_club_assets", "verified_context_photo_optional"),
-                rationale="score-led art is the safe fallback only when no stronger verified story moment exists",
-                extra_forbidden=("mandatory stadium background", "winner dominance through loser degradation"),
+                environment="original restrained context only; stadium is optional rather than mandatory",
+                assets=("exact_score", "exact_club_assets"),
+                rationale="when original scene generation is unavailable, deterministic score-led art is safer than publishing third-party match pixels",
+                extra_forbidden=("mandatory stadium background", "winner dominance through loser degradation", "third-party match photograph as final publication canvas"),
             )
 
         if family is EditorialSceneFamily.VERIFIED_SUBJECT_NEWS:
             if signals.verified_detail_asset and not signals.story_requires_person:
                 return self._decision(
                     family, VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL,
-                    hero="verified factual detail asset",
-                    environment="quiet documentary/editorial depth",
-                    assets=("verified_detail_asset", "verified_context_photo_optional"),
-                    rationale="a precise verified detail can tell the story without manufacturing emotion on a face",
+                    hero="verified factual detail represented in an original editorial construction",
+                    environment="original quiet documentary/editorial depth",
+                    assets=("verified_detail_reference",),
+                    rationale="a precise verified detail can constrain an original scene without manufacturing emotion on a face",
+                    extra_forbidden=("third-party detail photograph as default publication canvas",),
+                )
+            if signals.verified_subject_asset:
+                return self._decision(
+                    family, VisualConceptArchetype.HERO_ARRIVAL,
+                    hero="original identity-conditioned verified subject",
+                    environment="original restrained editorial atmosphere shaped by story tone",
+                    assets=("verified_subject_reference",),
+                    rationale="identity-led news ultimately needs an original subject rendering constrained by verified identity rather than a reused press photograph",
+                    extra_forbidden=("fabricated injury expression", "fantasy medical staging", "third-party portrait as final publication pixels"),
                 )
             return self._decision(
-                family, VisualConceptArchetype.VERIFIED_PORTRAIT,
-                hero="verified subject asset",
-                environment="restrained editorial atmosphere shaped by the story tone",
-                assets=("verified_subject_asset", "verified_context_photo_optional"),
-                rationale="identity-led news must keep the real subject and real expression as the visual truth",
+                family, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL,
+                hero="one original non-identifying story symbol",
+                environment="minimal original negative-space editorial field",
+                assets=(),
+                rationale="without a verified identity reference, do not fabricate or reuse a person",
                 extra_forbidden=("fabricated pose", "fabricated injury expression", "fantasy medical staging"),
             )
 
@@ -196,36 +192,27 @@ class VisualConceptDirector:
             return self._decision(
                 family, VisualConceptArchetype.DATA_MONOLITH,
                 hero="one exact number/table/draw fact",
-                environment="abstract editorial depth subordinate to the verified datum",
+                environment="original abstract editorial depth subordinate to the verified datum",
                 assets=("exact_data_anchor",),
                 rationale="data stories need one memorable verified object, not a dense dashboard",
                 extra_forbidden=("dense infographic wall", "decorative stadium background"),
             )
 
-        if signals.verified_context_photo:
-            return self._decision(
-                family, VisualConceptArchetype.PHOTOGRAPHIC_EVENT,
-                hero="verified story context photograph",
-                environment="photographic scene owns atmosphere while deterministic layers own facts",
-                assets=("verified_context_photo",),
-                rationale="general news should use real contextual texture when it exists instead of inventing a symbolic portal",
-                extra_forbidden=("abstract portal as default hero", "duplicate PUL7SAR pulse motif"),
-            )
         if signals.safe_generated_context:
             return self._decision(
                 family, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
-                hero="story-specific non-identifying sports atmosphere",
-                environment=("photorealistic but deliberately non-identifying sports-event world; deterministic layers own all exact facts"),
-                assets=(),
-                rationale=("when no verified context image exists but non-factual atmosphere is safe, generate a generic event world without inventing a real venue, person or factual visual claim"),
-                extra_forbidden=("specific real venue identity without verified context", "specific real-person depiction", "abstract portal as default hero", "duplicate PUL7SAR pulse motif"),
+                hero="original story-specific non-identifying sports atmosphere",
+                environment="new photorealistic but deliberately non-identifying sports-event world; deterministic layers own all exact facts",
+                assets=("verified_context_reference_optional",),
+                rationale="general news should create its own visual world; verified context imagery may guide truth but should not become the default final canvas",
+                extra_forbidden=("specific real venue identity without verified reference", "specific real-person depiction", "abstract portal as default hero", "duplicate PUL7SAR pulse motif", "third-party context photograph as final publication canvas"),
             )
         return self._decision(
             family, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL,
-            hero="one story-specific non-brand symbolic cue",
-            environment="minimal negative-space editorial field",
+            hero="one story-specific original non-brand symbolic cue",
+            environment="minimal original negative-space editorial field",
             assets=(),
-            rationale="when no verified context image exists, remain minimal and story-specific rather than fabricate realism",
+            rationale="when original atmosphere generation is unavailable, remain minimal and story-specific rather than reuse source imagery or fabricate realism",
             extra_forbidden=("generic stadium", "abstract portal as default hero", "duplicate PUL7SAR pulse motif"),
         )
 
@@ -238,5 +225,13 @@ class VisualConceptDirector:
             asset_priority=assets,
             forbidden_motifs=tuple(dict.fromkeys((*self._COMMON_FORBIDDEN, *extra_forbidden))),
             rationale=rationale,
-            metadata={"provider_agnostic": True, "concept_selected_before_renderer": True, "renderer_is_not_the_visual_idea": True, "brand_pulse_exclusive_to_brand_master": True, "publication_ready": False},
+            metadata={
+                "provider_agnostic": True,
+                "concept_selected_before_renderer": True,
+                "renderer_is_not_the_visual_idea": True,
+                "brand_pulse_exclusive_to_brand_master": True,
+                "original_publication_pixels_required": True,
+                "third_party_photos_reference_only_by_default": True,
+                "publication_ready": False,
+            },
         )
