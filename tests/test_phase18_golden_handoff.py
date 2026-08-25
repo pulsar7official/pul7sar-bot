@@ -42,8 +42,9 @@ class GoldenVisualHandoffTests(unittest.TestCase):
         prompt = request.prompt.casefold()
         self.assertIn("deliberately non-identifying", prompt)
         self.assertIn("must not imply a specific real venue", prompt)
-        self.assertIn("no specific identifiable real venue", " ".join(request.negative_constraints).casefold())
-        self.assertIn("no specific real-person depiction", " ".join(request.negative_constraints).casefold())
+        self.assertIn("specific real-person depiction", prompt)
+        self.assertIn("generic architecture and no distinctive landmark", prompt)
+        self.assertIn("free of identifiable real people or celebrity likenesses", prompt)
 
     def test_golden_request_is_deterministic_for_same_seed(self):
         first = build_request(seed=42, request_id="same")
