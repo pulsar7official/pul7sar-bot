@@ -30,8 +30,13 @@ class FamilyRendererRegistryTests(unittest.TestCase):
             cap = self.registry.require_implemented(family)
             self.assertEqual(cap.status, FamilyRendererStatus.IMPLEMENTED)
 
-    def test_registry_version_declares_six_family_pixel_coverage(self):
-        self.assertEqual(self.registry.VERSION, 'pul7sar-family-renderer-registry-v2-six-family-pixel')
+    def test_event_renderer_reserves_pulse_for_brand_master(self):
+        cap = self.registry.require_implemented(EditorialSceneFamily.EVENT_EDITORIAL)
+        self.assertEqual(cap.renderer_module, 'engine.intelligence.event_editorial_runtime_v2')
+        self.assertEqual(cap.renderer_contract, 'pul7sar-event-editorial-study-renderer-v2-no-duplicate-pulse')
+
+    def test_registry_version_declares_event_pulse_exclusivity(self):
+        self.assertEqual(self.registry.VERSION, 'pul7sar-family-renderer-registry-v3-event-pulse-exclusive')
 
 
 if __name__ == '__main__':
