@@ -56,7 +56,8 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/result-hybrid-board/manifest.json').read_text())
-          assert m['contract']=='pul7sar-result-hybrid-candidate-board-v2-pixel-health'
+          assert m['contract']=='pul7sar-result-hybrid-candidate-board-v3-scene-contract'
+          assert m['source_contract']=='pul7sar-result-seed-sweep-v2-provenance'
           assert m['quality_gate_contract']=='pul7sar-visual-candidate-quality-gate-v1'
           assert m['candidate_count']==4
           assert m['pixel_healthy_candidate_count'] >= 1
