@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_REVISION
 from engine.intelligence.golden_candidate_review_bundle import GoldenCandidateReviewBundleBuilder
 
 
@@ -20,6 +21,7 @@ class GoldenCandidateReviewBundleTests(unittest.TestCase):
         metadata.write_text(json.dumps({
             "provider": "local-flux2-klein-4b",
             "model": "black-forest-labs/FLUX.2-klein-4B",
+            "model_revision": FLUX2_KLEIN_4B_REVISION,
             "backend": "diffusers",
             "seed": 7007001,
             "request_id": "golden-hybrid-v5-001",
