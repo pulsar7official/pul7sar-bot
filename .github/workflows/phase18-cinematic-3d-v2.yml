@@ -1,0 +1,84 @@
+name: Phase 18 Cinematic 3D V2 Benchmark
+
+on:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render-cinematic-v2:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Python Blender and headless GL
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+          sudo apt-get update -qq
+          sudo apt-get install -y blender xvfb libegl1 libgl1-mesa-dri libglx-mesa0 mesa-utils
+          blender --version
+      - name: Render cinematic V2 scene set
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/phase18/cinematic-v2/base artifacts/phase18/cinematic-v2/final
+          render() {
+            family="$1"; variant="$2"; seed="$3"; a="$4"; b="$5"; slug="$6"
+            xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v2.py -- --family "$family" --variant "$variant" --seed "$seed" --accent-a "$a" --accent-b "$b" --output "artifacts/phase18/cinematic-v2/base/${slug}.png"
+            test -s "artifacts/phase18/cinematic-v2/base/${slug}.png"
+            python tools/phase18_brand_blender_scene.py --family "$family" --input "artifacts/phase18/cinematic-v2/base/${slug}.png" --output "artifacts/phase18/cinematic-v2/final/${slug}.png" --accent "#$a"
+          }
+          render transfer_signature a 8101 C90B22 174EA6 01-transfer-arrival
+          render transfer_signature b 8102 F1C40F 29385B 02-transfer-signing
+          render result_statement a 8201 D90E25 1D5EFF 03-result-duel
+          render result_statement b 8202 F4C400 7A1538 04-result-arena
+          render verified_subject_news a 8301 E4312B 164C8C 05-subject-absence
+          render verified_subject_news b 8302 14A06F 29385B 06-subject-stage
+          render tactical_board a 8401 E3232A 2D66D4 07-tactical-corridor
+          render tactical_board b 8402 F0B90B A5112B 08-tactical-duel
+          render data_monument a 8501 EF2B2D 2655C7 09-data-number
+          render data_monument b 8502 7834E8 0FA7A0 10-data-draw
+          render event_editorial a 8601 E02031 2457D6 11-event-object
+          render event_editorial b 8602 F2B705 2255C5 12-event-tunnel
+      - name: Verify cinematic originals and build manifest
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          from PIL import Image
+          root=Path('artifacts/phase18/cinematic-v2/final')
+          files=sorted(root.glob('*.png')); assert len(files)==12, len(files)
+          items=[]
+          for p in files:
+              with Image.open(p) as im:
+                  assert im.size==(1080,1350), (p,im.size)
+              items.append({
+                  'file':p.name,
+                  'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
+                  'source_photo_used':False,
+                  'network_used':False,
+                  'fabricated_crest_used':False,
+                  'real_person_depicted':False,
+                  'scene_origin':'100_percent_procedural_cinematic_3d_original_pixels',
+                  'publication_ready':False
+              })
+          data={'schema':'pul7sar-cinematic-v2','count':12,'items':items}
+          (root/'manifest.json').write_text(json.dumps(data,indent=2,sort_keys=True))
+          print(json.dumps(data,indent=2))
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase18-cinematic-3d-v2
+          path: artifacts/phase18/cinematic-v2/final/
+          if-no-files-found: error
+          retention-days: 14
