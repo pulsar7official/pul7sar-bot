@@ -32,18 +32,16 @@ jobs:
         run: |
           set -euo pipefail
           sed -i "/\\$\.replace/d" tools/phase18_blender_family_scene_v2.py
-          # Fast compatibility smoke pass before the full 12-scene production render.
           sed -i "s/sc.render.resolution_x=1080/sc.render.resolution_x=540/" tools/phase18_blender_family_scene_v2.py
           sed -i "s/sc.render.resolution_y=1350/sc.render.resolution_y=675/" tools/phase18_blender_family_scene_v2.py
           sed -i "s/fog_volume(); compositor(sc)/compositor(sc)/" tools/phase18_blender_family_scene_v2.py
           python -m py_compile tools/phase18_blender_family_scene_v2.py
-          mkdir -p artifacts/phase18/cinematic-v2-smoke/base artifacts/phase18/cinematic-v2-smoke/final
+          mkdir -p artifacts/phase18/cinematic-v2-smoke/base
           xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v2.py -- --family transfer_signature --variant a --seed 8101 --accent-a C90B22 --accent-b 174EA6 --output artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png
           test -s artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png
-          python tools/phase18_brand_blender_scene.py --family transfer_signature --input artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png --output artifacts/phase18/cinematic-v2-smoke/final/01-transfer-arrival.png --accent '#C90B22'
       - uses: actions/upload-artifact@v7
         with:
           name: phase18-cinematic-3d-v2-smoke
-          path: artifacts/phase18/cinematic-v2-smoke/
+          path: artifacts/phase18/cinematic-v2-smoke/base/
           if-no-files-found: error
           retention-days: 3
