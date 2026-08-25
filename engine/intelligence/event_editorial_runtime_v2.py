@@ -7,6 +7,8 @@ and uses a non-semantic light aperture for generic event energy instead.
 """
 from __future__ import annotations
 
+from dataclasses import replace
+
 from PIL import Image, ImageDraw, ImageFilter
 
 from engine.intelligence.event_editorial_study_renderer import (
@@ -18,6 +20,8 @@ from engine.intelligence.event_editorial_study_renderer import (
 
 class EventEditorialStudyRenderer(_V1):
     """V2 art direction: cinematic aperture; never a second brand-like pulse."""
+
+    CONTRACT = "pul7sar-event-editorial-study-renderer-v2-no-duplicate-pulse"
 
     @staticmethod
     def _draw_anchor(
@@ -91,6 +95,10 @@ class EventEditorialStudyRenderer(_V1):
 
         layer = layer.filter(ImageFilter.GaussianBlur(0.35))
         canvas.alpha_composite(layer)
+
+    def render(self, *args, **kwargs) -> EventEditorialStudyReceipt:
+        receipt = super().render(*args, **kwargs)
+        return replace(receipt, contract=self.CONTRACT)
 
 
 __all__ = ["EventAnchorKind", "EventEditorialStudyReceipt", "EventEditorialStudyRenderer"]
