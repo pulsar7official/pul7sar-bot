@@ -54,6 +54,22 @@ class VisualConceptDirectorTests(unittest.TestCase):
         self.assertIn("abstract portal as default hero", decision.forbidden_motifs)
         self.assertIn("duplicate PUL7SAR pulse motif", decision.forbidden_motifs)
 
+    def test_event_can_use_safe_non_identifying_generated_atmosphere(self):
+        decision = self.director.direct(
+            EditorialSceneFamily.EVENT_EDITORIAL,
+            VisualConceptSignals(safe_generated_context=True),
+        )
+        self.assertEqual(decision.archetype, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE)
+        self.assertIn("non-identifying", decision.hero)
+        self.assertIn("specific real venue identity without verified context", decision.forbidden_motifs)
+        self.assertIn("specific real-person depiction", decision.forbidden_motifs)
+        self.assertFalse(decision.metadata["publication_ready"])
+
+    def test_event_without_verified_or_safe_generated_context_remains_minimal(self):
+        decision = self.director.direct(EditorialSceneFamily.EVENT_EDITORIAL, VisualConceptSignals())
+        self.assertEqual(decision.archetype, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL)
+        self.assertIn("generic stadium", decision.forbidden_motifs)
+
     def test_tactics_requires_exact_spatial_data(self):
         with self.assertRaisesRegex(ValueError, "TACTICAL_CONCEPT_REQUIRES_EXACT_TACTICAL_DATA"):
             self.director.direct(EditorialSceneFamily.TACTICAL_BOARD, VisualConceptSignals())
@@ -71,6 +87,7 @@ class VisualConceptDirectorTests(unittest.TestCase):
             (EditorialSceneFamily.TACTICAL_BOARD, VisualConceptSignals(exact_tactical_data=True, story_requires_pitch=True)),
             (EditorialSceneFamily.DATA_MONUMENT, VisualConceptSignals(exact_data_anchor=True)),
             (EditorialSceneFamily.EVENT_EDITORIAL, VisualConceptSignals()),
+            (EditorialSceneFamily.EVENT_EDITORIAL, VisualConceptSignals(safe_generated_context=True)),
         )
         for family, signals in samples:
             decision = self.director.direct(family, signals)
