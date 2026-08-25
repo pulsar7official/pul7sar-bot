@@ -1,9 +1,9 @@
 """Bridge provider-agnostic original-scene contracts into the existing $0 local backend.
 
-The bridge keeps runtime qualification separate from visual-concept selection.  It
+The bridge keeps runtime qualification separate from visual-concept selection. It
 may only compile a generation request after the measured local readiness report
 admits the selected model and the original-scene execution gate admits the
-requested runtime kind.  Exact facts, brand identity, typography and sport
+requested runtime kind. Exact facts, brand identity, typography and sport
 geometry remain outside generation.
 """
 from __future__ import annotations
@@ -94,6 +94,7 @@ class OriginalSceneLocalBridge:
     """Compile an admitted original-scene request into a locked local generation request."""
 
     _NO_BRAND_TEXT = "no generated branding, wordmarks, readable text, numerals or pseudo-text"
+    _NO_COLLAGE = "no collage or multi-panel layout"
     _NO_VENUE = "no specific identifiable real venue"
     _NO_REAL_PERSON = "no specific real-person depiction"
 
@@ -221,7 +222,9 @@ class OriginalSceneLocalBridge:
             item = raw.strip().casefold()
             if not item:
                 continue
-            if "venue" in item or "stadium" in item or "arena" in item:
+            if "collage" in item or "multi-panel" in item or "split-screen" in item or "grid" in item:
+                constraints.append(self._NO_COLLAGE)
+            elif "venue" in item or "stadium" in item or "arena" in item:
                 constraints.append(self._NO_VENUE)
             elif "real-person" in item or "real person" in item or "celebrity" in item or "likeness" in item:
                 constraints.append(self._NO_REAL_PERSON)
