@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_SMOKE = ROOT / "output" / "phase18_gpu_smoke"
 REPOSITORY_INTEGRITY = GPU_SMOKE / "repository-integrity.json"
+CACHE_BUDGET = GPU_SMOKE / "first-golden-cache-budget.json"
 FINAL = GPU_SMOKE / "first-golden-colab-bootstrap.json"
 
 if str(ROOT) not in sys.path:
@@ -97,10 +98,32 @@ def run(
         if repository.get(field) is not False:
             raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_REPOSITORY_{field.upper()}_DRIFT")
 
-    # Fresh runtime repair is reused from the already-tested Colab bootstrap,
-    # but the Golden path below is stricter: semantic degradation is fatal.
+    # Fresh runtime repair is reused from the already-tested Colab bootstrap.
+    # Once huggingface_hub is available, prove combined Qwen+FLUX cache headroom
+    # before either approved model is allowed to download.
     if not skip_repair:
         runtime_bootstrap._repair_runtime()
+    cache_budget = _run_json(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "phase18_preflight_first_golden_cache_budget.py"),
+            "--receipt",
+            str(CACHE_BUDGET),
+        ],
+        label="FIRST_GOLDEN_CACHE_BUDGET",
+    )
+    if cache_budget.get("schema") != "pul7sar-first-golden-cache-budget-v1" or cache_budget.get("ready") is not True:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_CACHE_BUDGET_BLOCKED")
+    if cache_budget.get("branch") != EXPECTED_BRANCH or cache_budget.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_CACHE_BUDGET_IDENTITY_DRIFT")
+    if cache_budget.get("downloads_performed") is not False:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_CACHE_BUDGET_DOWNLOAD_DRIFT")
+    for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+        if cache_budget.get(field) is not False:
+            raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_CACHE_BUDGET_{field.upper()}_DRIFT")
+
+    # The Golden path is strict: semantic degradation is fatal, not a request to
+    # fall back to the engineering-proof route.
     if not runtime_bootstrap._fresh_process_probe():
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_SEMANTIC_RUNTIME_NOT_READY")
     if not runtime_bootstrap._prefetch_semantic_model():
@@ -132,6 +155,7 @@ def run(
         "candidate": 1,
         "cost_mode": "$0-local",
         "repository_integrity": str(REPOSITORY_INTEGRITY),
+        "first_golden_cache_budget": str(CACHE_BUDGET),
         "semantic_runtime_ready": True,
         "semantic_model_ready": True,
         "sealed_review_receipt": str(GPU_SMOKE / "first-golden-human-review-sealed.json"),
