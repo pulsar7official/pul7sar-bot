@@ -2,6 +2,8 @@
 
 The model is loaded once on CPU and reused across families. Tactical remains
 fully deterministic and is omitted. This benchmark is never publication-ready.
+Forbidden concepts are retained as QA metadata and are not injected into the
+positive image-generation prompt.
 """
 from __future__ import annotations
 
@@ -39,7 +41,7 @@ def parse():
     p.add_argument("--out-dir", required=True)
     p.add_argument("--width", type=int, default=512)
     p.add_argument("--height", type=int, default=640)
-    p.add_argument("--steps", type=int, default=1)
+    p.add_argument("--steps", type=int, default=2)
     p.add_argument("--model", default=MODEL)
     return p.parse_args()
 
@@ -73,14 +75,16 @@ def main():
             "semantic_anchor": lock.semantic_anchor,
             "required_visual_cues": list(lock.required_visual_cues),
             "forbidden_visual_cues": list(lock.forbidden_visual_cues),
+            "prompt_policy": "positive_scene_ownership_only_forbidden_cues_are_qa_metadata",
             "seed": seed,
+            "steps": q.steps,
             "file": path.name,
             "generated_subject_policy": profile.generated_subject_policy,
             "exact_layers_reserved": list(profile.exact_layers_reserved),
         })
     (out / "manifest.json").write_text(json.dumps({
-        "contract": "pul7sar-cpu-cross-family-synthesis-v2",
-        "pre_generation_lock": "pul7sar-pre-generation-scene-lock-v1",
+        "contract": "pul7sar-cpu-cross-family-synthesis-v3",
+        "pre_generation_lock": "pul7sar-pre-generation-scene-lock-v2",
         "model": q.model,
         "device": "cpu",
         "cost_mode": "$0-github-public-runner",
