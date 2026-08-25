@@ -68,13 +68,7 @@ def build_capabilities(worker_id: str) -> GenerationWorkerCapabilities:
 
 
 def _requalify_live_host(capabilities: GenerationWorkerCapabilities) -> dict[str, object]:
-    """Re-prove the physical GPU immediately before any queue mutation.
-
-    Early host qualification is not a lease on VRAM. Model preparation,
-    notebook activity, or another process may consume GPU memory after the first
-    preflight. Re-running the same fail-closed host policy at the worker boundary
-    closes that time-of-check/time-of-use gap as late as practical.
-    """
+    """Re-prove the physical GPU immediately before queue/execution boundaries."""
     if not isinstance(capabilities, GenerationWorkerCapabilities):
         raise TypeError("capabilities must be GenerationWorkerCapabilities")
 
@@ -169,6 +163,10 @@ def main() -> int:
         capabilities=capabilities,
         lease_seconds=args.lease_seconds,
         require_bf16=True,
+        # The cycle-level requalification below protects recovery/lease entry.
+        # This lease-bound guard runs again after a concrete job is leased and
+        # immediately before it can transition to RUNNING / invoke FLUX.
+        pre_execute_guard=lambda _job: _requalify_live_host(capabilities),
     )
 
     initial_snapshot = store.snapshot()
@@ -187,6 +185,7 @@ def main() -> int:
             "live_free_vram_gb": initial_live_host.get("gpu_free_vram_gb"),
             "required_vram_gb": initial_live_host.get("required_vram_gb"),
             "live_host_requalified": True,
+            "lease_bound_pre_execute_guard": True,
             "cost_mode": "$0-local",
         },
     ))
@@ -199,6 +198,7 @@ def main() -> int:
         "live_free_vram_gb": initial_live_host.get("gpu_free_vram_gb"),
         "required_vram_gb": initial_live_host.get("required_vram_gb"),
         "bf16_supported": capabilities.bf16_supported,
+        "lease_bound_pre_execute_guard": True,
         "provider_ids": sorted(capabilities.provider_ids),
         "model_ids": sorted(capabilities.model_ids),
         "cost_mode": "$0-local",
@@ -207,8 +207,9 @@ def main() -> int:
 
     cycles = 0
     while True:
-        # Re-prove live VRAM and device identity before recovery, leasing, or
-        # execution can mutate durable queue state.
+        # Re-prove live VRAM and device identity before recovery or leasing can
+        # mutate durable queue state. A second guard runs after lease, directly
+        # before RUNNING/executor, closing the remaining TOCTOU window.
         live_host = _requalify_live_host(capabilities)
         started_at = datetime.now(timezone.utc)
         started_monotonic = time.monotonic()
@@ -237,6 +238,7 @@ def main() -> int:
                     "resolved_dtype": capabilities.metadata.get("resolved_dtype"),
                     "live_free_vram_gb_before_cycle": live_host.get("gpu_free_vram_gb"),
                     "required_vram_gb": live_host.get("required_vram_gb"),
+                    "lease_bound_pre_execute_guard": True,
                     "cost_mode": "$0-local",
                 },
             ))
@@ -258,6 +260,7 @@ def main() -> int:
                 "resolved_dtype": capabilities.metadata.get("resolved_dtype"),
                 "live_free_vram_gb_before_cycle": live_host.get("gpu_free_vram_gb"),
                 "required_vram_gb": live_host.get("required_vram_gb"),
+                "lease_bound_pre_execute_guard": True,
                 "cost_mode": "$0-local",
             },
         ))
@@ -276,6 +279,7 @@ def main() -> int:
             "cycle_seconds": elapsed,
             "live_free_vram_gb_before_cycle": live_host.get("gpu_free_vram_gb"),
             "required_vram_gb": live_host.get("required_vram_gb"),
+            "lease_bound_pre_execute_guard": True,
             "recovered_expired_jobs": list(recovery.recovered_job_ids),
             "terminal_expired_jobs": list(recovery.terminal_job_ids),
             "queue_counts": snapshot.counts,
