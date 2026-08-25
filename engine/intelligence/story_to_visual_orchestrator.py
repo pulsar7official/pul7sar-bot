@@ -1,8 +1,9 @@
 """Unified Story -> Editorial Copy -> Visual Concept -> Production orchestration.
 
 The visual concept is selected before renderer execution so a family renderer never
-becomes the idea of the picture by default. Copy, scene grammar, concept, exact
-ownership and execution routing are derived together from already-verified facts.
+becomes the idea of the picture by default. Copy, scene grammar, concept, explicit
+concept-renderer capability, exact ownership and execution routing are derived
+together from already-verified facts.
 """
 from __future__ import annotations
 
@@ -10,6 +11,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Mapping, Optional
 
+from engine.intelligence.concept_renderer_registry import ConceptRendererCapability, ConceptRendererRegistry
 from engine.intelligence.editorial_headline_grammar import EditorialHeadlineGrammar, HeadlineInput, HeadlineTone
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
 from engine.intelligence.sports_editorial_scene import SportsEditorialSceneDirector, SportsEditorialScenePlan, EditorialSceneFamily
@@ -56,6 +58,7 @@ class StoryToVisualDecision:
     visual_grammar: VisualGrammarDecision
     sports_editorial_scene: SportsEditorialScenePlan
     visual_concept: VisualConceptDecision
+    concept_renderer: ConceptRendererCapability
     execution_route: VisualExecutionDecision
     sport_geometry_requirements: tuple[str, ...]
     high_risk_generated_elements: tuple[str, ...]
@@ -70,6 +73,7 @@ class StoryToVisualOrchestrator:
         self._grammar = VisualGrammar()
         self._scene = SportsEditorialSceneDirector()
         self._concepts = VisualConceptDirector()
+        self._concept_renderers = ConceptRendererRegistry()
         self._execution = VisualExecutionRouter()
 
     @staticmethod
@@ -85,8 +89,6 @@ class StoryToVisualOrchestrator:
         )
         verified_action = self._flag(metadata, "verified_action_photo")
         verified_celebration = self._flag(metadata, "verified_celebration_photo")
-        # Action/celebration are person-bearing by definition and must not silently
-        # bypass provenance. Story metadata must therefore also establish subject provenance.
         verified_subject = verified_subject or verified_action or verified_celebration
         score_margin = metadata.get("score_margin")
         if score_margin is not None:
@@ -174,6 +176,7 @@ class StoryToVisualOrchestrator:
             sports_scene.family,
             self._concept_signals(story, sports_scene.family),
         )
+        concept_renderer = self._concept_renderers.get(visual_concept.archetype)
         execution_route = self._execution.route(grammar)
 
         return StoryToVisualDecision(
@@ -184,6 +187,7 @@ class StoryToVisualOrchestrator:
             visual_grammar=grammar,
             sports_editorial_scene=sports_scene,
             visual_concept=visual_concept,
+            concept_renderer=concept_renderer,
             execution_route=execution_route,
             sport_geometry_requirements=geometry,
             high_risk_generated_elements=rule.high_risk_generated_elements,
