@@ -3,7 +3,8 @@
 A hybrid compositor must not trust caller booleans about whether a generated image
 is safe to receive exact layers. This module validates the synthesis manifest and
 binds one scene file to its family, sport lock, semantic lock, and prompt-budget
-contracts before composition is allowed.
+contracts before composition is allowed. Multiple candidates for one family are
+supported only when the requested filename uniquely identifies a manifest scene.
 """
 from __future__ import annotations
 
@@ -27,10 +28,12 @@ class GeneratedBaseProvenance:
     publication_ready: bool
     generated_subject_policy: str
     exact_layers_reserved: tuple[str, ...]
-    contract: str = "pul7sar-generated-base-provenance-v1"
+    seed: int | None = None
+    contract: str = "pul7sar-generated-base-provenance-v2-multi-candidate"
 
     EXPECTED_SYNTHESIS_CONTRACTS = (
         "pul7sar-cpu-cross-family-synthesis-v4",
+        "pul7sar-result-seed-sweep-v2-provenance",
     )
 
     @classmethod
@@ -57,11 +60,19 @@ class GeneratedBaseProvenance:
         scenes = payload.get("scenes")
         if not isinstance(scenes, list):
             raise ValueError("SYNTHESIS_MANIFEST_SCENES_MISSING")
-        scene = next((s for s in scenes if s.get("family") == family.value), None)
-        if scene is None:
+        matches = [
+            s for s in scenes
+            if s.get("family") == family.value
+            and Path(str(s.get("file", ""))).name == image_file.name
+        ]
+        if not matches:
+            family_exists = any(s.get("family") == family.value for s in scenes)
+            if family_exists:
+                raise ValueError("SYNTHESIS_IMAGE_MANIFEST_MISMATCH")
             raise ValueError(f"SYNTHESIS_FAMILY_MISSING:{family.value}")
-        if Path(str(scene.get("file", ""))).name != image_file.name:
-            raise ValueError("SYNTHESIS_IMAGE_MANIFEST_MISMATCH")
+        if len(matches) != 1:
+            raise ValueError("SYNTHESIS_IMAGE_MANIFEST_AMBIGUOUS")
+        scene = matches[0]
         if scene.get("sport_lock") != "association_football":
             raise ValueError(f"SPORT_LOCK_MISMATCH:{scene.get('sport_lock')}")
         token_count = int(scene.get("prompt_token_count", -1))
@@ -84,6 +95,7 @@ class GeneratedBaseProvenance:
         if not required_reservations.issubset(set(exact_layers_reserved)):
             raise ValueError("EXACT_LAYER_RESERVATIONS_INCOMPLETE")
 
+        raw_seed = scene.get("seed")
         provenance = cls(
             family=family,
             image_path=str(image_file),
@@ -96,6 +108,7 @@ class GeneratedBaseProvenance:
             publication_ready=False,
             generated_subject_policy=str(scene.get("generated_subject_policy", "")),
             exact_layers_reserved=exact_layers_reserved,
+            seed=int(raw_seed) if raw_seed is not None else None,
         )
         provenance.validate_for(family=family, image_path=str(image_file))
         return provenance
