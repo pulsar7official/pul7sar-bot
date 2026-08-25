@@ -23,7 +23,7 @@ class MomentLedResultRendererTests(unittest.TestCase):
             self.skipTest('DejaVu font unavailable')
 
     @staticmethod
-    def _moment(root: Path) -> VerifiedStoryMomentAsset:
+    def _moment(root: Path, kind=StoryMomentKind.DECISIVE_ACTION) -> VerifiedStoryMomentAsset:
         path = root / 'moment.jpg'
         image = Image.new('RGB', (1500, 1000), (19, 31, 47))
         draw = ImageDraw.Draw(image)
@@ -31,29 +31,18 @@ class MomentLedResultRendererTests(unittest.TestCase):
         draw.rectangle((1000, 0, 1500, 1000), fill=(8, 15, 26))
         image.save(path, quality=95)
         return VerifiedStoryMomentAsset(
-            asset_id='verified-action-fixture',
-            path=str(path),
+            asset_id='verified-action-fixture', path=str(path),
             sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
-            source_reference='test://verified-action-fixture',
-            moment_kind=StoryMomentKind.DECISIVE_ACTION,
-            rights_basis=StoryMomentRights.OWNER_SUPPLIED,
-            contains_people=False,
+            source_reference='test://verified-action-fixture', moment_kind=kind,
+            rights_basis=StoryMomentRights.OWNER_SUPPLIED, contains_people=False,
         )
 
-    def _render(self, root: Path, name='result.png'):
+    def _render(self, root: Path, name='result.png', kind=StoryMomentKind.DECISIVE_ACTION):
         return MomentLedResultRenderer().render(
-            self.composition,
-            profile=self.profile,
-            output_path=str(root / name),
-            moment_asset=self._moment(root),
-            home_name='HOME CLUB',
-            away_name='AWAY CLUB',
-            home_score=3,
-            away_score=1,
-            home_accent_hex='#034694',
-            away_accent_hex='#B21F2D',
-            brand_accent_hex='#034694',
-            font_path=str(self.font),
+            self.composition, profile=self.profile, output_path=str(root / name),
+            moment_asset=self._moment(root, kind), home_name='HOME CLUB', away_name='AWAY CLUB',
+            home_score=3, away_score=1, home_accent_hex='#034694', away_accent_hex='#B21F2D',
+            brand_accent_hex='#034694', font_path=str(self.font),
         )
 
     def test_verified_photo_is_primary_and_score_is_secondary(self):
@@ -69,22 +58,24 @@ class MomentLedResultRendererTests(unittest.TestCase):
             self.assertFalse(receipt.publication_ready)
             self.assertLess(receipt.brand_width, 870)
 
+    def test_non_decisive_verified_match_action_is_supported_truthfully(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            receipt = self._render(Path(tmp), kind=StoryMomentKind.MATCH_ACTION)
+            self.assertEqual(receipt.moment_kind, 'match_action')
+            self.assertTrue(receipt.photograph_is_primary)
+            self.assertTrue(receipt.score_is_secondary)
+
     def test_same_input_is_byte_deterministic(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             a = self._render(root, 'a.png')
             b = MomentLedResultRenderer().render(
-                self.composition,
-                profile=self.profile,
-                output_path=str(root / 'b.png'),
+                self.composition, profile=self.profile, output_path=str(root / 'b.png'),
                 moment_asset=VerifiedStoryMomentAsset(
-                    asset_id='verified-action-fixture',
-                    path=str(root / 'moment.jpg'),
+                    asset_id='verified-action-fixture', path=str(root / 'moment.jpg'),
                     sha256=hashlib.sha256((root / 'moment.jpg').read_bytes()).hexdigest(),
-                    source_reference='test://verified-action-fixture',
-                    moment_kind=StoryMomentKind.DECISIVE_ACTION,
-                    rights_basis=StoryMomentRights.OWNER_SUPPLIED,
-                    contains_people=False,
+                    source_reference='test://verified-action-fixture', moment_kind=StoryMomentKind.DECISIVE_ACTION,
+                    rights_basis=StoryMomentRights.OWNER_SUPPLIED, contains_people=False,
                 ),
                 home_name='HOME CLUB', away_name='AWAY CLUB', home_score=3, away_score=1,
                 home_accent_hex='#034694', away_accent_hex='#B21F2D', brand_accent_hex='#034694',
@@ -103,7 +94,7 @@ class MomentLedResultRendererTests(unittest.TestCase):
                 source_reference='test://detail', moment_kind=StoryMomentKind.VERIFIED_OBJECT_DETAIL,
                 rights_basis=StoryMomentRights.OWNER_SUPPLIED, contains_people=False,
             )
-            with self.assertRaisesRegex(ValueError, 'REQUIRES_ACTION_OR_CELEBRATION'):
+            with self.assertRaisesRegex(ValueError, 'REQUIRES_VERIFIED_MATCH_ACTION_DECISIVE_OR_CELEBRATION'):
                 MomentLedResultRenderer().render(
                     self.composition, profile=self.profile, output_path=str(root/'bad.png'), moment_asset=asset,
                     home_name='HOME', away_name='AWAY', home_score=1, away_score=0,
