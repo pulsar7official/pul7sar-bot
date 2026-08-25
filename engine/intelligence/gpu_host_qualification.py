@@ -21,6 +21,7 @@ class GpuHostQualification:
     model_id: str
     gpu_name: str | None
     gpu_vram_gb: float | None
+    gpu_free_vram_gb: float | None
     bf16_supported: bool | None
     compute_capability: str | None
     torch_available: bool
@@ -36,6 +37,7 @@ class GpuHostQualification:
             "model_id": self.model_id,
             "gpu_name": self.gpu_name,
             "gpu_vram_gb": self.gpu_vram_gb,
+            "gpu_free_vram_gb": self.gpu_free_vram_gb,
             "bf16_supported": self.bf16_supported,
             "compute_capability": self.compute_capability,
             "torch_available": self.torch_available,
@@ -59,10 +61,14 @@ class GpuHostQualificationPolicy:
             raise TypeError("runtime must be RuntimeHardwareSnapshot")
         if not isinstance(model, LocalModelCandidate):
             raise TypeError("model must be LocalModelCandidate")
+        if model.minimum_vram_gb is None:
+            raise ValueError("model minimum_vram_gb must be proven before GPU host qualification")
 
         metadata: Mapping[str, Any] = runtime.metadata
         bf16_supported = metadata.get("bf16_supported")
         compute_capability = metadata.get("compute_capability")
+        free_vram = metadata.get("gpu_free_vram_gb")
+        free_vram_gb = float(free_vram) if isinstance(free_vram, (int, float)) and not isinstance(free_vram, bool) else None
         reasons: list[str] = []
 
         if runtime.kind is not RuntimeKind.LOCAL_CUDA:
@@ -80,6 +86,13 @@ class GpuHostQualificationPolicy:
                 f"GPU VRAM {runtime.gpu_vram_gb:.3f} GB is below required "
                 f"{model.minimum_vram_gb:.3f} GB"
             )
+        if free_vram_gb is None:
+            reasons.append("live free GPU VRAM could not be proven")
+        elif free_vram_gb < model.minimum_vram_gb:
+            reasons.append(
+                f"live free GPU VRAM {free_vram_gb:.3f} GB is below required "
+                f"{model.minimum_vram_gb:.3f} GB"
+            )
         if bf16_supported is not True:
             reasons.append("native BF16 support is not proven")
         if not isinstance(compute_capability, str) or not compute_capability.strip():
@@ -91,6 +104,7 @@ class GpuHostQualificationPolicy:
             model_id=model.model_id,
             gpu_name=runtime.gpu_name,
             gpu_vram_gb=runtime.gpu_vram_gb,
+            gpu_free_vram_gb=free_vram_gb,
             bf16_supported=bf16_supported if isinstance(bf16_supported, bool) else None,
             compute_capability=compute_capability if isinstance(compute_capability, str) else None,
             torch_available=runtime.torch_available,
