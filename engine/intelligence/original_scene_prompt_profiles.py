@@ -1,8 +1,9 @@
-"""Family-specific atmosphere prompts for local original-scene synthesis.
+"""Compact family prompts for original-scene synthesis.
 
-Prompts describe only the scene world. Exact people, crests, score, copy, data and
-PUL7SAR branding are reserved for deterministic composition. Tactical is excluded
-because its exact geometry remains deterministic-first.
+The generator owns atmosphere and material world only. Prompts are intentionally
+short because SD-Turbo's CLIP encoder has a 77-token context. Exact people,
+crests, score, copy, data, football geometry and PUL7SAR branding are reserved
+for verified/deterministic composition.
 """
 from __future__ import annotations
 
@@ -23,62 +24,37 @@ class OriginalScenePromptProfile:
         "exact score",
         "exact statistics",
         "verified real-person identity",
+        "exact sport geometry",
     )
-    contract: str = "pul7sar-original-scene-prompt-profile-v1"
-
-
-_COMMON = (
-    "premium cinematic sports editorial photography, one single coherent physical scene, "
-    "natural lens depth and realistic lighting, sophisticated dark material textures, "
-    "clean intentional negative space for later editorial composition, no collage, no panels, "
-    "unbranded neutral surfaces, no readable writing, no numbers, no logos, no club crest, no watermark, "
-)
+    contract: str = "pul7sar-original-scene-prompt-profile-v2"
 
 
 class OriginalScenePromptProfileRegistry:
     _MAP = {
         EditorialSceneFamily.RESULT_STATEMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.RESULT_STATEMENT,
-            _COMMON +
-            "night football atmosphere seen from a low editorial sideline angle after a major match, "
-            "empty foreground playing area with no athletes near camera, distant crowd rendered only as anonymous texture, "
-            "powerful stadium floodlights and subtle red versus electric-blue environmental light, "
-            "restrained haze, premium post-match tension, realistic grass and architecture, no identifiable real stadium, "
-            "field foreground intentionally open for exact score and club identity post-composition",
-            "distant anonymous crowd texture only; no foreground people",
+            "Nighttime professional soccer stadium after a completed match, low sideline viewpoint, empty foreground, distant anonymous crowd, powerful floodlights, restrained haze, realistic dark architecture, broad negative space for later exact score and club identity, premium cinematic editorial photograph, unbranded surfaces.",
+            "anonymous distant atmosphere only; no foreground people or generated score",
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: OriginalScenePromptProfile(
             EditorialSceneFamily.TRANSFER_SIGNATURE,
-            _COMMON +
-            "luxury football transfer arrival environment, modern stadium tunnel and dressing-room threshold, "
-            "tailored dark locker-room materials, brushed metal, fabric, practical destination light, "
-            "a clean empty presentation zone with no person and no shirt logo, asymmetrical architectural depth, "
-            "controlled red and blue light migration suggesting movement from one identity space to another, no ceremony, no signature",
-            "environment and neutral objects only; no person",
+            "Empty modern professional soccer club tunnel opening toward a dark dressing room, asymmetric depth, brushed metal, matte fabric, practical red and blue accent light, clean presentation zone, premium cinematic editorial photograph, unbranded surfaces, no person or displayed shirt.",
+            "environment only; verified player identity must be composited separately",
         ),
         EditorialSceneFamily.VERIFIED_SUBJECT_NEWS: OriginalScenePromptProfile(
             EditorialSceneFamily.VERIFIED_SUBJECT_NEWS,
-            _COMMON +
-            "quiet premium football dressing-room editorial environment, open locker and empty bench, "
-            "soft practical light, restrained emotional negative space, realistic fabric and matte architecture, "
-            "empty hero zone deliberately reserved for a separately verified subject asset, no mannequin, no human silhouette, no face",
-            "empty environment only; verified subject must be composited separately",
+            "Quiet professional soccer dressing room, open locker, empty bench, moody practical light, large clear empty hero zone, realistic matte materials, restrained lens depth, premium cinematic editorial photograph, unbranded surfaces, no person or mannequin.",
+            "empty hero environment only; verified subject must be composited separately",
         ),
         EditorialSceneFamily.DATA_MONUMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.DATA_MONUMENT,
-            _COMMON +
-            "luxury sports information gallery environment, monumental dark stone and brushed-metal forms, "
-            "precise architectural light, frosted glass, sparse premium negative space, one physical information pedestal "
-            "with completely blank surfaces reserved for exact data post-composition, no chart labels and no fake statistics",
-            "non-human environment only",
+            "Dark luxury indoor information gallery, sculptural brushed-metal pedestal, frosted glass, flat blank display surfaces, precise architectural lighting, deep negative space, subtle stadium ambience, premium cinematic editorial photograph, no people, unbranded surfaces.",
+            "non-human architectural environment only; exact data is deterministic",
         ),
         EditorialSceneFamily.EVENT_EDITORIAL: OriginalScenePromptProfile(
             EditorialSceneFamily.EVENT_EDITORIAL,
-            _COMMON +
-            "anticipation before a major football event at night, immersive generic venue entrance and distant stadium-scale light, "
-            "one realistic neutral football as a subtle symbolic object, empty foreground, anonymous distant audience texture only, "
-            "forward architectural depth, restrained haze, dramatic practical floodlights, no identifiable venue, no outcome implied",
-            "distant anonymous audience texture only; no foreground people",
+            "Nighttime entrance to a large professional soccer venue before an event, empty foreground, distant anonymous crowd glow, deep architectural perspective, floodlights, restrained haze, anticipation, premium cinematic editorial photograph, unbranded surfaces, no nearby people or score.",
+            "distant anonymous atmosphere only; no result or foreground person",
         ),
     }
 
