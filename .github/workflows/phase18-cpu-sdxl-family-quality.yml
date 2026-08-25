@@ -1,4 +1,4 @@
-name: Phase 18 CPU SDXL Family Quality Benchmark
+name: Phase 18 CPU SDXL Hybrid Family Quality Benchmark
 
 on:
   workflow_dispatch:
@@ -7,9 +7,15 @@ on:
       - phase18/original-visual-benchmark
     paths:
       - 'tools/phase18_cpu_sdxl_family_synthesis.py'
+      - 'tools/phase18_build_sdxl_hybrid_candidate.py'
       - 'engine/intelligence/original_scene_prompt_profiles.py'
       - 'engine/intelligence/pre_generation_scene_lock.py'
       - 'engine/intelligence/generation_prompt_budget.py'
+      - 'engine/intelligence/hybrid_scene_contract.py'
+      - 'engine/intelligence/hybrid_family_compositor.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'tests/test_phase18_hybrid_family_compositor.py'
       - '.github/workflows/phase18-cpu-sdxl-family-quality.yml'
 
 permissions:
@@ -38,12 +44,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Install CPU SDXL runtime
+      - name: Verify hybrid compositor ownership
         run: |
           python -m pip install --upgrade pip
+          python -m pip install Pillow
+          python -m unittest -v tests.test_phase18_hybrid_family_compositor
+      - name: Install CPU SDXL runtime
+        run: |
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
-      - name: Generate family quality candidate
+      - name: Generate family atmosphere candidate
         run: |
           python tools/phase18_cpu_sdxl_family_synthesis.py \
             --family '${{ matrix.family }}' \
@@ -51,23 +61,47 @@ jobs:
             --width 512 --height 640 --steps 4
           test -s 'out/${{ matrix.family }}/${{ matrix.family }}.png'
           test -s 'out/${{ matrix.family }}/manifest.json'
+      - name: Compose exact editorial hybrid
+        run: |
+          python tools/phase18_build_sdxl_hybrid_candidate.py \
+            --family '${{ matrix.family }}' \
+            --base 'out/${{ matrix.family }}/${{ matrix.family }}.png' \
+            --out-dir 'out/${{ matrix.family }}'
+          test -s 'out/${{ matrix.family }}/${{ matrix.family }}-hybrid.png'
+          test -s 'out/${{ matrix.family }}/hybrid-manifest.json'
+      - name: Verify synthesis and hybrid manifests
+        run: |
           python - <<'PY'
-          import json, os
+          import hashlib, json, os
           from pathlib import Path
           family=os.environ['FAMILY']
-          m=json.loads(Path(f'out/{family}/manifest.json').read_text())
+          root=Path(f'out/{family}')
+          m=json.loads((root/'manifest.json').read_text())
+          h=json.loads((root/'hybrid-manifest.json').read_text())
           assert m['contract']=='pul7sar-sdxl-family-synthesis-v1'
           assert m['family']==family
           assert m['sport_lock']=='association_football'
           assert m['publication_ready'] is False
           assert m['model']=='stabilityai/sdxl-turbo'
           assert len(m['prompt_budgets']) >= 1
+          assert h['contract']=='pul7sar-hybrid-family-compositor-v1'
+          assert h['family']==family
+          assert h['exact_brand_used'] is True
+          assert h['deterministic_facts_used'] is True
+          assert h['fabricated_crest_used'] is False
+          assert h['placeholder_used'] is False
+          assert h['generated_text_used'] is False
+          assert h['source_photo_used'] is False
+          assert h['publication_ready'] is False
+          png=root/h['png']
+          assert png.is_file()
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==h['png_sha256']
           PY
         env:
           FAMILY: ${{ matrix.family }}
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-sdxl-${{ matrix.family }}
+          name: phase18-sdxl-hybrid-${{ matrix.family }}
           path: out/${{ matrix.family }}/
           if-no-files-found: error
-          retention-days: 3
+          retention-days: 7
