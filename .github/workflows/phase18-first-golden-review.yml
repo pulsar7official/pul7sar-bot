@@ -53,13 +53,22 @@ jobs:
           # a valid shared ancestor with main unreachable on the runner.
           fetch-depth: 0
 
-      - name: Prove immutable checkout, branch isolation and canonical strict entrypoint
+      - name: Prove immutable checkout, attach exact Phase 18 branch, and verify isolation
         shell: bash
         env:
           DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+
+          # actions/checkout with an immutable commit SHA leaves HEAD detached. The
+          # Phase 18 runtime intentionally fails closed unless the current branch is
+          # exactly phase18/story-intelligence, so attach a local branch to the exact
+          # dispatched SHA without following a moving remote branch.
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+
           test -f tools/phase18_colab_first_golden_bootstrap.py
           test -f tools/phase18_colab_first_golden_review_sealed.py
           test -f tools/phase18_first_png_original_scene.py
