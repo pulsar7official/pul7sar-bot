@@ -2,7 +2,9 @@
 
 Family selection is too coarse for high-end art direction. This registry maps the
 visual idea chosen by VisualConceptDirector to an explicit pixel implementation.
-No concept may silently fall back to another concept's renderer.
+No concept may silently fall back to another concept's renderer. Optional local
+generative atmosphere remains contract-only until a measured local runtime is
+qualified; it never becomes a hidden network/provider dependency.
 """
 from __future__ import annotations
 
@@ -25,6 +27,7 @@ class ConceptSurfaceClass(str, Enum):
     VERIFIED_ASSET_LED = "verified_asset_led"
     DETERMINISTIC_INFORMATION = "deterministic_information"
     MINIMAL_EDITORIAL = "minimal_editorial"
+    LOCAL_GENERATIVE_ATMOSPHERE = "local_generative_atmosphere"
 
 
 @dataclass(frozen=True)
@@ -53,14 +56,18 @@ class ConceptRendererCapability:
                 raise ValueError("IMPLEMENTED_CONCEPT_REQUIRES_EXPLICIT_RENDERER")
         elif any((self.renderer_module, self.renderer_class, self.renderer_contract)):
             raise ValueError("CONTRACT_ONLY_CONCEPT_MAY_NOT_CLAIM_RENDERER")
-        if self.generator_required or self.network_required:
-            raise ValueError("CONCEPT_REGISTRY_CORE_MUST_REMAIN_ZERO_COST_LOCAL")
+        if self.network_required:
+            raise ValueError("CONCEPT_REGISTRY_MAY_NOT_REQUIRE_NETWORK_PROVIDER")
+        if self.generator_required and self.status is not ConceptRendererStatus.CONTRACT_ONLY:
+            raise ValueError("GENERATOR_CONCEPT_MUST_REMAIN_CONTRACT_ONLY_UNTIL_RUNTIME_QUALIFIED")
+        if self.generator_required and self.surface_class is not ConceptSurfaceClass.LOCAL_GENERATIVE_ATMOSPHERE:
+            raise ValueError("GENERATOR_REQUIRED_ONLY_VALID_FOR_LOCAL_GENERATIVE_ATMOSPHERE")
         if self.publication_ready:
             raise ValueError("CONCEPT_CAPABILITY_ALONE_CANNOT_AUTHORIZE_PUBLICATION")
 
 
 class ConceptRendererRegistry:
-    VERSION = "pul7sar-concept-renderer-registry-v1"
+    VERSION = "pul7sar-concept-renderer-registry-v2-local-generative-fail-closed"
 
     def __init__(self) -> None:
         implemented = ConceptRendererStatus.IMPLEMENTED
@@ -121,6 +128,12 @@ class ConceptRendererRegistry:
                 "engine.intelligence.event_editorial_runtime_v2", "EventEditorialStudyRenderer",
                 "pul7sar-event-editorial-study-renderer-v1-premium-anchor",
                 ("verified_context_photo",),
+            ),
+            VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE: ConceptRendererCapability(
+                VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE, contract, ConceptSurfaceClass.LOCAL_GENERATIVE_ATMOSPHERE,
+                None, None, None, ("qualified_local_gpu_runtime", "semantic_inspection"),
+                generator_required=True,
+                network_required=False,
             ),
             VisualConceptArchetype.MINIMAL_EVENT_SYMBOL: ConceptRendererCapability(
                 VisualConceptArchetype.MINIMAL_EVENT_SYMBOL, implemented, ConceptSurfaceClass.MINIMAL_EDITORIAL,
