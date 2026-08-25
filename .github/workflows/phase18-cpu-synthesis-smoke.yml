@@ -10,7 +10,9 @@ on:
       - 'tools/phase18_cpu_cross_family_synthesis.py'
       - 'engine/intelligence/original_scene_prompt_profiles.py'
       - 'engine/intelligence/pre_generation_scene_lock.py'
+      - 'engine/intelligence/generation_prompt_budget.py'
       - 'tests/test_phase18_pre_generation_scene_lock.py'
+      - 'tests/test_phase18_generation_prompt_budget.py'
       - '.github/workflows/phase18-cpu-synthesis-smoke.yml'
 
 permissions:
@@ -30,18 +32,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Verify pre-generation sport and semantic locks
+      - name: Verify scene locks and prompt budget
         run: |
           python -m pip install pytest
-          pytest -q tests/test_phase18_pre_generation_scene_lock.py
+          pytest -q tests/test_phase18_pre_generation_scene_lock.py tests/test_phase18_generation_prompt_budget.py
       - name: Install CPU synthesis runtime
         run: |
           python -m pip install --upgrade pip
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
-      - name: Generate five locked original unbranded scene families
+      - name: Generate five compact locked original scenes
         run: |
-          python tools/phase18_cpu_cross_family_synthesis.py --out-dir out --width 512 --height 640 --steps 2
+          python tools/phase18_cpu_cross_family_synthesis.py --out-dir out --width 512 --height 640 --steps 4
           test -s out/transfer_signature.png
           test -s out/result_statement.png
           test -s out/verified_subject_news.png
@@ -52,17 +54,19 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/manifest.json').read_text())
-          assert m['contract']=='pul7sar-cpu-cross-family-synthesis-v3'
-          assert m['pre_generation_lock']=='pul7sar-pre-generation-scene-lock-v2'
+          assert m['contract']=='pul7sar-cpu-cross-family-synthesis-v4'
+          assert m['pre_generation_lock']=='pul7sar-pre-generation-scene-lock-v3'
+          assert m['prompt_budget_contract']=='pul7sar-generation-prompt-budget-v1'
           assert m['publication_ready'] is False
           assert len(m['scenes'])==5
           assert all(s['sport_lock']=='association_football' for s in m['scenes'])
-          assert all(s['steps']==2 for s in m['scenes'])
-          assert all(s['prompt_policy']=='positive_scene_ownership_only_forbidden_cues_are_qa_metadata' for s in m['scenes'])
+          assert all(s['steps']==4 for s in m['scenes'])
+          assert all(s['prompt_token_count'] <= s['prompt_usable_limit'] for s in m['scenes'])
+          assert all(s['prompt_policy']=='compact_positive_scene_ownership_fail_closed_token_budget' for s in m['scenes'])
           PY
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-cpu-cross-family-synthesis-v3
+          name: phase18-cpu-cross-family-synthesis-v4
           path: out/
           if-no-files-found: error
           retention-days: 3
