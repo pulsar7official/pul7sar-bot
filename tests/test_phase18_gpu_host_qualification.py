@@ -16,23 +16,63 @@ class GpuHostQualificationTests(unittest.TestCase):
             gpu_name="Test GPU",
             gpu_vram_gb=24.0,
             torch_available=True,
-            metadata={"bf16_supported": True, "compute_capability": "8.9"},
+            metadata={
+                "bf16_supported": True,
+                "compute_capability": "8.9",
+                "gpu_free_vram_gb": 22.0,
+            },
         )
         result = self.policy.evaluate(runtime=runtime, model=FLUX2_KLEIN_4B_LOCAL)
         self.assertTrue(result.eligible)
         self.assertEqual(result.reasons, ())
+        self.assertEqual(result.gpu_free_vram_gb, 22.0)
 
-    def test_low_vram_is_not_qualified(self):
+    def test_low_total_vram_is_not_qualified(self):
         runtime = RuntimeHardwareSnapshot(
             kind=RuntimeKind.LOCAL_CUDA,
             cuda_available=True,
             gpu_name="Test GPU",
             gpu_vram_gb=12.0,
             torch_available=True,
+            metadata={
+                "bf16_supported": True,
+                "compute_capability": "8.0",
+                "gpu_free_vram_gb": 11.5,
+            },
+        )
+        result = self.policy.evaluate(runtime=runtime, model=FLUX2_KLEIN_4B_LOCAL)
+        self.assertFalse(result.eligible)
+        self.assertTrue(any("GPU VRAM" in reason for reason in result.reasons))
+
+    def test_busy_gpu_with_insufficient_live_free_vram_is_not_qualified(self):
+        runtime = RuntimeHardwareSnapshot(
+            kind=RuntimeKind.LOCAL_CUDA,
+            cuda_available=True,
+            gpu_name="Shared Test GPU",
+            gpu_vram_gb=24.0,
+            torch_available=True,
+            metadata={
+                "bf16_supported": True,
+                "compute_capability": "8.0",
+                "gpu_free_vram_gb": 8.0,
+            },
+        )
+        result = self.policy.evaluate(runtime=runtime, model=FLUX2_KLEIN_4B_LOCAL)
+        self.assertFalse(result.eligible)
+        self.assertIn("live free GPU VRAM 8.000 GB is below required 13.000 GB", result.reasons)
+
+    def test_live_free_vram_must_be_proven(self):
+        runtime = RuntimeHardwareSnapshot(
+            kind=RuntimeKind.LOCAL_CUDA,
+            cuda_available=True,
+            gpu_name="Test GPU",
+            gpu_vram_gb=24.0,
+            torch_available=True,
             metadata={"bf16_supported": True, "compute_capability": "8.0"},
         )
         result = self.policy.evaluate(runtime=runtime, model=FLUX2_KLEIN_4B_LOCAL)
         self.assertFalse(result.eligible)
+        self.assertIn("live free GPU VRAM could not be proven", result.reasons)
 
     def test_bf16_must_be_proven(self):
         runtime = RuntimeHardwareSnapshot(
@@ -41,7 +81,11 @@ class GpuHostQualificationTests(unittest.TestCase):
             gpu_name="Test GPU",
             gpu_vram_gb=24.0,
             torch_available=True,
-            metadata={"bf16_supported": None, "compute_capability": "8.0"},
+            metadata={
+                "bf16_supported": None,
+                "compute_capability": "8.0",
+                "gpu_free_vram_gb": 22.0,
+            },
         )
         result = self.policy.evaluate(runtime=runtime, model=FLUX2_KLEIN_4B_LOCAL)
         self.assertFalse(result.eligible)
@@ -54,7 +98,7 @@ class GpuHostQualificationTests(unittest.TestCase):
             gpu_name="Test GPU",
             gpu_vram_gb=24.0,
             torch_available=True,
-            metadata={"bf16_supported": True},
+            metadata={"bf16_supported": True, "gpu_free_vram_gb": 22.0},
         )
         result = self.policy.evaluate(runtime=runtime, model=FLUX2_KLEIN_4B_LOCAL)
         self.assertFalse(result.eligible)
