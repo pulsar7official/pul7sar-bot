@@ -27,22 +27,30 @@ class ConceptRendererRegistryTests(unittest.TestCase):
         self.assertNotEqual(moment.renderer_class, score.renderer_class)
         self.assertEqual(score.surface_class, ConceptSurfaceClass.PREMIUM_HYBRID)
 
+    def test_symbolic_transfer_and_verified_detail_are_now_explicit_photo_led_concepts(self):
+        signing = self.registry.require_implemented(VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL)
+        detail = self.registry.require_implemented(VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL)
+        self.assertEqual(signing.surface_class, ConceptSurfaceClass.PHOTO_LED)
+        self.assertEqual(detail.surface_class, ConceptSurfaceClass.PHOTO_LED)
+        self.assertEqual(signing.renderer_class, 'VerifiedDetailEditorialRenderer')
+        self.assertEqual(detail.renderer_class, 'VerifiedDetailEditorialRenderer')
+
     def test_photographic_event_and_minimal_event_are_explicit_concepts(self):
         photographic = self.registry.require_implemented(VisualConceptArchetype.PHOTOGRAPHIC_EVENT)
         minimal = self.registry.require_implemented(VisualConceptArchetype.MINIMAL_EVENT_SYMBOL)
         self.assertEqual(photographic.surface_class, ConceptSurfaceClass.PHOTO_LED)
         self.assertEqual(minimal.surface_class, ConceptSurfaceClass.MINIMAL_EDITORIAL)
 
-    def test_unfinished_concepts_fail_closed_instead_of_falling_back(self):
-        for archetype in (
-            VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL,
-            VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL,
-            VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
-        ):
+    def test_only_unqualified_local_generative_concept_remains_contract_only(self):
+        for archetype in VisualConceptArchetype:
             cap = self.registry.get(archetype)
-            self.assertEqual(cap.status, ConceptRendererStatus.CONTRACT_ONLY)
-            with self.assertRaisesRegex(ValueError, 'VISUAL_CONCEPT_RENDERER_NOT_IMPLEMENTED'):
-                self.registry.require_implemented(archetype)
+            if archetype is VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE:
+                self.assertEqual(cap.status, ConceptRendererStatus.CONTRACT_ONLY)
+                with self.assertRaisesRegex(ValueError, 'VISUAL_CONCEPT_RENDERER_NOT_IMPLEMENTED'):
+                    self.registry.require_implemented(archetype)
+            else:
+                self.assertEqual(cap.status, ConceptRendererStatus.IMPLEMENTED)
+                self.assertIs(self.registry.require_implemented(archetype), cap)
 
     def test_local_generative_atmosphere_is_explicit_but_not_qualified(self):
         cap = self.registry.get(VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE)
