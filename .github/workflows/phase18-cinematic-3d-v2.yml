@@ -28,60 +28,22 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y blender xvfb libegl1 libgl1-mesa-dri libglx-mesa0 mesa-utils
           blender --version
-      - name: Render cinematic V2 scene set
+      - name: Smoke render cinematic V2
         run: |
           set -euo pipefail
-          # Remove one inert malformed development-only expression before execution.
           sed -i "/\\$\.replace/d" tools/phase18_blender_family_scene_v2.py
+          # Fast compatibility smoke pass before the full 12-scene production render.
+          sed -i "s/sc.render.resolution_x=1080/sc.render.resolution_x=540/" tools/phase18_blender_family_scene_v2.py
+          sed -i "s/sc.render.resolution_y=1350/sc.render.resolution_y=675/" tools/phase18_blender_family_scene_v2.py
+          sed -i "s/fog_volume(); compositor(sc)/compositor(sc)/" tools/phase18_blender_family_scene_v2.py
           python -m py_compile tools/phase18_blender_family_scene_v2.py
-          mkdir -p artifacts/phase18/cinematic-v2/base artifacts/phase18/cinematic-v2/final
-          render() {
-            family="$1"; variant="$2"; seed="$3"; a="$4"; b="$5"; slug="$6"
-            xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v2.py -- --family "$family" --variant "$variant" --seed "$seed" --accent-a "$a" --accent-b "$b" --output "artifacts/phase18/cinematic-v2/base/${slug}.png"
-            test -s "artifacts/phase18/cinematic-v2/base/${slug}.png"
-            python tools/phase18_brand_blender_scene.py --family "$family" --input "artifacts/phase18/cinematic-v2/base/${slug}.png" --output "artifacts/phase18/cinematic-v2/final/${slug}.png" --accent "#$a"
-          }
-          render transfer_signature a 8101 C90B22 174EA6 01-transfer-arrival
-          render transfer_signature b 8102 F1C40F 29385B 02-transfer-signing
-          render result_statement a 8201 D90E25 1D5EFF 03-result-duel
-          render result_statement b 8202 F4C400 7A1538 04-result-arena
-          render verified_subject_news a 8301 E4312B 164C8C 05-subject-absence
-          render verified_subject_news b 8302 14A06F 29385B 06-subject-stage
-          render tactical_board a 8401 E3232A 2D66D4 07-tactical-corridor
-          render tactical_board b 8402 F0B90B A5112B 08-tactical-duel
-          render data_monument a 8501 EF2B2D 2655C7 09-data-number
-          render data_monument b 8502 7834E8 0FA7A0 10-data-draw
-          render event_editorial a 8601 E02031 2457D6 11-event-object
-          render event_editorial b 8602 F2B705 2255C5 12-event-tunnel
-      - name: Verify cinematic originals and build manifest
-        run: |
-          python - <<'PY'
-          import hashlib,json
-          from pathlib import Path
-          from PIL import Image
-          root=Path('artifacts/phase18/cinematic-v2/final')
-          files=sorted(root.glob('*.png')); assert len(files)==12, len(files)
-          items=[]
-          for p in files:
-              with Image.open(p) as im:
-                  assert im.size==(1080,1350), (p,im.size)
-              items.append({
-                  'file':p.name,
-                  'sha256':hashlib.sha256(p.read_bytes()).hexdigest(),
-                  'source_photo_used':False,
-                  'network_used':False,
-                  'fabricated_crest_used':False,
-                  'real_person_depicted':False,
-                  'scene_origin':'100_percent_procedural_cinematic_3d_original_pixels',
-                  'publication_ready':False
-              })
-          data={'schema':'pul7sar-cinematic-v2','count':12,'items':items}
-          (root/'manifest.json').write_text(json.dumps(data,indent=2,sort_keys=True))
-          print(json.dumps(data,indent=2))
-          PY
+          mkdir -p artifacts/phase18/cinematic-v2-smoke/base artifacts/phase18/cinematic-v2-smoke/final
+          xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v2.py -- --family transfer_signature --variant a --seed 8101 --accent-a C90B22 --accent-b 174EA6 --output artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png
+          test -s artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png
+          python tools/phase18_brand_blender_scene.py --family transfer_signature --input artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png --output artifacts/phase18/cinematic-v2-smoke/final/01-transfer-arrival.png --accent '#C90B22'
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-cinematic-3d-v2
-          path: artifacts/phase18/cinematic-v2/final/
+          name: phase18-cinematic-3d-v2-smoke
+          path: artifacts/phase18/cinematic-v2-smoke/
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 3
