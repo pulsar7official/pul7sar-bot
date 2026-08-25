@@ -29,8 +29,16 @@ jobs:
       - name: Render twelve original 3D scenes
         run: |
           set -euo pipefail
-          # Ubuntu 24.04 ships Blender 4 / AgX naming.
-          sed -i "s/sc.view_settings.look='Medium High Contrast'/sc.view_settings.look='AgX - Medium High Contrast'/" tools/phase18_blender_family_scene.py
+          # Ubuntu 24.04 ships Blender 4 / AgX and an empty factory scene has no World.
+          python - <<'PY'
+          from pathlib import Path
+          p=Path('tools/phase18_blender_family_scene.py')
+          s=p.read_text()
+          s=s.replace("sc.view_settings.look='Medium High Contrast'", "sc.view_settings.look='AgX - Medium High Contrast'")
+          s=s.replace("sc.world.color=(.002,.004,.009)", "sc.world=bpy.data.worlds.new('PUL7SAR World'); sc.world.color=(.002,.004,.009)")
+          s=s.replace("bs.inputs['Emission'].default_value=(*color,1)", "bs.inputs['Emission Color' if 'Emission Color' in bs.inputs else 'Emission'].default_value=(*color,1)")
+          p.write_text(s)
+          PY
           mkdir -p artifacts/phase18/blender-cross-family/base artifacts/phase18/blender-cross-family/final
           render() {
             family="$1"; variant="$2"; seed="$3"; a="$4"; b="$5"; slug="$6"
