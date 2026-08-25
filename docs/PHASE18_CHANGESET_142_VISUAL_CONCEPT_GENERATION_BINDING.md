@@ -17,6 +17,8 @@ Change Set 142 closes that gap and makes the selected picture idea part of the p
 - `GenerationPackageCompiler` accepts an optional `VisualConceptDecision` and binds its archetype, hero direction and environment role into the actual generation prompt.
 - Concept-specific forbidden motifs are propagated only when they are safe to expose to the image model; any motif containing the PUL7SAR/PULSAR brand name is withheld from the generative prompt so the existing brand-name redaction remains intact.
 - Visual-concept provenance is recorded in generation-package metadata for downstream handoff and QA.
+- `LocalBackendRequestCompiler` now carries the visual-concept contract, family, archetype, asset priorities, exclusions, provider-agnostic flag and publication-false state across the provider-neutral package → local FLUX handoff boundary.
+- FLUX-compatible positive reframes were added for `no specific identifiable real venue` and `no specific real-person depiction`, so those safety constraints cannot be silently dropped when the selected model lacks a native negative-prompt channel.
 - Golden Hybrid v5 now explicitly selects `generative_event_atmosphere` before FLUX.2 and forbids implying a specific real venue, club, match or person.
 
 ### First-Golden impact
@@ -41,8 +43,9 @@ Regression coverage now includes:
 - safe generated event atmosphere selection;
 - explicit fallback to a minimal event symbol when generated context is disabled;
 - visual-concept propagation into the generation prompt;
-- concept metadata propagation into the portable handoff;
+- concept metadata propagation into `GenerationPackage` and then into `LocalBackendGenerationRequest`;
 - continued PUL7SAR/PULSAR prompt redaction;
+- complete positive reframing of the new non-identifying venue/person constraints for FLUX-like backends;
 - Golden v5 non-identifying venue/person constraints;
 - deterministic behavior for identical seed/request inputs.
 
