@@ -25,8 +25,27 @@ class OriginalSceneRequestBuilderTests(unittest.TestCase):
         )
         self.assertEqual(req.runtime_kind, OriginalSceneRuntimeKind.ATMOSPHERE)
         self.assertIn("readable_text", req.exact_fact_roles_reserved_for_compositor)
-        self.assertIn("PUL7SAR logo generated into scene", req.forbidden_visual_claims)
+        self.assertIn("sport_geometry", req.exact_fact_roles_reserved_for_compositor)
+        self.assertIn(
+            "no generated branding, wordmarks, readable text, numerals or pseudo-text",
+            req.forbidden_visual_claims,
+        )
+        self.assertIn("no collage or multi-panel layout", req.forbidden_visual_claims)
         self.assertEqual(req.seed, 7)
+
+    def test_builder_does_not_leak_orchestration_only_motifs_to_runtime_constraints(self):
+        decision = self.director.direct(
+            EditorialSceneFamily.EVENT_EDITORIAL,
+            VisualConceptSignals(safe_generated_context=True),
+        )
+        req = self.builder.build(
+            decision,
+            emotional_tone="anticipatory",
+            safe_negative_space="top",
+        )
+        self.assertNotIn("source-news photograph as default publication canvas", req.forbidden_visual_claims)
+        self.assertIn("no specific identifiable real venue", req.forbidden_visual_claims)
+        self.assertIn("no specific real-person depiction", req.forbidden_visual_claims)
 
     def test_verified_subject_becomes_identity_conditioned_request(self):
         decision = self.director.direct(
@@ -41,6 +60,7 @@ class OriginalSceneRequestBuilderTests(unittest.TestCase):
         )
         self.assertEqual(req.runtime_kind, OriginalSceneRuntimeKind.IDENTITY_CONDITIONED)
         self.assertEqual(req.identity_reference_ids, ("verified-person:001",))
+        self.assertNotIn("no specific real-person depiction", req.forbidden_visual_claims)
 
     def test_deterministic_concept_never_enters_generator(self):
         decision = self.director.direct(
