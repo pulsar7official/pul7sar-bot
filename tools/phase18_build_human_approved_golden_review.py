@@ -16,7 +16,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build PUL7SAR human-approved Golden Visual review template")
     parser.add_argument("--handoff", default="output/phase18_colab/latest.json")
     parser.add_argument("--continuation", default="output/phase18_gpu_smoke/hybrid-semantic-continuation.json")
-    parser.add_argument("--human-decision", default="output/phase18_visual_proof/human-review/human-review-decision.json")
+    parser.add_argument("--human-decision", default="output/phase18_gpu_smoke/hybrid-human-review-decision.json")
     parser.add_argument("--output", default="output/phase18_visual_proof/human-approved-golden-review.json")
     args = parser.parse_args()
 
