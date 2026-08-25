@@ -95,6 +95,27 @@ def _write_receipt(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
+def _require_original_scene_receipt_binding(original_scene_run: dict[str, object], receipt_path: Path) -> tuple[str, int]:
+    if original_scene_run.get("original_scene_admission_replayed") is not True:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_NOT_REPLAYED")
+    recorded_path = original_scene_run.get("original_scene_admission_receipt")
+    if not isinstance(recorded_path, str) or not recorded_path.strip():
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_RECEIPT_PATH_MISSING")
+    if _inside_root(Path(recorded_path)) != receipt_path:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_RECEIPT_PATH_DRIFT")
+    recorded_sha = original_scene_run.get("original_scene_admission_sha256")
+    recorded_bytes = original_scene_run.get("original_scene_admission_bytes")
+    if not isinstance(recorded_sha, str) or len(recorded_sha) != 64:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_SHA_MISSING")
+    if not isinstance(recorded_bytes, int) or recorded_bytes <= 0:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_SIZE_MISSING")
+    if not receipt_path.is_file():
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_RECEIPT_MISSING")
+    if _sha256(receipt_path) != recorded_sha or receipt_path.stat().st_size != recorded_bytes:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_REPLAY_BINDING_FAILED")
+    return recorded_sha, recorded_bytes
+
+
 def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> dict[str, object]:
     if _branch() != EXPECTED_BRANCH:
         raise RuntimeError("FIRST_GOLDEN_REVIEW_BRANCH_BLOCKED")
@@ -142,6 +163,8 @@ def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> 
         "publication_ready",
         label="FIRST_GOLDEN_ORIGINAL_SCENE_ADMISSION",
     )
+    admission_receipt = _inside_root(ORIGINAL_SCENE_ADMISSION)
+    admission_sha256, admission_bytes = _require_original_scene_receipt_binding(original_scene_run, admission_receipt)
     if first_png.get("candidate") != 1:
         raise RuntimeError("FIRST_GOLDEN_REVIEW_CANDIDATE_DRIFT")
     if first_png.get("cost_mode") != "$0-local":
@@ -242,9 +265,10 @@ def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> 
         if not value.is_file() or value.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
             raise RuntimeError(f"FIRST_GOLDEN_REVIEW_{label}_PNG_INVALID")
 
-    admission_receipt = _inside_root(ORIGINAL_SCENE_ADMISSION)
-    if not admission_receipt.is_file():
-        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_RECEIPT_MISSING")
+    # The packet must carry the exact admission digest that was proven both
+    # before and after Candidate 1 generation by the Original Scene wrapper.
+    if _sha256(admission_receipt) != admission_sha256 or admission_receipt.stat().st_size != admission_bytes:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_ADMISSION_DRIFT_BEFORE_PACKET")
 
     payload: dict[str, object] = {
         "schema": "pul7sar-first-golden-human-review-packet-v2",
@@ -253,7 +277,9 @@ def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> 
         "candidate": 1,
         "cost_mode": "$0-local",
         "original_scene_runtime_admission": str(admission_receipt),
-        "original_scene_runtime_admission_sha256": _sha256(admission_receipt),
+        "original_scene_runtime_admission_sha256": admission_sha256,
+        "original_scene_runtime_admission_bytes": admission_bytes,
+        "original_scene_runtime_admission_replayed": True,
         "first_png_result": str(GPU_SMOKE / "first-png-result.json"),
         "hybrid_handoff": str(GPU_SMOKE / "first-png-hybrid-handoff.json"),
         "hybrid_semantic_continuation": str(CONTINUATION),
