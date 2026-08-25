@@ -26,7 +26,7 @@ def _result_plan():
     )
 
 
-def test_result_composes_generated_base_with_exact_text_only(tmp_path):
+def test_result_composes_generated_base_with_exact_text_only_in_test_override(tmp_path):
     out = tmp_path / "out.jpg"
     receipt = HybridPixelComposer().compose(HybridPixelRequest(
         plan=_result_plan(),
@@ -36,25 +36,24 @@ def test_result_composes_generated_base_with_exact_text_only(tmp_path):
         primary_label="NORTH CITY",
         secondary_label="SOUTH UNITED",
         primary_value="3-1",
-        generated_base_verified_unbranded=True,
-        generated_base_verified_no_readable_facts=True,
+        study_test_override=True,
     ))
     assert out.is_file()
     assert receipt.generated_base_used
+    assert receipt.provenance_verified is False
     assert receipt.brand_applied is False
     assert receipt.publication_ready is False
     assert receipt.verified_assets_applied == ()
 
 
-def test_generated_base_must_be_verified_unbranded(tmp_path):
-    with pytest.raises(ValueError, match="GENERATED_BASE_NOT_VERIFIED_UNBRANDED"):
+def test_generated_base_requires_provenance_outside_test_override(tmp_path):
+    with pytest.raises(ValueError, match="GENERATED_BASE_PROVENANCE_REQUIRED"):
         HybridPixelComposer().compose(HybridPixelRequest(
             plan=_result_plan(),
             generated_base_path=str(_base(tmp_path)),
             output_path=str(tmp_path / "out.jpg"),
             headline="FULL TIME",
             primary_value="1-0",
-            generated_base_verified_no_readable_facts=True,
         ))
 
 
@@ -65,8 +64,7 @@ def test_result_requires_exact_score(tmp_path):
             generated_base_path=str(_base(tmp_path)),
             output_path=str(tmp_path / "out.jpg"),
             headline="FULL TIME",
-            generated_base_verified_unbranded=True,
-            generated_base_verified_no_readable_facts=True,
+            study_test_override=True,
         ))
 
 
@@ -81,8 +79,7 @@ def test_brand_asset_must_be_explicitly_approved(tmp_path):
             headline="FULL TIME",
             primary_value="2-1",
             brand_master=VerifiedRasterAsset(str(brand), "pul7sar_brand", verified=True, approved=False),
-            generated_base_verified_unbranded=True,
-            generated_base_verified_no_readable_facts=True,
+            study_test_override=True,
         ))
 
 
@@ -97,8 +94,7 @@ def test_verified_subject_family_fails_without_verified_subject(tmp_path):
             generated_base_path=str(_base(tmp_path)),
             output_path=str(tmp_path / "out.jpg"),
             headline="SQUAD UPDATE",
-            generated_base_verified_unbranded=True,
-            generated_base_verified_no_readable_facts=True,
+            study_test_override=True,
         ))
 
 
@@ -113,6 +109,5 @@ def test_tactical_is_rejected_by_hybrid_pixel_composer(tmp_path):
             generated_base_path=str(_base(tmp_path)),
             output_path=str(tmp_path / "out.jpg"),
             headline="PRESSING MAP",
-            generated_base_verified_unbranded=True,
-            generated_base_verified_no_readable_facts=True,
+            study_test_override=True,
         ))
