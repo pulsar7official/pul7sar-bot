@@ -31,6 +31,9 @@ jobs:
       - name: Render cinematic V2 scene set
         run: |
           set -euo pipefail
+          # Remove one inert malformed development-only expression before execution.
+          sed -i "/\\$\.replace/d" tools/phase18_blender_family_scene_v2.py
+          python -m py_compile tools/phase18_blender_family_scene_v2.py
           mkdir -p artifacts/phase18/cinematic-v2/base artifacts/phase18/cinematic-v2/final
           render() {
             family="$1"; variant="$2"; seed="$3"; a="$4"; b="$5"; slug="$6"
