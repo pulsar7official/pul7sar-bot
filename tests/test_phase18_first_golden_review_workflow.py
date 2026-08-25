@@ -52,6 +52,7 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertIn("tools/phase18_colab_first_golden_bootstrap.py", self.text)
         self.assertIn("tools/phase18_colab_first_golden_review_sealed.py", self.text)
         self.assertIn("tools/phase18_first_png_original_scene.py", self.text)
+        self.assertIn("tools/phase18_qualify_gpu_host.py", self.text)
         self.assertIn("engine/intelligence/golden_original_scene_admission.py", self.text)
         self.assertIn("engine/intelligence/first_golden_review_packet_integrity.py", self.text)
         self.assertIn("--worker-id github-self-hosted-first-golden-review-01", self.text)
@@ -68,14 +69,20 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertNotIn("runpod", lowered)
         self.assertNotIn("openai", lowered)
 
-    def test_replays_bootstrap_evidence_and_review_png_hashes(self):
-        self.assertIn("pul7sar-first-golden-colab-bootstrap-v2", self.text)
+    def test_replays_bootstrap_host_evidence_and_review_png_hashes(self):
+        self.assertIn("pul7sar-first-golden-colab-bootstrap-v3", self.text)
         self.assertIn("FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY", self.text)
         self.assertIn("bootstrap_evidence", self.text)
         self.assertIn("repository_integrity", self.text)
+        self.assertIn("gpu_host_qualification", self.text)
         self.assertIn("first_golden_cache_budget", self.text)
         self.assertIn("qwen_model_cache", self.text)
         self.assertIn("sealed_review_receipt", self.text)
+        self.assertIn('receipt.get("gpu_host_eligible") is not True', self.text)
+        self.assertIn('receipt.get("native_bf16_proven") is not True', self.text)
+        self.assertIn('host.get("eligible") is not True', self.text)
+        self.assertIn('host.get("bf16_supported") is not True', self.text)
+        self.assertIn('host.get("model_id") != "black-forest-labs/FLUX.2-klein-4B"', self.text)
         self.assertIn("review_base_png_sha256", self.text)
         self.assertIn("review_hybrid_png_sha256", self.text)
         self.assertIn("FIRST_GOLDEN_REVIEW_ARTIFACT_REPLAY_VERIFIED", self.text)
@@ -94,6 +101,7 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertLess(bootstrap, replay)
         self.assertLess(replay, upload)
         self.assertIn("output/phase18_gpu_smoke/**", self.text)
+        self.assertIn("output/phase18_gpu_host/**", self.text)
         self.assertIn("output/phase18_colab/**", self.text)
         self.assertIn("output/phase18_visual_proof/**", self.text)
 
