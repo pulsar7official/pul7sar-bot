@@ -1,0 +1,72 @@
+name: Phase 18 Result Hybrid Candidate Board
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+    paths:
+      - 'tools/phase18_result_seed_sweep.py'
+      - 'tools/phase18_compose_result_candidate_board.py'
+      - 'engine/intelligence/generated_base_provenance.py'
+      - 'engine/intelligence/hybrid_final_composer.py'
+      - 'engine/intelligence/hybrid_pixel_composer.py'
+      - 'engine/intelligence/original_scene_prompt_profiles.py'
+      - 'engine/intelligence/pre_generation_scene_lock.py'
+      - 'engine/intelligence/generation_prompt_budget.py'
+      - '.github/workflows/phase18-result-hybrid-candidate-board.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-result-candidate-board:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install CPU runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
+      - name: Generate four provenance-safe result bases
+        run: python tools/phase18_result_seed_sweep.py --out-dir out/result-seeds --width 512 --height 640 --steps 4
+      - name: Compose exact result layer on every candidate
+        run: |
+          python tools/phase18_compose_result_candidate_board.py \
+            --seed-dir out/result-seeds \
+            --output-dir out/result-hybrid-board \
+            --headline 'FULL TIME' \
+            --home 'NORTH CITY' \
+            --away 'SOUTH UNITED' \
+            --score '3-1'
+          test -s out/result-hybrid-board/result_hybrid_candidate_board.jpg
+          test -s out/result-hybrid-board/manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('out/result-hybrid-board/manifest.json').read_text())
+          assert m['contract']=='pul7sar-result-hybrid-candidate-board-v1'
+          assert m['candidate_count']==4
+          assert all(c['provenance_verified'] for c in m['candidates'])
+          assert m['exact_score']=='3-1'
+          assert m['brand_applied'] is False
+          assert m['fabricated_crest_used'] is False
+          assert m['publication_ready'] is False
+          assert m['human_visual_review_required'] is True
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase18-result-hybrid-candidate-board
+          path: out/result-hybrid-board/
+          if-no-files-found: error
+          retention-days: 3
