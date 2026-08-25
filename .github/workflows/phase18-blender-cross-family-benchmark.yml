@@ -14,22 +14,24 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PYTHONPATH: ${{ github.workspace }}
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      MESA_LOADER_DRIVER_OVERRIDE: llvmpipe
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Install Python and Blender
+      - name: Install Python Blender and headless GL
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
           sudo apt-get update -qq
-          sudo apt-get install -y blender
-          blender --version
+          sudo apt-get install -y blender libegl1 libegl-mesa0 libgl1 libglx-mesa0 libopengl0 xvfb xauth mesa-utils
+          ldconfig -p | grep -E 'libEGL.so.1|libGL.so.1'
+          xvfb-run -a blender --version
       - name: Render twelve original 3D scenes
         run: |
           set -euo pipefail
-          # Ubuntu 24.04 ships Blender 4 / AgX and an empty factory scene has no World.
           python - <<'PY'
           from pathlib import Path
           p=Path('tools/phase18_blender_family_scene.py')
@@ -42,7 +44,7 @@ jobs:
           mkdir -p artifacts/phase18/blender-cross-family/base artifacts/phase18/blender-cross-family/final
           render() {
             family="$1"; variant="$2"; seed="$3"; a="$4"; b="$5"; slug="$6"
-            blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene.py -- --family "$family" --variant "$variant" --seed "$seed" --accent-a "$a" --accent-b "$b" --output "artifacts/phase18/blender-cross-family/base/${slug}.png"
+            xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene.py -- --family "$family" --variant "$variant" --seed "$seed" --accent-a "$a" --accent-b "$b" --output "artifacts/phase18/blender-cross-family/base/${slug}.png"
             test -s "artifacts/phase18/blender-cross-family/base/${slug}.png"
             python tools/phase18_brand_blender_scene.py --family "$family" --input "artifacts/phase18/blender-cross-family/base/${slug}.png" --output "artifacts/phase18/blender-cross-family/final/${slug}.png" --accent "#$a"
           }
