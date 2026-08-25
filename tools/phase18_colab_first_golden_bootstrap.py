@@ -13,6 +13,7 @@ and never grants Golden or publication authority.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -23,6 +24,8 @@ EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_SMOKE = ROOT / "output" / "phase18_gpu_smoke"
 REPOSITORY_INTEGRITY = GPU_SMOKE / "repository-integrity.json"
 CACHE_BUDGET = GPU_SMOKE / "first-golden-cache-budget.json"
+QWEN_MODEL_CACHE = GPU_SMOKE / "qwen-model-cache.json"
+SEALED_REVIEW = GPU_SMOKE / "first-golden-human-review-sealed.json"
 FINAL = GPU_SMOKE / "first-golden-colab-bootstrap.json"
 
 if str(ROOT) not in sys.path:
@@ -65,6 +68,27 @@ def _run_json(command: list[str], *, label: str) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise RuntimeError(f"{label} emitted non-object JSON")
     return payload
+
+
+def _load_json_file(path: Path, *, label: str) -> dict[str, object]:
+    target = _inside_root(path)
+    if not target.is_file():
+        raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_{label}_MISSING")
+    try:
+        payload = json.loads(target.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_{label}_INVALID_JSON") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_{label}_NOT_OBJECT")
+    return payload
+
+
+def _evidence_record(path: Path, *, label: str) -> dict[str, object]:
+    target = _inside_root(path)
+    if not target.is_file():
+        raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_{label}_EVIDENCE_MISSING")
+    digest = hashlib.sha256(target.read_bytes()).hexdigest()
+    return {"path": str(target), "sha256": digest, "bytes": target.stat().st_size}
 
 
 def run(
@@ -129,6 +153,12 @@ def run(
     if not runtime_bootstrap._prefetch_semantic_model():
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_NOT_READY")
 
+    qwen_cache = _load_json_file(QWEN_MODEL_CACHE, label="QWEN_MODEL_CACHE")
+    if qwen_cache.get("schema") != "pul7sar-phase18-qwen-model-cache-v1" or qwen_cache.get("ready") is not True:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_CONTRACT_MISMATCH")
+    if qwen_cache.get("model_id") != "Qwen/Qwen2.5-VL-3B-Instruct" or qwen_cache.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_IDENTITY_DRIFT")
+
     staged = _run_json(
         [
             sys.executable,
@@ -148,17 +178,26 @@ def run(
         if staged.get(field) is not False:
             raise RuntimeError(f"FIRST_GOLDEN_BOOTSTRAP_{field.upper()}_AUTHORITY_DRIFT")
 
+    evidence = {
+        "repository_integrity": _evidence_record(REPOSITORY_INTEGRITY, label="REPOSITORY_INTEGRITY"),
+        "first_golden_cache_budget": _evidence_record(CACHE_BUDGET, label="CACHE_BUDGET"),
+        "qwen_model_cache": _evidence_record(QWEN_MODEL_CACHE, label="QWEN_MODEL_CACHE"),
+        "sealed_review_receipt": _evidence_record(SEALED_REVIEW, label="SEALED_REVIEW"),
+    }
+
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-golden-colab-bootstrap-v1",
+        "schema": "pul7sar-first-golden-colab-bootstrap-v2",
         "status": "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
         "repository_integrity": str(REPOSITORY_INTEGRITY),
         "first_golden_cache_budget": str(CACHE_BUDGET),
+        "qwen_model_cache": str(QWEN_MODEL_CACHE),
         "semantic_runtime_ready": True,
         "semantic_model_ready": True,
-        "sealed_review_receipt": str(GPU_SMOKE / "first-golden-human-review-sealed.json"),
+        "sealed_review_receipt": str(SEALED_REVIEW),
+        "bootstrap_evidence": evidence,
         "review_base_png": staged["review_base_png"],
         "review_hybrid_png": staged["review_hybrid_png"],
         "review_base_png_sha256": staged["review_base_png_sha256"],
