@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_REVISION
 from engine.intelligence.generation_provenance_lock import GenerationProvenanceLock
 
 
@@ -20,6 +21,7 @@ class GenerationProvenanceLockTests(unittest.TestCase):
         metadata.write_text(json.dumps({
             "provider": "local-flux2-klein-4b",
             "model": "black-forest-labs/FLUX.2-klein-4B",
+            "model_revision": FLUX2_KLEIN_4B_REVISION,
             "backend": "diffusers",
             "seed": 7007001,
             "request_id": "golden-hybrid-v5-001",
@@ -60,6 +62,7 @@ class GenerationProvenanceLockTests(unittest.TestCase):
                 repository_root=str(root), summary=summary, base_png=str(proof)
             )
             self.assertEqual(result["status"], "GENERATION_PROVENANCE_LOCK_VERIFIED")
+            self.assertEqual(result["model_revision"], FLUX2_KLEIN_4B_REVISION)
             self.assertEqual(len(result["base_png_sha256"]), 64)
             self.assertEqual(len(result["executor_result_sha256"]), 64)
             self.assertEqual(len(result["metadata_sha256"]), 64)
@@ -102,6 +105,18 @@ class GenerationProvenanceLockTests(unittest.TestCase):
             data["output_ref"] = str(proof.with_name("wrong.png"))
             metadata.write_text(json.dumps(data), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "METADATA_OUTPUT_MISMATCH"):
+                GenerationProvenanceLock().verify(
+                    repository_root=str(root), summary=summary, base_png=str(proof)
+                )
+
+    def test_rejects_model_revision_drift(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            proof, metadata, _, summary = self._fixture(root)
+            data = json.loads(metadata.read_text(encoding="utf-8"))
+            data["model_revision"] = "0" * 40
+            metadata.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "METADATA_MODEL_REVISION_MISMATCH"):
                 GenerationProvenanceLock().verify(
                     repository_root=str(root), summary=summary, base_png=str(proof)
                 )
