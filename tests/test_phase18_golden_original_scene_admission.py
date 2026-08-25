@@ -90,18 +90,38 @@ class GoldenOriginalSceneAdmissionTests(unittest.TestCase):
 
 
 class FirstPngOriginalSceneEntrypointTests(unittest.TestCase):
+    def setUp(self):
+        self.path = Path("tools/phase18_first_png_original_scene.py")
+        self.text = self.path.read_text(encoding="utf-8")
+
     def test_admission_is_executed_before_canonical_first_png(self):
-        text = Path("tools/phase18_first_png_original_scene.py").read_text(encoding="utf-8")
-        admission = text.index("phase18_admit_golden_original_scene.py")
-        generation = text.index("phase18_first_png.py")
+        admission = self.text.index("phase18_admit_golden_original_scene.py")
+        generation = self.text.index("phase18_first_png.py")
         self.assertLess(admission, generation)
 
     def test_wrapper_does_not_mutate_queue_or_authorize_quality(self):
-        text = Path("tools/phase18_first_png_original_scene.py").read_text(encoding="utf-8")
-        self.assertNotIn("FilesystemGenerationJobStore", text)
-        self.assertIn('"semantic_approved": False', text)
-        self.assertIn('"golden_quality_approved": False', text)
-        self.assertIn('"publication_ready": False', text)
+        self.assertNotIn("FilesystemGenerationJobStore", self.text)
+        self.assertIn('"semantic_approved": False', self.text)
+        self.assertIn('"golden_quality_approved": False', self.text)
+        self.assertIn('"publication_ready": False', self.text)
+
+    def test_admission_receipt_is_sha_bound_before_and_after_generation(self):
+        self.assertIn("import hashlib", self.text)
+        self.assertIn("admission_sha256 = _sha256(receipt)", self.text)
+        self.assertIn("admission_bytes = receipt.stat().st_size", self.text)
+        self.assertIn("replayed_admission = _load_admission_receipt(receipt)", self.text)
+        self.assertIn("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_TAMPERED_DURING_GENERATION", self.text)
+        self.assertIn('"original_scene_admission_sha256": admission_sha256', self.text)
+        self.assertIn('"original_scene_admission_replayed": True', self.text)
+        generation = self.text.index("phase18_first_png.py")
+        prebind = self.text.index("admission_sha256 = _sha256(receipt)")
+        replay = self.text.index("replayed_admission = _load_admission_receipt(receipt)")
+        self.assertLess(prebind, generation)
+        self.assertLess(generation, replay)
+
+    def test_admission_receipt_must_stay_inside_repository(self):
+        self.assertIn("_inside_root(repository_root, Path(args.admission_receipt))", self.text)
+        self.assertIn("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_ESCAPES_REPOSITORY", self.text)
 
 
 if __name__ == "__main__":
