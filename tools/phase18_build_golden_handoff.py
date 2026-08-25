@@ -3,8 +3,8 @@
 
 Golden v5 deliberately stops asking diffusion to draw exact football markings or
 platform branding. The model owns atmosphere and only the restrained contextual
-surface allowed by the story-level VisualGrammar; exact regulation geometry is
-composited deterministically after GPU generation.
+surface allowed by the story-level VisualGrammar and Visual Concept Director;
+exact regulation geometry is composited deterministically after GPU generation.
 """
 from __future__ import annotations
 
@@ -22,7 +22,9 @@ from engine.intelligence.models import Sentiment
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
+from engine.intelligence.sports_editorial_scene import SportsEditorialSceneDirector
 from engine.intelligence.story_visual_editorial import EditorialEvent, StoryVisualEditorialEngine
+from engine.intelligence.visual_concept_director import VisualConceptDirector, VisualConceptSignals
 from engine.intelligence.visual_grammar import VisualGrammar
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
@@ -44,6 +46,11 @@ def build_request(*, seed: int, request_id: str):
         confidence=1.0,
     )
     visual_grammar = VisualGrammar().direct(editorial)
+    sports_scene = SportsEditorialSceneDirector().direct(EditorialEvent.PREVIEW, visual_grammar)
+    visual_concept = VisualConceptDirector().direct(
+        sports_scene.family,
+        VisualConceptSignals(safe_generated_context=True),
+    )
     sport_rule = SportVisualRuleRegistry().get("football")
     layers = HybridVisualLayerPlanner().plan(editorial, sport_rule)
     base_contract = HybridBaseSceneContractCompiler().compile(layers)
@@ -70,10 +77,11 @@ def build_request(*, seed: int, request_id: str):
         subject=None,
         identity_reference=None,
         environment=(
-            "one photorealistic elite European football stadium at dusk, coherent architecture, floodlights, realistic supporter atmosphere, "
-            "deep stands and cinematic air. Only a restrained partial grass-colored playing-surface context should enter the lower frame; it must remain "
-            "plain and unmarked because exact regulation geometry belongs to deterministic composition. Do not make a full pitch the visual subject. "
-            "Advertising boards, screens, banners and sponsor surfaces must be visually neutral with no readable words, numerals, logos or pseudo-text"
+            "one photorealistic but deliberately non-identifying elite European football stadium at dusk, coherent architecture, floodlights, "
+            "realistic supporter atmosphere, deep stands and cinematic air. The scene must not imply a specific real venue, club, match or person. "
+            "Only a restrained partial grass-colored playing-surface context should enter the lower frame; it must remain plain and unmarked because exact "
+            "regulation geometry belongs to deterministic composition. Do not make a full pitch the visual subject. Advertising boards, screens, banners "
+            "and sponsor surfaces must be visually neutral with no readable words, numerals, logos or pseudo-text"
         ),
         composition=(
             "single full-bleed cinematic magazine-cover composition from a high wide central lower-stand/endline-oriented camera. Preserve a coherent "
@@ -89,12 +97,14 @@ def build_request(*, seed: int, request_id: str):
         palette_strategy="premium dark stadium atmosphere, natural floodlight whites and restrained contextual red accents outside the reserved surface context",
         factual_constraints=(
             "the domestic football season is approaching rather than already decided",
-            "the scene is general and must not imply a result, champion, transfer or specific real-person claim",
+            "the scene is general and must not imply a result, champion, transfer, specific real venue, club or real-person claim",
             "exact football geometry is not generated and will be applied deterministically after generation",
             "all platform branding and typography remain absent from AI generation",
         ),
         forbidden_visual_elements=(
             "no invented result",
+            "no specific identifiable real venue",
+            "no specific real-person depiction",
             "no collage or multi-panel layout",
             "no split-screen, grid, diptych, triptych or contact-sheet framing",
             "no image-within-image composition",
@@ -113,8 +123,12 @@ def build_request(*, seed: int, request_id: str):
             "hybrid_surface_visibility": visual_grammar.surface_visibility.value,
             "football_camera_preset": "high_wide_central",
             "visual_grammar_contract": visual_grammar.metadata["contract"],
+            "visual_concept_contract": visual_concept.contract,
+            "visual_concept_archetype": visual_concept.archetype.value,
+            "visual_concept_selected_before_renderer": True,
             "visual_failures_addressed": (
-                "collage composition, over-dominant generated pitch dependency, malformed generated pitch proportions/markings, and incorrect generated platform wordmark"
+                "collage composition, generic-template fallback, over-dominant generated pitch dependency, malformed generated pitch proportions/markings, "
+                "incorrect generated platform wordmark, and accidental implication of a specific real venue"
             ),
         },
     )
@@ -124,6 +138,7 @@ def build_request(*, seed: int, request_id: str):
         planned_layout=layout,
         base_scene_contract=base_contract,
         visual_grammar=visual_grammar,
+        visual_concept=visual_concept,
     )
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
@@ -152,6 +167,7 @@ def main() -> int:
         "cost_mode": request.metadata["cost_mode"],
         "portable_handoff": request.metadata["portable_handoff"],
         "visual_grammar_surface_visibility": request.metadata["visual_grammar_surface_visibility"],
+        "visual_concept_archetype": request.metadata["visual_concept_archetype"],
         "generated_sport_geometry_allowed": False,
         "hybrid_surface_replacement_required": True,
     }, ensure_ascii=False, indent=2))
