@@ -98,6 +98,46 @@ class LocalBackendExecutionTests(unittest.TestCase):
         self.assertEqual(request.metadata["visual_grammar_deterministic_elements"], ("sport surface geometry",))
         self.assertEqual(request.metadata["visual_grammar_forbidden_generated_elements"], ("brand", "exact data"))
 
+    def test_visual_concept_metadata_survives_provider_neutral_package_to_local_handoff(self):
+        package = GenerationPackage(
+            platform="instagram_feed",
+            canvas="1080x1350",
+            scene_prompt="story-specific non-identifying football atmosphere",
+            negative_constraints=("no fabricated identity",),
+            asset_ids=(),
+            factual_constraints=("preview remains unresolved",),
+            layout_boxes={},
+            accent_hex="#E10600",
+            metadata={
+                "visual_concept_contract": "pul7sar-visual-concept-director-v1",
+                "visual_concept_family": "event_editorial",
+                "visual_concept_archetype": "generative_event_atmosphere",
+                "visual_concept_provider_agnostic": True,
+                "visual_concept_selected_before_renderer": True,
+                "visual_concept_asset_priority": (),
+                "visual_concept_forbidden_motifs": (
+                    "specific real venue identity without verified context",
+                    "specific real-person depiction",
+                ),
+                "visual_concept_publication_ready": False,
+            },
+        )
+        request = LocalBackendRequestCompiler().compile_portable_handoff(
+            package=package,
+            model=FLUX2_KLEIN_4B_LOCAL,
+            backend="diffusers",
+            seed=7010,
+            request_id="concept-portable-001",
+        )
+        self.assertEqual(request.metadata["visual_concept_contract"], "pul7sar-visual-concept-director-v1")
+        self.assertEqual(request.metadata["visual_concept_family"], "event_editorial")
+        self.assertEqual(request.metadata["visual_concept_archetype"], "generative_event_atmosphere")
+        self.assertTrue(request.metadata["visual_concept_provider_agnostic"])
+        self.assertTrue(request.metadata["visual_concept_selected_before_renderer"])
+        self.assertEqual(request.metadata["visual_concept_asset_priority"], ())
+        self.assertIn("specific real-person depiction", request.metadata["visual_concept_forbidden_motifs"])
+        self.assertFalse(request.metadata["visual_concept_publication_ready"])
+
     def test_execution_local_request_is_not_marked_portable(self):
         self.assertFalse(self.request().metadata["portable_handoff"])
 
