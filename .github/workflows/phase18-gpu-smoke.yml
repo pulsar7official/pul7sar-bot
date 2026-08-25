@@ -49,10 +49,12 @@ jobs:
           test -f engine/intelligence/golden_smoke.py
           test -f engine/intelligence/golden_evidence_bundle.py
           test -f engine/intelligence/pre_gpu_repository_integrity.py
+          test -f engine/intelligence/first_golden_cache_budget.py
           test -f engine/intelligence/first_png_provenance_postflight.py
           test -f engine/intelligence/first_png_hybrid_handoff.py
           test -f tools/phase18_first_png.py
           test -f tools/phase18_preflight_repository_integrity.py
+          test -f tools/phase18_preflight_first_golden_cache_budget.py
           test -f tools/phase18_preflight_semantic_gpu.py
           test -f tools/phase18_prefetch_qwen.py
           test -f tools/phase18_prefetch_flux2.py
@@ -122,6 +124,40 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install -r requirements-phase18-gpu.txt
+
+      - name: Prove combined Qwen and FLUX cache headroom before model downloads
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_preflight_first_golden_cache_budget.py \
+            --receipt output/phase18_gpu_smoke/first-golden-cache-budget.json \
+            | tee output/phase18_gpu_smoke/first-golden-cache-budget-console.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("output/phase18_gpu_smoke/first-golden-cache-budget.json").read_text(encoding="utf-8"))
+          if payload.get("schema") != "pul7sar-first-golden-cache-budget-v1":
+              raise SystemExit("unexpected first-Golden shared cache-budget schema")
+          if payload.get("branch") != "phase18/story-intelligence":
+              raise SystemExit("first-Golden cache budget escaped the protected Phase 18 branch")
+          if payload.get("cost_mode") != "$0-local":
+              raise SystemExit("first-Golden cache budget escaped zero-cost mode")
+          if payload.get("qwen_model_id") != "Qwen/Qwen2.5-VL-3B-Instruct":
+              raise SystemExit("unexpected Qwen model in first-Golden cache budget")
+          if payload.get("flux_model_id") != "black-forest-labs/FLUX.2-klein-4B":
+              raise SystemExit("unexpected FLUX model in first-Golden cache budget")
+          if payload.get("ready") is not True or payload.get("downloads_performed") is not False:
+              raise SystemExit("shared cache budget must prove readiness without downloading models")
+          budget = payload.get("budget", {})
+          if budget.get("eligible") is not True or budget.get("reasons") not in ([], ()): 
+              raise SystemExit("combined Qwen + FLUX shared cache headroom is not eligible")
+          if float(budget.get("combined_minimum_free_gib", -1)) < 0:
+              raise SystemExit("invalid combined cache minimum")
+          for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+              if payload.get(field) is not False:
+                  raise SystemExit(f"cache-budget preflight illegally changed gate: {field}")
+          PY
 
       - name: Prove semantic runtime and exact Qwen snapshot before FLUX
         shell: bash
@@ -306,6 +342,7 @@ jobs:
           python tools/phase18_build_gpu_evidence_manifest.py \
             --result output/phase18_gpu_smoke/first-png-result.json \
             --include output/phase18_gpu_smoke/repository-integrity.json \
+            --include output/phase18_gpu_smoke/first-golden-cache-budget.json \
             --include output/phase18_gpu_smoke/semantic-preflight.json \
             --include output/phase18_gpu_smoke/qwen-model-cache.json \
             --include output/phase18_gpu_smoke/model-cache.json \
