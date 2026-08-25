@@ -25,27 +25,33 @@ class ConceptPixelDispatcherTests(unittest.TestCase):
         data.update(kwargs)
         return VerifiedEditorialStory(**data)
 
-    def test_score_and_decisive_moment_bind_different_pixel_implementations(self):
+    def test_score_monument_binds_deterministic_original_pixel_implementation(self):
         score = self.orchestrator.decide(self.story())
-        moment = self.orchestrator.decide(self.story(metadata={
+        binding = self.dispatcher.bind(
+            archetype=score.visual_concept.archetype,
+            lower_level_route=score.execution_route,
+        )
+        self.assertEqual(binding.archetype, VisualConceptArchetype.SCORE_MONUMENT)
+        self.assertEqual(binding.renderer_class, 'ResultStatementStudyRenderer')
+        self.assertTrue(binding.final_execution.execution_allowed)
+        self.assertFalse(binding.final_execution.generator_execution_allowed)
+
+    def test_verified_match_photo_does_not_create_photo_publication_binding(self):
+        decision = self.orchestrator.decide(self.story(metadata={
             'verified_action_photo': True,
             'decisive_moment_known': True,
             'exact_club_assets': True,
         }))
-        score_binding = self.dispatcher.bind(
-            archetype=score.visual_concept.archetype,
-            lower_level_route=score.execution_route,
+        # Without explicit original-scene generation, the verified photograph is
+        # reference evidence only and the final pixel route remains deterministic.
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.SCORE_MONUMENT)
+        binding = self.dispatcher.bind(
+            archetype=decision.visual_concept.archetype,
+            lower_level_route=decision.execution_route,
         )
-        moment_binding = self.dispatcher.bind(
-            archetype=moment.visual_concept.archetype,
-            lower_level_route=moment.execution_route,
-        )
-        self.assertEqual(score_binding.archetype, VisualConceptArchetype.SCORE_MONUMENT)
-        self.assertEqual(moment_binding.archetype, VisualConceptArchetype.DECISIVE_MOMENT)
-        self.assertNotEqual(score_binding.renderer_module, moment_binding.renderer_module)
-        self.assertNotEqual(score_binding.renderer_class, moment_binding.renderer_class)
+        self.assertNotIn('moment_led_result_renderer', binding.renderer_module)
 
-    def test_symbolic_transfer_now_binds_verified_detail_renderer_not_transfer_fallback(self):
+    def test_symbolic_transfer_binds_verified_detail_renderer_not_transfer_fallback(self):
         decision = self.orchestrator.decide(self.story(event=EditorialEvent.TRANSFER_CONFIRMED))
         self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL)
         binding = self.dispatcher.bind(
@@ -55,8 +61,15 @@ class ConceptPixelDispatcherTests(unittest.TestCase):
         self.assertEqual(binding.renderer_class, 'VerifiedDetailEditorialRenderer')
         self.assertNotIn('editorial_reference_scene', binding.renderer_module)
 
-    def test_unqualified_local_generative_event_cannot_bind_any_renderer(self):
-        decision = self.orchestrator.decide(self.story(event=EditorialEvent.PREVIEW))
+    def test_unqualified_original_scene_generation_cannot_bind_legacy_renderer(self):
+        decision = self.orchestrator.decide(self.story(
+            metadata={
+                'allow_original_scene_generation': True,
+                'verified_action_photo': True,
+                'decisive_moment_known': True,
+                'exact_club_assets': True,
+            }
+        ))
         self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE)
         with self.assertRaisesRegex(ValueError, 'VISUAL_CONCEPT_PIXEL_DISPATCH_BLOCKED'):
             self.dispatcher.bind(
@@ -64,12 +77,8 @@ class ConceptPixelDispatcherTests(unittest.TestCase):
                 lower_level_route=decision.execution_route,
             )
 
-    def test_registered_renderer_class_is_importable(self):
-        decision = self.orchestrator.decide(self.story(metadata={
-            'verified_action_photo': True,
-            'decisive_moment_known': True,
-            'exact_club_assets': True,
-        }))
+    def test_registered_deterministic_renderer_class_is_importable(self):
+        decision = self.orchestrator.decide(self.story())
         binding = self.dispatcher.bind(
             archetype=decision.visual_concept.archetype,
             lower_level_route=decision.execution_route,
