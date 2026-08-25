@@ -61,11 +61,11 @@ class HybridPixelReceipt:
     brand_applied: bool
     verified_assets_applied: tuple[str, ...]
     publication_ready: bool = False
-    contract: str = "pul7sar-hybrid-pixel-composer-v2-provenance"
+    contract: str = "pul7sar-hybrid-pixel-composer-v3-result-hierarchy"
 
 
 class HybridPixelComposer:
-    CONTRACT = "pul7sar-hybrid-pixel-composer-v2-provenance"
+    CONTRACT = "pul7sar-hybrid-pixel-composer-v3-result-hierarchy"
 
     @staticmethod
     def _asset_required(plan: HybridFinalCompositionPlan, name: str) -> bool:
@@ -105,10 +105,7 @@ class HybridPixelComposer:
 
         provenance_verified = False
         if req.generated_base_provenance is not None:
-            req.generated_base_provenance.validate_for(
-                family=req.plan.family,
-                image_path=req.generated_base_path,
-            )
+            req.generated_base_provenance.validate_for(family=req.plan.family, image_path=req.generated_base_path)
             provenance_verified = True
         elif not req.study_test_override:
             raise ValueError("GENERATED_BASE_PROVENANCE_REQUIRED")
@@ -119,52 +116,61 @@ class HybridPixelComposer:
         canvas = Image.open(base_path).convert("RGBA")
         w, h = canvas.size
 
-        # Gentle editorial grade only; preserve the synthesized physical world.
-        canvas = ImageEnhance.Contrast(canvas).enhance(1.04)
-        canvas = ImageEnhance.Color(canvas).enhance(0.94)
+        # Preserve the generated physical world. Only create quiet reading zones.
+        canvas = ImageEnhance.Contrast(canvas).enhance(1.035)
+        canvas = ImageEnhance.Color(canvas).enhance(0.92)
         shade = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
         sd = ImageDraw.Draw(shade, "RGBA")
-        sd.rectangle((0, 0, w, int(h * .24)), fill=(0, 0, 0, 42))
-        sd.rectangle((0, int(h * .72), w, h), fill=(0, 0, 0, 54))
+        sd.rectangle((0, 0, w, int(h * .22)), fill=(0, 0, 0, 38))
+        sd.rectangle((0, int(h * .58), w, h), fill=(0, 0, 0, 72))
         canvas.alpha_composite(shade.filter(ImageFilter.GaussianBlur(max(8, w // 55))))
         draw = ImageDraw.Draw(canvas, "RGBA")
 
-        # Headline is deterministic and deliberately secondary to the scene hero.
         if req.headline.strip():
-            hf = self._fit(draw, req.headline.upper(), req.font_path, int(w * .72), max(28, int(w * .055)), 20)
-            draw.text((int(w * .08), int(h * .10)), req.headline.upper(), font=hf, fill=(244, 246, 248, 238), anchor="la")
+            hf = self._fit(draw, req.headline.upper(), req.font_path, int(w * .62), max(24, int(w * .045)), 18)
+            draw.text((int(w * .075), int(h * .085)), req.headline.upper(), font=hf, fill=(244, 246, 248, 225), anchor="la")
 
         if req.plan.family is EditorialSceneFamily.RESULT_STATEMENT:
             if not req.primary_value.strip():
                 raise ValueError("RESULT_REQUIRES_EXACT_SCORE")
-            score_font = self._fit(draw, req.primary_value, req.font_path, int(w * .34), max(64, int(w * .14)), 44)
-            score_x = int(w * .66); score_y = int(h * .50)
-            # restrained broadcast-like score plate; not a gaming card
-            plate = Image.new("RGBA", canvas.size, (0, 0, 0, 0)); pd = ImageDraw.Draw(plate, "RGBA")
-            sb = pd.textbbox((0, 0), req.primary_value, font=score_font)
-            sw, sh = sb[2] - sb[0], sb[3] - sb[1]
-            pad_x, pad_y = int(w * .035), int(h * .018)
-            box = (score_x - sw // 2 - pad_x, score_y - sh // 2 - pad_y, score_x + sw // 2 + pad_x, score_y + sh // 2 + pad_y)
-            pd.rounded_rectangle(box, radius=max(10, int(w * .018)), fill=(5, 8, 13, 166), outline=(228, 232, 237, 70), width=max(1, w // 500))
-            canvas.alpha_composite(plate.filter(ImageFilter.GaussianBlur(max(1, w // 800))))
+
+            # Visual-review v3: one coherent lower-third result monument. The
+            # previous study scattered team labels across spectator texture and
+            # made the score look pasted onto the photograph.
+            score_font = self._fit(draw, req.primary_value, req.font_path, int(w * .42), max(76, int(w * .17)), 48)
+            label_candidates = tuple(x for x in (req.primary_label, req.secondary_label) if x)
+            label_font = self._fit(draw, max(label_candidates, key=len) if label_candidates else "TEAM", req.font_path, int(w * .30), max(20, int(w * .030)), 16)
+
+            plate = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+            pd = ImageDraw.Draw(plate, "RGBA")
+            left, right = int(w * .07), int(w * .93)
+            top, bottom = int(h * .61), int(h * .83)
+            radius = max(14, int(w * .028))
+            pd.rounded_rectangle((left, top, right, bottom), radius=radius, fill=(4, 7, 11, 176), outline=(235, 238, 242, 48), width=max(1, w // 420))
+            # Quiet internal separators create editorial structure without
+            # pretending to be a club or competition identity system.
+            cx = w // 2
+            pd.line((int(w*.34), int(h*.68), int(w*.34), int(h*.78)), fill=(240,240,240,34), width=max(1,w//420))
+            pd.line((int(w*.66), int(h*.68), int(w*.66), int(h*.78)), fill=(240,240,240,34), width=max(1,w//420))
+            canvas.alpha_composite(plate.filter(ImageFilter.GaussianBlur(max(1, w // 900))))
             draw = ImageDraw.Draw(canvas, "RGBA")
-            draw.text((score_x, score_y), req.primary_value, font=score_font, fill=(245, 247, 249, 248), anchor="mm")
-            labels = tuple(x for x in (req.primary_label, req.secondary_label) if x)
-            if labels:
-                label_font = self._fit(draw, max(labels, key=len), req.font_path, int(w * .30), max(22, int(w * .035)), 18)
-                if req.primary_label:
-                    draw.text((int(w * .18), int(h * .75)), req.primary_label.upper(), font=label_font, fill=(239, 242, 245, 230), anchor="lm")
-                if req.secondary_label:
-                    draw.text((int(w * .82), int(h * .75)), req.secondary_label.upper(), font=label_font, fill=(239, 242, 245, 230), anchor="rm")
+
+            score_y = int(h * .705)
+            draw.text((cx, score_y), req.primary_value, font=score_font, fill=(248, 249, 250, 250), anchor="mm")
+            label_y = int(h * .755)
+            if req.primary_label:
+                draw.text((int(w * .205), label_y), req.primary_label.upper(), font=label_font, fill=(239, 242, 245, 232), anchor="mm")
+            if req.secondary_label:
+                draw.text((int(w * .795), label_y), req.secondary_label.upper(), font=label_font, fill=(239, 242, 245, 232), anchor="mm")
 
         applied = []
         if req.club_crest_a:
-            self._paste_asset(canvas, req.club_crest_a, (int(w*.07), int(h*.57), int(w*.25), int(h*.72)))
+            self._paste_asset(canvas, req.club_crest_a, (int(w*.10), int(h*.62), int(w*.30), int(h*.73)))
             applied.append("club_crest_a")
         elif self._asset_required(req.plan, "club_crest"):
             raise ValueError("REQUIRED_VERIFIED_CREST_MISSING")
         if req.club_crest_b:
-            self._paste_asset(canvas, req.club_crest_b, (int(w*.75), int(h*.57), int(w*.93), int(h*.72)))
+            self._paste_asset(canvas, req.club_crest_b, (int(w*.70), int(h*.62), int(w*.90), int(h*.73)))
             applied.append("club_crest_b")
 
         if req.verified_subject:
@@ -178,7 +184,6 @@ class HybridPixelComposer:
             self._paste_asset(canvas, req.brand_master, (int(w*.73), int(h*.04), int(w*.94), int(h*.13)), require_approved=True)
             brand_applied = True
             applied.append("pul7sar_brand")
-        # Missing approved brand never triggers fallback drawing. Phase 18 remains study-only.
 
         out = Path(req.output_path)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -187,6 +192,5 @@ class HybridPixelComposer:
         return HybridPixelReceipt(
             output_path=str(out), output_sha256=digest, width=w, height=h,
             generated_base_used=True, provenance_verified=provenance_verified,
-            brand_applied=brand_applied, verified_assets_applied=tuple(applied),
-            publication_ready=False,
+            brand_applied=brand_applied, verified_assets_applied=tuple(applied), publication_ready=False,
         )
