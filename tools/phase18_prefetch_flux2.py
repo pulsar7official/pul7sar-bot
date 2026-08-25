@@ -2,10 +2,10 @@
 """Preflight and cache the approved FLUX.2 Klein snapshot before GPU generation.
 
 The command never generates an image and never selects a paid inference provider.
-It proves that the approved model is already cached or that the cache filesystem
-has enough free space, then uses Hugging Face Hub only to download the exact
-open-weight repository used by Phase 18. A machine-readable receipt is written
-for later GPU-smoke evidence.
+It proves that the exact approved immutable model revision is already cached or
+that the cache filesystem has enough free space, then uses Hugging Face Hub only
+to download that pinned open-weight revision. A machine-readable receipt is
+written for later GPU-smoke evidence.
 """
 
 from __future__ import annotations
@@ -23,6 +23,11 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    assert_snapshot_revision,
+)
 from engine.intelligence.model_cache import ModelCachePolicy
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
@@ -34,9 +39,15 @@ def _cache_root() -> Path:
     return (Path.home() / ".cache" / "huggingface").resolve()
 
 
-def _cached_snapshot(snapshot_download, model_id: str) -> str | None:
+def _cached_snapshot(snapshot_download, model_id: str, revision: str) -> str | None:
     try:
-        return str(snapshot_download(repo_id=model_id, local_files_only=True))
+        return str(
+            snapshot_download(
+                repo_id=model_id,
+                revision=revision,
+                local_files_only=True,
+            )
+        )
     except Exception:
         return None
 
@@ -52,9 +63,16 @@ def main() -> int:
     except ImportError as exc:
         raise RuntimeError("huggingface_hub is required for Phase 18 model prefetch") from exc
 
+    if FLUX2_KLEIN_4B_LOCAL.model_id != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("approved FLUX model identity drift between model profile and revision lock")
+
     cache_root = _cache_root()
     cache_root.mkdir(parents=True, exist_ok=True)
-    cached = _cached_snapshot(snapshot_download, FLUX2_KLEIN_4B_LOCAL.model_id)
+    cached = _cached_snapshot(
+        snapshot_download,
+        FLUX2_KLEIN_4B_LOCAL.model_id,
+        FLUX2_KLEIN_4B_REVISION,
+    )
     free_bytes = shutil.disk_usage(cache_root).free
     policy = ModelCachePolicy(minimum_free_gib=args.minimum_free_gib)
     before = policy.evaluate(
@@ -67,22 +85,30 @@ def main() -> int:
     downloaded = False
     snapshot_path = cached
     if snapshot_path is None:
-        snapshot_path = str(snapshot_download(repo_id=FLUX2_KLEIN_4B_LOCAL.model_id))
+        snapshot_path = str(
+            snapshot_download(
+                repo_id=FLUX2_KLEIN_4B_LOCAL.model_id,
+                revision=FLUX2_KLEIN_4B_REVISION,
+            )
+        )
         downloaded = True
 
     snapshot = Path(snapshot_path)
     if not snapshot.is_dir():
         raise RuntimeError("Hugging Face snapshot download did not return an existing directory")
+    resolved_revision = assert_snapshot_revision(snapshot, FLUX2_KLEIN_4B_REVISION)
     if not (snapshot / "model_index.json").is_file():
         raise RuntimeError("cached FLUX.2 snapshot is incomplete: model_index.json is missing")
 
     files = [p for p in snapshot.rglob("*") if p.is_file()]
     apparent_bytes = sum(p.stat().st_size for p in files)
     receipt = {
-        "schema": "pul7sar-phase18-model-cache-v1",
+        "schema": "pul7sar-phase18-model-cache-v2",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "provider_id": FLUX2_KLEIN_4B_LOCAL.provider_id,
         "model_id": FLUX2_KLEIN_4B_LOCAL.model_id,
+        "model_revision": FLUX2_KLEIN_4B_REVISION,
+        "resolved_snapshot_revision": resolved_revision,
         "license_id": FLUX2_KLEIN_4B_LOCAL.license_id,
         "cost_mode": "$0-local",
         "snapshot_path": str(snapshot),
@@ -91,6 +117,7 @@ def main() -> int:
         "file_count": len(files),
         "apparent_snapshot_gib": round(apparent_bytes / (1024 ** 3), 3),
         "qualification_before_download": asdict(before),
+        "revision_pinned": True,
         "ready": True,
     }
 
