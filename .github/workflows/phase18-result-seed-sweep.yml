@@ -1,0 +1,58 @@
+name: Phase 18 Result Seed Sweep
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+    paths:
+      - 'tools/phase18_result_seed_sweep.py'
+      - 'engine/intelligence/original_scene_prompt_profiles.py'
+      - 'engine/intelligence/pre_generation_scene_lock.py'
+      - 'engine/intelligence/generation_prompt_budget.py'
+      - '.github/workflows/phase18-result-seed-sweep.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  sweep-result-seeds:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      HF_HOME: ${{ github.workspace }}/.hf-cache
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      TOKENIZERS_PARALLELISM: 'false'
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install CPU runtime
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
+          python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
+      - name: Generate result seed sweep
+        run: |
+          python tools/phase18_result_seed_sweep.py --out-dir out/result-seed-sweep --width 512 --height 640 --steps 4
+          test -s out/result-seed-sweep/result_seed_contact_sheet.jpg
+          test -s out/result-seed-sweep/manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('out/result-seed-sweep/manifest.json').read_text())
+          assert m['contract']=='pul7sar-result-seed-sweep-v1'
+          assert len(m['candidates']) == 4
+          assert m['sport_lock']=='association_football'
+          assert m['prompt_token_count'] <= m['prompt_usable_limit']
+          assert m['publication_ready'] is False
+          assert m['human_visual_review_required'] is True
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: phase18-result-seed-sweep
+          path: out/result-seed-sweep/
+          if-no-files-found: error
+          retention-days: 3
