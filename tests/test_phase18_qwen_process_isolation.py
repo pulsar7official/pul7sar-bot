@@ -3,7 +3,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from engine.intelligence.qwen25_vl_inspector import (
+    MODEL_REVISION,
     Qwen25VLConfig,
+    Qwen25VLInspectionError,
     Qwen25VLSemanticInspector,
     SemanticInspectionStage,
     _verdict_from_payload,
@@ -34,9 +36,18 @@ class QwenProcessIsolationTests(unittest.TestCase):
         replayed = _verdict_from_payload(_verdict_to_payload(original))
         self.assertEqual(replayed, original)
 
-    def test_default_config_enables_process_isolation(self):
-        self.assertTrue(Qwen25VLConfig().process_isolation)
-        self.assertGreaterEqual(Qwen25VLConfig().process_timeout_seconds, 30)
+    def test_default_config_enables_process_isolation_and_pins_revision(self):
+        config = Qwen25VLConfig()
+        self.assertTrue(config.process_isolation)
+        self.assertGreaterEqual(config.process_timeout_seconds, 30)
+        self.assertEqual(config.model_revision, MODEL_REVISION)
+        self.assertEqual(len(config.model_revision), 40)
+
+    def test_revision_drift_is_rejected_before_pipeline_load(self):
+        inspector = Qwen25VLSemanticInspector(Qwen25VLConfig(model_revision="0" * 40, process_isolation=False))
+        with patch.object(inspector, "dependencies_available", return_value=True):
+            with self.assertRaisesRegex(Qwen25VLInspectionError, "revision drift"):
+                inspector._load()
 
     def test_inspect_file_routes_to_isolated_path_by_default(self):
         inspector = Qwen25VLSemanticInspector()
