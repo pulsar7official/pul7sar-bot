@@ -71,12 +71,13 @@ class EventEditorialStudyRendererTests(unittest.TestCase):
             self.assertFalse(receipt.publication_ready)
             self.assertLess(receipt.brand_width, 870)
 
-    def test_verified_photographic_context_is_optional_and_provenance_pinned(self):
+    def test_verified_photographic_context_becomes_anchor_without_graphic_portal(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             asset = self._fixture_asset(root)
             receipt = self._render(root / 'hybrid.png', context_asset=asset)
             self.assertTrue(receipt.photographic_context_used)
+            self.assertFalse(receipt.single_anchor_used)
             self.assertEqual(receipt.context_contract, 'pul7sar-verified-context-surface-v1')
             self.assertEqual(receipt.context_source_reference, 'test://fixture-context')
             self.assertEqual(receipt.atmosphere_contract, 'pul7sar-verified-context-surface-v1')
