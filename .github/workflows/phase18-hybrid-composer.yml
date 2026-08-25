@@ -1,0 +1,39 @@
+name: Phase 18 Hybrid Composer Verification
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - phase18/original-visual-benchmark
+    paths:
+      - 'engine/intelligence/hybrid_scene_composition.py'
+      - 'engine/intelligence/hybrid_final_composer.py'
+      - 'engine/intelligence/hybrid_pixel_composer.py'
+      - 'engine/intelligence/cross_family_visual_system.py'
+      - 'engine/intelligence/visual_scene_blueprint.py'
+      - 'tests/test_phase18_hybrid_scene_composition.py'
+      - 'tests/test_phase18_hybrid_final_composer.py'
+      - 'tests/test_phase18_hybrid_pixel_composer.py'
+      - '.github/workflows/phase18-hybrid-composer.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  verify-hybrid-composer:
+    runs-on: ubuntu-24.04
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install test runtime
+        run: python -m pip install pytest Pillow
+      - name: Verify hybrid ownership and pixel safety
+        run: |
+          pytest -q \
+            tests/test_phase18_hybrid_scene_composition.py \
+            tests/test_phase18_hybrid_final_composer.py \
+            tests/test_phase18_hybrid_pixel_composer.py
