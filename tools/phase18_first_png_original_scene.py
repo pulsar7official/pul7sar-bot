@@ -5,10 +5,15 @@ The wrapper proves measured Original Scene runtime admission first, before the
 existing first-PNG command is allowed to reach its durable queue. The delegated
 first-PNG path retains all repository, CUDA/BF16, Qwen, FLUX, provenance and
 publication gates and may not be bypassed by this wrapper.
+
+The admission receipt is SHA-256 pinned before generation and replayed after the
+delegated first-PNG path returns, so Candidate 1 cannot be reported through an
+Original Scene admission artifact that changed during execution.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import subprocess
@@ -29,6 +34,8 @@ def _run_json(command: list[str], *, cwd: Path, label: str) -> dict[str, object]
         raise RuntimeError(f"{label} did not emit valid JSON: " + (completed.stderr or completed.stdout)[-2000:]) from exc
     if completed.returncode != 0:
         raise RuntimeError(f"{label} failed\n" + json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"{label} emitted non-object JSON")
     return payload
 
 
@@ -59,6 +66,34 @@ def _assert_admission(payload: dict[str, object]) -> None:
         raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_CONTRACT_FAILED: " + "; ".join(failures))
 
 
+def _inside_root(repository_root: Path, path: Path) -> Path:
+    resolved = path if path.is_absolute() else repository_root / path
+    resolved = resolved.resolve()
+    if resolved != repository_root and repository_root not in resolved.parents:
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_ESCAPES_REPOSITORY")
+    return resolved
+
+
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_admission_receipt(path: Path) -> dict[str, object]:
+    if not path.is_file():
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_MISSING")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_INVALID_JSON") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_NOT_OBJECT")
+    return payload
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate Golden Candidate 1 only after Original Scene runtime admission")
     parser.add_argument("--repository-root", default=str(ROOT))
@@ -71,9 +106,7 @@ def main() -> int:
     manifest = batch_dir / "manifest.json"
     if not manifest.is_absolute():
         manifest = repository_root / manifest
-    receipt = Path(args.admission_receipt)
-    if not receipt.is_absolute():
-        receipt = repository_root / receipt
+    receipt = _inside_root(repository_root, Path(args.admission_receipt))
 
     admission = _run_json(
         [
@@ -91,6 +124,13 @@ def main() -> int:
     )
     _assert_admission(admission)
 
+    persisted_admission = _load_admission_receipt(receipt)
+    _assert_admission(persisted_admission)
+    if persisted_admission != admission:
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_PAYLOAD_DRIFT_BEFORE_GENERATION")
+    admission_sha256 = _sha256(receipt)
+    admission_bytes = receipt.stat().st_size
+
     delegated = _run_json(
         [
             sys.executable,
@@ -107,11 +147,21 @@ def main() -> int:
     if delegated.get("publication_ready") is not False:
         raise RuntimeError("FIRST_PNG_WRAPPER_MAY_NOT_AUTHORIZE_PUBLICATION")
 
+    replayed_admission = _load_admission_receipt(receipt)
+    _assert_admission(replayed_admission)
+    if replayed_admission != admission:
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_PAYLOAD_DRIFT_AFTER_GENERATION")
+    if _sha256(receipt) != admission_sha256 or receipt.stat().st_size != admission_bytes:
+        raise RuntimeError("GOLDEN_ORIGINAL_SCENE_ADMISSION_RECEIPT_TAMPERED_DURING_GENERATION")
+
     payload = {
         "status": "FIRST_GOLDEN_PNG_ORIGINAL_SCENE_PATH_COMPLETE",
         "original_scene_admission": admission,
         "first_png": delegated,
         "original_scene_admission_receipt": str(receipt),
+        "original_scene_admission_sha256": admission_sha256,
+        "original_scene_admission_bytes": admission_bytes,
+        "original_scene_admission_replayed": True,
         "semantic_approved": False,
         "golden_quality_approved": False,
         "publication_ready": False,
