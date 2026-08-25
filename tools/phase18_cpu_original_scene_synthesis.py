@@ -1,9 +1,8 @@
-"""Zero-cost CPU original-scene synthesis smoke runtime for Phase 18.
+"""Zero-cost CPU original-scene synthesis runtime for Phase 18 benchmarks.
 
-This is a benchmark adapter, not a publication renderer. It intentionally creates
-only an unbranded atmospheric base scene. Exact PUL7SAR branding, club crests,
-readable copy, scores, statistics and real-person identities stay outside this
-runtime and are added deterministically after synthesis.
+It creates only unbranded atmosphere/base-scene pixels. Exact PUL7SAR branding,
+club crests, readable copy, scores, statistics and verified real-person identity
+remain deterministic post-composition responsibilities.
 """
 from __future__ import annotations
 
@@ -15,8 +14,12 @@ from pathlib import Path
 import torch
 from diffusers import AutoPipelineForText2Image
 
+from engine.intelligence.original_scene_prompt_profiles import OriginalScenePromptProfileRegistry
+from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
+
 
 DEFAULT_MODEL = os.environ.get("PUL7SAR_CPU_T2I_MODEL", "stabilityai/sd-turbo")
+FAMILIES = {f.value: f for f in EditorialSceneFamily}
 
 
 def parse_args() -> argparse.Namespace:
@@ -27,14 +30,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--width", type=int, default=512)
     p.add_argument("--height", type=int, default=640)
     p.add_argument("--steps", type=int, default=1)
-    p.add_argument("--prompt", default=(
-        "premium cinematic football editorial atmosphere at night, one coherent physical scene, "
-        "deep stadium-scale spatial feeling without identifying any real stadium, dramatic practical floodlights, "
-        "subtle crowd depth, dark textured sporting environment, realistic lens depth, natural shadows, "
-        "restrained red and electric blue light accents integrated into the environment, sophisticated sports photography mood, "
-        "large clean negative space for later editorial composition, completely unbranded scene, blank neutral advertising surfaces, "
-        "no readable writing, no numbers, no logos, no club crest, no watermark, no celebrity, no identifiable real person"
-    ))
+    p.add_argument("--family", choices=tuple(FAMILIES), default=EditorialSceneFamily.EVENT_EDITORIAL.value)
+    p.add_argument("--prompt", default=None)
     return p.parse_args()
 
 
@@ -42,6 +39,11 @@ def main() -> None:
     q = parse_args()
     if q.width % 8 or q.height % 8:
         raise ValueError("width and height must be divisible by 8")
+    family = FAMILIES[q.family]
+    if family is EditorialSceneFamily.TACTICAL_BOARD:
+        raise ValueError("TACTICAL_BOARD_REMAINS_DETERMINISTIC_FIRST")
+    profile = OriginalScenePromptProfileRegistry.get(family)
+    prompt = q.prompt or profile.prompt
     out = Path(q.output)
     out.parent.mkdir(parents=True, exist_ok=True)
 
@@ -50,7 +52,7 @@ def main() -> None:
     pipe.set_progress_bar_config(disable=False)
     generator = torch.Generator(device="cpu").manual_seed(q.seed)
     result = pipe(
-        prompt=q.prompt,
+        prompt=prompt,
         width=q.width,
         height=q.height,
         num_inference_steps=q.steps,
@@ -59,7 +61,10 @@ def main() -> None:
     ).images[0]
     result.save(out)
     meta = {
-        "contract": "pul7sar-cpu-original-scene-synthesis-smoke-v1",
+        "contract": "pul7sar-cpu-original-scene-synthesis-v2",
+        "family": family.value,
+        "profile_contract": profile.contract,
+        "generated_subject_policy": profile.generated_subject_policy,
         "model": q.model,
         "seed": q.seed,
         "width": q.width,
@@ -68,7 +73,7 @@ def main() -> None:
         "device": "cpu",
         "cost_mode": "$0-github-public-runner",
         "publication_ready": False,
-        "exact_fact_roles_reserved_for_compositor": ["readable_text", "pul7sar_brand", "exact_score", "club_crest"],
+        "exact_layers_reserved": list(profile.exact_layers_reserved),
     }
     out.with_suffix(".json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
