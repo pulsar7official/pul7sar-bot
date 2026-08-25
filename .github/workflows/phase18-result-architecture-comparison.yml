@@ -57,11 +57,16 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/result-architecture-comparison/manifest.json').read_text())
-          assert m['contract']=='pul7sar-result-composition-architecture-comparison-v1'
+          assert m['contract']=='pul7sar-result-composition-architecture-comparison-v2-compatible-only'
           assert m['source_contract']=='pul7sar-result-seed-sweep-v2-provenance'
-          assert m['spatial_contract']=='pul7sar-spatial-result-monument-v1'
-          assert m['candidate_count']==4
+          assert m['spatial_contract']=='pul7sar-spatial-result-monument-v2-scene-compatible'
+          assert m['compatibility_contract']=='pul7sar-result-spatial-compatibility-v1'
+          assert m['source_candidate_count']==4
+          assert m['candidate_count'] >= 1
+          assert m['candidate_count'] + m['rejected_count'] == 4
           assert all(p['provenance_verified'] for p in m['pairs'])
+          assert all(p['compatibility']['compatible'] for p in m['pairs'])
+          assert all(not p['compatibility']['compatible'] for p in m['rejected'])
           assert any(p['spatial']['pixel_health'] for p in m['pairs'])
           assert m['publication_ready'] is False
           assert m['human_visual_review_required'] is True
