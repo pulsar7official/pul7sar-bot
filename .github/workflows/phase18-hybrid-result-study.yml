@@ -11,6 +11,7 @@ on:
       - 'engine/intelligence/original_scene_prompt_profiles.py'
       - 'engine/intelligence/pre_generation_scene_lock.py'
       - 'engine/intelligence/generation_prompt_budget.py'
+      - 'engine/intelligence/generated_base_provenance.py'
       - 'engine/intelligence/hybrid_final_composer.py'
       - 'engine/intelligence/hybrid_pixel_composer.py'
       - '.github/workflows/phase18-hybrid-result-study.yml'
@@ -39,10 +40,11 @@ jobs:
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
       - name: Generate locked family bases
         run: python tools/phase18_cpu_cross_family_synthesis.py --out-dir out/base --width 512 --height 640 --steps 4
-      - name: Compose exact result layer over generated base
+      - name: Compose exact result layer over provenance-verified base
         run: |
           python tools/phase18_compose_hybrid_result.py \
             --base out/base/result_statement.png \
+            --base-manifest out/base/manifest.json \
             --output out/hybrid/result_hybrid_study.jpg \
             --manifest out/hybrid/manifest.json
           test -s out/hybrid/result_hybrid_study.jpg
@@ -51,8 +53,11 @@ jobs:
           import json
           from pathlib import Path
           m=json.loads(Path('out/hybrid/manifest.json').read_text())
-          assert m['contract']=='pul7sar-hybrid-result-pixel-study-v1'
+          assert m['contract']=='pul7sar-hybrid-result-pixel-study-v2-provenance'
           assert m['generated_base_used'] is True
+          assert m['provenance_verified'] is True
+          assert m['sport_lock']=='association_football'
+          assert m['prompt_token_count'] <= m['prompt_usable_limit']
           assert m['brand_applied'] is False
           assert m['fabricated_crest_used'] is False
           assert m['publication_ready'] is False
