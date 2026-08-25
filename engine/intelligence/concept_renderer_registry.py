@@ -67,7 +67,7 @@ class ConceptRendererCapability:
 
 
 class ConceptRendererRegistry:
-    VERSION = "pul7sar-concept-renderer-registry-v2-local-generative-fail-closed"
+    VERSION = "pul7sar-concept-renderer-registry-v3-all-local-nongenerative-implemented"
 
     def __init__(self) -> None:
         implemented = ConceptRendererStatus.IMPLEMENTED
@@ -80,8 +80,10 @@ class ConceptRendererRegistry:
                 ("verified_subject_asset", "embedded_pul7sar_brand_master"),
             ),
             VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL: ConceptRendererCapability(
-                VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL, contract, ConceptSurfaceClass.MINIMAL_EDITORIAL,
-                None, None, None, ("exact_club_object_or_context",),
+                VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL, implemented, ConceptSurfaceClass.PHOTO_LED,
+                "engine.intelligence.verified_detail_editorial_renderer", "VerifiedDetailEditorialRenderer",
+                "pul7sar-verified-detail-editorial-renderer-v1",
+                ("verified_nonperson_transfer_detail", "embedded_pul7sar_brand_master"),
             ),
             VisualConceptArchetype.DECISIVE_MOMENT: ConceptRendererCapability(
                 VisualConceptArchetype.DECISIVE_MOMENT, implemented, ConceptSurfaceClass.PHOTO_LED,
@@ -108,8 +110,10 @@ class ConceptRendererRegistry:
                 ("verified_subject_asset", "verified_identity_plan"),
             ),
             VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL: ConceptRendererCapability(
-                VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL, contract, ConceptSurfaceClass.PHOTO_LED,
-                None, None, None, ("verified_detail_asset",),
+                VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL, implemented, ConceptSurfaceClass.PHOTO_LED,
+                "engine.intelligence.verified_detail_editorial_renderer", "VerifiedDetailEditorialRenderer",
+                "pul7sar-verified-detail-editorial-renderer-v1",
+                ("verified_detail_asset", "embedded_pul7sar_brand_master"),
             ),
             VisualConceptArchetype.TACTICAL_SPATIAL_MAP: ConceptRendererCapability(
                 VisualConceptArchetype.TACTICAL_SPATIAL_MAP, implemented, ConceptSurfaceClass.DETERMINISTIC_INFORMATION,
