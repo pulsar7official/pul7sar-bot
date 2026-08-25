@@ -28,6 +28,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "gpu_name": "NVIDIA Test GPU",
             "gpu_vram_gb": 24.0,
+            "gpu_free_vram_gb": 22.0,
             "bf16_supported": True,
             "compute_capability": "8.0",
             "torch_available": True,
@@ -40,6 +41,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
                 "downloads_model_weights": False,
                 "installs_dependencies": False,
                 "uses_paid_api": False,
+                "requires_live_free_vram": True,
                 "required_dtype": "bfloat16",
                 "required_provider": "black-forest-labs",
                 "required_model": "black-forest-labs/FLUX.2-klein-4B",
@@ -137,10 +139,13 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "QWEN_PREFETCH",
             "FIRST_GOLDEN_SEALED_REVIEW_STAGING",
         ])
-        self.assertEqual(payload["schema"], "pul7sar-first-golden-colab-bootstrap-v3")
+        self.assertEqual(payload["schema"], "pul7sar-first-golden-colab-bootstrap-v4")
         self.assertEqual(payload["candidate"], 1)
         self.assertEqual(payload["gpu_host_qualification"], str(bootstrap.HOST_QUALIFICATION))
         self.assertTrue(payload["gpu_host_eligible"])
+        self.assertTrue(payload["live_free_vram_proven"])
+        self.assertEqual(payload["gpu_free_vram_gb"], 22.0)
+        self.assertEqual(payload["required_vram_gb"], 13.0)
         self.assertTrue(payload["native_bf16_proven"])
         self.assertEqual(payload["first_golden_cache_budget"], str(bootstrap.CACHE_BUDGET))
         self.assertEqual(payload["qwen_model_cache"], str(bootstrap.QWEN_MODEL_CACHE))
@@ -179,10 +184,38 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         probe.assert_not_called()
         prefetch.assert_not_called()
 
+    def test_insufficient_live_free_vram_blocks_before_model_downloads(self):
+        blocked = self._host_payload()
+        blocked["eligible"] = False
+        blocked["gpu_free_vram_gb"] = 8.0
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), blocked]),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+            patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe") as probe,
+            patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model") as prefetch,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "GPU_HOST_QUALIFICATION_BLOCKED"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+        probe.assert_not_called()
+        prefetch.assert_not_called()
+
     def test_host_policy_authority_drift_is_rejected(self):
         bad = self._host_payload()
         bad["policy"] = dict(bad["policy"])
         bad["policy"]["downloads_model_weights"] = True
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), bad]),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "GPU_HOST_QUALIFICATION_BLOCKED"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+
+    def test_missing_live_free_vram_policy_is_rejected(self):
+        bad = self._host_payload()
+        bad["policy"] = dict(bad["policy"])
+        bad["policy"]["requires_live_free_vram"] = False
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
             patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), bad]),
