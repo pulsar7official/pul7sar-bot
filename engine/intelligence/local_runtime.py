@@ -75,6 +75,18 @@ class LocalRuntimeProbe:
         device = torch.cuda.current_device()
         props = torch.cuda.get_device_properties(device)
         total_memory = float(props.total_memory) / (1024 ** 3)
+        free_memory_gb = None
+        used_memory_gb = None
+        memory_probe = getattr(torch.cuda, "mem_get_info", None)
+        if callable(memory_probe):
+            try:
+                free_bytes, total_bytes = memory_probe(device)
+                free_memory_gb = round(float(free_bytes) / (1024 ** 3), 3)
+                reported_total_gb = float(total_bytes) / (1024 ** 3)
+                used_memory_gb = round(max(0.0, reported_total_gb - (float(free_bytes) / (1024 ** 3))), 3)
+            except Exception:
+                free_memory_gb = None
+                used_memory_gb = None
         bf16_supported = None
         bf16_probe = getattr(torch.cuda, "is_bf16_supported", None)
         if callable(bf16_probe):
@@ -101,6 +113,8 @@ class LocalRuntimeProbe:
                 "torch_version": getattr(torch, "__version__", None),
                 "bf16_supported": bf16_supported,
                 "compute_capability": compute_capability,
+                "gpu_free_vram_gb": free_memory_gb,
+                "gpu_used_vram_gb": used_memory_gb,
             },
         )
 
