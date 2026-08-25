@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 
 from engine.intelligence.event_editorial_composition import EventEditorialComposer
-from engine.intelligence.event_editorial_study_renderer import EventAnchorKind, EventEditorialStudyRenderer
+from engine.intelligence.event_editorial_runtime_v2 import EventAnchorKind, EventEditorialStudyRenderer
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 
 
@@ -26,7 +26,7 @@ def build(output_dir: str) -> dict[str, object]:
     root.mkdir(parents=True, exist_ok=True)
     profile = PlatformProfileRegistry().get(SocialPlatform.INSTAGRAM_FEED)
     composition = EventEditorialComposer().plan(profile)
-    output = root / 'pul7sar-event-editorial-study-v1-premium-anchor.png'
+    output = root / 'pul7sar-event-editorial-study-v2-no-duplicate-pulse.png'
     receipt = EventEditorialStudyRenderer().render(
         composition,
         profile=profile,
@@ -36,10 +36,10 @@ def build(output_dir: str) -> dict[str, object]:
         anchor_kind=EventAnchorKind.ANNOUNCEMENT,
         accent_hex='#C71925',
         font_path=str(_font()),
-        seed_key='pul7sar-event-editorial-v1',
+        seed_key='pul7sar-event-editorial-v2',
     )
     manifest = {
-        'manifest_version': 'pul7sar-event-editorial-study-v1-premium-anchor',
+        'manifest_version': 'pul7sar-event-editorial-study-v2-no-duplicate-pulse',
         'renderer_contract': receipt.contract,
         'composition_contract': composition.contract,
         'atmosphere_contract': receipt.atmosphere_contract,
@@ -63,6 +63,7 @@ def build(output_dir: str) -> dict[str, object]:
         'brand_height': receipt.brand_height,
         'brand_max_width_ratio': composition.brand.max_width_ratio,
         'brand_max_height_ratio': composition.brand.max_height_ratio,
+        'duplicate_brand_pulse_in_anchor': False,
         'generator_used': receipt.generator_used,
         'network_used': receipt.network_used,
         'study_only': receipt.study_only,
