@@ -1,9 +1,9 @@
 """Tamper-evident integrity seal for the first Golden human-review packet.
 
 This layer does not generate, score, approve, or publish anything. It binds the
-Candidate 1 review packet to the exact receipts and PNG bytes that produced the
-human-review staging result, then supports replay verification before a human
-opens or acts on the packet.
+Candidate 1 review packet to the exact Original Scene admission, receipts and PNG
+bytes that produced the human-review staging result, then supports replay
+verification before a human opens or acts on the packet.
 """
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ from pathlib import Path
 from typing import Any
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
-PACKET_SCHEMA = "pul7sar-first-golden-human-review-packet-v1"
+PACKET_SCHEMA = "pul7sar-first-golden-human-review-packet-v2"
 PACKET_STATUS = "FIRST_GOLDEN_CANDIDATE_READY_FOR_HUMAN_REVIEW"
-MANIFEST_SCHEMA = "pul7sar-first-golden-review-integrity-manifest-v1"
-VERIFY_SCHEMA = "pul7sar-first-golden-review-integrity-verification-v1"
+MANIFEST_SCHEMA = "pul7sar-first-golden-review-integrity-manifest-v2"
+VERIFY_SCHEMA = "pul7sar-first-golden-review-integrity-verification-v2"
 
 
 @dataclass(frozen=True)
@@ -29,6 +29,7 @@ class FirstGoldenReviewIntegrityDecision:
 
 class FirstGoldenReviewPacketIntegrity:
     _REQUIRED_FILE_FIELDS = (
+        "original_scene_runtime_admission",
         "first_png_result",
         "hybrid_handoff",
         "hybrid_semantic_continuation",
@@ -124,6 +125,8 @@ class FirstGoldenReviewPacketIntegrity:
             )
 
         record_by_field = {item["field"]: item for item in records}
+        if packet.get("original_scene_runtime_admission_sha256") != record_by_field["original_scene_runtime_admission"]["sha256"]:
+            raise RuntimeError("FIRST_GOLDEN_REVIEW_INTEGRITY_ORIGINAL_SCENE_ADMISSION_SHA256_MISMATCH")
         if packet.get("review_base_png_sha256") != record_by_field["review_base_png"]["sha256"]:
             raise RuntimeError("FIRST_GOLDEN_REVIEW_INTEGRITY_BASE_SHA256_MISMATCH")
         if packet.get("review_hybrid_png_sha256") != record_by_field["review_hybrid_png"]["sha256"]:
@@ -138,6 +141,7 @@ class FirstGoldenReviewPacketIntegrity:
             "packet_path": str(packet_file),
             "packet_sha256": self._sha256(packet_file),
             "files": records,
+            "original_scene_runtime_admission_bound": True,
             "human_visual_review_required": True,
             "automatic_selection_performed": False,
             "human_visual_review_approved": False,
@@ -159,6 +163,8 @@ class FirstGoldenReviewPacketIntegrity:
             failures.append("branch_mismatch")
         if manifest.get("cost_mode") != "$0-local":
             failures.append("cost_mode_mismatch")
+        if manifest.get("original_scene_runtime_admission_bound") is not True:
+            failures.append("original_scene_runtime_admission_not_bound")
         if manifest.get("human_visual_review_required") is not True:
             failures.append("human_review_requirement_missing")
         if manifest.get("automatic_selection_performed") is not False:
@@ -246,6 +252,7 @@ def verification_payload(decision: FirstGoldenReviewIntegrityDecision) -> dict[s
         "verified": decision.verified,
         "failures": list(decision.failures),
         "manifest_sha256": decision.manifest_sha256,
+        "original_scene_runtime_admission_bound": decision.verified,
         "human_visual_review_approved": False,
         "golden_quality_approved": False,
         "publication_ready": False,
