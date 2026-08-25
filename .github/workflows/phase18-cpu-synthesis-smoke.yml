@@ -9,6 +9,8 @@ on:
       - 'tools/phase18_cpu_original_scene_synthesis.py'
       - 'tools/phase18_cpu_cross_family_synthesis.py'
       - 'engine/intelligence/original_scene_prompt_profiles.py'
+      - 'engine/intelligence/pre_generation_scene_lock.py'
+      - 'tests/test_phase18_pre_generation_scene_lock.py'
       - '.github/workflows/phase18-cpu-synthesis-smoke.yml'
 
 permissions:
@@ -28,12 +30,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
+      - name: Verify pre-generation sport and semantic locks
+        run: |
+          python -m pip install pytest
+          pytest -q tests/test_phase18_pre_generation_scene_lock.py
       - name: Install CPU synthesis runtime
         run: |
           python -m pip install --upgrade pip
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           python -m pip install 'diffusers>=0.34,<0.37' 'transformers>=4.44,<5' accelerate safetensors Pillow
-      - name: Generate five original unbranded scene families
+      - name: Generate five locked original unbranded scene families
         run: |
           python tools/phase18_cpu_cross_family_synthesis.py --out-dir out --width 512 --height 640 --steps 1
           test -s out/transfer_signature.png
@@ -42,9 +48,19 @@ jobs:
           test -s out/data_monument.png
           test -s out/event_editorial.png
           test -s out/manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('out/manifest.json').read_text())
+          assert m['contract']=='pul7sar-cpu-cross-family-synthesis-v2'
+          assert m['pre_generation_lock']=='pul7sar-pre-generation-scene-lock-v1'
+          assert m['publication_ready'] is False
+          assert len(m['scenes'])==5
+          assert all(s['sport_lock']=='association_football' for s in m['scenes'])
+          PY
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-cpu-cross-family-synthesis
+          name: phase18-cpu-cross-family-synthesis-v2
           path: out/
           if-no-files-found: error
           retention-days: 3
