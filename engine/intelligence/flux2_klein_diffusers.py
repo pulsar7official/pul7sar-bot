@@ -15,6 +15,10 @@ from importlib import import_module
 from importlib.metadata import PackageNotFoundError, version as package_version
 from typing import Any, Callable
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+)
 from engine.intelligence.local_backend import LocalBackendKind, LocalBackendSnapshot
 
 
@@ -85,11 +89,13 @@ class Flux2KleinPipelineWrapper:
         config: Flux2KleinInferenceConfig,
         *,
         offload_mode: str = "none",
+        model_revision: str = FLUX2_KLEIN_4B_REVISION,
     ) -> None:
         self._pipe = pipe
         self._torch = torch_module
         self._config = config
         self._offload_mode = offload_mode
+        self._model_revision = model_revision
 
     def __call__(
         self,
@@ -125,6 +131,7 @@ class Flux2KleinPipelineWrapper:
             "image": images[0],
             "metadata": {
                 "pipeline": "Flux2KleinPipeline",
+                "model_revision": self._model_revision,
                 "guidance_scale": self._config.guidance_scale,
                 "num_inference_steps": self._config.num_inference_steps,
                 "cpu_offload": self._config.cpu_offload,
@@ -139,11 +146,14 @@ def build_flux2_klein_pipeline_factory(
     inference: Flux2KleinInferenceConfig = Flux2KleinInferenceConfig(),
     pipeline_loader: Callable[..., Any] | None = None,
     torch_module: Any | None = None,
+    model_revision: str = FLUX2_KLEIN_4B_REVISION,
 ) -> Callable[[str, str], Flux2KleinPipelineWrapper]:
     """Return the concrete factory expected by DiffusersLocalBackend.
 
     Tests may inject `pipeline_loader` and `torch_module`; production/local use
-    imports the optional dependencies lazily.
+    imports the optional dependencies lazily. The upstream FLUX repository is
+    always loaded at an immutable, project-approved Hugging Face commit revision
+    so a mutable `main` update cannot silently change Golden Candidate bytes.
 
     Low-VRAM hosts prefer Diffusers' sequential CPU offload when the installed
     pipeline exposes it. Sequential offload is slower than model-level offload,
@@ -154,8 +164,13 @@ def build_flux2_klein_pipeline_factory(
     unchanged.
     """
 
+    if model_revision != FLUX2_KLEIN_4B_REVISION:
+        raise ValueError("FLUX.2 model revision must match the approved immutable revision")
+
     def factory(model_id: str, dtype: str) -> Flux2KleinPipelineWrapper:
         nonlocal pipeline_loader, torch_module
+        if model_id != FLUX2_KLEIN_4B_MODEL_ID:
+            raise ValueError("FLUX.2 pipeline factory only accepts the approved model identity")
         if torch_module is None:
             try:
                 import torch as runtime_torch
@@ -176,7 +191,11 @@ def build_flux2_klein_pipeline_factory(
         }
         if dtype not in dtype_map:
             raise ValueError("unsupported dtype")
-        pipe = pipeline_loader(model_id, torch_dtype=dtype_map[dtype])
+        pipe = pipeline_loader(
+            model_id,
+            revision=FLUX2_KLEIN_4B_REVISION,
+            torch_dtype=dtype_map[dtype],
+        )
 
         offload_mode = "none"
         if inference.cpu_offload:
@@ -197,6 +216,7 @@ def build_flux2_klein_pipeline_factory(
             torch_module,
             inference,
             offload_mode=offload_mode,
+            model_revision=FLUX2_KLEIN_4B_REVISION,
         )
 
     return factory
