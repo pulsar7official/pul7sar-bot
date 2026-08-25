@@ -1,8 +1,9 @@
 """Replay and lock provenance for one genuine Phase 18 GPU visual proof.
 
 This verifier binds the Colab generation summary to the durable executor result,
-registered proof PNG, and proof metadata by path, identity fields, and SHA-256.
-It never grants semantic, Golden-quality, or publication approval.
+registered proof PNG, proof metadata, and the immutable approved upstream FLUX
+model revision by path, identity fields, and SHA-256. It never grants semantic,
+Golden-quality, or publication approval.
 """
 from __future__ import annotations
 
@@ -11,7 +12,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-EXPECTED_MODEL = "black-forest-labs/FLUX.2-klein-4B"
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+)
+
+EXPECTED_MODEL = FLUX2_KLEIN_4B_MODEL_ID
+EXPECTED_MODEL_REVISION = FLUX2_KLEIN_4B_REVISION
 EXPECTED_COST_MODE = "$0-local"
 _PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -109,6 +116,7 @@ class GenerationProvenanceLock:
             "request_id": summary.get("request_id"),
             "seed": summary.get("seed"),
             "model": summary.get("model_id"),
+            "model_revision": EXPECTED_MODEL_REVISION,
             "cost_mode": EXPECTED_COST_MODE,
         }
         for key, expected in metadata_expected.items():
@@ -124,6 +132,7 @@ class GenerationProvenanceLock:
             "request_id": summary.get("request_id"),
             "seed": summary.get("seed"),
             "model_id": summary.get("model_id"),
+            "model_revision": EXPECTED_MODEL_REVISION,
             "payload_sha256": summary.get("payload_sha256"),
             "cost_mode": EXPECTED_COST_MODE,
             "resolved_dtype": result.get("resolved_dtype"),
