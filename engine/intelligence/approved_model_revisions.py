@@ -11,6 +11,8 @@ from pathlib import Path
 
 FLUX2_KLEIN_4B_MODEL_ID = "black-forest-labs/FLUX.2-klein-4B"
 FLUX2_KLEIN_4B_REVISION = "e7b7dc27f91deacad38e78976d1f2b499d76a294"
+QWEN25_VL_3B_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
+QWEN25_VL_3B_REVISION = "66285546d2b821cf421d4f5eb2576359d3770cd3"
 
 
 def assert_full_commit_sha(value: str, *, label: str = "model revision") -> str:
