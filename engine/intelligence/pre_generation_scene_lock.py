@@ -4,6 +4,10 @@ This contract sits before any generative renderer. It prevents a text-to-image
 backend from choosing the sport or reinterpreting the editorial family. Exact
 people, crests, scores, data, typography and PUL7SAR branding remain reserved
 for verified/deterministic composition.
+
+Important: forbidden cues are QA metadata, not positive prompt tokens. Low-step
+zero-guidance runtimes can attend to a named forbidden concept even when it is
+phrased negatively, so generator prompts contain positive scene ownership only.
 """
 from __future__ import annotations
 
@@ -27,17 +31,15 @@ class PreGenerationSceneLock:
         "exact statistics",
         "verified real-person identity",
     )
-    contract: str = "pul7sar-pre-generation-scene-lock-v1"
+    contract: str = "pul7sar-pre-generation-scene-lock-v2"
 
     def prompt_prefix(self) -> str:
         required = ", ".join(self.required_visual_cues)
-        forbidden = ", ".join(self.forbidden_visual_cues)
         return (
-            f"SPORT LOCK: association football (soccer) only. "
-            f"SEMANTIC LOCK: {self.semantic_anchor}. "
-            f"Required visual cues: {required}. "
-            f"Forbidden visual cues: {forbidden}. "
-            "Do not reinterpret the sport or editorial scene family. "
+            "Association football editorial image. Soccer-specific physical world. "
+            f"Editorial meaning: {self.semantic_anchor}. "
+            f"Visible scene cues: {required}. "
+            "Keep the scene physically coherent and unmistakably association football. "
         )
 
 
@@ -60,36 +62,36 @@ class PreGenerationSceneLockRegistry:
         EditorialSceneFamily.RESULT_STATEMENT: PreGenerationSceneLock(
             EditorialSceneFamily.RESULT_STATEMENT,
             "association_football",
-            "post-match association-football result atmosphere; the image world communicates a completed football match without inventing the score",
-            ("round association-football ball where visible", "association-football stadium lighting", "natural football grass only when surface is visible", "post-match tension"),
+            "post-match soccer result atmosphere; a completed match, with the exact score deliberately absent for later composition",
+            ("classic round black-and-white soccer ball only if a ball is visible", "soccer stadium floodlighting", "green soccer pitch texture only if a playing surface is visible", "restrained post-match tension"),
             _COMMON_FORBIDDEN + ("pre-match ceremony", "victory humiliation of the losing side", "invented score digits"),
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: PreGenerationSceneLock(
             EditorialSceneFamily.TRANSFER_SIGNATURE,
             "association_football",
-            "association-football transfer arrival environment; movement between club identity spaces without depicting an unverified person",
-            ("football stadium tunnel or dressing-room threshold", "empty presentation zone", "premium arrival atmosphere"),
+            "soccer transfer-arrival environment; movement toward a new club identity space without depicting a person",
+            ("soccer stadium tunnel or professional football dressing-room threshold", "empty presentation zone", "premium arrival atmosphere", "clean destination light"),
             _COMMON_FORBIDDEN + ("contract signing ceremony", "invented player face", "shirt name or number"),
         ),
         EditorialSceneFamily.VERIFIED_SUBJECT_NEWS: PreGenerationSceneLock(
             EditorialSceneFamily.VERIFIED_SUBJECT_NEWS,
             "association_football",
-            "quiet association-football editorial environment with an intentionally empty hero zone reserved for a separately verified subject",
-            ("football dressing-room context", "empty bench or locker context", "clear empty hero zone"),
+            "quiet soccer editorial environment with an intentionally empty hero zone reserved for a separately verified subject",
+            ("professional soccer dressing-room context", "empty bench or locker context", "large clear empty hero zone", "restrained practical lighting"),
             _COMMON_FORBIDDEN + ("human face", "human silhouette", "mannequin", "invented athlete"),
         ),
         EditorialSceneFamily.DATA_MONUMENT: PreGenerationSceneLock(
             EditorialSceneFamily.DATA_MONUMENT,
             "association_football",
-            "association-football data monument: a premium physical information object whose blank surfaces are reserved for exact football statistics later",
-            ("architectural information pedestal or monument", "blank data surfaces", "subtle association-football context cue", "premium gallery lighting"),
+            "premium indoor soccer information gallery; a designed architectural data object with clean blank display surfaces reserved for exact statistics later",
+            ("clearly man-made architectural information pedestal", "flat blank display surfaces", "subtle round soccer-ball or pitch-light context cue", "indoor premium gallery lighting", "brushed metal and dark stone finishes"),
             _COMMON_FORBIDDEN + ("natural rock formation", "mountain monument", "generic outdoor landscape", "fake chart", "invented statistic"),
         ),
         EditorialSceneFamily.EVENT_EDITORIAL: PreGenerationSceneLock(
             EditorialSceneFamily.EVENT_EDITORIAL,
             "association_football",
-            "anticipation before a major association-football event; no outcome is implied",
-            ("round association-football ball", "football venue-scale lighting", "pre-event anticipation", "forward spatial depth"),
+            "anticipation before a major soccer event at night, with no result or winner implied",
+            ("classic round soccer ball", "soccer venue-scale floodlighting", "pre-event anticipation", "forward architectural depth", "empty foreground editorial space"),
             _COMMON_FORBIDDEN + ("post-match celebration", "winner or loser implication", "invented result"),
         ),
     }
