@@ -88,7 +88,9 @@ No paid provider, hosted GPU fallback, secret, precision downgrade, fake PNG, fa
 
 ## Testing status
 
-Regression tests were added and GitHub Actions was triggered by the branch commits. This log does not claim the final Change Set 144 head is CI-green until a Story Intelligence verification run for the final code/test head completes successfully.
+The Change Set 144 code/test head `f36dfb54f4c9f42b3a971bb1ff6b288baf237774` completed GitHub Actions successfully in **Phase 18 Story Intelligence Verification run `32829227736 / 2506`**. Syntax/discover validation, completion/production isolation, visual-study handoffs, self-contained brand integrity and Golden Hybrid v5 build/verification all completed successfully. All companion Phase 18 CPU workflows visible for the same head also completed with `success`.
+
+The final implementation-log-only commit does not change tested runtime behavior.
 
 ## Remaining blocker to the first genuine Golden Visual PNG
 
