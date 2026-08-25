@@ -30,40 +30,51 @@ jobs:
       - name: Install CPU dependencies
         run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 
-      - name: Test original result scene renderer
-        run: python -m unittest -v tests.test_phase18_original_result_scene_renderer
+      - name: Test dynamic result scene components
+        run: |
+          python -m unittest -v \
+            tests.test_phase18_original_result_scene_renderer \
+            tests.test_phase18_original_result_scene_renderer_v4 \
+            tests.test_phase18_result_visual_variation \
+            tests.test_phase18_club_identity_layer
 
-      - name: Build original result scene PNG
+      - name: Build three same-club dynamic result studies
         run: python tools/phase18_build_original_result_scene.py
 
-      - name: Verify original-pixel manifest and SHA
+      - name: Verify V4 original-pixel manifest and anti-repetition contract
         run: |
           python - <<'PY'
           import hashlib, json
           from pathlib import Path
 
-          manifest_path = Path('artifacts/phase18/original-result-scene/pul7sar-original-result-scene-v1.json')
+          manifest_path = Path('artifacts/phase18/original-result-scene-v4/pul7sar-original-result-scene-v4.json')
           data = json.loads(manifest_path.read_text(encoding='utf-8'))
-          png = Path(data['output_path'])
-          assert png.is_file(), png
-          assert hashlib.sha256(png.read_bytes()).hexdigest() == data['output_sha256']
-          assert data['scene_origin'] == '100_percent_code_generated_original_pixels'
+          assert data['scene_origin'] == '100_percent_code_generated_original_pixels_plus_exact_local_assets'
           assert data['source_photo_used'] is False
           assert data['generator_used'] is False
           assert data['network_used'] is False
           assert data['fabricated_crest_used'] is False
           assert data['publication_ready'] is False
           assert data['study_only'] is True
+          assert data['same_club_dynamic_composition_demo'] is True
           assert data['width'] == 1080 and data['height'] == 1350
+          outputs = data['outputs']
+          assert len(outputs) == 3
+          families = [item['visual_family'] for item in outputs]
+          assert len(set(families)) == 3, families
+          for item in outputs:
+              png = Path(item['output_path'])
+              assert png.is_file(), png
+              assert hashlib.sha256(png.read_bytes()).hexdigest() == item['output_sha256']
+              assert item['fabricated_crest_used'] is False
+              assert item['score_scale'] < 0.83
           print(json.dumps(data, indent=2, sort_keys=True))
           PY
 
-      - name: Upload original result scene benchmark
+      - name: Upload dynamic result scene benchmark
         uses: actions/upload-artifact@v7
         with:
-          name: phase18-original-result-scene-v1
-          path: |
-            artifacts/phase18/original-result-scene/pul7sar-original-result-scene-v1.png
-            artifacts/phase18/original-result-scene/pul7sar-original-result-scene-v1.json
+          name: phase18-original-result-scene-v4
+          path: artifacts/phase18/original-result-scene-v4/
           if-no-files-found: error
           retention-days: 14
