@@ -3,16 +3,16 @@
 
 This command deliberately runs *before* FLUX generation. It proves that the exact
 Qwen/Pillow/Transformers runtime is qualified on CUDA, then proves/prefetches the
-approved local Qwen2.5-VL snapshot. It never invokes FLUX, never mutates the
+approved immutable Qwen2.5-VL snapshot. It never invokes FLUX, never mutates the
 Phase 18 generation queue, never creates a PNG, and never authorizes publication.
 
 The purpose is to avoid spending GPU time on a Golden base scene only to discover
-later that the semantic publication inspector cannot run on the same host.
+later that the semantic publication inspector cannot run on the same host or that
+the semantic model bytes drifted upstream.
 """
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 from pathlib import Path
@@ -23,12 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from engine.intelligence.qwen25_vl_inspector import MODEL_ID
+from engine.intelligence.approved_model_revisions import (
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+    assert_snapshot_revision,
+)
 from engine.intelligence.semantic_inspector_readiness import Qwen25VLReadinessProbe
 
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
+MODEL_ID = QWEN25_VL_3B_MODEL_ID
+MODEL_REVISION = QWEN25_VL_3B_REVISION
 
 
 def _branch(repository_root: Path) -> str:
@@ -73,15 +79,25 @@ def _run_prefetch(repository_root: Path, receipt_path: Path, minimum_free_gib: f
 
 
 def _validate_prefetch_payload(payload: dict[str, object]) -> None:
+    if payload.get("schema") != "pul7sar-phase18-qwen-model-cache-v2":
+        raise RuntimeError("QWEN_MODEL_CACHE_CONTRACT_DRIFT")
     if payload.get("ready") is not True:
         raise RuntimeError("QWEN_MODEL_CACHE_NOT_READY")
     if payload.get("model_id") != MODEL_ID:
         raise RuntimeError("QWEN_MODEL_ID_DRIFT")
+    if payload.get("model_revision") != MODEL_REVISION:
+        raise RuntimeError("QWEN_MODEL_REVISION_DRIFT")
+    if payload.get("resolved_snapshot_revision") != MODEL_REVISION or payload.get("revision_pinned") is not True:
+        raise RuntimeError("QWEN_MODEL_SNAPSHOT_REVISION_UNPROVEN")
     if payload.get("cost_mode") != EXPECTED_COST_MODE:
         raise RuntimeError("QWEN_MODEL_PREFETCH_ESCAPED_ZERO_COST_POLICY")
     snapshot = payload.get("snapshot_path")
     if not isinstance(snapshot, str) or not snapshot.strip():
         raise RuntimeError("QWEN_MODEL_SNAPSHOT_PATH_MISSING")
+    try:
+        assert_snapshot_revision(snapshot, MODEL_REVISION)
+    except (RuntimeError, ValueError) as exc:
+        raise RuntimeError("QWEN_MODEL_SNAPSHOT_PATH_REVISION_DRIFT") from exc
 
 
 def _build_receipt(
@@ -92,10 +108,13 @@ def _build_receipt(
     prefetch_receipt_path: Path,
 ) -> dict[str, object]:
     return {
-        "schema": "pul7sar-phase18-semantic-gpu-preflight-v1",
+        "schema": "pul7sar-phase18-semantic-gpu-preflight-v2",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "branch": branch,
         "model_id": MODEL_ID,
+        "model_revision": MODEL_REVISION,
+        "resolved_snapshot_revision": prefetch.get("resolved_snapshot_revision"),
+        "revision_pinned": prefetch.get("revision_pinned") is True,
         "cost_mode": EXPECTED_COST_MODE,
         "semantic_runtime_ready": readiness.ready,
         "semantic_model_ready": prefetch.get("ready") is True,
@@ -115,7 +134,7 @@ def _build_receipt(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Preflight the local Qwen semantic runtime before Golden GPU generation")
+    parser = argparse.ArgumentParser(description="Preflight the immutable local Qwen semantic runtime before Golden GPU generation")
     parser.add_argument("--repository-root", default=str(ROOT))
     parser.add_argument("--minimum-free-gib", type=float, default=12.0)
     parser.add_argument("--qwen-cache-receipt", default="output/phase18_gpu_smoke/qwen-model-cache.json")
@@ -133,7 +152,6 @@ def main() -> int:
     if branch != EXPECTED_BRANCH:
         raise RuntimeError(f"SEMANTIC_PREFLIGHT_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
-    # Runtime readiness must pass *before* a potentially large Qwen model download.
     readiness = Qwen25VLReadinessProbe().inspect()
     if not readiness.ready:
         raise RuntimeError(
