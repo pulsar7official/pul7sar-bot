@@ -8,7 +8,7 @@ Branch: `phase18/story-intelligence` only.
 
 Observed starting Phase 18 head for this automation turn: `3698fa5f3734da42708505036d88befad05b45a1`.
 Observed `main` head during the turn: `65344bd7cbcea9b162df2847a89672850ff5ab85`.
-The branch comparison remained `diverged`; after the code/test work it was ahead by 1305 commits and behind by 127 commits.
+The branch comparison remained `diverged`; after the initial code/test work it was ahead by 1305 commits and behind by 127 commits.
 
 The starting head already contained the first provider-agnostic original-scene request builder tests. This change set consolidates that work into a measured local-runtime bridge rather than creating another image-provider-specific architecture.
 
@@ -19,6 +19,8 @@ The starting head already contained the first provider-agnostic original-scene r
 Change Set 142 successfully carried the story-specific Visual Concept into the provider-neutral Generation Package and FLUX portable handoff. A newer provider-agnostic seam then introduced `OriginalSceneRequest`, runtime qualification and fail-closed admission contracts, but those contracts were not yet connected to the existing measured `$0-local` runtime/readiness stack.
 
 Without that connection, a future image model could be described abstractly but not admitted using the same runtime evidence already used by Phase 18, while the current FLUX path would remain a separate special case.
+
+A second integration issue was found while binding the new seam: `VisualConceptDecision.forbidden_motifs` mixes model-visible pixel constraints with orchestration-only policies such as avoiding source-news pixels. Passing that mixed list directly into a model constraint compiler would either leak non-generation policy into prompting or force valid requests to fail. The request builder now normalizes only synthesis-owned constraints before runtime admission.
 
 ### Added
 
@@ -37,7 +39,18 @@ Some of the original-scene contract/builder files were already present on the br
 
 ### Modified
 
-No existing production runtime, publication runtime, Golden quality gate, semantic gate, Fact Lock, identity gate or `main` file was modified by the new local bridge work in this turn.
+- `engine/intelligence/original_scene_request_builder.py`
+  - normalizes generation constraints instead of forwarding all high-level visual-concept motifs;
+  - reserves `sport_geometry` alongside text, platform identity, score and crest roles;
+  - emits canonical no-brand/no-text and single-scene constraints;
+  - adds non-identifying venue/person constraints only for atmosphere synthesis where applicable;
+  - avoids applying a `no real-person depiction` rule to identity-conditioned requests that deliberately use verified identity references.
+- `tests/test_phase18_original_scene_request_builder.py`
+  - verifies the normalized generation-only constraint boundary and the new sport-geometry reservation.
+- `engine/intelligence/original_scene_local_bridge.py`
+  - recognizes the normalized single-scene/collage exclusion and preserves fail-closed constraint translation.
+
+No production publication runtime, Golden quality gate, semantic gate, Fact Lock, identity gate or `main` file was modified.
 
 ### Deleted
 
@@ -62,7 +75,7 @@ Current FLUX.2 Klein 4B may qualify for atmosphere synthesis when the measured C
 
 Neither admission nor compilation can set publication readiness true.
 
-## Tests added
+## Tests added/updated
 
 Regression coverage now verifies:
 
@@ -75,7 +88,10 @@ Regression coverage now verifies:
 - no protected platform name in the generation prompt;
 - generated brand/exact-fact/sport-geometry authority remains false;
 - readiness provider/model drift rejection;
-- unknown forbidden claims cannot be silently dropped.
+- unknown forbidden claims cannot be silently dropped;
+- orchestration-only visual motifs do not leak into runtime constraints;
+- atmosphere requests retain non-identifying venue/person constraints;
+- identity-conditioned requests do not receive a contradictory `no real-person depiction` constraint.
 
 ## Safety and publication gates preserved
 
