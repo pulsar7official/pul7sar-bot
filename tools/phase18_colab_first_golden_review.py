@@ -8,8 +8,8 @@ a visual automatically, and never grants Golden or publication authority.
 The command intentionally stops after preparing the exact SHA-bound human-review
 bundle and its decision template:
 
-Candidate 1 -> provenance -> Hybrid handoff -> BASE_SCENE/HYBRID_SURFACE QA ->
-human-review bundle -> human-review template.
+Original Scene admission -> Candidate 1 -> provenance -> Hybrid handoff ->
+BASE_SCENE/HYBRID_SURFACE QA -> human-review bundle -> human-review template.
 
 Seeds 2-4 are never requested by this tool.
 """
@@ -26,6 +26,7 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_SMOKE = ROOT / "output" / "phase18_gpu_smoke"
 COLAB_SUMMARY = ROOT / "output" / "phase18_colab" / "latest.json"
+ORIGINAL_SCENE_ADMISSION = GPU_SMOKE / "original-scene-runtime-admission.json"
 CONTINUATION = GPU_SMOKE / "hybrid-semantic-continuation.json"
 REVIEW_BUNDLE = GPU_SMOKE / "hybrid-human-review-bundle.json"
 REVIEW_TEMPLATE = GPU_SMOKE / "hybrid-human-review-template.json"
@@ -102,19 +103,44 @@ def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> 
 
     GPU_SMOKE.mkdir(parents=True, exist_ok=True)
 
-    # 1) Generate/reuse Candidate 1 only. phase18_first_png.py already enforces
-    # repository integrity, CUDA/BF16, Qwen preflight, FLUX snapshot locks and
-    # provenance postflight before it reports success.
-    first_png = _run_json(
+    # 1) Admit the measured local runtime for the provider-neutral Original Scene
+    # contract, then generate/reuse Candidate 1 through the already hardened
+    # first-PNG path. The wrapper preserves repository integrity, CUDA/BF16,
+    # Qwen preflight, FLUX snapshot locks and provenance postflight.
+    original_scene_run = _run_json(
         [
             sys.executable,
-            str(ROOT / "tools" / "phase18_first_png.py"),
+            str(ROOT / "tools" / "phase18_first_png_original_scene.py"),
+            "--admission-receipt",
+            str(ORIGINAL_SCENE_ADMISSION),
             "--worker-id",
             worker_id,
             "--timeout-seconds",
             str(timeout_seconds),
         ],
-        label="FIRST_GOLDEN_CANDIDATE",
+        label="FIRST_GOLDEN_ORIGINAL_SCENE_CANDIDATE",
+    )
+    if original_scene_run.get("status") != "FIRST_GOLDEN_PNG_ORIGINAL_SCENE_PATH_COMPLETE":
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_PATH_NOT_COMPLETE")
+    admission = original_scene_run.get("original_scene_admission")
+    first_png = original_scene_run.get("first_png")
+    if not isinstance(admission, dict) or not isinstance(first_png, dict):
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_EVIDENCE_MISSING")
+    if admission.get("status") != "GOLDEN_ORIGINAL_SCENE_RUNTIME_ADMITTED":
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_NOT_ADMITTED")
+    if admission.get("candidate") != 1 or admission.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_IDENTITY_DRIFT")
+    if admission.get("resolved_dtype") != "bfloat16" or admission.get("runtime_ready") is not True:
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_RUNTIME_DRIFT")
+    _require_false(
+        admission,
+        "generation_authorized",
+        "queue_mutated",
+        "png_created",
+        "semantic_approved",
+        "golden_quality_approved",
+        "publication_ready",
+        label="FIRST_GOLDEN_ORIGINAL_SCENE_ADMISSION",
     )
     if first_png.get("candidate") != 1:
         raise RuntimeError("FIRST_GOLDEN_REVIEW_CANDIDATE_DRIFT")
@@ -216,12 +242,18 @@ def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> 
         if not value.is_file() or value.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
             raise RuntimeError(f"FIRST_GOLDEN_REVIEW_{label}_PNG_INVALID")
 
+    admission_receipt = _inside_root(ORIGINAL_SCENE_ADMISSION)
+    if not admission_receipt.is_file():
+        raise RuntimeError("FIRST_GOLDEN_REVIEW_ORIGINAL_SCENE_RECEIPT_MISSING")
+
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-golden-human-review-packet-v1",
+        "schema": "pul7sar-first-golden-human-review-packet-v2",
         "status": "FIRST_GOLDEN_CANDIDATE_READY_FOR_HUMAN_REVIEW",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
+        "original_scene_runtime_admission": str(admission_receipt),
+        "original_scene_runtime_admission_sha256": _sha256(admission_receipt),
         "first_png_result": str(GPU_SMOKE / "first-png-result.json"),
         "hybrid_handoff": str(GPU_SMOKE / "first-png-hybrid-handoff.json"),
         "hybrid_semantic_continuation": str(CONTINUATION),
@@ -245,7 +277,7 @@ def run(*, worker_id: str, timeout_seconds: int, packet_path: Path = PACKET) -> 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Generate Candidate 1 and stage the exact Golden Hybrid proof for explicit human review"
+        description="Generate Candidate 1 through Original Scene admission and stage the exact Golden Hybrid proof for explicit human review"
     )
     parser.add_argument("--worker-id", default="colab-first-golden-review-01")
     parser.add_argument("--timeout-seconds", type=int, default=1800)
