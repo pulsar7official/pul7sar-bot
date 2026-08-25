@@ -123,7 +123,6 @@ def particles(ea,eb,count=34):
 
 
 def jersey_mesh(mat,loc=(1.1,.4,2.55),scale=1.0):
-    # Front-facing jersey silhouette with thickness; no person/identity.
     verts=[(-1.0,0,1.0),(-1.75,0,.55),(-1.42,0,-.05),(-.92,0,.18),(-.78,0,-1.15),(.78,0,-1.15),(.92,0,.18),(1.42,0,-.05),(1.75,0,.55),(1.0,0,1.0),(.46,0,.78),(-.46,0,.78)]
     faces=[tuple(range(len(verts)))]
     mesh=bpy.data.meshes.new('jersey_mesh'); mesh.from_pydata(verts,[],faces); mesh.update(); o=bpy.data.objects.new('jersey',mesh); bpy.context.collection.objects.link(o); o.location=loc; o.scale=(scale,scale,scale); o.data.materials.append(mat)
@@ -154,7 +153,6 @@ def build_result(a,b,v):
         cube('left_id',(-3.25,.05,1.66),(1.05,.05,.025),ea,bevel=.012); cube('right_id',(3.15,.65,2.28),(1.05,.05,.025),eb,bevel=.012)
         curve_tube('energy',[(-4.4,.3,.55),(-2.5,.7,.42),(0,1.05,.35),(2.5,1.0,.45),(4.5,1.55,.70)],material('energy',(.32,.42,.55),emission=1.8),.025)
     else:
-        # Wide arena; exact score is intentionally smaller than the environment.
         for i,r in enumerate((5.3,4.45,3.6,2.75)):
             torus('arena'+str(i),(0,2,1.15+i*.65),r,.028,ea if i%2==0 else eb,(math.radians(78),0,0))
         text3d('2–2',(0,-.45,1.20),1.02,.10,steel); cube('low_stage',(0,.35,.58),(1.55,.75,.10),dark,bevel=.08)
@@ -165,15 +163,12 @@ def build_result(a,b,v):
 def build_subject(a,b,v):
     steel=material('subject_steel',(.52,.58,.64),metal=.82,rough=.18,bump=.05); dark=material('subject_dark',(.020,.026,.038),metal=.44,rough=.34,bump=.10); ea=material('sa',a,emission=4); eb=material('sb',b,emission=4)
     if v=='a':
-        # Absence: empty locker, hanger and bench are the factual metaphor.
         cube('locker',(1.55,1.45,2.6),(2.0,1.22,2.6),dark,bevel=.18); cube('locker_back',(1.55,2.55,2.6),(1.72,.06,2.25),material('backplate',(.04,.05,.065),metal=.35,rough=.38),bevel=.04)
-        curve_tube('hanger',[($.replace('x','0'))],steel) if False else None
-        # Hanger from three tubes.
+        # Empty hanger is intentionally constructed only from deterministic tubes.
         curve_tube('hanger',[(-.1,2.35,3.85),(1.55,2.35,3.2),(3.2,2.35,3.85)],steel,.025); cyl('hook',(1.55,2.35,4.02),.025,.55,steel,rot=(math.pi/2,0,0),vertices=20)
         cube('bench',(1.55,-.05,.70),(1.25,.75,.20),steel,bevel=.18); cube('absence_bar',(1.55,2.33,4.62),(1.10,.035,.025),ea,bevel=.01)
         area('locker_light',(1.55,.55,5.5),a,700,2.0,(1.55,1.5,2.4))
     else:
-        # Empty press stage: no fabricated face/person, just the context objects.
         cube('podium',(-.25,1.45,1.35),(1.6,.9,1.35),dark,bevel=.18); cube('podium_trim',(-.25,.55,2.20),(1.35,.045,.035),eb,bevel=.012)
         for i,x in enumerate((-.85,-.25,.35)):
             stem=cyl('micstem'+str(i),(x,.35,2.73),.025,.85,steel,vertices=24); stem.rotation_euler.x=math.radians(-10+i*8); sphere('mic'+str(i),(x,.20,3.15),.12,steel,segments=40)
@@ -182,62 +177,55 @@ def build_subject(a,b,v):
 
 
 def build_tactical(a,b,v):
-    sc=bpy.context.scene; cam=sc.camera; cam.location=(0,-11.2,10.4); look_at(cam,(0,1,.25)); cam.data.lens=58; cam.data.dof.aperture_fstop=5.6
-    glass=material('pitch_glass',(.022,.13,.10),metal=.32,rough=.20,bump=.03); line=material('pitch_line',(.60,.72,.76),metal=.10,rough=.25,emission=.45); ea=material('tactA',a,emission=4); eb=material('tactB',b,emission=4)
-    cube('pitch',(0,1,.00),(4.65,6,.06),glass,bevel=.05)
-    # Edge lighting, not a full decorative stadium.
-    for x in (-4.55,4.55): cube('edge'+str(x),(x,1,.095),(.025,5.85,.018),line,bevel=.005)
+    pitch=material('pitch',(0.020,.075,.055),rough=.62,bump=.18); line=material('line',(.58,.66,.68),rough=.36); ea=material('tacta',a,emission=3.6); eb=material('tactb',b,emission=3.6)
+    cube('board',(0,1,.10),(5.1,4.1,.10),pitch,bevel=.12)
+    for x in (-4.8,0,4.8): cube('vline'+str(x),(x,1,.23),(.025,3.7,.012),line,bevel=.006)
+    for y in (-2.55,1,4.55): cube('hline'+str(y),(0,y,.23),(4.8,.025,.012),line,bevel=.006)
     if v=='a':
-        for x in (-3.1,-1.45,.2,1.85,3.5): cube('corridor'+str(x),(x,1,.10),(.012,5.6,.012),line,bevel=.002)
-        pts=[(-3.0,-2.7),(-2.0,-1.0),(-.55,.3),(1.10,1.55),(2.8,3.0)]
-        for i,(x,y) in enumerate(pts): sphere('p'+str(i),(x,y+1,.30),.22,ea if i<3 else eb,segments=40)
-        curve_tube('progress',[(x,y+1,.32) for x,y in pts],material('path',a,emission=2.5),.055)
-        # directional arrow head
-        bpy.ops.mesh.primitive_cone_add(vertices=32,radius1=.22,depth=.55,location=(3.15,4.35,.34),rotation=(0,math.pi/2,0)); bpy.context.object.data.materials.append(ea)
+        pts=[(-3,-1.6),(-1.7,-.4),(-.2,.8),(1.8,2.0),(3.2,3.4)]
+        for i,(x,y) in enumerate(pts): cyl('marker'+str(i),(x,y,.34),.16,.12,ea if i<3 else eb,vertices=40)
+        curve_tube('lane',[(x,y,.42) for x,y in pts],material('lane',(.50,.56,.62),emission=1.4),.035)
     else:
-        cube('mid',(0,1,.10),(.018,5.7,.012),line,bevel=.003)
-        left=[(-2.9,-2.4),(-1.7,-.6),(-2.4,1.7)]; right=[(2.9,-2.3),(1.55,-.35),(2.35,1.8)]
-        for group,matx in ((left,ea),(right,eb)):
-            for i,(x,y) in enumerate(group): sphere('m'+str(x)+str(y),(x,y+1,.30),.23,matx,segments=40)
-            curve_tube('shape'+str(group[0][0]),[(x,y+1,.32) for x,y in group],matx,.055)
-        curve_tube('duel',[(-1.7,.4,.35),(0,1.0,.50),(1.55,.65,.35)],material('duel',(0.72,.78,.82),emission=2),.035)
+        for row,y in enumerate((-1.8,-.4,1.2,2.8)):
+            for i,x in enumerate((-3.2,-1.05,1.05,3.2)):
+                if (row+i)%2==0: cyl('shape'+str(row)+'_'+str(i),(x,y,.34),.14,.12,ea if row<2 else eb,vertices=36)
+        cube('zone',(0,.9,.27),(1.25,1.65,.025),material('zone',(.10,.18,.22),rough=.35,emission=.4),bevel=.04)
+    particles(ea,eb,18)
 
 
 def build_data(a,b,v):
-    steel=material('data_steel',(.58,.64,.71),metal=.96,rough=.12,bump=.07); dark=material('data_dark',(.025,.032,.045),metal=.58,rough=.25,bump=.06); ea=material('da',a,emission=4); eb=material('db',b,emission=4)
+    steel=material('data_steel',(.55,.60,.67),metal=.94,rough=.14,bump=.06); dark=material('data_dark',(.025,.032,.046),metal=.70,rough=.22); ea=material('da',a,emission=4.2); eb=material('db',b,emission=4.2)
     if v=='a':
-        text3d('27',(-1.55,-.05,2.72),2.72,.22,steel); cube('number_stage',(-1.45,.55,.65),(2.2,1.0,.12),dark,bevel=.10)
-        for i in range(7): cube('rank'+str(i),(2.25,1.25+i*.30,.44+i*.38),(.82,.62,.16),ea if i==6 else dark,bevel=.08)
-        for i in range(3): area('dataLight'+str(i),(-3+i*3,2,6),a if i<2 else b,600,2.2,(0,1,2))
+        text3d('87',(-.3,.2,3.05),2.25,.18,steel); cube('data_plinth',(0,1,.72),(2.5,1.5,.55),dark,bevel=.22)
+        for i,h in enumerate((.8,1.3,2.0,2.7,3.45)): cube('bar'+str(i),(-4+i*.72,2.4,h/2),(0.19,.34,h/2),ea if i>=3 else eb,bevel=.06)
     else:
-        for i,(r,z) in enumerate(((1.5,2.0),(2.35,2.35),(3.25,2.72),(4.15,3.05))): torus('orbit'+str(i),(0,1,z),r,.025,steel,(math.radians(74),0,0))
-        for i in range(10):
-            ang=i*2*math.pi/10+.16; x=math.cos(ang)*3.55; y=math.sin(ang)*2.15+1; z=2.80+math.sin(ang)*.48; sphere('drawnode'+str(i),(x,y,z),.24,ea if i%2==0 else eb,segments=48)
-        sphere('drawcore',(0,.4,2.65),.36,material('core',(.66,.72,.80),metal=.45,rough=.18,emission=1.5),segments=56)
-    particles(ea,eb,26)
+        for i,(x,z) in enumerate(((-3.6,1),(-1.8,1.6),(0,2.25),(1.8,3.0),(3.6,3.75))):
+            cube('rank'+str(i),(x,1,z),(0.72,.8,z),dark,bevel=.14); text3d(str(5-i),(x,-.02,z+.72),.62,.06,steel)
+        curve_tube('rise',[(-3.6,.1,2),(-1.8,.1,2.8),(0,.1,3.45),(1.8,.1,4.15),(3.6,.1,4.9)],ea,.045)
+    particles(ea,eb,30)
 
 
 def build_event(a,b,v):
-    steel=material('event_steel',(.52,.58,.65),metal=.82,rough=.17,bump=.05); ea=material('ea2',a,emission=4.5); eb=material('eb2',b,emission=4.5)
+    steel=material('event_steel',(.50,.56,.63),metal=.90,rough=.17,bump=.05); dark=material('event_dark',(.020,.028,.042),metal=.58,rough=.28); ea=material('ea2',a,emission=4.5); eb=material('eb2',b,emission=4.5)
     if v=='a':
-        ballmat=material('ball',(.55,.58,.61),metal=.18,rough=.30,bump=.08); sphere('sport_ball',(-1.35,.15,2.45),1.42,ballmat,segments=80)
-        # Abstract seam network, explicitly non-branded.
-        for i,rot in enumerate(((math.pi/2,0,0),(math.radians(54),0,math.radians(25)),(math.radians(72),math.radians(42),0))): torus('seam'+str(i),(-1.35,.15,2.45),1.45,.018,ea if i==0 else eb,rot)
-        cube('object_stage',(-1.35,.45,.63),(2.15,1.15,.12),material('stage',(.025,.032,.043),metal=.68,rough=.22),bevel=.10); spot('objectRim',(2.6,1.5,6.8),b,1100,.5,(-1.3,.2,2.3),.38)
+        for i,z in enumerate((1.0,1.9,2.8,3.7,4.6)):
+            torus('horizon'+str(i),(0,3,z),4.6-i*.35,.025,ea if i%2==0 else eb,(math.radians(90),0,0))
+        sphere('event_ball',(0,.25,1.45),.85,steel,segments=72); cube('event_stage',(0,1,.45),(2.3,1.5,.25),dark,bevel=.18)
     else:
-        # Luminous perspective tunnel with depth and an open horizon.
-        for i in range(9):
-            depth=4.5-i*.47; z=.72+i*.49; x=4.55-i*.33; c=ea if i%2==0 else eb
-            cube('tl'+str(i),(-x,depth,z),(.035,.08,.78),c,bevel=.01); cube('tr'+str(i),(x,depth,z),(.035,.08,.78),c,bevel=.01); cube('tt'+str(i),(0,depth,z+.78),(x,.08,.035),c,bevel=.01)
-        sphere('horizon',(0,5.0,2.1),.48,material('horizon',(0.64,.72,.82),metal=.25,rough=.18,emission=2),segments=56); spot('horizonbeam',(0,6.3,6.8),(0.72,.82,1),1300,.5,(0,4.8,2.0),.35)
-    particles(ea,eb,38)
+        for i,s in enumerate((4.7,3.8,2.9,2.0)):
+            cube('tunnel'+str(i),(0,2+i*.6,2.5),(s,.08,2.45-i*.25),dark,bevel=.10)
+            cube('edgeL'+str(i),(-s,1.9+i*.6,2.5),(.035,.05,2.1-i*.2),ea,bevel=.01); cube('edgeR'+str(i),(s,1.9+i*.6,2.5),(.035,.05,2.1-i*.2),eb,bevel=.01)
+        sphere('signal',(0,.2,1.1),.48,steel,segments=64)
+    particles(ea,eb,34)
 
 
 def main():
-    a0=parse_args(); a=rgb(a0.accent_a); b=rgb(a0.accent_b); sc,ea,eb=setup(a0.seed,a,b)
+    q=parse_args(); a=rgb(q.accent_a); b=rgb(q.accent_b); sc,_,_=setup(q.seed,a,b)
     builders={'transfer_signature':build_transfer,'result_statement':build_result,'verified_subject_news':build_subject,'tactical_board':build_tactical,'data_monument':build_data,'event_editorial':build_event}
-    if a0.family not in builders: raise SystemExit('unsupported family')
-    builders[a0.family](a,b,a0.variant)
-    out=Path(a0.output); out.parent.mkdir(parents=True,exist_ok=True); sc.render.filepath=str(out); bpy.ops.render.render(write_still=True)
+    if q.family not in builders: raise SystemExit('unsupported family: '+q.family)
+    builders[q.family](a,b,q.variant)
+    out=Path(q.output); out.parent.mkdir(parents=True,exist_ok=True); sc.render.filepath=str(out.resolve()); bpy.ops.render.render(write_still=True)
+    print(out)
+
 
 if __name__=='__main__': main()
