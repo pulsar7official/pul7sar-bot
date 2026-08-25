@@ -37,7 +37,7 @@ def main():
     budget = GenerationPromptBudget.require_fit(pipe.tokenizer, prompt, reserve_tokens=2)
 
     seeds = tuple(int(s.strip()) for s in q.seeds.split(",") if s.strip())
-    files = []
+    scenes = []
     thumbs = []
     font = ImageFont.load_default()
     for seed in seeds:
@@ -52,7 +52,21 @@ def main():
         ).images[0]
         p = out / f"result_seed_{seed}.png"
         image.save(p)
-        files.append({"seed": seed, "file": p.name})
+        scenes.append({
+            "family": family.value,
+            "file": p.name,
+            "seed": seed,
+            "sport_lock": lock.sport,
+            "semantic_anchor": lock.semantic_anchor,
+            "required_visual_cues": list(lock.required_visual_cues),
+            "forbidden_visual_cues": list(lock.forbidden_visual_cues),
+            "prompt_policy": "compact_positive_scene_ownership_fail_closed_token_budget",
+            "prompt_token_count": budget.token_count,
+            "prompt_model_max_length": budget.model_max_length,
+            "prompt_usable_limit": budget.usable_limit,
+            "generated_subject_policy": profile.generated_subject_policy,
+            "exact_layers_reserved": list(profile.exact_layers_reserved),
+        })
 
         t = image.copy().convert("RGB")
         draw = ImageDraw.Draw(t)
@@ -64,25 +78,19 @@ def main():
     rows = (len(thumbs) + cols - 1) // cols
     sheet = Image.new("RGB", (q.width * cols, q.height * rows), (12, 12, 12))
     for i, t in enumerate(thumbs):
-        x = (i % cols) * q.width
-        y = (i // cols) * q.height
-        sheet.paste(t, (x, y))
+        sheet.paste(t, ((i % cols) * q.width, (i // cols) * q.height))
     sheet_path = out / "result_seed_contact_sheet.jpg"
     sheet.save(sheet_path, quality=94)
 
     manifest = {
-        "contract": "pul7sar-result-seed-sweep-v1",
-        "family": family.value,
+        "contract": "pul7sar-result-seed-sweep-v2-provenance",
         "model": q.model,
-        "sport_lock": lock.sport,
-        "prompt_policy": "compact_positive_scene_ownership_fail_closed_token_budget",
-        "prompt_token_count": budget.token_count,
-        "prompt_usable_limit": budget.usable_limit,
-        "seeds": list(seeds),
-        "candidates": files,
-        "contact_sheet": sheet_path.name,
+        "device": "cpu",
+        "cost_mode": "$0-github-public-runner",
         "publication_ready": False,
         "human_visual_review_required": True,
+        "contact_sheet": sheet_path.name,
+        "scenes": scenes,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
