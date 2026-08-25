@@ -4,6 +4,7 @@ from engine.intelligence.editorial_headline_grammar import HeadlineTone
 from engine.intelligence.scene_complexity_policy import SurfaceVisibility
 from engine.intelligence.story_to_visual_orchestrator import StoryToVisualOrchestrator, VerifiedEditorialStory
 from engine.intelligence.story_visual_editorial import EditorialEvent, ProductionMode, VisualFamily
+from engine.intelligence.visual_concept_director import VisualConceptArchetype
 from engine.intelligence.visual_execution_route import PixelExecutionRoute
 from engine.intelligence.visual_grammar import CameraLanguage
 
@@ -71,6 +72,30 @@ class StoryToVisualOrchestratorTests(unittest.TestCase):
         self.assertNotIn("sport surface geometry", decision.visual_grammar.deterministic_elements)
         self.assertTrue(decision.visual_grammar.metadata["provider_agnostic"])
         self.assertEqual(decision.execution_route.route, PixelExecutionRoute.HYBRID_GENERATIVE)
+
+    def test_general_event_can_use_safe_non_identifying_generated_atmosphere(self):
+        decision = self.engine.decide(self.story(
+            event=EditorialEvent.PREVIEW,
+            subject="Domestic season",
+            fact_phrase="يقترب من الانطلاق",
+            story_core="verified season-opening anticipation",
+            tone=HeadlineTone.NEUTRAL,
+        ))
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE)
+        self.assertIn("non-identifying", decision.visual_concept.hero)
+        self.assertIn("specific real venue identity without verified context", decision.visual_concept.forbidden_motifs)
+        self.assertFalse(decision.visual_concept.metadata["publication_ready"])
+
+    def test_general_event_can_explicitly_disable_generated_context(self):
+        decision = self.engine.decide(self.story(
+            event=EditorialEvent.PREVIEW,
+            subject="Domestic season",
+            fact_phrase="يقترب من الانطلاق",
+            story_core="verified season-opening anticipation",
+            tone=HeadlineTone.NEUTRAL,
+            metadata={"allow_generated_context": False},
+        ))
+        self.assertEqual(decision.visual_concept.archetype, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL)
 
     def test_low_confidence_falls_back_to_verified_assets(self):
         decision = self.engine.decide(self.story(confidence=0.60))
