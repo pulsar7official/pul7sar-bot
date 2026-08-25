@@ -67,11 +67,16 @@ class ConceptRendererCapability:
 
 
 class ConceptRendererRegistry:
-    VERSION = "pul7sar-concept-renderer-registry-v3-all-local-nongenerative-implemented"
+    VERSION = "pul7sar-concept-renderer-registry-v4-photo-led-result-ladder"
 
     def __init__(self) -> None:
         implemented = ConceptRendererStatus.IMPLEMENTED
         contract = ConceptRendererStatus.CONTRACT_ONLY
+        moment_renderer = (
+            "engine.intelligence.moment_led_result_renderer",
+            "MomentLedResultRenderer",
+            "pul7sar-moment-led-result-renderer-v1",
+        )
         entries = {
             VisualConceptArchetype.HERO_ARRIVAL: ConceptRendererCapability(
                 VisualConceptArchetype.HERO_ARRIVAL, implemented, ConceptSurfaceClass.VERIFIED_ASSET_LED,
@@ -87,15 +92,15 @@ class ConceptRendererRegistry:
             ),
             VisualConceptArchetype.DECISIVE_MOMENT: ConceptRendererCapability(
                 VisualConceptArchetype.DECISIVE_MOMENT, implemented, ConceptSurfaceClass.PHOTO_LED,
-                "engine.intelligence.moment_led_result_renderer", "MomentLedResultRenderer",
-                "pul7sar-moment-led-result-renderer-v1",
-                ("verified_story_moment", "exact_score", "exact_club_assets"),
+                *moment_renderer, ("verified_story_moment", "exact_score", "exact_club_assets"),
             ),
             VisualConceptArchetype.CELEBRATION_MOMENT: ConceptRendererCapability(
                 VisualConceptArchetype.CELEBRATION_MOMENT, implemented, ConceptSurfaceClass.PHOTO_LED,
-                "engine.intelligence.moment_led_result_renderer", "MomentLedResultRenderer",
-                "pul7sar-moment-led-result-renderer-v1",
-                ("verified_story_moment", "exact_score", "exact_club_assets"),
+                *moment_renderer, ("verified_story_moment", "exact_score", "exact_club_assets"),
+            ),
+            VisualConceptArchetype.VERIFIED_MATCH_MOMENT: ConceptRendererCapability(
+                VisualConceptArchetype.VERIFIED_MATCH_MOMENT, implemented, ConceptSurfaceClass.PHOTO_LED,
+                *moment_renderer, ("verified_story_moment", "exact_score", "exact_club_assets"),
             ),
             VisualConceptArchetype.SCORE_MONUMENT: ConceptRendererCapability(
                 VisualConceptArchetype.SCORE_MONUMENT, implemented, ConceptSurfaceClass.PREMIUM_HYBRID,
@@ -136,14 +141,12 @@ class ConceptRendererRegistry:
             VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE: ConceptRendererCapability(
                 VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE, contract, ConceptSurfaceClass.LOCAL_GENERATIVE_ATMOSPHERE,
                 None, None, None, ("qualified_local_gpu_runtime", "semantic_inspection"),
-                generator_required=True,
-                network_required=False,
+                generator_required=True, network_required=False,
             ),
             VisualConceptArchetype.MINIMAL_EVENT_SYMBOL: ConceptRendererCapability(
                 VisualConceptArchetype.MINIMAL_EVENT_SYMBOL, implemented, ConceptSurfaceClass.MINIMAL_EDITORIAL,
                 "engine.intelligence.event_editorial_runtime_v2", "EventEditorialStudyRenderer",
-                "pul7sar-event-editorial-study-renderer-v1-premium-anchor",
-                (),
+                "pul7sar-event-editorial-study-renderer-v1-premium-anchor", (),
             ),
         }
         if set(entries) != set(VisualConceptArchetype):
