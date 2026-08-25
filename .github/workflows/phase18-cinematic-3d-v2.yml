@@ -11,6 +11,22 @@ permissions:
 
 jobs:
   render-cinematic-v2:
+    strategy:
+      fail-fast: false
+      matrix:
+        scene:
+          - {family: transfer_signature, variant: a, seed: 8101, a: C90B22, b: 174EA6, slug: 01-transfer-arrival}
+          - {family: transfer_signature, variant: b, seed: 8102, a: F1C40F, b: 29385B, slug: 02-transfer-signing}
+          - {family: result_statement, variant: a, seed: 8201, a: D90E25, b: 1D5EFF, slug: 03-result-duel}
+          - {family: result_statement, variant: b, seed: 8202, a: F4C400, b: 7A1538, slug: 04-result-arena}
+          - {family: verified_subject_news, variant: a, seed: 8301, a: E4312B, b: 164C8C, slug: 05-subject-absence}
+          - {family: verified_subject_news, variant: b, seed: 8302, a: 14A06F, b: 29385B, slug: 06-subject-stage}
+          - {family: tactical_board, variant: a, seed: 8401, a: E3232A, b: 2D66D4, slug: 07-tactical-corridor}
+          - {family: tactical_board, variant: b, seed: 8402, a: F0B90B, b: A5112B, slug: 08-tactical-duel}
+          - {family: data_monument, variant: a, seed: 8501, a: EF2B2D, b: 2655C7, slug: 09-data-number}
+          - {family: data_monument, variant: b, seed: 8502, a: 7834E8, b: 0FA7A0, slug: 10-data-draw}
+          - {family: event_editorial, variant: a, seed: 8601, a: E02031, b: 2457D6, slug: 11-event-object}
+          - {family: event_editorial, variant: b, seed: 8602, a: F2B705, b: 2255C5, slug: 12-event-tunnel}
     runs-on: ubuntu-24.04
     env:
       PYTHONPATH: ${{ github.workspace }}
@@ -21,13 +37,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.10'
-      - name: Install Python Blender and headless GL
+      - name: Install Blender and headless GL
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install -r requirements.txt
+          python -m pip install Pillow
           sudo apt-get update -qq
-          sudo apt-get install -y blender xvfb libegl1 libgl1-mesa-dri libglx-mesa0 mesa-utils
-      - name: Art-directed smoke render cinematic V2
+          sudo apt-get install -y blender xvfb libegl1 libgl1-mesa-dri libglx-mesa0
+      - name: Render art-directed QA frame
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -35,35 +50,36 @@ jobs:
           p=Path('tools/phase18_blender_family_scene_v2.py')
           s=p.read_text()
           s='\n'.join(line for line in s.splitlines() if '$.replace' not in line)+'\n'
-          s=s.replace("sc.render.resolution_x=1080", "sc.render.resolution_x=540")
-          s=s.replace("sc.render.resolution_y=1350", "sc.render.resolution_y=675")
-          s=s.replace("fog_volume(); compositor(sc)", "compositor(sc)")
-          s=s.replace("sc.view_settings.exposure=.35", "sc.view_settings.exposure=-.10")
-          s=s.replace("cam.data.lens=58; look_at(cam,(0,.5,2.45))", "cam.data.lens=64; cam.location=(-.65,-15.4,5.15); look_at(cam,(.15,.6,2.35))")
-          s=s.replace("cam.data.dof.aperture_fstop=3.2", "cam.data.dof.aperture_fstop=4.4")
-          s=s.replace("a,1500,4.7", "a,1050,4.7")
-          s=s.replace("b,1250,4.3", "b,900,4.3")
-          s=s.replace("(0.75,.84,.95),800", "(0.75,.84,.95),620")
-          s=s.replace("1350,.7", "900,.7")
-          s=s.replace("emission=5.2", "emission=2.4")
-          s=s.replace("fabric=material('fabric',(.055,.065,.085),rough=.65,bump=.24)", "fabric=material('fabric',(.095,.105,.125),rough=.58,bump=.18)")
-          s=s.replace("ea=material('ta',a,emission=5); eb=material('tb',b,emission=5)", "ea=material('ta',a,emission=2.2); eb=material('tb',b,emission=2.2)")
-          old="for i,(x,z) in enumerate(((-4.2,2.0),(-3.1,4.5),(3.0,4.6),(4.1,2.1))): cube('portal'+str(i),(x,1.7,z),(.09,2.8,1.15),ea if x<0 else eb,bevel=.025,rot=(0,math.radians(10 if x<0 else -10),0))"
-          new="for i,(x,z) in enumerate(((-4.55,1.55),(-3.65,4.55),(3.55,4.65),(4.55,1.70))): cube('portal'+str(i),(x,2.15,z),(.045,1.75,.62),ea if x<0 else eb,bevel=.018,rot=(0,math.radians(7 if x<0 else -7),0))"
-          s=s.replace(old,new)
-          s=s.replace("jersey_mesh(fabric,(1.0,.25,2.65),1.05)", "jersey_mesh(fabric,(.35,.45,2.72),.96); torus('collar',(.35,.30,3.48),.28,.045,steel,(math.radians(90),0,0))")
-          s=s.replace("[(-.65,.17,1.45),(.2,.12,1.34),(1.55,.16,1.48)]", "[(-1.05,.30,1.62),(.10,.24,1.52),(1.35,.29,1.65)]")
-          s=s.replace("cube('destination_stone',(2.9,1.5,.65),(1.45,1.25,.62),steel,bevel=.20,rot=(0,0,.11))", "cube('destination_stone',(2.75,2.05,.55),(1.28,1.05,.52),steel,bevel=.20,rot=(0,0,.10)); cube('destination_light',(2.75,.92,1.08),(1.02,.025,.022),eb,bevel=.008)")
-          s=s.replace("particles(ea,eb,32)", "particles(ea,eb,18)")
+          patches={
+            "sc.render.resolution_x=1080":"sc.render.resolution_x=540",
+            "sc.render.resolution_y=1350":"sc.render.resolution_y=675",
+            "fog_volume(); compositor(sc)":"compositor(sc)",
+            "sc.view_settings.exposure=.35":"sc.view_settings.exposure=-.10",
+            "cam.data.lens=58; look_at(cam,(0,.5,2.45))":"cam.data.lens=64; cam.location=(-.65,-15.4,5.15); look_at(cam,(.15,.6,2.35))",
+            "cam.data.dof.aperture_fstop=3.2":"cam.data.dof.aperture_fstop=4.4",
+            "a,1500,4.7":"a,1050,4.7",
+            "b,1250,4.3":"b,900,4.3",
+            "(0.75,.84,.95),800":"(0.75,.84,.95),620",
+            "1350,.7":"900,.7",
+            "emission=5.2":"emission=2.4",
+            "fabric=material('fabric',(.055,.065,.085),rough=.65,bump=.24)":"fabric=material('fabric',(.095,.105,.125),rough=.58,bump=.18)",
+            "ea=material('ta',a,emission=5); eb=material('tb',b,emission=5)":"ea=material('ta',a,emission=2.2); eb=material('tb',b,emission=2.2)",
+            "for i,(x,z) in enumerate(((-4.2,2.0),(-3.1,4.5),(3.0,4.6),(4.1,2.1))): cube('portal'+str(i),(x,1.7,z),(.09,2.8,1.15),ea if x<0 else eb,bevel=.025,rot=(0,math.radians(10 if x<0 else -10),0))":"for i,(x,z) in enumerate(((-4.55,1.55),(-3.65,4.55),(3.55,4.65),(4.55,1.70))): cube('portal'+str(i),(x,2.15,z),(.045,1.75,.62),ea if x<0 else eb,bevel=.018,rot=(0,math.radians(7 if x<0 else -7),0))",
+            "jersey_mesh(fabric,(1.0,.25,2.65),1.05)":"jersey_mesh(fabric,(.35,.45,2.72),.96); torus('collar',(.35,.30,3.48),.28,.045,steel,(math.radians(90),0,0))",
+            "[(-.65,.17,1.45),(.2,.12,1.34),(1.55,.16,1.48)]":"[(-1.05,.30,1.62),(.10,.24,1.52),(1.35,.29,1.65)]",
+            "cube('destination_stone',(2.9,1.5,.65),(1.45,1.25,.62),steel,bevel=.20,rot=(0,0,.11))":"cube('destination_stone',(2.75,2.05,.55),(1.28,1.05,.52),steel,bevel=.20,rot=(0,0,.10)); cube('destination_light',(2.75,.92,1.08),(1.02,.025,.022),eb,bevel=.008)",
+            "particles(ea,eb,32)":"particles(ea,eb,18)"
+          }
+          for old,new in patches.items(): s=s.replace(old,new)
           p.write_text(s)
           PY
           python -m py_compile tools/phase18_blender_family_scene_v2.py
-          mkdir -p artifacts/phase18/cinematic-v2-smoke/base
-          xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v2.py -- --family transfer_signature --variant a --seed 8101 --accent-a C90B22 --accent-b 174EA6 --output artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png
-          test -s artifacts/phase18/cinematic-v2-smoke/base/01-transfer-arrival.png
+          mkdir -p out
+          xvfb-run -a blender -b --python-exit-code 1 --python tools/phase18_blender_family_scene_v2.py -- --family '${{ matrix.scene.family }}' --variant '${{ matrix.scene.variant }}' --seed '${{ matrix.scene.seed }}' --accent-a '${{ matrix.scene.a }}' --accent-b '${{ matrix.scene.b }}' --output 'out/${{ matrix.scene.slug }}.png'
+          test -s 'out/${{ matrix.scene.slug }}.png'
       - uses: actions/upload-artifact@v7
         with:
-          name: phase18-cinematic-3d-v2-smoke
-          path: artifacts/phase18/cinematic-v2-smoke/base/
+          name: cinematic-v2-${{ matrix.scene.slug }}
+          path: out/${{ matrix.scene.slug }}.png
           if-no-files-found: error
           retention-days: 3
