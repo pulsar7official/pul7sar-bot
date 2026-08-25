@@ -58,7 +58,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             calls.append("QWEN_PREFETCH")
             return True
 
-        with tempfile.TemporaryDirectory() as temp, (
+        with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
             patch.object(bootstrap, "_run_json", side_effect=fake_run_json),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime", side_effect=fake_repair),
