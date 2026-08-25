@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
+from engine.intelligence.generated_base_provenance import GeneratedBaseProvenance
 from engine.intelligence.hybrid_final_composer import HybridFinalCompositionPlan
 from engine.intelligence.hybrid_scene_composition import LayerOwner
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
@@ -45,8 +46,8 @@ class HybridPixelRequest:
     club_crest_a: VerifiedRasterAsset | None = None
     club_crest_b: VerifiedRasterAsset | None = None
     verified_subject: VerifiedRasterAsset | None = None
-    generated_base_verified_unbranded: bool = False
-    generated_base_verified_no_readable_facts: bool = False
+    generated_base_provenance: GeneratedBaseProvenance | None = None
+    study_test_override: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,14 +57,15 @@ class HybridPixelReceipt:
     width: int
     height: int
     generated_base_used: bool
+    provenance_verified: bool
     brand_applied: bool
     verified_assets_applied: tuple[str, ...]
     publication_ready: bool = False
-    contract: str = "pul7sar-hybrid-pixel-composer-v1"
+    contract: str = "pul7sar-hybrid-pixel-composer-v2-provenance"
 
 
 class HybridPixelComposer:
-    CONTRACT = "pul7sar-hybrid-pixel-composer-v1"
+    CONTRACT = "pul7sar-hybrid-pixel-composer-v2-provenance"
 
     @staticmethod
     def _asset_required(plan: HybridFinalCompositionPlan, name: str) -> bool:
@@ -100,10 +102,16 @@ class HybridPixelComposer:
         req.plan.validate()
         if req.plan.family is EditorialSceneFamily.TACTICAL_BOARD:
             raise ValueError("TACTICAL_USES_DETERMINISTIC_RENDERER_NOT_HYBRID_PIXEL_COMPOSER")
-        if not req.generated_base_verified_unbranded:
-            raise ValueError("GENERATED_BASE_NOT_VERIFIED_UNBRANDED")
-        if not req.generated_base_verified_no_readable_facts:
-            raise ValueError("GENERATED_BASE_NOT_VERIFIED_FACT_FREE")
+
+        provenance_verified = False
+        if req.generated_base_provenance is not None:
+            req.generated_base_provenance.validate_for(
+                family=req.plan.family,
+                image_path=req.generated_base_path,
+            )
+            provenance_verified = True
+        elif not req.study_test_override:
+            raise ValueError("GENERATED_BASE_PROVENANCE_REQUIRED")
 
         base_path = Path(req.generated_base_path)
         if not base_path.is_file():
@@ -141,11 +149,13 @@ class HybridPixelComposer:
             canvas.alpha_composite(plate.filter(ImageFilter.GaussianBlur(max(1, w // 800))))
             draw = ImageDraw.Draw(canvas, "RGBA")
             draw.text((score_x, score_y), req.primary_value, font=score_font, fill=(245, 247, 249, 248), anchor="mm")
-            label_font = self._fit(draw, max(req.primary_label, req.secondary_label, key=len), req.font_path, int(w * .30), max(22, int(w * .035)), 18)
-            if req.primary_label:
-                draw.text((int(w * .18), int(h * .75)), req.primary_label.upper(), font=label_font, fill=(239, 242, 245, 230), anchor="lm")
-            if req.secondary_label:
-                draw.text((int(w * .82), int(h * .75)), req.secondary_label.upper(), font=label_font, fill=(239, 242, 245, 230), anchor="rm")
+            labels = tuple(x for x in (req.primary_label, req.secondary_label) if x)
+            if labels:
+                label_font = self._fit(draw, max(labels, key=len), req.font_path, int(w * .30), max(22, int(w * .035)), 18)
+                if req.primary_label:
+                    draw.text((int(w * .18), int(h * .75)), req.primary_label.upper(), font=label_font, fill=(239, 242, 245, 230), anchor="lm")
+                if req.secondary_label:
+                    draw.text((int(w * .82), int(h * .75)), req.secondary_label.upper(), font=label_font, fill=(239, 242, 245, 230), anchor="rm")
 
         applied = []
         if req.club_crest_a:
@@ -176,6 +186,7 @@ class HybridPixelComposer:
         digest = sha256(out.read_bytes()).hexdigest()
         return HybridPixelReceipt(
             output_path=str(out), output_sha256=digest, width=w, height=h,
-            generated_base_used=True, brand_applied=brand_applied,
-            verified_assets_applied=tuple(applied), publication_ready=False,
+            generated_base_used=True, provenance_verified=provenance_verified,
+            brand_applied=brand_applied, verified_assets_applied=tuple(applied),
+            publication_ready=False,
         )
