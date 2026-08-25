@@ -28,15 +28,15 @@ class OriginalScenePromptProfile:
         "verified real-person identity",
         "exact sport geometry",
     )
-    contract: str = "pul7sar-original-scene-prompt-profile-v5-identity-sparse"
+    contract: str = "pul7sar-original-scene-prompt-profile-v6-composition-aware"
 
 
 class OriginalScenePromptProfileRegistry:
     _MAP = {
         EditorialSceneFamily.RESULT_STATEMENT: OriginalScenePromptProfile(
             EditorialSceneFamily.RESULT_STATEMENT,
-            "Premium cinematic post-match stadium atmosphere framed upward across a vast roof and deep spectator seating bowl, luminous floodlight haze, layered dark architecture, subtle crowd-light texture, dramatic asymmetric shadow foreground and broad clean editorial negative space, realistic night photography, neutral architectural surfaces.",
-            "roof, stands, light, haze and anonymous spectator texture only; sport geometry, participants, score and identity are separate layers",
+            "Premium cinematic post-match football stadium interior at night, monumental roof structure and deep spectator bowl, luminous floodlight haze, dramatic architectural symmetry broken by one asymmetric shadow edge, dark clean lower-third architectural foreground reserved as a calm result stage, layered realistic venue depth, restrained crowd-light texture, realistic editorial photography, neutral materials.",
+            "roof, stands, light, haze, anonymous spectator texture and blank lower result-stage architecture only; sport geometry, participants, score and identity are separate layers",
         ),
         EditorialSceneFamily.TRANSFER_SIGNATURE: OriginalScenePromptProfile(
             EditorialSceneFamily.TRANSFER_SIGNATURE,
