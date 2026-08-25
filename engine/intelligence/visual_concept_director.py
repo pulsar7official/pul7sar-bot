@@ -2,10 +2,9 @@
 
 This layer chooses the *idea of the picture* before any renderer is selected.
 It prevents a family renderer from becoming the visual concept by default.
-A result can be moment-led, celebration-led or score-led; a transfer can be
-hero-arrival or symbolic; event editorial can be photographic, safely generative
-or minimal. Exact facts, identities, readable copy and PUL7SAR branding remain
-deterministic.
+Result coverage prioritizes verified decisive action, celebration and real match
+moments before score-led fallback. Exact facts, identities, readable copy and
+PUL7SAR branding remain deterministic.
 """
 from __future__ import annotations
 
@@ -22,6 +21,7 @@ class VisualConceptArchetype(str, Enum):
     SYMBOLIC_SIGNING_REVEAL = "symbolic_signing_reveal"
     DECISIVE_MOMENT = "decisive_moment"
     CELEBRATION_MOMENT = "celebration_moment"
+    VERIFIED_MATCH_MOMENT = "verified_match_moment"
     SCORE_MONUMENT = "score_monument"
     VERIFIED_PORTRAIT = "verified_portrait"
     VERIFIED_EVIDENCE_DETAIL = "verified_evidence_detail"
@@ -36,6 +36,7 @@ class VisualConceptArchetype(str, Enum):
 class VisualConceptSignals:
     verified_subject_asset: bool = False
     verified_action_photo: bool = False
+    verified_match_photo: bool = False
     verified_celebration_photo: bool = False
     verified_context_photo: bool = False
     verified_detail_asset: bool = False
@@ -53,6 +54,8 @@ class VisualConceptSignals:
             raise ValueError("score_margin must be non-negative")
         if self.verified_action_photo and not self.verified_subject_asset:
             raise ValueError("verified action photo requires verified subject provenance")
+        if self.verified_match_photo and not self.verified_subject_asset:
+            raise ValueError("verified match photo requires verified subject provenance")
         if self.verified_celebration_photo and not self.verified_subject_asset:
             raise ValueError("verified celebration photo requires verified subject provenance")
         if self.story_requires_pitch and not self.exact_tactical_data:
@@ -116,7 +119,7 @@ class VisualConceptDirector:
                 family, VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL,
                 hero="one verified transfer symbol or exact club object",
                 environment="minimal premium reveal with strong negative space",
-                assets=("exact_club_assets", "verified_context_photo_optional"),
+                assets=("verified_nonperson_transfer_detail", "exact_club_assets"),
                 rationale="without a publishable verified subject, stay symbolic rather than fabricate a person",
             )
 
@@ -138,6 +141,15 @@ class VisualConceptDirector:
                     assets=("verified_celebration_photo", "exact_club_assets", "exact_score"),
                     rationale="a verified celebration carries more emotional truth than a generic stadium background",
                     extra_forbidden=("humiliation or collapse imagery for losing side",),
+                )
+            if signals.verified_match_photo:
+                return self._decision(
+                    family, VisualConceptArchetype.VERIFIED_MATCH_MOMENT,
+                    hero="verified photographic moment from the actual match",
+                    environment="real match texture with restrained exact result overlay",
+                    assets=("verified_match_photo", "exact_club_assets", "exact_score"),
+                    rationale="a truthful match photograph is visually richer and more specific than generic stadium atmosphere even when it is not the decisive action",
+                    extra_forbidden=("claiming non-decisive match photo depicts decisive goal", "mandatory stadium background"),
                 )
             return self._decision(
                 family, VisualConceptArchetype.SCORE_MONUMENT,
@@ -203,21 +215,10 @@ class VisualConceptDirector:
             return self._decision(
                 family, VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
                 hero="story-specific non-identifying sports atmosphere",
-                environment=(
-                    "photorealistic but deliberately non-identifying sports-event world; "
-                    "deterministic layers own all exact facts"
-                ),
+                environment=("photorealistic but deliberately non-identifying sports-event world; deterministic layers own all exact facts"),
                 assets=(),
-                rationale=(
-                    "when no verified context image exists but non-factual atmosphere is safe, generate a generic event world "
-                    "without inventing a real venue, person or factual visual claim"
-                ),
-                extra_forbidden=(
-                    "specific real venue identity without verified context",
-                    "specific real-person depiction",
-                    "abstract portal as default hero",
-                    "duplicate PUL7SAR pulse motif",
-                ),
+                rationale=("when no verified context image exists but non-factual atmosphere is safe, generate a generic event world without inventing a real venue, person or factual visual claim"),
+                extra_forbidden=("specific real venue identity without verified context", "specific real-person depiction", "abstract portal as default hero", "duplicate PUL7SAR pulse motif"),
             )
         return self._decision(
             family, VisualConceptArchetype.MINIMAL_EVENT_SYMBOL,
@@ -228,17 +229,7 @@ class VisualConceptDirector:
             extra_forbidden=("generic stadium", "abstract portal as default hero", "duplicate PUL7SAR pulse motif"),
         )
 
-    def _decision(
-        self,
-        family: EditorialSceneFamily,
-        archetype: VisualConceptArchetype,
-        *,
-        hero: str,
-        environment: str,
-        assets: tuple[str, ...],
-        rationale: str,
-        extra_forbidden: tuple[str, ...] = (),
-    ) -> VisualConceptDecision:
+    def _decision(self, family: EditorialSceneFamily, archetype: VisualConceptArchetype, *, hero: str, environment: str, assets: tuple[str, ...], rationale: str, extra_forbidden: tuple[str, ...] = ()) -> VisualConceptDecision:
         return VisualConceptDecision(
             family=family,
             archetype=archetype,
@@ -247,11 +238,5 @@ class VisualConceptDirector:
             asset_priority=assets,
             forbidden_motifs=tuple(dict.fromkeys((*self._COMMON_FORBIDDEN, *extra_forbidden))),
             rationale=rationale,
-            metadata={
-                "provider_agnostic": True,
-                "concept_selected_before_renderer": True,
-                "renderer_is_not_the_visual_idea": True,
-                "brand_pulse_exclusive_to_brand_master": True,
-                "publication_ready": False,
-            },
+            metadata={"provider_agnostic": True, "concept_selected_before_renderer": True, "renderer_is_not_the_visual_idea": True, "brand_pulse_exclusive_to_brand_master": True, "publication_ready": False},
         )
