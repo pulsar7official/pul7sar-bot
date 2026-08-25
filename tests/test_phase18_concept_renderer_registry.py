@@ -37,15 +37,22 @@ class ConceptRendererRegistryTests(unittest.TestCase):
         for archetype in (
             VisualConceptArchetype.SYMBOLIC_SIGNING_REVEAL,
             VisualConceptArchetype.VERIFIED_EVIDENCE_DETAIL,
+            VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
         ):
             cap = self.registry.get(archetype)
             self.assertEqual(cap.status, ConceptRendererStatus.CONTRACT_ONLY)
             with self.assertRaisesRegex(ValueError, 'VISUAL_CONCEPT_RENDERER_NOT_IMPLEMENTED'):
                 self.registry.require_implemented(archetype)
 
-    def test_registry_never_requires_network_or_generator(self):
+    def test_local_generative_atmosphere_is_explicit_but_not_qualified(self):
+        cap = self.registry.get(VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE)
+        self.assertEqual(cap.surface_class, ConceptSurfaceClass.LOCAL_GENERATIVE_ATMOSPHERE)
+        self.assertTrue(cap.generator_required)
+        self.assertFalse(cap.network_required)
+        self.assertEqual(cap.required_asset_roles, ('qualified_local_gpu_runtime', 'semantic_inspection'))
+
+    def test_no_concept_requires_network_and_none_authorizes_publication(self):
         for capability in self.registry.snapshot():
-            self.assertFalse(capability.generator_required)
             self.assertFalse(capability.network_required)
             self.assertFalse(capability.publication_ready)
 
