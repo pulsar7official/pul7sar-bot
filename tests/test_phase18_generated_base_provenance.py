@@ -52,6 +52,34 @@ def test_valid_synthesis_manifest_binds_image_and_family(tmp_path):
     assert p.prompt_token_count <= p.prompt_usable_limit
 
 
+def test_multi_candidate_manifest_binds_exact_filename_and_seed(tmp_path):
+    a = tmp_path / "result_seed_18201.png"
+    b = tmp_path / "result_seed_18217.png"
+    Image.new("RGB", (64, 80), (10, 12, 14)).save(a)
+    Image.new("RGB", (64, 80), (20, 22, 24)).save(b)
+    manifest = tmp_path / "sweep.json"
+    scenes = []
+    for image, seed in ((a, 18201), (b, 18217)):
+        scenes.append({
+            "family": "result_statement", "file": image.name, "seed": seed,
+            "sport_lock": "association_football",
+            "prompt_policy": "compact_positive_scene_ownership_fail_closed_token_budget",
+            "prompt_token_count": 42, "prompt_usable_limit": 75,
+            "generated_subject_policy": "environment only",
+            "exact_layers_reserved": RESERVED,
+        })
+    manifest.write_text(json.dumps({
+        "contract": "pul7sar-result-seed-sweep-v2-provenance",
+        "publication_ready": False,
+        "scenes": scenes,
+    }), encoding="utf-8")
+    p = GeneratedBaseProvenance.from_manifest(
+        manifest_path=str(manifest), family=EditorialSceneFamily.RESULT_STATEMENT, image_path=str(b)
+    )
+    assert p.seed == 18217
+    assert Path(p.image_path).name == b.name
+
+
 def test_unknown_synthesis_contract_fails_closed(tmp_path):
     image, manifest = _fixture(tmp_path, contract="unknown-generator-v1")
     with pytest.raises(ValueError, match="UNTRUSTED_SYNTHESIS_CONTRACT"):
