@@ -3,8 +3,13 @@
 The compositor accepts an already generated atmosphere image and adds only exact,
 caller-supplied editorial facts plus the checksum-locked PUL7SAR reference brand.
 It deliberately does not fabricate people, crests, statistics, scores, dates or
-competition identity.  Missing optional exact assets simply stay absent; no dot,
-badge or crest placeholder is ever drawn.
+competition identity. Missing optional exact assets stay absent; no dot, badge or
+crest placeholder is drawn.
+
+Important: this compositor does not pretend it has inspected the generated base.
+Base-scene text/identity/geometry leakage stays explicitly unverified until a
+separate semantic visual gate supplies evidence. Consequently composition alone
+can never make a candidate publication-ready.
 """
 from __future__ import annotations
 
@@ -12,12 +17,9 @@ from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont
+from PIL import Image, ImageDraw, ImageFont
 
-from engine.intelligence.brand_reference_renderer import (
-    BrandReferencePlacement,
-    BrandReferenceRenderer,
-)
+from engine.intelligence.brand_reference_renderer import BrandReferencePlacement, BrandReferenceRenderer
 from engine.intelligence.hybrid_scene_contract import HybridSceneContractRegistry
 from engine.intelligence.sports_editorial_scene import EditorialSceneFamily
 
@@ -44,15 +46,19 @@ class HybridCompositionReceipt:
     exact_brand_used: bool
     fabricated_crest_used: bool
     placeholder_used: bool
-    generated_text_used: bool
+    compositor_generated_text_used: bool
     deterministic_facts_used: bool
     source_photo_used: bool
+    base_scene_semantic_verified: bool = False
+    base_scene_text_absence_verified: bool = False
+    base_scene_identity_absence_verified: bool = False
+    base_scene_geometry_absence_verified: bool = False
     publication_ready: bool = False
-    contract: str = "pul7sar-hybrid-family-compositor-v1"
+    contract: str = "pul7sar-hybrid-family-compositor-v2"
 
 
 class HybridFamilyCompositor:
-    CONTRACT = "pul7sar-hybrid-family-compositor-v1"
+    CONTRACT = "pul7sar-hybrid-family-compositor-v2"
     SIZE = (1080, 1350)
 
     @staticmethod
@@ -98,14 +104,20 @@ class HybridFamilyCompositor:
     @staticmethod
     def _readable_zone(canvas: Image.Image, *, top: int, bottom: int, strength: int = 150, reverse: bool = False):
         w, h = canvas.size
-        overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
-        pix = overlay.load()
+        top = max(0, top)
+        bottom = min(h, bottom)
         span = max(1, bottom - top)
-        for y in range(max(0, top), min(h, bottom)):
-            t = (y - top) / span
-            a = round(strength * ((1 - t) if reverse else t))
-            for x in range(w):
-                pix[x, y] = (2, 5, 10, a)
+        # Build a one-pixel-wide alpha ramp and scale it, avoiding per-pixel Python loops.
+        ramp = Image.new("L", (1, span))
+        rp = ramp.load()
+        for y in range(span):
+            t = y / max(1, span - 1)
+            rp[0, y] = round(strength * ((1 - t) if reverse else t))
+        alpha = ramp.resize((w, span), Image.Resampling.NEAREST)
+        zone = Image.new("RGBA", (w, span), (2, 5, 10, 0))
+        zone.putalpha(alpha)
+        overlay = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+        overlay.alpha_composite(zone, (0, top))
         canvas.alpha_composite(overlay)
 
     @classmethod
@@ -180,15 +192,13 @@ class HybridFamilyCompositor:
         canvas.alpha_composite(layer)
 
     def compose(self, *, base_path: str, output_path: str, facts: HybridEditorialFacts, repository_root: str | Path | None = None) -> HybridCompositionReceipt:
-        HybridSceneContractRegistry.get(facts.family)  # Fail if family ownership is undefined.
+        HybridSceneContractRegistry.get(facts.family)
         base = Path(base_path)
         if not base.is_file():
             raise FileNotFoundError(base)
         with Image.open(base) as src:
             canvas = self._fit_cover(src.convert("RGB"), self.SIZE)
-        # Subtle optical integration: generated atmosphere stays intact; overlays get a coherent grade.
-        grade = Image.new("RGBA", self.SIZE, (4, 8, 15, 18))
-        canvas.alpha_composite(grade)
+        canvas.alpha_composite(Image.new("RGBA", self.SIZE, (4, 8, 15, 18)))
 
         if facts.family is EditorialSceneFamily.RESULT_STATEMENT:
             self._result(canvas, facts)
@@ -207,15 +217,11 @@ class HybridFamilyCompositor:
         target.parent.mkdir(parents=True, exist_ok=True)
         prebrand = target.with_suffix(".prebrand.png")
         canvas.convert("RGB").save(prebrand, "PNG")
-
-        # Exact approved-reference PUL7SAR identity; compact and deliberately secondary.
         brand_w = 250
-        brand_x = self.SIZE[0] - brand_w - 58
-        brand_y = self.SIZE[1] - 122
         BrandReferenceRenderer().render_on_file(
             base_path=str(prebrand),
             output_path=str(target),
-            placement=BrandReferencePlacement(brand_x, brand_y, brand_w),
+            placement=BrandReferencePlacement(self.SIZE[0] - brand_w - 58, self.SIZE[1] - 122, brand_w),
             accent_hex=facts.accent_hex,
             repository_root=repository_root,
         )
@@ -228,7 +234,11 @@ class HybridFamilyCompositor:
             exact_brand_used=True,
             fabricated_crest_used=False,
             placeholder_used=False,
-            generated_text_used=False,
+            compositor_generated_text_used=False,
             deterministic_facts_used=True,
             source_photo_used=False,
+            base_scene_semantic_verified=False,
+            base_scene_text_absence_verified=False,
+            base_scene_identity_absence_verified=False,
+            base_scene_geometry_absence_verified=False,
         )
