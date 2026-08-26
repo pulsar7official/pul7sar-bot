@@ -22,10 +22,10 @@ from tools.phase18_colab_one_command import _review_editorial_base
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
-EXPECTED_HANDOFF_STATUS = "COLAB_REAL_EDITORIAL_BASE_GENERATED"
+EXPECTED_HANDOFF_STATUS = "COLAB_REAL_GOLDEN_EDITORIAL_GENERATED"
 ACCEPTED_HANDOFF_STATUSES = {
     EXPECTED_HANDOFF_STATUS,
-    "COLAB_GOLDEN_BASE_ALREADY_EXISTS",
+    "COLAB_GOLDEN_EDITORIAL_ALREADY_EXISTS",
 }
 EXPECTED_MANIFEST = "pul7sar-golden-batch-v6"
 LATEST = ROOT / "output" / "phase18_colab" / "latest.json"
@@ -73,6 +73,8 @@ def _load_handoff(path: Path, *, candidate: int) -> tuple[dict[str, object], Pat
         "branch": EXPECTED_BRANCH,
         "manifest_version": EXPECTED_MANIFEST,
         "candidate": candidate,
+        "cost_mode": "$0-local",
+        "resolved_dtype": "bfloat16",
         "hybrid_surface_replacement_required": False,
         "generated_sport_geometry_allowed": False,
         "generated_branding_allowed": False,
