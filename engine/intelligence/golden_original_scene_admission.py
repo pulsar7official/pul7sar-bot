@@ -1,11 +1,10 @@
-"""Fail-closed Original Scene admission for the locked Golden Hybrid v5 candidate.
+"""Fail-closed Original Scene admission for the locked Golden editorial v6 candidate.
 
 This module binds the provider-neutral OriginalSceneRequest contract to the
-existing integrity-hashed Candidate 1 handoff and measured local readiness. It
-never generates pixels, mutates the durable queue, or grants publication
-readiness. Its only purpose is to prove that the currently selected local runtime
-is qualified to execute the same original-first visual concept before the GPU
-job may be enqueued.
+integrity-hashed Candidate 1 handoff and measured local readiness. It never
+generates pixels, mutates the durable queue, or grants publication readiness.
+For the current generic PREVIEW it also proves that sport-surface geometry is
+contextual/optional and that no deterministic pitch replacement is required.
 """
 from __future__ import annotations
 
@@ -25,6 +24,7 @@ EXPECTED_VISUAL_CONCEPT_CONTRACT = "pul7sar-visual-concept-director-v2-original-
 EXPECTED_ARCHETYPE = VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE
 EXPECTED_COST_MODE = "$0-local"
 EXPECTED_BACKEND = "diffusers"
+EXPECTED_SPORT_GEOMETRY = "contextual_optional_not_required"
 _RESERVED = ("readable_text", "pul7sar_brand", "exact_score", "club_crest", "sport_geometry")
 
 
@@ -95,6 +95,11 @@ class GoldenOriginalSceneAdmissionGate:
             "generated_branding_allowed": False,
             "generated_sport_geometry_allowed": False,
             "composition_grammar": "single_continuous_scene",
+            "hybrid_surface_replacement_required": False,
+            "visual_grammar_surface_visibility": "context_only",
+            "sport_geometry": EXPECTED_SPORT_GEOMETRY,
+            "football_camera_preset": "editorial_environmental_oblique",
+            "visual_priority": "story_focal_hierarchy_before_sport_surface",
         }
         for key, expected in expected_metadata.items():
             if metadata.get(key) != expected:
@@ -122,6 +127,7 @@ class GoldenOriginalSceneAdmissionGate:
                 "no collage or multi-panel layout",
                 "no specific identifiable real venue",
                 "no specific real-person depiction",
+                "no full-pitch master shot or central broadcast pitch framing",
             ),
             exact_fact_roles_reserved_for_compositor=_RESERVED,
             width=locked.width,
