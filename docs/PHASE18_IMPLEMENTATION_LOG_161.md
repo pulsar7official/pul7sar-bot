@@ -48,11 +48,21 @@ The hard constraints themselves are required and remain intact. The safe optimiz
 1. `tools/phase18_build_golden_handoff.py`
    - generic provider-neutral package is still built first;
    - GoldenPromptBudget is applied only to the controlled v5 benchmark before local compilation;
-   - output diagnostics now include the Golden prompt contract and character counts.
+   - benchmark identity is supplied explicitly at this trusted Golden builder boundary because the generic compiler intentionally does not propagate arbitrary benchmark-only scene metadata;
+   - output diagnostics include the Golden prompt contract and character counts.
 
 2. `engine/intelligence/local_backend_execution.py`
    - carries Golden prompt-budget audit metadata into the local portable handoff;
    - no change to zero-cost policy, constraint compilation, protected-name leak detection or exact-layer ownership.
+
+3. `engine/intelligence/golden_prompt_budget.py` after first CI feedback
+   - removed the invalid assumption that generic `GenerationPackageCompiler` propagates a `benchmark` label or a precomputed `generated_sport_geometry_allowed` field;
+   - the trusted Golden builder now supplies `benchmark_id` explicitly;
+   - geometry ownership is proven from the generic package's real `hybrid_base_scene_contract` plus `reserved_base_scene_content`, matching the existing architecture rather than inventing parallel metadata.
+
+4. `tests/test_phase18_golden_prompt_budget.py` after first CI feedback
+   - fixtures now mirror the real generic package contract;
+   - tests still fail closed for benchmark drift, branding relaxation, missing hybrid contract, or missing code-owned sport geometry.
 
 ### Deleted
 
@@ -84,7 +94,17 @@ The optimization intentionally leaves `negative_constraints` and `factual_constr
 
 ## Tests / CI
 
-A new CPU Regression suite was added and the repository's existing Phase 18 workflows were triggered by the commits. At the time this log entry was created, the final Change Set 161 CI result had not yet been confirmed; no success is claimed until GitHub reports an actual completed successful run.
+The first full Story Intelligence run for the initial implementation, run `32920828364` / run number `2794`, failed in `Syntax and discover validation` after running the Phase 18 suite. The dominant failure was not a weakened safety gate or GPU/runtime issue: `GoldenPromptBudget` expected `package.metadata["benchmark"]`, but the generic `GenerationPackageCompiler` intentionally publishes only provider-neutral execution metadata and does not propagate arbitrary scene benchmark labels. The same mismatch caused downstream Golden handoff/batch/smoke tests to fail before their intended assertions.
+
+The correction did **not** broaden the compactor. Instead:
+
+- the trusted Golden builder now supplies `GOLDEN_BENCHMARK_ID` explicitly to `GoldenPromptBudget.compact(...)`;
+- the compactor verifies generated branding remains forbidden;
+- it verifies the real hybrid-base-scene contract exists;
+- it verifies sport geometry is reserved to code through `reserved_base_scene_content`;
+- exact negative and factual constraints remain untouched.
+
+A corrected code/test head was pushed and Story Intelligence run `32921129263` / run number `2800` started. At the time of this log update it was still in progress, so no final CI success is claimed yet. Several companion workflows on the corrected head had already started, with Adaptive Brand Pixel Verification completed successfully.
 
 ## Genuine Golden PNG status
 
@@ -97,7 +117,7 @@ No new GPU image is claimed. The exact remaining execution blocker is an availab
 - pinned Qwen cache/runtime revision;
 - runtime fingerprint stability across generation.
 
-The current environment used for this implementation does not provide that compatible physical GPU execution path. Candidate 1 therefore remains ungener­ated under the newest architecture, and no fake PNG, synthetic benchmark or visual score was substituted.
+The current environment used for this implementation does not provide that compatible physical GPU execution path. Candidate 1 therefore remains ungenerated under the newest architecture, and no fake PNG, synthetic benchmark or visual score was substituted.
 
 ## Next executable path
 
