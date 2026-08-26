@@ -3,7 +3,8 @@
 This verifier binds the Colab generation summary to the durable executor result,
 registered proof PNG, proof metadata, and the immutable approved upstream FLUX
 model revision by path, identity fields, and SHA-256. It never grants semantic,
-Golden-quality, or publication approval.
+Golden-quality, or publication approval. Golden-reference BF16 and explicit T4
+FP16 engineering previews are verified as distinct provenance tiers.
 """
 from __future__ import annotations
 
@@ -47,7 +48,7 @@ def _is_sha256(value: object) -> bool:
 
 
 class GenerationProvenanceLock:
-    """Recompute durable proof hashes and bind them to one Golden candidate."""
+    """Recompute durable proof hashes and bind them to one visual candidate."""
 
     def verify(
         self,
@@ -96,8 +97,23 @@ class GenerationProvenanceLock:
                 raise RuntimeError(f"GENERATION_PROVENANCE_{key.upper()}_MISMATCH")
         if result.get("cost_mode") != EXPECTED_COST_MODE:
             raise RuntimeError("GENERATION_PROVENANCE_COST_MODE_DRIFT")
-        if result.get("resolved_dtype") != "bfloat16":
-            raise RuntimeError("GENERATION_PROVENANCE_DTYPE_DRIFT")
+
+        result_tier = result.get("precision_quality_tier", "golden_reference")
+        summary_tier = summary.get("precision_quality_tier", result_tier)
+        if summary_tier != result_tier:
+            raise RuntimeError("GENERATION_PROVENANCE_PRECISION_TIER_MISMATCH")
+        if result_tier == "golden_reference":
+            if result.get("resolved_dtype") != "bfloat16":
+                raise RuntimeError("GENERATION_PROVENANCE_DTYPE_DRIFT")
+            status = "GENERATION_PROVENANCE_LOCK_VERIFIED"
+        elif result_tier == "t4_engineering_preview":
+            if result.get("resolved_dtype") != "float16":
+                raise RuntimeError("GENERATION_PROVENANCE_PREVIEW_DTYPE_DRIFT")
+            if result.get("golden_reference_precision") is not False:
+                raise RuntimeError("GENERATION_PROVENANCE_PREVIEW_MUST_NOT_CLAIM_GOLDEN_PRECISION")
+            status = "GENERATION_PROVENANCE_ENGINEERING_PREVIEW_VERIFIED"
+        else:
+            raise RuntimeError("GENERATION_PROVENANCE_PRECISION_TIER_UNKNOWN")
 
         result_png = result.get("png")
         if not isinstance(result_png, str) or not result_png.strip():
@@ -127,7 +143,7 @@ class GenerationProvenanceLock:
             raise RuntimeError("GENERATION_PROVENANCE_METADATA_OUTPUT_MISMATCH")
 
         return {
-            "status": "GENERATION_PROVENANCE_LOCK_VERIFIED",
+            "status": status,
             "candidate": candidate,
             "request_id": summary.get("request_id"),
             "seed": summary.get("seed"),
@@ -136,6 +152,7 @@ class GenerationProvenanceLock:
             "payload_sha256": summary.get("payload_sha256"),
             "cost_mode": EXPECTED_COST_MODE,
             "resolved_dtype": result.get("resolved_dtype"),
+            "precision_quality_tier": result_tier,
             "base_png": str(proof),
             "base_png_sha256": _sha256(proof),
             "executor_result": str(executor),
