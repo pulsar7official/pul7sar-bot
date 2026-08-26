@@ -32,7 +32,7 @@ class PromptConstraintCompiler:
     _NO_SPLIT = "Use one uninterrupted photographic frame with continuous perspective and lighting across the whole canvas; do not divide the image with seams, borders, boxes, windows, or repeated frames."
     _NO_BRAND_TEXT = "Render a clean unbranded photographic base scene with no legible words, letters, numerals, platform names, sponsor writing, logos, wordmarks, watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually neutral so all exact branding and typography can be added later by deterministic post-composition."
     _NO_RESERVED_MARKINGS = "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
-    _NON_IDENTIFYING_VENUE = "Use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, or other visual cue that could imply a particular real stadium or arena."
+    _NON_IDENTIFYING_VENUE = "Treat any specific real venue identity without verified reference as forbidden; use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, or other visual cue that could imply a particular real stadium or arena."
     _NO_REAL_PERSON = "Keep the generated scene free of identifiable real people or celebrity likenesses; use crowd scale, silhouettes, or distant anonymous figures only when needed for atmosphere."
 
     _REFRAMES = {
