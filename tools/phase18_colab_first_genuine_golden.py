@@ -13,6 +13,11 @@ provenance replays against the pinned FLUX revision, and BASE_SCENE
 semantic/layer QA completed on the same bytes using the approved pinned Qwen
 semantic runtime identity. Human visual review, Golden 8.5/9.0+, exact brand,
 typography and SemanticPublicationGate remain downstream and fail-closed.
+
+The wrapper always requests --skip-update from the delegated one-command flow.
+Its caller must therefore pin and reattach the exact Phase 18 source commit
+before execution. This prevents a git pull from changing the source tree between
+workflow admission and GPU generation.
 """
 from __future__ import annotations
 
@@ -285,6 +290,7 @@ def main() -> int:
         "--candidate", "1",
         "--semantic-inspection", "qwen",
         "--strict-semantic",
+        "--skip-update",
     ]
     if args.force:
         command.append("--force")
