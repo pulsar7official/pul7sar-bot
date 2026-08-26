@@ -146,11 +146,11 @@ def build_request(*, seed: int, request_id: str):
         visual_concept=visual_concept,
     )
     # The generic compiler deliberately preserves rich editorial context for all
-    # providers. Golden v5 uses a benchmark-only compact scene description so a
-    # 4B local model is not asked to parse the same art direction repeatedly.
-    # Exact negative/factual constraints remain untouched and are still compiled
-    # by the existing provider policy below.
-    package = GoldenPromptBudget().compact(package)
+    # providers and deliberately omits benchmark-only labels. Golden v5 supplies
+    # its benchmark identity explicitly at this trusted builder boundary, then
+    # compacts only the scene prose. Exact negative/factual constraints remain
+    # untouched and are still compiled by the existing provider policy below.
+    package = GoldenPromptBudget().compact(package, benchmark_id=GOLDEN_BENCHMARK_ID)
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
         model=FLUX2_KLEIN_4B_LOCAL,
