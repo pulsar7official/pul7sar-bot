@@ -33,6 +33,16 @@ def leased_job() -> GenerationJob:
     )
 
 
+def succeeded_job() -> GenerationJob:
+    leased = leased_job()
+    running = leased.transition(GenerationJobState.RUNNING, now=NOW, attempt=1)
+    return running.transition(
+        GenerationJobState.SUCCEEDED,
+        now=NOW,
+        result_path="output/phase18_visual_proof/candidate-01.png",
+    )
+
+
 def good_evidence() -> dict[str, object]:
     return {
         "gpu": {
@@ -85,6 +95,66 @@ class LeaseBoundExecutionResourceEvidenceTests(unittest.TestCase):
             self.assertEqual(payload["payload_sha256"], SHA)
             self.assertTrue(payload["gpu"]["eligible"])
             self.assertTrue(payload["host_memory"]["ready"])
+
+    def test_replays_written_receipt_against_succeeded_attempt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = LeaseBoundExecutionResourceEvidenceStore(root / "output" / "phase18_worker_results")
+            written = store.write(
+                job=leased_job(),
+                worker_id="gpu-worker-01",
+                evidence=good_evidence(),
+                observed_at=NOW,
+            )
+            replay = store.verify(
+                path=written["path"],
+                job=succeeded_job(),
+                repository_root=root,
+            )
+            self.assertEqual(replay["attempt"], 1)
+            self.assertEqual(replay["worker_id"], "gpu-worker-01")
+            self.assertEqual(replay["sha256"], written["sha256"])
+            self.assertEqual(replay["bytes"], written["bytes"])
+            self.assertTrue(replay["gpu"]["eligible"])
+            self.assertTrue(replay["host_memory"]["ready"])
+            self.assertFalse(replay["publication_ready"])
+
+    def test_replay_rejects_identity_or_attempt_drift(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = LeaseBoundExecutionResourceEvidenceStore(root / "evidence")
+            written = store.write(
+                job=leased_job(), worker_id="gpu-worker-01", evidence=good_evidence(), observed_at=NOW
+            )
+            payload = json.loads(Path(written["path"]).read_text(encoding="utf-8"))
+            payload["attempt"] = 2
+            Path(written["path"]).write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "attempt drift"):
+                store.verify(path=written["path"], job=succeeded_job(), repository_root=root)
+
+    def test_replay_rejects_resource_values_below_recorded_floor(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            store = LeaseBoundExecutionResourceEvidenceStore(root / "evidence")
+            written = store.write(
+                job=leased_job(), worker_id="gpu-worker-01", evidence=good_evidence(), observed_at=NOW
+            )
+            payload = json.loads(Path(written["path"]).read_text(encoding="utf-8"))
+            payload["gpu"]["gpu_free_vram_gb"] = 8.0
+            Path(written["path"]).write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "required live free VRAM"):
+                store.verify(path=written["path"], job=succeeded_job(), repository_root=root)
+
+    def test_replay_rejects_repository_path_escape(self):
+        with tempfile.TemporaryDirectory() as root_dir, tempfile.TemporaryDirectory() as outside_dir:
+            outside = Path(outside_dir) / "resource.json"
+            outside.write_text("{}", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "escapes repository"):
+                LeaseBoundExecutionResourceEvidenceStore(outside.parent).verify(
+                    path=outside,
+                    job=succeeded_job(),
+                    repository_root=root_dir,
+                )
 
     def test_rejects_non_leased_job(self):
         job = leased_job().transition(GenerationJobState.RUNNING, now=NOW, attempt=1)
