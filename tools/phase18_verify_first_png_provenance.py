@@ -2,7 +2,9 @@
 """Replay provenance for one succeeded Golden Candidate 1 GPU job.
 
 This command is CPU-only and does not generate, mutate the queue, inspect
-semantics, score Golden quality, or authorize publication.
+semantics, score Golden quality, or authorize publication. It now also requires
+the lease-bound live GPU/system-RAM receipt written immediately before the
+successful FLUX attempt.
 """
 from __future__ import annotations
 
@@ -21,7 +23,7 @@ from engine.intelligence.generation_jobs import GenerationJobState
 from engine.intelligence.golden_smoke import DEFAULT_SMOKE_JOB_ID, load_first_candidate
 
 
-def _inside(root: Path, value: str) -> Path:
+def _inside(root: Path, value: str | Path) -> Path:
     path = Path(value)
     if not path.is_absolute():
         path = root / path
@@ -38,6 +40,7 @@ def main() -> int:
     parser.add_argument("--queue-root", default="output/phase18_generation_queue")
     parser.add_argument("--job-id", default=DEFAULT_SMOKE_JOB_ID)
     parser.add_argument("--executor-result", default=None)
+    parser.add_argument("--execution-resource-receipt", default=None)
     parser.add_argument("--output", default="output/phase18_gpu_smoke/first-png-provenance-postflight.json")
     args = parser.parse_args()
 
@@ -56,13 +59,27 @@ def main() -> int:
     if args.executor_result:
         executor_result = _inside(root, args.executor_result)
     else:
-        executor_result = root / "output" / "phase18_worker_results" / f"{job.job_id}-attempt-{job.attempt}.json"
+        executor_result = _inside(
+            root,
+            Path("output") / "phase18_worker_results" / f"{job.job_id}-attempt-{job.attempt}.json",
+        )
+
+    if args.execution_resource_receipt:
+        execution_resource_receipt = _inside(root, args.execution_resource_receipt)
+    else:
+        execution_resource_receipt = _inside(
+            root,
+            Path("output")
+            / "phase18_worker_results"
+            / f"{job.job_id}-attempt-{job.attempt}-execution-resource.json",
+        )
 
     receipt = FirstPngProvenancePostflight().verify(
         repository_root=root,
         candidate=candidate,
         job=job,
         executor_result=executor_result,
+        execution_resource_receipt=execution_resource_receipt,
     )
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(receipt, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
