@@ -30,6 +30,7 @@ class GoldenPromptBudgetTests(unittest.TestCase):
             metadata={
                 "generated_branding_allowed": False,
                 "generated_sport_geometry_allowed": False,
+                "sport_geometry": "contextual_optional_not_required",
                 "hybrid_surface_replacement_required": False,
                 "hybrid_base_scene_contract": True,
                 "reserved_base_scene_content": ("brand", "typography"),
@@ -47,6 +48,7 @@ class GoldenPromptBudgetTests(unittest.TestCase):
         self.assertLessEqual(len(compact.scene_prompt), GOLDEN_SCENE_PROMPT_BUDGET_CHARS)
         self.assertEqual(compact.metadata["benchmark"], GOLDEN_BENCHMARK_ID)
         self.assertEqual(compact.metadata["golden_prompt_contract"], GOLDEN_PROMPT_BUDGET_CONTRACT)
+        self.assertFalse(compact.metadata["generated_sport_geometry_allowed"])
         self.assertTrue(compact.metadata["golden_prompt_compacted"])
         self.assertTrue(compact.metadata["golden_prompt_policy_boundaries_preserved"])
 
@@ -71,19 +73,19 @@ class GoldenPromptBudgetTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             GoldenPromptBudget().compact(relaxed_brand, benchmark_id=GOLDEN_BENCHMARK_ID)
 
-        generated_surface_metadata = dict(package.metadata)
-        generated_surface_metadata["generated_sport_geometry_allowed"] = True
-        relaxed_surface = GenerationPackage(
+        geometry_metadata = dict(package.metadata)
+        geometry_metadata["sport_geometry"] = "deterministic_football_pitch_projective_v1"
+        pitch_first_geometry = GenerationPackage(
             platform=package.platform,
             canvas=package.canvas,
             scene_prompt=package.scene_prompt,
             negative_constraints=package.negative_constraints,
             asset_ids=package.asset_ids,
             factual_constraints=package.factual_constraints,
-            metadata=generated_surface_metadata,
+            metadata=geometry_metadata,
         )
         with self.assertRaises(ValueError):
-            GoldenPromptBudget().compact(relaxed_surface, benchmark_id=GOLDEN_BENCHMARK_ID)
+            GoldenPromptBudget().compact(pitch_first_geometry, benchmark_id=GOLDEN_BENCHMARK_ID)
 
         replacement_metadata = dict(package.metadata)
         replacement_metadata["hybrid_surface_replacement_required"] = True
@@ -115,6 +117,7 @@ class GoldenPromptBudgetTests(unittest.TestCase):
         self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
         self.assertFalse(request.metadata["hybrid_surface_replacement_required"])
         self.assertEqual(request.metadata["visual_grammar_surface_visibility"], "context_only")
+        self.assertEqual(request.metadata["sport_geometry"], "contextual_optional_not_required")
         lowered = request.prompt.casefold()
         required_v6_markers = (
             "one single continuous full-bleed editorial image",
