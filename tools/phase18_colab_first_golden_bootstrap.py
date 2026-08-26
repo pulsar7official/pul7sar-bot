@@ -25,6 +25,7 @@ GPU_SMOKE = ROOT / "output" / "phase18_gpu_smoke"
 GPU_HOST = ROOT / "output" / "phase18_gpu_host"
 REPOSITORY_INTEGRITY = GPU_SMOKE / "repository-integrity.json"
 HOST_QUALIFICATION = GPU_HOST / "qualification.json"
+FLUX_OFFLOAD_PREFLIGHT = GPU_SMOKE / "flux2-offload-preflight.json"
 CACHE_BUDGET = GPU_SMOKE / "first-golden-cache-budget.json"
 QWEN_MODEL_CACHE = GPU_SMOKE / "qwen-model-cache.json"
 SEALED_REVIEW = GPU_SMOKE / "first-golden-human-review-sealed.json"
@@ -146,6 +147,42 @@ def _validate_host_qualification(payload: dict[str, object]) -> None:
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_GPU_HOST_QUALIFICATION_BLOCKED: " + ", ".join(failures))
 
 
+def _validate_flux_offload(payload: dict[str, object], host: dict[str, object]) -> None:
+    failures: list[str] = []
+    if payload.get("schema") != "pul7sar-phase18-flux2-offload-preflight-v1":
+        failures.append("offload_schema_drift")
+    if payload.get("branch") != EXPECTED_BRANCH:
+        failures.append("offload_branch_drift")
+    if payload.get("ready") is not True:
+        failures.append("offload_not_ready")
+    if payload.get("model_id") != "black-forest-labs/FLUX.2-klein-4B":
+        failures.append("offload_model_identity_drift")
+    if payload.get("cost_mode") != "$0-local":
+        failures.append("offload_zero_cost_drift")
+    if payload.get("pipeline_available") is not True:
+        failures.append("offload_pipeline_not_proven")
+    host_vram = host.get("gpu_vram_gb")
+    receipt_vram = payload.get("gpu_vram_gb")
+    if not isinstance(host_vram, (int, float)) or isinstance(host_vram, bool):
+        failures.append("host_total_vram_missing_for_offload")
+    elif not isinstance(receipt_vram, (int, float)) or isinstance(receipt_vram, bool) or abs(float(host_vram) - float(receipt_vram)) > 0.01:
+        failures.append("offload_total_vram_binding_drift")
+    minimum = payload.get("model_offload_minimum_total_vram_gb")
+    if not isinstance(minimum, (int, float)) or isinstance(minimum, bool) or float(minimum) <= 0:
+        failures.append("offload_model_floor_unproven")
+    selected = payload.get("selected_safe_mode")
+    if selected not in {"sequential_cpu", "model_cpu"}:
+        failures.append("offload_safe_mode_missing")
+    if isinstance(host_vram, (int, float)) and not isinstance(host_vram, bool) and isinstance(minimum, (int, float)) and not isinstance(minimum, bool):
+        if float(host_vram) <= float(minimum) and selected != "sequential_cpu":
+            failures.append("low_vram_host_not_locked_to_sequential_offload")
+    for field in ("model_loaded", "downloads_performed", "generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"):
+        if payload.get(field) is not False:
+            failures.append(f"offload_{field}_authority_drift")
+    if failures:
+        raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_FLUX_OFFLOAD_PREFLIGHT_BLOCKED: " + ", ".join(failures))
+
+
 def _validate_qwen_cache(payload: dict[str, object]) -> None:
     if payload.get("schema") != "pul7sar-phase18-qwen-model-cache-v2" or payload.get("ready") is not True:
         raise RuntimeError("FIRST_GOLDEN_BOOTSTRAP_QWEN_MODEL_CACHE_CONTRACT_MISMATCH")
@@ -206,6 +243,19 @@ def run(
     )
     _validate_host_qualification(host)
 
+    offload = _run_json(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "phase18_preflight_flux2_offload.py"),
+            "--host-qualification",
+            str(HOST_QUALIFICATION),
+            "--output",
+            str(FLUX_OFFLOAD_PREFLIGHT),
+        ],
+        label="FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT",
+    )
+    _validate_flux_offload(offload, host)
+
     cache_budget = _run_json(
         [
             sys.executable,
@@ -255,13 +305,14 @@ def run(
     evidence = {
         "repository_integrity": _evidence_record(REPOSITORY_INTEGRITY, label="REPOSITORY_INTEGRITY"),
         "gpu_host_qualification": _evidence_record(HOST_QUALIFICATION, label="GPU_HOST_QUALIFICATION"),
+        "flux2_offload_preflight": _evidence_record(FLUX_OFFLOAD_PREFLIGHT, label="FLUX2_OFFLOAD_PREFLIGHT"),
         "first_golden_cache_budget": _evidence_record(CACHE_BUDGET, label="CACHE_BUDGET"),
         "qwen_model_cache": _evidence_record(QWEN_MODEL_CACHE, label="QWEN_MODEL_CACHE"),
         "sealed_review_receipt": _evidence_record(SEALED_REVIEW, label="SEALED_REVIEW"),
     }
 
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-golden-colab-bootstrap-v4",
+        "schema": "pul7sar-first-golden-colab-bootstrap-v5",
         "status": "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
@@ -270,6 +321,8 @@ def run(
         "gpu_host_qualification": str(HOST_QUALIFICATION),
         "gpu_free_vram_gb": host["gpu_free_vram_gb"],
         "required_vram_gb": host["required_vram_gb"],
+        "flux2_offload_preflight": str(FLUX_OFFLOAD_PREFLIGHT),
+        "flux2_safe_offload_mode": offload["selected_safe_mode"],
         "first_golden_cache_budget": str(CACHE_BUDGET),
         "qwen_model_cache": str(QWEN_MODEL_CACHE),
         "qwen_model_revision": QWEN25_VL_3B_REVISION,
@@ -279,6 +332,7 @@ def run(
         "gpu_host_eligible": True,
         "live_free_vram_proven": True,
         "native_bf16_proven": True,
+        "flux2_safe_offload_proven": True,
         "sealed_review_receipt": str(SEALED_REVIEW),
         "bootstrap_evidence": evidence,
         "review_base_png": staged["review_base_png"],
