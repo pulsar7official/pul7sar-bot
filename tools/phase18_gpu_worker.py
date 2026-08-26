@@ -18,10 +18,11 @@ from datetime import datetime, timezone
 import json
 import time
 
+from engine.intelligence.execution_resource_evidence import LeaseBoundExecutionResourceEvidenceStore
 from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe
 from engine.intelligence.flux_worker_executor import Flux2SubprocessConfig, Flux2SubprocessLockedExecutor
 from engine.intelligence.generation_job_store import FilesystemGenerationJobStore
-from engine.intelligence.generation_jobs import GenerationWorkerCapabilities
+from engine.intelligence.generation_jobs import GenerationJob, GenerationWorkerCapabilities
 from engine.intelligence.generation_worker import GenerationWorkerService
 from engine.intelligence.gpu_host_qualification import GpuHostQualificationPolicy
 from engine.intelligence.local_backend import LocalBackendReadinessGate
@@ -129,6 +130,21 @@ def _requalify_execution_host(capabilities: GenerationWorkerCapabilities) -> dic
     }
 
 
+def _record_lease_bound_execution_evidence(
+    job: GenerationJob,
+    capabilities: GenerationWorkerCapabilities,
+    evidence_store: LeaseBoundExecutionResourceEvidenceStore,
+) -> dict[str, object]:
+    """Requalify the leased job and durably seal the exact pre-FLUX resource proof."""
+    evidence = _requalify_execution_host(capabilities)
+    return evidence_store.write(
+        job=job,
+        worker_id=capabilities.worker_id,
+        evidence=evidence,
+        observed_at=datetime.now(timezone.utc),
+    )
+
+
 def _capacity_payload(report) -> dict[str, object]:
     return {
         "successful_samples": report.successful_samples,
@@ -150,6 +166,7 @@ def main() -> int:
     parser.add_argument("--worker-id", required=True)
     parser.add_argument("--queue-root", default="output/phase18_generation_queue")
     parser.add_argument("--telemetry-root", default="output/phase18_worker_telemetry")
+    parser.add_argument("--resource-evidence-root", default="output/phase18_worker_results")
     parser.add_argument("--repository-root", default=".")
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
@@ -179,6 +196,7 @@ def main() -> int:
     initial_host_memory = initial_execution_host["host_memory"]
     store = FilesystemGenerationJobStore(args.queue_root)
     telemetry = FilesystemWorkerTelemetryStore(args.telemetry_root)
+    resource_evidence = LeaseBoundExecutionResourceEvidenceStore(args.resource_evidence_root)
     estimator = GenerationCapacityEstimator()
     executor = Flux2SubprocessLockedExecutor(Flux2SubprocessConfig(
         repository_root=args.repository_root,
@@ -195,8 +213,13 @@ def main() -> int:
         require_bf16=True,
         # The cycle-level requalification below protects recovery/lease entry.
         # This lease-bound guard runs again after a concrete job is leased and
-        # immediately before it can transition to RUNNING / invoke FLUX.
-        pre_execute_guard=lambda _job: _requalify_execution_host(capabilities),
+        # immediately before it can transition to RUNNING / invoke FLUX. A
+        # tamper-evident receipt of that exact resource proof is persisted first.
+        pre_execute_guard=lambda job: _record_lease_bound_execution_evidence(
+            job,
+            capabilities,
+            resource_evidence,
+        ),
     )
 
     initial_snapshot = store.snapshot()
@@ -219,6 +242,8 @@ def main() -> int:
             "live_host_requalified": True,
             "live_host_memory_requalified": True,
             "lease_bound_pre_execute_guard": True,
+            "lease_bound_resource_evidence": True,
+            "resource_evidence_root": args.resource_evidence_root,
             "cost_mode": "$0-local",
         },
     ))
@@ -234,6 +259,8 @@ def main() -> int:
         "required_host_ram_gb": initial_host_memory.get("minimum_available_ram_gb"),
         "bf16_supported": capabilities.bf16_supported,
         "lease_bound_pre_execute_guard": True,
+        "lease_bound_resource_evidence": True,
+        "resource_evidence_root": args.resource_evidence_root,
         "provider_ids": sorted(capabilities.provider_ids),
         "model_ids": sorted(capabilities.model_ids),
         "cost_mode": "$0-local",
@@ -244,7 +271,7 @@ def main() -> int:
     while True:
         # Re-prove live VRAM, host RAM and device identity before recovery or
         # leasing can mutate durable queue state. A second combined guard runs
-        # after lease, directly before RUNNING/executor, closing the TOCTOU gap.
+        # after lease, directly before RUNNING/executor, and seals that evidence.
         execution_host = _requalify_execution_host(capabilities)
         live_host = execution_host["gpu"]
         host_memory = execution_host["host_memory"]
@@ -278,6 +305,8 @@ def main() -> int:
                     "available_host_ram_gb_before_cycle": host_memory.get("available_ram_gb"),
                     "required_host_ram_gb": host_memory.get("minimum_available_ram_gb"),
                     "lease_bound_pre_execute_guard": True,
+                    "lease_bound_resource_evidence": True,
+                    "resource_evidence_root": args.resource_evidence_root,
                     "cost_mode": "$0-local",
                 },
             ))
@@ -302,6 +331,8 @@ def main() -> int:
                 "available_host_ram_gb_before_cycle": host_memory.get("available_ram_gb"),
                 "required_host_ram_gb": host_memory.get("minimum_available_ram_gb"),
                 "lease_bound_pre_execute_guard": True,
+                "lease_bound_resource_evidence": True,
+                "resource_evidence_root": args.resource_evidence_root,
                 "cost_mode": "$0-local",
             },
         ))
@@ -323,6 +354,8 @@ def main() -> int:
             "available_host_ram_gb_before_cycle": host_memory.get("available_ram_gb"),
             "required_host_ram_gb": host_memory.get("minimum_available_ram_gb"),
             "lease_bound_pre_execute_guard": True,
+            "lease_bound_resource_evidence": True,
+            "resource_evidence_root": args.resource_evidence_root,
             "recovered_expired_jobs": list(recovery.recovered_job_ids),
             "terminal_expired_jobs": list(recovery.terminal_job_ids),
             "queue_counts": snapshot.counts,
