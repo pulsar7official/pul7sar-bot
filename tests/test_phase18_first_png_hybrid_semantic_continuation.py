@@ -32,6 +32,10 @@ class FirstPngEditorialSemanticContinuationTests(unittest.TestCase):
             "generated_branding_allowed": False,
             "visual_grammar_surface_visibility": "context_only",
             "football_camera_preset": "editorial_environmental_oblique",
+            "visual_priority": continuation.EXPECTED_VISUAL_PRIORITY,
+            "focal_anchor": continuation.EXPECTED_FOCAL_ANCHOR,
+            "copy_negative_space": continuation.EXPECTED_COPY_NEGATIVE_SPACE,
+            "brand_quiet_zone": continuation.EXPECTED_BRAND_QUIET_ZONE,
             "publication_ready": False,
             "png": str(base.resolve()),
             "base_png_sha256": sha256(base),
@@ -41,6 +45,10 @@ class FirstPngEditorialSemanticContinuationTests(unittest.TestCase):
             "candidate": 1,
             "editorial_png": str(base.resolve()),
             "visual_grammar_surface_visibility": "context_only",
+            "visual_priority": continuation.EXPECTED_VISUAL_PRIORITY,
+            "focal_anchor": continuation.EXPECTED_FOCAL_ANCHOR,
+            "copy_negative_space": continuation.EXPECTED_COPY_NEGATIVE_SPACE,
+            "brand_quiet_zone": continuation.EXPECTED_BRAND_QUIET_ZONE,
             "deterministic_pitch_applied": False,
             "pitch_replacement_required": False,
             "base_scene_layer_gate": {"allowed": True, "inspection_complete": True, "blockers": []},
@@ -66,14 +74,61 @@ class FirstPngEditorialSemanticContinuationTests(unittest.TestCase):
                 patch.object(continuation, "_review_editorial_base", return_value=result),
             ):
                 receipt = continuation.run(candidate=1, handoff_path=handoff, output_path=output)
+            self.assertEqual(receipt["schema"], "pul7sar-first-png-editorial-semantic-continuation-v3")
             self.assertEqual(receipt["status"], "FIRST_GOLDEN_EDITORIAL_SEMANTIC_PROOF_READY")
             self.assertTrue(receipt["pixel_identity_preserved"])
             self.assertTrue(receipt["semantic_layer_gate_approved"])
+            self.assertTrue(receipt["composition_map_locked"])
+            self.assertEqual(receipt["visual_priority"], continuation.EXPECTED_VISUAL_PRIORITY)
+            self.assertEqual(receipt["focal_anchor"], continuation.EXPECTED_FOCAL_ANCHOR)
+            self.assertEqual(receipt["copy_negative_space"], continuation.EXPECTED_COPY_NEGATIVE_SPACE)
+            self.assertEqual(receipt["brand_quiet_zone"], continuation.EXPECTED_BRAND_QUIET_ZONE)
             self.assertFalse(receipt["deterministic_pitch_applied"])
             self.assertFalse(receipt["pitch_replacement_required"])
             self.assertFalse(receipt["golden_quality_approved"])
             self.assertFalse(receipt["publication_ready"])
             self.assertTrue(output.is_file())
+
+    def test_handoff_composition_map_drift_is_rejected_before_semantic_review(self):
+        for key, bad in (
+            ("visual_priority", "sport_surface_before_story"),
+            ("focal_anchor", "center_pitch"),
+            ("copy_negative_space", "none"),
+            ("brand_quiet_zone", "lower_right"),
+        ):
+            with self.subTest(key=key), tempfile.TemporaryDirectory(dir=".") as temp:
+                root = Path(temp)
+                handoff, result = self._fixture(root)
+                payload = json.loads(handoff.read_text(encoding="utf-8"))
+                payload[key] = bad
+                handoff.write_text(json.dumps(payload), encoding="utf-8")
+                with (
+                    patch.object(continuation, "LATEST", handoff),
+                    patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
+                    patch.object(continuation, "_review_editorial_base", return_value=result) as review,
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "EDITORIAL_CONTINUATION_HANDOFF_COMPOSITION_MAP_DRIFT"):
+                        continuation.run(candidate=1, handoff_path=handoff, output_path=root / "receipt.json")
+                    review.assert_not_called()
+
+    def test_semantic_result_composition_map_drift_is_rejected(self):
+        for key, bad in (
+            ("visual_priority", "sport_surface_before_story"),
+            ("focal_anchor", "center_pitch"),
+            ("copy_negative_space", "none"),
+            ("brand_quiet_zone", "lower_right"),
+        ):
+            with self.subTest(key=key), tempfile.TemporaryDirectory(dir=".") as temp:
+                root = Path(temp)
+                handoff, result = self._fixture(root)
+                result[key] = bad
+                with (
+                    patch.object(continuation, "LATEST", handoff),
+                    patch.object(continuation, "_branch", return_value=continuation.EXPECTED_BRANCH),
+                    patch.object(continuation, "_review_editorial_base", return_value=result),
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "EDITORIAL_CONTINUATION_SEMANTIC_RESULT_COMPOSITION_MAP_DRIFT"):
+                        continuation.run(candidate=1, handoff_path=handoff, output_path=root / "receipt.json")
 
     def test_base_semantic_failure_is_fail_closed(self):
         with tempfile.TemporaryDirectory(dir=".") as temp:
