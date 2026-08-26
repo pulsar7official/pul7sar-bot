@@ -55,13 +55,14 @@ The hard constraints themselves are required and remain intact. The safe optimiz
    - carries Golden prompt-budget audit metadata into the local portable handoff;
    - no change to zero-cost policy, constraint compilation, protected-name leak detection or exact-layer ownership.
 
-3. `engine/intelligence/golden_prompt_budget.py` after first CI feedback
+3. `engine/intelligence/golden_prompt_budget.py` after CI feedback
    - removed the invalid assumption that generic `GenerationPackageCompiler` propagates a `benchmark` label or a precomputed `generated_sport_geometry_allowed` field;
    - the trusted Golden builder now supplies `benchmark_id` explicitly;
-   - geometry ownership is proven from the generic package's real `hybrid_base_scene_contract` plus `reserved_base_scene_content`, matching the existing architecture rather than inventing parallel metadata.
+   - geometry ownership is proven from the generic package's real `hybrid_base_scene_contract` plus `reserved_base_scene_content`;
+   - restored compact versions of the existing unified-scene, non-identifiable venue/person, European-football, partial-surface and no-collage policy markers required by Golden smoke/batch verification, while remaining inside the 1,200-character scene budget.
 
-4. `tests/test_phase18_golden_prompt_budget.py` after first CI feedback
-   - fixtures now mirror the real generic package contract;
+4. `tests/test_phase18_golden_prompt_budget.py` after CI feedback
+   - fixtures mirror the real generic package contract;
    - tests still fail closed for benchmark drift, branding relaxation, missing hybrid contract, or missing code-owned sport geometry.
 
 ### Deleted
@@ -94,17 +95,19 @@ The optimization intentionally leaves `negative_constraints` and `factual_constr
 
 ## Tests / CI
 
-The first full Story Intelligence run for the initial implementation, run `32920828364` / run number `2794`, failed in `Syntax and discover validation` after running the Phase 18 suite. The dominant failure was not a weakened safety gate or GPU/runtime issue: `GoldenPromptBudget` expected `package.metadata["benchmark"]`, but the generic `GenerationPackageCompiler` intentionally publishes only provider-neutral execution metadata and does not propagate arbitrary scene benchmark labels. The same mismatch caused downstream Golden handoff/batch/smoke tests to fail before their intended assertions.
+The first full Story Intelligence run for the initial implementation, run `32920828364` / run number `2794`, failed in `Syntax and discover validation`. Root cause: the first compactor implementation expected benchmark/exact-geometry fields that the generic provider-neutral `GenerationPackageCompiler` intentionally does not publish. That contract mismatch was corrected without broadening permissions.
 
-The correction did **not** broaden the compactor. Instead:
+The second Story Intelligence run, `32921129263` / run number `2800`, executed **1,173 Phase 18 tests** and failed with 5 failures / 7 errors. The new dedicated prompt-budget tests themselves all passed. The remaining failures revealed that legacy/current Golden smoke and batch verification intentionally uses exact textual safety markers as an additional fail-closed lock. Compaction had retained the equivalent rules semantically through factual/provider-positive policy but had changed some exact marker wording, causing the verifier to reject the handoff before downstream assertions.
 
-- the trusted Golden builder now supplies `GOLDEN_BENCHMARK_ID` explicitly to `GoldenPromptBudget.compact(...)`;
-- the compactor verifies generated branding remains forbidden;
-- it verifies the real hybrid-base-scene contract exists;
-- it verifies sport geometry is reserved to code through `reserved_base_scene_content`;
-- exact negative and factual constraints remain untouched.
+This second failure was corrected by restoring concise versions of the required markers directly inside the compact scene prompt, including:
 
-A corrected code/test head was pushed and Story Intelligence run `32921129263` / run number `2800` started. At the time of this log update it was still in progress, so no final CI success is claimed yet. Several companion workflows on the corrected head had already started, with Adaptive Brand Pixel Verification completed successfully.
+- `one single continuous full-bleed editorial image`;
+- `Never use collage, montage, split-screen, grid, diptych, triptych`;
+- `European football` / `season-opening`;
+- explicit non-identifiable venue and no real-person claims;
+- restrained partial sport-surface context and no full-pitch visual dominance.
+
+These phrases are safety/visual-contract markers rather than decorative prose, so they were preserved instead of weakening or rewriting the existing Golden verifier. The compact scene text remains inside the locked 1,200-character budget. A new corrected head was pushed after this finding. Final Story Intelligence CI success for that corrected head is not claimed until an actual completed successful run is observed.
 
 ## Genuine Golden PNG status
 
