@@ -37,6 +37,18 @@ class OriginalSceneLocalBridgeTests(unittest.TestCase):
             seed=7007001,
         )
 
+    def _request_with_claims(self, claims):
+        return self.request.__class__(
+            archetype=self.request.archetype,
+            runtime_kind=self.request.runtime_kind,
+            scene_intent=self.request.scene_intent,
+            emotional_tone=self.request.emotional_tone,
+            safe_negative_space=self.request.safe_negative_space,
+            forbidden_visual_claims=tuple(claims),
+            exact_fact_roles_reserved_for_compositor=self.request.exact_fact_roles_reserved_for_compositor,
+            seed=self.request.seed,
+        )
+
     def test_flux_atmosphere_runtime_qualifies_only_from_ready_cuda_evidence(self):
         runtime = OriginalSceneLocalRuntimeQualifier().qualify(
             model=FLUX2_KLEIN_4B_LOCAL,
@@ -88,6 +100,22 @@ class OriginalSceneLocalBridgeTests(unittest.TestCase):
         self.assertNotIn("pul7sar", compiled.prompt.casefold())
         self.assertNotIn("pulsar", compiled.prompt.casefold())
 
+    def test_v6_full_pitch_and_broadcast_exclusion_is_translated_not_dropped(self):
+        request = self._request_with_claims((
+            "no full-pitch master shot or central broadcast pitch framing",
+        ))
+        compiled, _ = OriginalSceneLocalBridge().compile(
+            request=request,
+            model=FLUX2_KLEIN_4B_LOCAL,
+            readiness=readiness(),
+            backend="diffusers",
+            request_id="golden-original-scene-v6-framing-001",
+        )
+        lowered = compiled.prompt.casefold()
+        self.assertIn("incidental", lowered)
+        self.assertIn("oblique", lowered)
+        self.assertIn("broadcast", lowered)
+
     def test_readiness_identity_drift_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "ORIGINAL_SCENE_LOCAL_RUNTIME_NOT_ADMITTED"):
             OriginalSceneLocalBridge().compile(
@@ -99,16 +127,7 @@ class OriginalSceneLocalBridgeTests(unittest.TestCase):
             )
 
     def test_unknown_forbidden_claim_cannot_be_silently_dropped(self):
-        request = self.request.__class__(
-            archetype=self.request.archetype,
-            runtime_kind=self.request.runtime_kind,
-            scene_intent=self.request.scene_intent,
-            emotional_tone=self.request.emotional_tone,
-            safe_negative_space=self.request.safe_negative_space,
-            forbidden_visual_claims=("mysterious unsupported visual prohibition",),
-            exact_fact_roles_reserved_for_compositor=self.request.exact_fact_roles_reserved_for_compositor,
-            seed=self.request.seed,
-        )
+        request = self._request_with_claims(("mysterious unsupported visual prohibition",))
         with self.assertRaisesRegex(ValueError, "ORIGINAL_SCENE_FORBIDDEN_CLAIM_NOT_TRANSLATED"):
             OriginalSceneLocalBridge().compile(
                 request=request,
