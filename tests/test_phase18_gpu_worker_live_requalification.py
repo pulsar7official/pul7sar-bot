@@ -87,7 +87,7 @@ class GpuWorkerLiveRequalificationTests(unittest.TestCase):
     def test_worker_requalifies_before_recovery_and_lease_execution(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
         loop = source.index("while True:")
-        requalify = source.index("_requalify_live_host(capabilities)", loop)
+        requalify = source.index("_requalify_execution_host(capabilities)", loop)
         recovery = source.index("store.recover_expired", loop)
         run_once = source.index("service.run_once", loop)
         self.assertLess(requalify, recovery)
@@ -95,15 +95,16 @@ class GpuWorkerLiveRequalificationTests(unittest.TestCase):
 
     def test_worker_binds_second_requalification_inside_leased_execution(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
-        service = source[source.index("service = GenerationWorkerService(") : source.index("initial_snapshot =", source.index("service = GenerationWorkerService("))]
+        service_start = source.index("service = GenerationWorkerService(")
+        service = source[service_start : source.index("initial_snapshot =", service_start)]
         self.assertIn("pre_execute_guard=", service)
-        self.assertIn("_requalify_live_host(capabilities)", service)
+        self.assertIn("_requalify_execution_host(capabilities)", service)
         self.assertIn("lease_bound_pre_execute_guard", source)
 
     def test_initial_requalification_occurs_before_store_creation(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
         main = source[source.index("def main()") :]
-        initial = main.index("initial_live_host = _requalify_live_host(capabilities)")
+        initial = main.index("initial_execution_host = _requalify_execution_host(capabilities)")
         store = main.index("FilesystemGenerationJobStore(")
         self.assertLess(initial, store)
 
