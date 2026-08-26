@@ -10,9 +10,9 @@ semantic receipt.
 Passing this wrapper does NOT mean Golden quality or publication approval. It
 only proves that a genuine BF16/$0-local PNG exists, its durable generation
 provenance replays against the pinned FLUX revision, and BASE_SCENE
-semantic/layer QA completed on the same bytes. Human visual review, Golden
-8.5/9.0+, exact brand, typography and SemanticPublicationGate remain downstream
-and fail-closed.
+semantic/layer QA completed on the same bytes using the approved pinned Qwen
+semantic runtime identity. Human visual review, Golden 8.5/9.0+, exact brand,
+typography and SemanticPublicationGate remain downstream and fail-closed.
 """
 from __future__ import annotations
 
@@ -42,8 +42,16 @@ STAGING_RECEIPT = ROOT / "output" / "phase18_visual_proof" / "editorial" / "cand
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+)
 from engine.intelligence.generation_provenance_lock import GenerationProvenanceLock
+from engine.intelligence.qwen25_vl_inspector import VERIFIER_ID as QWEN25_VL_VERIFIER_ID
+
+EXPECTED_QWEN_BASE_VERIFIER_ID = f"{QWEN25_VL_VERIFIER_ID}:base_scene"
 
 
 def _sha256(path: Path) -> str:
@@ -122,6 +130,25 @@ def _require_golden_generation_identity(latest: dict[str, object]) -> None:
         raise RuntimeError("FIRST_GOLDEN_PAYLOAD_SHA256_INVALID")
 
 
+def _require_pinned_semantic_identity(semantic: dict[str, object]) -> tuple[dict[str, object], dict[str, object]]:
+    runtime = semantic.get("semantic_runtime")
+    if not isinstance(runtime, dict):
+        raise RuntimeError("SEMANTIC_RUNTIME_EVIDENCE_MISSING")
+    if runtime.get("ready") is not True:
+        raise RuntimeError("SEMANTIC_RUNTIME_NOT_READY")
+    if runtime.get("model_id") != QWEN25_VL_3B_MODEL_ID:
+        raise RuntimeError("SEMANTIC_MODEL_ID_DRIFT")
+    if runtime.get("cuda_available") is not True:
+        raise RuntimeError("SEMANTIC_RUNTIME_CUDA_NOT_PROVEN")
+
+    inspection = semantic.get("semantic_visual_inspection")
+    if not isinstance(inspection, dict) or inspection.get("approved") is not True:
+        raise RuntimeError("BASE_SCENE_SEMANTIC_QA_NOT_APPROVED")
+    if inspection.get("verifier_id") != EXPECTED_QWEN_BASE_VERIFIER_ID:
+        raise RuntimeError("SEMANTIC_VERIFIER_ID_DRIFT")
+    return runtime, inspection
+
+
 def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_path: Path = SEMANTIC_RECEIPT) -> dict[str, object]:
     latest = _load_json(latest_path)
     semantic = _load_json(semantic_receipt_path)
@@ -159,9 +186,7 @@ def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_pat
     if semantic.get("pitch_replacement_required") is not False:
         raise RuntimeError("GOLDEN_V6_PREVIEW_PITCH_REPLACEMENT_REGRESSED")
 
-    semantic_visual = semantic.get("semantic_visual_inspection")
-    if not isinstance(semantic_visual, dict) or semantic_visual.get("approved") is not True:
-        raise RuntimeError("BASE_SCENE_SEMANTIC_QA_NOT_APPROVED")
+    semantic_runtime, semantic_visual = _require_pinned_semantic_identity(semantic)
     layer_gate = semantic.get("base_scene_layer_gate")
     if not isinstance(layer_gate, dict) or layer_gate.get("allowed") is not True or layer_gate.get("inspection_complete") is not True:
         raise RuntimeError("BASE_SCENE_LAYER_QA_NOT_APPROVED")
@@ -202,8 +227,9 @@ def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_pat
     if provenance.get("publication_ready") is not False:
         raise RuntimeError("FIRST_GOLDEN_PROVENANCE_CANNOT_AUTHORIZE_PUBLICATION")
 
+    semantic_receipt = _inside_repo(semantic_receipt_path)
     payload = {
-        "schema": "pul7sar-first-genuine-golden-staging-v2",
+        "schema": "pul7sar-first-genuine-golden-staging-v3",
         "status": "FIRST_GENUINE_GOLDEN_EDITORIAL_CANDIDATE_READY_FOR_HUMAN_REVIEW",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
@@ -225,8 +251,13 @@ def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_pat
         "executor_result_sha256": provenance.get("executor_result_sha256"),
         "proof_metadata": provenance.get("metadata"),
         "proof_metadata_sha256": provenance.get("metadata_sha256"),
-        "semantic_receipt": str(_inside_repo(semantic_receipt_path)),
-        "semantic_receipt_sha256": _sha256(semantic_receipt_path),
+        "semantic_receipt": str(semantic_receipt),
+        "semantic_receipt_sha256": _sha256(semantic_receipt),
+        "semantic_model_id": QWEN25_VL_3B_MODEL_ID,
+        "semantic_model_revision": QWEN25_VL_3B_REVISION,
+        "semantic_verifier_id": semantic_visual.get("verifier_id"),
+        "semantic_runtime_ready": semantic_runtime.get("ready"),
+        "semantic_cuda_available": semantic_runtime.get("cuda_available"),
         "semantic_approved": True,
         "layer_ownership_approved": True,
         "composition_map_locked": True,
