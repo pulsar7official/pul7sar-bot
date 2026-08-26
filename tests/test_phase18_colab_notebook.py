@@ -29,15 +29,17 @@ class ColabGoldenVisualNotebookTests(unittest.TestCase):
     def test_candidate_one_is_the_default_golden_runtime_probe(self):
         _, text = self.notebook_text()
         self.assertIn("candidate 1", text.casefold())
-        self.assertIn("Golden Hybrid v5", text)
+        self.assertIn("Golden Editorial v6", text)
+        self.assertIn("context-only", text.casefold())
         self.assertIn("publication remains blocked", text.casefold())
+        self.assertNotIn("Golden Hybrid v5", text)
 
     def test_review_stage_declares_strict_golden_floor(self):
         _, text = self.notebook_text()
         self.assertIn("strict Golden floor remains 8.5", text)
         self.assertIn("9.0+ is the elite target", text)
-        self.assertIn("approved PUL7SAR dynamic-brand geometry/font assets", text)
-        self.assertIn("approved editorial typography assets", text)
+        self.assertIn("Exact branding and typography are added only after the base image survives visual review", text)
+        self.assertIn("Semantic/runtime/integrity failures remain fail-closed for publication", text)
 
 
 if __name__ == "__main__":
