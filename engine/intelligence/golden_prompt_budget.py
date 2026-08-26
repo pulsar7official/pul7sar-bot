@@ -24,13 +24,12 @@ GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1200
 
 
 _COMPACT_SCENE_PROMPT = (
-    "Create one single continuous full-bleed editorial image: a premium European football season-opening environment at dusk in a deliberately non-identifying generic stadium world. "
-    "Story-specific visual concept archetype: generative_event_atmosphere. Story-specific non-identifying sports atmosphere. Must not imply a specific real venue; include no specific real-person depiction. "
-    "Build an asymmetric editorial hierarchy around one atmospheric focal anchor such as an illuminated tunnel opening, floodlight bank or luminous stand entrance, with coherent architecture, foreground depth and restrained supporter atmosphere. "
-    "Use an oblique environmental wide-to-medium-wide viewpoint, stable natural perspective and useful negative space. Turf may appear only as a minor contextual glimpse and must never become the visual subject. "
-    "No high-wide-central broadcast framing, no full-pitch master shot, no tactical diagram and no prominent centre-circle or halfway-line geometry. "
-    "Keep the base fully unbranded, including platform names. Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, framed-window, or image-within-image composition. "
-    "The visual hero is anticipation, light, depth and place rather than playing-surface geometry."
+    "Create one single continuous full-bleed editorial image: premium European football season-opening anticipation at dusk in a deliberately non-identifying generic stadium. "
+    "Use one asymmetric editorial hierarchy around a dominant atmospheric focal anchor such as an illuminated tunnel, floodlight bank or stand entrance, with layered architecture, crowd depth, realistic scale and useful negative space. "
+    "Use an oblique three-quarter environmental camera; no high-wide-central broadcast framing and no full-pitch master shot. "
+    "Do not imply a specific real venue, club, match or person. Turf is optional context only and visually subordinate; do not fabricate exact pitch markings, tactical diagrams or regulation geometry. "
+    "Keep the base fully unbranded, including platform names, readable text, numerals, logos and pseudo-text. "
+    "Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, framed-window or image-within-image composition."
 )
 
 
