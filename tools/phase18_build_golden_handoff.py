@@ -13,6 +13,11 @@ import json
 
 from engine.intelligence.assets import AssetBundle
 from engine.intelligence.generation_package import GenerationPackageCompiler
+from engine.intelligence.golden_prompt_budget import (
+    GOLDEN_PROMPT_BUDGET_CONTRACT,
+    GOLDEN_SCENE_PROMPT_BUDGET_CHARS,
+    GoldenPromptBudget,
+)
 from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContractCompiler
 from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner
@@ -140,6 +145,12 @@ def build_request(*, seed: int, request_id: str):
         visual_grammar=visual_grammar,
         visual_concept=visual_concept,
     )
+    # The generic compiler deliberately preserves rich editorial context for all
+    # providers. Golden v5 uses a benchmark-only compact scene description so a
+    # 4B local model is not asked to parse the same art direction repeatedly.
+    # Exact negative/factual constraints remain untouched and are still compiled
+    # by the existing provider policy below.
+    package = GoldenPromptBudget().compact(package)
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
         model=FLUX2_KLEIN_4B_LOCAL,
@@ -168,6 +179,10 @@ def main() -> int:
         "portable_handoff": request.metadata["portable_handoff"],
         "visual_grammar_surface_visibility": request.metadata["visual_grammar_surface_visibility"],
         "visual_concept_archetype": request.metadata["visual_concept_archetype"],
+        "golden_prompt_contract": request.metadata["golden_prompt_contract"],
+        "golden_scene_prompt_budget_chars": request.metadata["golden_scene_prompt_budget_chars"],
+        "golden_scene_prompt_chars": request.metadata["golden_scene_prompt_chars"],
+        "compiled_local_prompt_chars": len(request.prompt),
         "generated_sport_geometry_allowed": False,
         "hybrid_surface_replacement_required": True,
     }, ensure_ascii=False, indent=2))
