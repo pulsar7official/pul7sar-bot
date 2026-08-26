@@ -8,9 +8,11 @@ story-first Candidate 1 artifact recorded by both the Colab summary and the
 semantic receipt.
 
 Passing this wrapper does NOT mean Golden quality or publication approval. It
-only proves that a genuine PNG exists and that BASE_SCENE semantic/layer QA
-completed on the same bytes. Human visual review, Golden 8.5/9.0+, exact brand,
-typography and SemanticPublicationGate remain downstream and fail-closed.
+only proves that a genuine BF16/$0-local PNG exists, its durable generation
+provenance replays against the pinned FLUX revision, and BASE_SCENE
+semantic/layer QA completed on the same bytes. Human visual review, Golden
+8.5/9.0+, exact brand, typography and SemanticPublicationGate remain downstream
+and fail-closed.
 """
 from __future__ import annotations
 
@@ -29,9 +31,19 @@ EXPECTED_RECEIPT_STATUS = "GOLDEN_EDITORIAL_BASE_SEMANTICALLY_CLEAN"
 EXPECTED_FOCAL_ANCHOR = "illuminated_tunnel_lower_left"
 EXPECTED_COPY_NEGATIVE_SPACE = "right_center"
 EXPECTED_BRAND_QUIET_ZONE = "upper_left"
+EXPECTED_PROVENANCE_STATUS = "GENERATION_PROVENANCE_LOCK_VERIFIED"
+EXPECTED_COST_MODE = "$0-local"
+EXPECTED_DTYPE = "bfloat16"
+EXPECTED_PRECISION_TIER = "golden_reference"
 LATEST = ROOT / "output" / "phase18_colab" / "latest.json"
 SEMANTIC_RECEIPT = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-golden-editorial-v6-receipt.json"
 STAGING_RECEIPT = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-first-genuine-golden-staging.json"
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION
+from engine.intelligence.generation_provenance_lock import GenerationProvenanceLock
 
 
 def _sha256(path: Path) -> str:
@@ -40,6 +52,10 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _is_sha256(value: object) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(ch in "0123456789abcdefABCDEF" for ch in value)
 
 
 def _branch() -> str:
@@ -86,6 +102,26 @@ def _resolve_png(value: object) -> Path:
     return path
 
 
+def _require_golden_generation_identity(latest: dict[str, object]) -> None:
+    if latest.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("FIRST_GOLDEN_MODEL_ID_DRIFT")
+    if latest.get("generation_provenance_status") != EXPECTED_PROVENANCE_STATUS:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_STATUS_NOT_GOLDEN_REFERENCE")
+    if latest.get("provenance_resolved_dtype") != EXPECTED_DTYPE:
+        raise RuntimeError("FIRST_GOLDEN_MUST_USE_NATIVE_BFLOAT16")
+    if latest.get("provenance_precision_quality_tier") != EXPECTED_PRECISION_TIER:
+        raise RuntimeError("FIRST_GOLDEN_PRECISION_TIER_DRIFT")
+    if latest.get("provenance_cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("FIRST_GOLDEN_ZERO_COST_CONTRACT_DRIFT")
+    if not isinstance(latest.get("request_id"), str) or not str(latest.get("request_id")).strip():
+        raise RuntimeError("FIRST_GOLDEN_REQUEST_ID_MISSING")
+    seed = latest.get("seed")
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise RuntimeError("FIRST_GOLDEN_SEED_INVALID")
+    if not _is_sha256(latest.get("payload_sha256")):
+        raise RuntimeError("FIRST_GOLDEN_PAYLOAD_SHA256_INVALID")
+
+
 def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_path: Path = SEMANTIC_RECEIPT) -> dict[str, object]:
     latest = _load_json(latest_path)
     semantic = _load_json(semantic_receipt_path)
@@ -102,6 +138,7 @@ def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_pat
         raise RuntimeError("GOLDEN_V6_PREVIEW_MUST_BE_CONTEXT_ONLY")
     if latest.get("hybrid_surface_replacement_required") is not False:
         raise RuntimeError("GOLDEN_V6_PREVIEW_MUST_NOT_REQUIRE_PITCH_REPLACEMENT")
+    _require_golden_generation_identity(latest)
 
     for key, expected in (
         ("focal_anchor", EXPECTED_FOCAL_ANCHOR),
@@ -139,16 +176,55 @@ def verify_genuine_candidate(*, latest_path: Path = LATEST, semantic_receipt_pat
     if latest_sha is not None and latest_sha != png_sha:
         raise RuntimeError("GENERATION_SUMMARY_PNG_SHA256_MISMATCH")
 
+    provenance = GenerationProvenanceLock().verify(
+        repository_root=str(ROOT),
+        summary=latest,
+        base_png=str(latest_png),
+    )
+    if provenance.get("status") != EXPECTED_PROVENANCE_STATUS:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_REPLAY_NOT_GOLDEN_REFERENCE")
+    if provenance.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_MODEL_DRIFT")
+    if provenance.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_MODEL_REVISION_DRIFT")
+    if provenance.get("resolved_dtype") != EXPECTED_DTYPE:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_DTYPE_DRIFT")
+    if provenance.get("precision_quality_tier") != EXPECTED_PRECISION_TIER:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_PRECISION_TIER_DRIFT")
+    if provenance.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_COST_MODE_DRIFT")
+    if provenance.get("base_png_sha256") != png_sha:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_PNG_SHA256_DRIFT")
+    if provenance.get("request_id") != latest.get("request_id") or provenance.get("seed") != latest.get("seed"):
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_REQUEST_IDENTITY_DRIFT")
+    if provenance.get("payload_sha256") != latest.get("payload_sha256"):
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_PAYLOAD_SHA256_DRIFT")
+    if provenance.get("publication_ready") is not False:
+        raise RuntimeError("FIRST_GOLDEN_PROVENANCE_CANNOT_AUTHORIZE_PUBLICATION")
+
     payload = {
-        "schema": "pul7sar-first-genuine-golden-staging-v1",
+        "schema": "pul7sar-first-genuine-golden-staging-v2",
         "status": "FIRST_GENUINE_GOLDEN_EDITORIAL_CANDIDATE_READY_FOR_HUMAN_REVIEW",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "manifest_version": EXPECTED_MANIFEST_VERSION,
         "benchmark": EXPECTED_BENCHMARK,
+        "request_id": latest.get("request_id"),
+        "seed": latest.get("seed"),
+        "payload_sha256": latest.get("payload_sha256"),
+        "model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "model_revision": FLUX2_KLEIN_4B_REVISION,
+        "cost_mode": EXPECTED_COST_MODE,
+        "resolved_dtype": EXPECTED_DTYPE,
+        "precision_quality_tier": EXPECTED_PRECISION_TIER,
+        "generation_provenance_status": provenance.get("status"),
         "png": str(latest_png),
         "png_sha256": png_sha,
         "png_bytes": latest_png.stat().st_size,
+        "executor_result": provenance.get("executor_result"),
+        "executor_result_sha256": provenance.get("executor_result_sha256"),
+        "proof_metadata": provenance.get("metadata"),
+        "proof_metadata_sha256": provenance.get("metadata_sha256"),
         "semantic_receipt": str(_inside_repo(semantic_receipt_path)),
         "semantic_receipt_sha256": _sha256(semantic_receipt_path),
         "semantic_approved": True,
