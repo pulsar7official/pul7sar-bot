@@ -19,6 +19,8 @@ SUPPORTED_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
 }
 
+V6_SPORT_GEOMETRY = "contextual_optional_not_required"
+
 
 def verify_batch(manifest_path: str) -> dict[str, object]:
     path = Path(manifest_path)
@@ -56,7 +58,7 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
     if manifest_version == "pul7sar-golden-batch-v6":
         expected = {
             "visual_grammar_surface_visibility": "context_only",
-            "sport_geometry": "context_only_no_exact_surface_required",
+            "sport_geometry": V6_SPORT_GEOMETRY,
             "generated_sport_geometry_allowed": False,
             "hybrid_surface_replacement_required": False,
             "football_camera_preset": "editorial_environmental_oblique",
@@ -188,7 +190,7 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
                 "generated_sport_geometry_allowed": False,
                 "hybrid_surface_replacement_required": False,
                 "visual_grammar_surface_visibility": "context_only",
-                "sport_geometry": "context_only_no_exact_surface_required",
+                "sport_geometry": V6_SPORT_GEOMETRY,
                 "football_camera_preset": "editorial_environmental_oblique",
                 "visual_priority": "story_focal_hierarchy_before_sport_surface",
             }
