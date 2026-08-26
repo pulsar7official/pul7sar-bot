@@ -2,7 +2,6 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
 
 import tools.phase18_colab_first_genuine_golden as golden
 
@@ -43,9 +42,10 @@ class FirstGenuineGoldenTests(unittest.TestCase):
     def test_verified_candidate_stays_review_only(self):
         with tempfile.TemporaryDirectory(dir=golden.ROOT) as temp:
             png, latest, semantic = self._fixtures(Path(temp))
+            expected_sha = golden._sha256(png)
             payload = golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
         self.assertEqual(payload["status"], "FIRST_GENUINE_GOLDEN_EDITORIAL_CANDIDATE_READY_FOR_HUMAN_REVIEW")
-        self.assertEqual(payload["png_sha256"], golden._sha256(png))
+        self.assertEqual(payload["png_sha256"], expected_sha)
         self.assertTrue(payload["semantic_approved"])
         self.assertTrue(payload["layer_ownership_approved"])
         self.assertTrue(payload["human_visual_review_required"])
