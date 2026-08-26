@@ -35,16 +35,31 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
     candidates: list[dict[str, object]] = []
     observed_surface_visibility: str | None = None
     observed_visual_grammar_contract: str | None = None
+    observed_focal_anchor: str | None = None
+    observed_copy_space: str | None = None
+    observed_brand_quiet_zone: str | None = None
     for index, seed in enumerate(seeds, start=1):
         request_id = f"golden-season-opener-editorial-v6-{index:03d}"
         request = build_request(seed=seed, request_id=request_id)
         surface_visibility = str(request.metadata["visual_grammar_surface_visibility"])
         visual_grammar_contract = str(request.metadata["visual_grammar_contract"])
+        focal_anchor = str(request.metadata["focal_anchor"])
+        copy_space = str(request.metadata["copy_negative_space"])
+        brand_quiet_zone = str(request.metadata["brand_quiet_zone"])
         if observed_surface_visibility is None:
             observed_surface_visibility = surface_visibility
             observed_visual_grammar_contract = visual_grammar_contract
-        elif surface_visibility != observed_surface_visibility or visual_grammar_contract != observed_visual_grammar_contract:
-            raise RuntimeError("Golden candidate VisualGrammar drift detected across seeds")
+            observed_focal_anchor = focal_anchor
+            observed_copy_space = copy_space
+            observed_brand_quiet_zone = brand_quiet_zone
+        elif (
+            surface_visibility != observed_surface_visibility
+            or visual_grammar_contract != observed_visual_grammar_contract
+            or focal_anchor != observed_focal_anchor
+            or copy_space != observed_copy_space
+            or brand_quiet_zone != observed_brand_quiet_zone
+        ):
+            raise RuntimeError("Golden candidate visual-composition contract drift detected across seeds")
 
         filename = f"candidate-{index:02d}-seed-{seed}.json"
         path = target / filename
@@ -63,12 +78,18 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
             "target_canvas": f"{target_width}x{target_height}",
             "canvas_normalization_required": bool(request.metadata["canvas_normalization_required"]),
             "visual_grammar_surface_visibility": surface_visibility,
+            "focal_anchor": focal_anchor,
+            "copy_negative_space": copy_space,
         })
 
     if observed_surface_visibility != "context_only":
         raise RuntimeError(
             f"Golden v6 season-opener preview must remain context_only, found {observed_surface_visibility!r}"
         )
+    if (observed_focal_anchor, observed_copy_space, observed_brand_quiet_zone) != (
+        "illuminated_tunnel_lower_left", "right_center", "upper_left"
+    ):
+        raise RuntimeError("Golden v6 focal hierarchy drifted from the locked Instagram editorial composition")
 
     manifest = {
         "manifest_version": GOLDEN_MANIFEST_VERSION,
@@ -84,6 +105,9 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         "generated_branding_allowed": False,
         "brand_composition_policy": "dynamic_deterministic_after_generation",
         "visual_priority": "story_focal_hierarchy_before_sport_surface",
+        "focal_anchor": observed_focal_anchor,
+        "copy_negative_space": observed_copy_space,
+        "brand_quiet_zone": observed_brand_quiet_zone,
         "selection_rule": (
             "quality-first; compare focal hierarchy, atmosphere, depth, negative space and editorial coherence under identical visual grammar; "
             "never prefer a candidate merely because it exposes more playing surface or because of seed order"
@@ -114,6 +138,8 @@ def main() -> int:
         "sport_geometry": manifest["sport_geometry"],
         "hybrid_surface_replacement_required": manifest["hybrid_surface_replacement_required"],
         "generated_branding_allowed": manifest["generated_branding_allowed"],
+        "focal_anchor": manifest["focal_anchor"],
+        "copy_negative_space": manifest["copy_negative_space"],
     }, ensure_ascii=False, indent=2))
     return 0
 
