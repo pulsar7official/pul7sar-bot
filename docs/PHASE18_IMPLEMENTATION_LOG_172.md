@@ -99,7 +99,9 @@ None.
 
 The previous branch head Run `32965445031 / 2911` was inspected in full and its single failing regression assertion was identified before new feature work.
 
-New Change Set 172 commits have triggered fresh GitHub Actions runs. No CI success is claimed in this log until a current Story Intelligence Verification run completes successfully.
+Change Set 172 Story Intelligence Verification Run `32970990669 / 2927` completed with **success**. The full Phase 18 discover validation, completion/production-isolation checks, current visual-study handoffs, and Golden Hybrid v5 CPU build/integrity path all passed. Every visible companion Phase 18 workflow on the same head also completed successfully, including Composition Matrix, Data Monument, Verified Match Result, Event Editorial, Event Hybrid Context, Adaptive Brand, Result Statement, Tactical Intelligence, and Premium Hybrid Result.
+
+This CI success verifies the stronger resource-to-first-PNG provenance contract on CPU. It is not a claim that GPU generation occurred.
 
 ## Genuine Golden Visual status / exact blocker
 
