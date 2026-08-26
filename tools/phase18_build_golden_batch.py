@@ -80,6 +80,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
             "visual_grammar_surface_visibility": surface_visibility,
             "focal_anchor": focal_anchor,
             "copy_negative_space": copy_space,
+            "brand_quiet_zone": brand_quiet_zone,
         })
 
     if observed_surface_visibility != "context_only":
@@ -140,6 +141,7 @@ def main() -> int:
         "generated_branding_allowed": manifest["generated_branding_allowed"],
         "focal_anchor": manifest["focal_anchor"],
         "copy_negative_space": manifest["copy_negative_space"],
+        "brand_quiet_zone": manifest["brand_quiet_zone"],
     }, ensure_ascii=False, indent=2))
     return 0
 
