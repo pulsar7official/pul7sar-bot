@@ -54,6 +54,18 @@ class GenerationPackageCompiler:
     a diffusion prompt can itself encourage hallucinated wordmarks.
     """
 
+    _SPECIFICATION_POLICY_METADATA = (
+        "benchmark",
+        "composition_grammar",
+        "sport_geometry",
+        "generated_sport_geometry_allowed",
+        "hybrid_surface_replacement_required",
+        "football_camera_preset",
+        "generated_branding_allowed",
+        "brand_composition_policy",
+        "visual_priority",
+    )
+
     def compile(
         self,
         specification: OriginalSceneSpecification,
@@ -159,6 +171,10 @@ class GenerationPackageCompiler:
                 prompt_parts.append(
                     "Do not make a full pitch, court, rink, track, or stadium surface the visual subject. Keep sport-surface geometry out of the generated base unless incidental and non-structural; prioritize the editorial subject or story-specific environment."
                 )
+            elif visual_grammar.surface_visibility is SurfaceVisibility.CONTEXT_ONLY:
+                prompt_parts.append(
+                    "Sport-surface context is optional only. It may appear as incidental non-structural texture when it improves depth, but it must not become a required geometric layer or the visual subject."
+                )
             elif visual_grammar.surface_visibility is SurfaceVisibility.PARTIAL_DETERMINISTIC:
                 prompt_parts.append(
                     "Use at most a restrained partial sport-surface context. Do not draw exact field/court/rink markings or tactical geometry; exact sport geometry is added later by deterministic composition."
@@ -242,6 +258,9 @@ class GenerationPackageCompiler:
             "visual_concept_forbidden_motifs": visual_concept.forbidden_motifs if visual_concept else (),
             "visual_concept_publication_ready": bool(visual_concept.metadata.get("publication_ready")) if visual_concept else False,
         }
+        for key in self._SPECIFICATION_POLICY_METADATA:
+            if key in specification.metadata:
+                metadata[key] = specification.metadata[key]
 
         return GenerationPackage(
             platform=specification.platform.value,
