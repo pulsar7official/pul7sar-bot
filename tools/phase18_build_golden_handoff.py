@@ -86,14 +86,35 @@ def build_request(*, seed: int, request_id: str):
     base_contract = HybridBaseSceneContractCompiler().compile(layer_plan)
 
     assets = AssetBundle()
+    safe_area = {
+        "top": profile.safe_area.top,
+        "right": profile.safe_area.right,
+        "bottom": profile.safe_area.bottom,
+        "left": profile.safe_area.left,
+    }
     specification = OriginalSceneSpecification(
-        platform=platform.value,
+        platform=platform,
         width=profile.width,
         height=profile.height,
-        scene_description=(
-            "premium football season-opening anticipation at dusk; one asymmetric editorial hierarchy built around a dominant atmospheric focal anchor, "
-            "layered stadium architecture and crowd depth; oblique three-quarter environmental camera; turf only as subordinate context if present"
+        aspect_ratio=profile.aspect_ratio,
+        safe_area=safe_area,
+        family=scene.family.value,
+        concept=visual_concept.hero,
+        subject=None,
+        identity_reference=None,
+        environment=(
+            "premium football season-opening anticipation at dusk; layered generic stadium architecture, crowd depth, believable floodlights, "
+            "cinematic air and optional subordinate turf context"
         ),
+        composition=(
+            "one asymmetric editorial hierarchy built around a dominant atmospheric focal anchor; single continuous physical scene; "
+            "strong depth and calm negative space; no pitch-template dominance"
+        ),
+        camera_direction="oblique three-quarter environmental camera; explicitly not high-wide-central broadcast framing",
+        emotional_mood="premium anticipatory global-football energy without invented outcome or identity claims",
+        palette_strategy=None,
+        required_assets=(),
+        visual_copy=None,
         factual_constraints=(
             "the story is a general season-opening preview, not a result or a specific match",
             "the scene must remain non-identifying and must not claim a specific real venue, club or person",
@@ -113,6 +134,9 @@ def build_request(*, seed: int, request_id: str):
             "no generated branding, wordmarks, readable text, numerals or pseudo-text",
         ),
         metadata={
+            "profile_version": PlatformProfileRegistry.VERSION,
+            "crop_strategy": profile.crop_strategy,
+            "surface": profile.metadata.get("surface"),
             "benchmark": GOLDEN_BENCHMARK_ID,
             "composition_grammar": "single_continuous_scene",
             "sport_geometry": GOLDEN_SPORT_GEOMETRY,
@@ -121,16 +145,7 @@ def build_request(*, seed: int, request_id: str):
             "football_camera_preset": GOLDEN_CAMERA_PRESET,
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
-            "hybrid_surface_visibility": visual_grammar.surface_visibility.value,
-            "visual_grammar_contract": visual_grammar.metadata["contract"],
-            "visual_concept_contract": visual_concept.contract,
-            "visual_concept_archetype": visual_concept.archetype.value,
-            "visual_concept_selected_before_renderer": True,
             "visual_priority": "story_focal_hierarchy_before_sport_surface",
-            "visual_failures_addressed": (
-                "full-pitch template dominance, central broadcast framing, geometry-first composition, collage composition, generic-template fallback, "
-                "incorrect generated platform wordmark, and accidental implication of a specific real venue"
-            ),
         },
     )
     package = GenerationPackageCompiler().compile(
@@ -142,9 +157,9 @@ def build_request(*, seed: int, request_id: str):
         visual_concept=visual_concept,
     )
 
-    # GenerationPackageCompiler is intentionally generic and does not propagate
-    # arbitrary benchmark labels. Re-bind only the trusted Golden-v6 ownership
-    # fields here, after generic compilation and before benchmark compaction.
+    # GenerationPackageCompiler is intentionally generic. Re-bind only trusted
+    # Golden-v6 ownership fields after generic compilation and before benchmark
+    # compaction so the general compiler does not become benchmark-specific.
     trusted_golden_metadata = {
         "benchmark": GOLDEN_BENCHMARK_ID,
         "composition_grammar": "single_continuous_scene",
