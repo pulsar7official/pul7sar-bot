@@ -98,6 +98,59 @@ class LocalBackendExecutionTests(unittest.TestCase):
         self.assertEqual(request.metadata["visual_grammar_deterministic_elements"], ("sport surface geometry",))
         self.assertEqual(request.metadata["visual_grammar_forbidden_generated_elements"], ("brand", "exact data"))
 
+    def test_context_only_surface_forbids_exact_generated_geometry_without_forcing_replacement(self):
+        package = GenerationPackage(
+            platform="instagram_feed",
+            canvas="1080x1350",
+            scene_prompt="story-first season-opening atmosphere with incidental turf",
+            negative_constraints=("no invented pitch markings",),
+            asset_ids=(),
+            factual_constraints=("preview remains unresolved",),
+            metadata={
+                "hybrid_base_scene_contract": True,
+                "reserved_base_scene_content": ("all readable text", "all platform branding and wordmarks"),
+                "visual_grammar_contract": "pul7sar-visual-grammar-v1",
+                "visual_grammar_surface_visibility": "context_only",
+                "visual_grammar_deterministic_elements": ("brand", "typography", "exact data"),
+            },
+        )
+        request = LocalBackendRequestCompiler().compile_portable_handoff(
+            package=package,
+            model=FLUX2_KLEIN_4B_LOCAL,
+            backend="diffusers",
+            seed=7011,
+            request_id="context-only-001",
+        )
+        self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
+        self.assertFalse(request.metadata["hybrid_surface_replacement_required"])
+        self.assertEqual(request.metadata["visual_grammar_surface_visibility"], "context_only")
+
+    def test_partial_deterministic_surface_forbids_generated_geometry_and_requires_replacement(self):
+        package = GenerationPackage(
+            platform="instagram_feed",
+            canvas="1080x1350",
+            scene_prompt="football atmosphere with a reserved deterministic surface",
+            negative_constraints=("no invented pitch markings",),
+            asset_ids=(),
+            factual_constraints=("preview remains unresolved",),
+            metadata={
+                "hybrid_base_scene_contract": True,
+                "reserved_base_scene_content": ("all exact playing-surface geometry and markings",),
+                "visual_grammar_contract": "pul7sar-visual-grammar-v1",
+                "visual_grammar_surface_visibility": "partial_deterministic",
+                "visual_grammar_deterministic_elements": ("sport surface geometry",),
+            },
+        )
+        request = LocalBackendRequestCompiler().compile_portable_handoff(
+            package=package,
+            model=FLUX2_KLEIN_4B_LOCAL,
+            backend="diffusers",
+            seed=7012,
+            request_id="partial-surface-001",
+        )
+        self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
+        self.assertTrue(request.metadata["hybrid_surface_replacement_required"])
+
     def test_visual_concept_metadata_survives_provider_neutral_package_to_local_handoff(self):
         package = GenerationPackage(
             platform="instagram_feed",
