@@ -112,10 +112,10 @@ class Phase18FirstGoldenReviewWorkflowTests(unittest.TestCase):
         self.assertIn("FIRST_GOLDEN_RUNTIME_AND_REVIEW_ARTIFACT_REPLAY_VERIFIED", self.text)
 
     def test_human_golden_publication_and_seed_authority_remain_closed(self):
-        self.assertIn('runtime.get("human_visual_review_approved",', self.text)
+        gate_loop = 'for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized")'
+        self.assertGreaterEqual(self.text.count(gate_loop), 2)
         self.assertIn('receipt.get("human_visual_review_required") is not True', self.text)
         self.assertIn('receipt.get("automatic_selection_performed") is not False', self.text)
-        self.assertIn('for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized")', self.text)
         self.assertIn('"publication_ready": False', self.text)
         self.assertIn('"seeds_2_to_4_authorized": False', self.text)
 
