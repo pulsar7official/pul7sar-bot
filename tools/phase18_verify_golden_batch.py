@@ -219,8 +219,21 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         if item.get("native_canvas") != f"{request.width}x{request.height}":
             raise ValueError(f"native canvas mismatch for {request_id}")
         if manifest_version == "pul7sar-golden-batch-v6":
-            if item.get("focal_anchor") != V6_FOCAL_ANCHOR or item.get("copy_negative_space") != V6_COPY_NEGATIVE_SPACE:
-                raise ValueError(f"candidate {request_id} manifest composition metadata drifted")
+            candidate_composition = {
+                "focal_anchor": V6_FOCAL_ANCHOR,
+                "copy_negative_space": V6_COPY_NEGATIVE_SPACE,
+                "brand_quiet_zone": V6_BRAND_QUIET_ZONE,
+            }
+            failures = [
+                f"{key}={item.get(key)!r}"
+                for key, value in candidate_composition.items()
+                if item.get(key) != value
+            ]
+            if failures:
+                raise ValueError(
+                    f"candidate {request_id} manifest composition metadata drifted: "
+                    + "; ".join(failures)
+                )
         verified.append({
             "request_id": request_id,
             "seed": seed,
