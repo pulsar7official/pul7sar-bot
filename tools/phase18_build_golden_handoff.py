@@ -20,7 +20,6 @@ from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner, L
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner
 from engine.intelligence.local_backend_execution import LocalBackendRequestCompiler
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
-from engine.intelligence.models import Sentiment
 from engine.intelligence.platform_profiles import PlatformProfileRegistry, SocialPlatform
 from engine.intelligence.scene_spec import OriginalSceneSpecification
 from engine.intelligence.sport_visual_rules import SportVisualRuleRegistry
@@ -63,12 +62,10 @@ def build_request(*, seed: int, request_id: str):
         raise RuntimeError("GOLDEN_V6_PREVIEW_VISUAL_GRAMMAR_REGRESSED")
     scene = SportsEditorialSceneDirector().direct(editorial.event, visual_grammar)
 
-    layout = DeterministicLayoutPlanner().plan(
-        platform=platform,
-        sentiment=Sentiment.NEUTRAL,
-        exact_score_required=False,
-        dominant_entity=None,
-    )
+    # Layout planning is profile-first in the current Phase 18 contract. A general
+    # PREVIEW uses the default requirements (hero/logo/headline/footer, no score or
+    # crest); no result/identity semantics are smuggled into deterministic layout.
+    layout = DeterministicLayoutPlanner().plan(profile)
 
     visual_concept = VisualConceptDirector().direct(
         scene.family,
