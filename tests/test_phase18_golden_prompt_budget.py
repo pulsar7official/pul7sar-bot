@@ -118,14 +118,17 @@ class GoldenPromptBudgetTests(unittest.TestCase):
         lowered = request.prompt.casefold()
         required_v6_markers = (
             "one single continuous full-bleed editorial image",
-            "story-specific non-identifying sports atmosphere",
-            "must not imply a specific real venue",
-            "never use collage, montage, split-screen, grid, diptych, triptych",
+            "premium european football season-opening anticipation",
+            "deliberately non-identifying generic stadium",
             "asymmetric editorial hierarchy",
+            "oblique three-quarter environmental camera",
             "no high-wide-central broadcast framing",
             "no full-pitch master shot",
+            "turf is optional context only and visually subordinate",
+            "do not fabricate exact pitch markings",
             "fully unbranded",
             "platform names",
+            "never use collage, montage, split-screen, grid, diptych, triptych",
         )
         for marker in required_v6_markers:
             with self.subTest(marker=marker):
