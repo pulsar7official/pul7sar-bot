@@ -55,25 +55,32 @@ def build_request(*, seed: int, request_id: str):
     if surface_layer.source is not LayerSource.OPTIONAL or surface_layer.required:
         raise RuntimeError("GOLDEN_V6_PREVIEW_SURFACE_POLICY_REGRESSED")
 
-    scene = SportsEditorialSceneDirector().direct(editorial)
+    # Current Phase 18 editorial API order is deliberate: the approved story plan
+    # produces provider-agnostic visual grammar first; the scene family consumes
+    # that grammar; only then can the visual-concept director select picture idea.
+    visual_grammar = VisualGrammar().direct(editorial)
+    if visual_grammar.surface_visibility.value != "context_only":
+        raise RuntimeError("GOLDEN_V6_PREVIEW_VISUAL_GRAMMAR_REGRESSED")
+    scene = SportsEditorialSceneDirector().direct(editorial.event, visual_grammar)
+
     layout = DeterministicLayoutPlanner().plan(
         platform=platform,
         sentiment=Sentiment.NEUTRAL,
         exact_score_required=False,
         dominant_entity=None,
     )
-    visual_grammar = VisualGrammar.from_editorial(editorial)
-    if visual_grammar.surface_visibility.value != "context_only":
-        raise RuntimeError("GOLDEN_V6_PREVIEW_VISUAL_GRAMMAR_REGRESSED")
 
     visual_concept = VisualConceptDirector().direct(
-        editorial=editorial,
-        scene=scene,
-        signals=VisualConceptSignals(
-            has_verified_subject=False,
-            has_verified_story_moment=False,
-            has_verified_context_surface=False,
-            allow_non_identifying_generation=True,
+        scene.family,
+        VisualConceptSignals(
+            verified_subject_asset=False,
+            verified_context_photo=False,
+            exact_club_assets=False,
+            exact_tactical_data=False,
+            exact_data_anchor=False,
+            story_requires_person=False,
+            story_requires_pitch=False,
+            safe_generated_context=True,
         ),
     )
     base_contract = HybridBaseSceneContractCompiler().compile(layer_plan)
