@@ -34,6 +34,9 @@ class PromptConstraintCompiler:
     _NO_RESERVED_MARKINGS = "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
     _NON_IDENTIFYING_VENUE = "Treat any specific real venue identity without verified reference as forbidden; use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, or other visual cue that could imply a particular real stadium or arena."
     _NO_REAL_PERSON = "Keep the generated scene free of identifiable real people or celebrity likenesses; use crowd scale, silhouettes, or distant anonymous figures only when needed for atmosphere."
+    _CONTEXTUAL_TURF_ONLY = "Keep any visible football turf incidental, subordinate and non-structural; the environmental story focal point must dominate rather than a full playing surface."
+    _OBLIQUE_NOT_BROADCAST = "Use an asymmetric oblique environmental camera and avoid centered high-wide broadcast framing of the playing surface."
+    _NO_TACTICAL_GEOMETRY = "Keep any incidental turf free of prominent tactical or regulation geometry such as a centre circle, halfway line, penalty boxes, or diagram-like markings."
 
     _REFRAMES = {
         "no humiliation": "Keep every losing or secondary side dignified and respectful; focus emotional emphasis on the winner without degrading anyone.",
@@ -56,6 +59,9 @@ class PromptConstraintCompiler:
         "no football pitch markings in the reserved surface plane": _NO_RESERVED_MARKINGS,
         "no football pitch markings in the reserved surface context": _NO_RESERVED_MARKINGS,
         "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines": "Show no painted football markings in the reserved surface region: no centre circle, halfway line, penalty or goal areas, touchlines, goal lines, arcs or decorative field diagrams.",
+        "no full football pitch as the main visual subject": _CONTEXTUAL_TURF_ONLY,
+        "no centered broadcast-style pitch composition": _OBLIQUE_NOT_BROADCAST,
+        "no tactical diagram or prominent centre-circle/halfway-line geometry": _NO_TACTICAL_GEOMETRY,
         "no generated branding, wordmarks, readable text, or pseudo-text": _NO_BRAND_TEXT,
         "no generated branding, wordmarks, readable text, numerals or pseudo-text": _NO_BRAND_TEXT,
         "no specific identifiable real venue": _NON_IDENTIFYING_VENUE,
