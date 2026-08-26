@@ -20,6 +20,9 @@ SUPPORTED_MANIFEST_VERSIONS = {
 }
 
 V6_SPORT_GEOMETRY = "contextual_optional_not_required"
+V6_FOCAL_ANCHOR = "illuminated_tunnel_lower_left"
+V6_COPY_NEGATIVE_SPACE = "right_center"
+V6_BRAND_QUIET_ZONE = "upper_left"
 
 
 def verify_batch(manifest_path: str) -> dict[str, object]:
@@ -65,6 +68,9 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
             "visual_priority": "story_focal_hierarchy_before_sport_surface",
+            "focal_anchor": V6_FOCAL_ANCHOR,
+            "copy_negative_space": V6_COPY_NEGATIVE_SPACE,
+            "brand_quiet_zone": V6_BRAND_QUIET_ZONE,
         }
         failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
         if failures:
@@ -166,7 +172,10 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
                 raise ValueError(f"candidate {request_id} structured Golden Hybrid v5 ownership mismatch: " + "; ".join(failures))
         if manifest_version == "pul7sar-golden-batch-v6":
             semantic = (
-                "asymmetric editorial hierarchy",
+                "single illuminated players' tunnel mouth",
+                "lower-left to mid-left",
+                "right-center calm and low-detail",
+                "upper-left restrained",
                 "no high-wide-central broadcast framing",
                 "no full-pitch master shot",
                 "fully unbranded",
@@ -193,6 +202,9 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
                 "sport_geometry": V6_SPORT_GEOMETRY,
                 "football_camera_preset": "editorial_environmental_oblique",
                 "visual_priority": "story_focal_hierarchy_before_sport_surface",
+                "focal_anchor": V6_FOCAL_ANCHOR,
+                "copy_negative_space": V6_COPY_NEGATIVE_SPACE,
+                "brand_quiet_zone": V6_BRAND_QUIET_ZONE,
             }
             failures = [f"{key}={request.metadata.get(key)!r}" for key, value in structured.items() if request.metadata.get(key) != value]
             if failures:
@@ -206,6 +218,9 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             raise ValueError(f"target canvas mismatch for {request_id}")
         if item.get("native_canvas") != f"{request.width}x{request.height}":
             raise ValueError(f"native canvas mismatch for {request_id}")
+        if manifest_version == "pul7sar-golden-batch-v6":
+            if item.get("focal_anchor") != V6_FOCAL_ANCHOR or item.get("copy_negative_space") != V6_COPY_NEGATIVE_SPACE:
+                raise ValueError(f"candidate {request_id} manifest composition metadata drifted")
         verified.append({
             "request_id": request_id,
             "seed": seed,
@@ -232,6 +247,9 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         "generated_branding_allowed": manifest.get("generated_branding_allowed", "legacy_unspecified"),
         "brand_composition_policy": manifest.get("brand_composition_policy", "legacy_unspecified"),
         "visual_priority": manifest.get("visual_priority", "legacy_unspecified"),
+        "focal_anchor": manifest.get("focal_anchor", "legacy_unspecified"),
+        "copy_negative_space": manifest.get("copy_negative_space", "legacy_unspecified"),
+        "brand_quiet_zone": manifest.get("brand_quiet_zone", "legacy_unspecified"),
         "cost_mode": "$0-local",
         "candidate_count": len(verified),
         "candidates": verified,
