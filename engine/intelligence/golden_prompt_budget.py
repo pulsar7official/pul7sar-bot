@@ -45,23 +45,32 @@ class GoldenPromptBudget:
             raise ValueError("Golden prompt compaction requires generated branding to remain forbidden")
         if package.metadata.get("hybrid_base_scene_contract") is not True:
             raise ValueError("Golden prompt compaction requires the hybrid base-scene contract")
-        if package.metadata.get("generated_sport_geometry_allowed") is not False:
-            raise ValueError("Golden prompt compaction requires generated exact sport geometry to remain forbidden")
         if package.metadata.get("hybrid_surface_replacement_required") is not False:
             raise ValueError("Golden editorial v6 PREVIEW must not require deterministic pitch replacement")
         if package.metadata.get("visual_grammar_surface_visibility") != "context_only":
             raise ValueError("Golden editorial v6 PREVIEW must remain context_only")
+        if package.metadata.get("sport_geometry") != "contextual_optional_not_required":
+            raise ValueError("Golden editorial v6 PREVIEW must keep sport geometry contextual and optional")
         if package.metadata.get("visual_concept_selected_before_renderer") is not True:
             raise ValueError("Golden prompt compaction requires an approved pre-render visual concept")
         if len(_COMPACT_SCENE_PROMPT) > GOLDEN_SCENE_PROMPT_BUDGET_CHARS:
             raise RuntimeError("internal Golden scene prompt exceeds its locked character budget")
+
         lowered = _COMPACT_SCENE_PROMPT.casefold()
+        for marker in (
+            "no full-pitch master shot",
+            "do not fabricate exact pitch markings",
+            "tactical diagrams or regulation geometry",
+        ):
+            if marker not in lowered:
+                raise RuntimeError("Golden v6 compact prompt lost its preview geometry guardrails")
         if "pul7sar" in lowered or "pulsar" in lowered:
             raise RuntimeError("platform brand leaked into compact Golden scene prompt")
 
         metadata = dict(package.metadata)
         metadata.update({
             "benchmark": benchmark_id,
+            "generated_sport_geometry_allowed": False,
             "golden_prompt_contract": GOLDEN_PROMPT_BUDGET_CONTRACT,
             "golden_prompt_compacted": True,
             "golden_scene_prompt_budget_chars": GOLDEN_SCENE_PROMPT_BUDGET_CHARS,
