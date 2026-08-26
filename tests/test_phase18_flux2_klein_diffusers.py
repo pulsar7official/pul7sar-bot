@@ -170,30 +170,33 @@ class Flux2KleinDiffusersTests(unittest.TestCase):
             pipeline_loader=loader,
             torch_module=unknown_vram_torch,
         )
-        with self.assertRaisesRegex(RuntimeError, "CUDA VRAM could not be proven"):
+        with self.assertRaisesRegex(RuntimeError, "requires proven CUDA VRAM"):
             factory("black-forest-labs/FLUX.2-klein-4B", "bfloat16")
         self.assertFalse(pipe.offloaded)
 
-    def test_factory_can_explicitly_allow_model_offload_without_sequential_preference(self):
-        pipe = _Pipe(sequential=False)
+    def test_disabling_sequential_preference_cannot_bypass_low_vram_guard(self):
+        pipe = _Pipe()
 
         def loader(model_id, **kwargs):
             return pipe
 
-        no_vram_evidence_torch = SimpleNamespace(
+        low_vram_torch = SimpleNamespace(
             float16="fp16",
             bfloat16="bf16",
             float32="fp32",
             Generator=_FakeGenerator,
+            cuda=_FakeCuda(14.6),
         )
         config = Flux2KleinInferenceConfig(prefer_sequential_cpu_offload=False)
         factory = build_flux2_klein_pipeline_factory(
             inference=config,
             pipeline_loader=loader,
-            torch_module=no_vram_evidence_torch,
+            torch_module=low_vram_torch,
         )
-        factory("black-forest-labs/FLUX.2-klein-4B", "bfloat16")
-        self.assertTrue(pipe.offloaded)
+        with self.assertRaisesRegex(RuntimeError, "sequential CPU offload is required on low-VRAM"):
+            factory("black-forest-labs/FLUX.2-klein-4B", "bfloat16")
+        self.assertFalse(pipe.offloaded)
+        self.assertFalse(pipe.sequential_offloaded)
 
     def test_invalid_model_offload_safety_floor_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "model_offload_minimum_total_vram_gb"):
