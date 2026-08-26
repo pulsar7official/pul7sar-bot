@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""Build a deterministic quality-first batch of Golden Hybrid v5 handoffs.
+"""Build a deterministic quality-first batch of Golden editorial v6 handoffs.
 
-Only the seed varies. Atmosphere generation is compared under identical hybrid
-ownership and story-level VisualGrammar rules; exact football geometry and
-PUL7SAR branding are not generated.
+Only the seed varies. Candidates are compared under identical story-first visual
+direction. A PREVIEW keeps football surface geometry contextual and optional;
+PUL7SAR branding remains deterministic after generation.
 """
 from __future__ import annotations
 
@@ -12,7 +12,13 @@ import json
 from pathlib import Path
 
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
-from tools.phase18_build_golden_handoff import GOLDEN_BENCHMARK_ID, build_request
+from tools.phase18_build_golden_handoff import (
+    GOLDEN_BENCHMARK_ID,
+    GOLDEN_CAMERA_PRESET,
+    GOLDEN_MANIFEST_VERSION,
+    GOLDEN_SPORT_GEOMETRY,
+    build_request,
+)
 
 
 DEFAULT_SEEDS = (7007001, 7007002, 7007003, 7007004)
@@ -30,7 +36,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
     observed_surface_visibility: str | None = None
     observed_visual_grammar_contract: str | None = None
     for index, seed in enumerate(seeds, start=1):
-        request_id = f"golden-season-opener-hybrid-v5-{index:03d}"
+        request_id = f"golden-season-opener-editorial-v6-{index:03d}"
         request = build_request(seed=seed, request_id=request_id)
         surface_visibility = str(request.metadata["visual_grammar_surface_visibility"])
         visual_grammar_contract = str(request.metadata["visual_grammar_contract"])
@@ -59,20 +65,29 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
             "visual_grammar_surface_visibility": surface_visibility,
         })
 
+    if observed_surface_visibility != "context_only":
+        raise RuntimeError(
+            f"Golden v6 season-opener preview must remain context_only, found {observed_surface_visibility!r}"
+        )
+
     manifest = {
-        "manifest_version": "pul7sar-golden-batch-v5",
+        "manifest_version": GOLDEN_MANIFEST_VERSION,
         "benchmark": GOLDEN_BENCHMARK_ID,
         "cost_mode": "$0-local",
         "composition_grammar": "single_continuous_scene",
         "visual_grammar_contract": observed_visual_grammar_contract,
         "visual_grammar_surface_visibility": observed_surface_visibility,
-        "sport_geometry": "deterministic_football_pitch_projective_v1",
+        "sport_geometry": GOLDEN_SPORT_GEOMETRY,
         "generated_sport_geometry_allowed": False,
-        "hybrid_surface_replacement_required": True,
-        "football_camera_preset": "high_wide_central",
+        "hybrid_surface_replacement_required": False,
+        "football_camera_preset": GOLDEN_CAMERA_PRESET,
         "generated_branding_allowed": False,
         "brand_composition_policy": "dynamic_deterministic_after_generation",
-        "selection_rule": "quality-first; compare atmosphere/base-scene quality after identical visual-grammar and hybrid ownership gates, never select by seed order",
+        "visual_priority": "story_focal_hierarchy_before_sport_surface",
+        "selection_rule": (
+            "quality-first; compare focal hierarchy, atmosphere, depth, negative space and editorial coherence under identical visual grammar; "
+            "never prefer a candidate merely because it exposes more playing surface or because of seed order"
+        ),
         "candidates": candidates,
     }
     manifest_path = target / "manifest.json"
@@ -81,14 +96,15 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Hybrid v5 candidate batch")
+    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden editorial v6 candidate batch")
     parser.add_argument("--output-dir", default="output/phase18_handoffs/golden-batch")
     parser.add_argument("--seeds", nargs="*", type=int, default=list(DEFAULT_SEEDS))
     args = parser.parse_args()
     manifest = build_batch(args.output_dir, tuple(args.seeds))
     print(json.dumps({
-        "status": "GOLDEN_HYBRID_BATCH_READY",
+        "status": "GOLDEN_EDITORIAL_BATCH_READY",
         "benchmark": manifest["benchmark"],
+        "manifest_version": manifest["manifest_version"],
         "output_dir": args.output_dir,
         "candidate_count": len(manifest["candidates"]),
         "cost_mode": manifest["cost_mode"],
@@ -96,7 +112,7 @@ def main() -> int:
         "visual_grammar_contract": manifest["visual_grammar_contract"],
         "visual_grammar_surface_visibility": manifest["visual_grammar_surface_visibility"],
         "sport_geometry": manifest["sport_geometry"],
-        "generated_sport_geometry_allowed": manifest["generated_sport_geometry_allowed"],
+        "hybrid_surface_replacement_required": manifest["hybrid_surface_replacement_required"],
         "generated_branding_allowed": manifest["generated_branding_allowed"],
     }, ensure_ascii=False, indent=2))
     return 0
