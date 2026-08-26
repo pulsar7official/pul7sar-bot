@@ -25,7 +25,8 @@ GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1200
 
 _COMPACT_SCENE_PROMPT = (
     "Create one single continuous full-bleed editorial image: premium European football season-opening anticipation at dusk in a deliberately non-identifying generic stadium. "
-    "Use one asymmetric editorial hierarchy around a dominant atmospheric focal anchor such as an illuminated tunnel, floodlight bank or stand entrance, with layered architecture, crowd depth, realistic scale and useful negative space. "
+    "Build one asymmetric editorial hierarchy around a single illuminated players' tunnel mouth in the lower-left to mid-left as the dominant atmospheric focal anchor; let layered stands and crowd depth recede diagonally behind it, with believable floodlights only as a secondary depth cue. "
+    "Keep the right-center calm and low-detail for later headline typography and keep the upper-left restrained for later brand placement. "
     "Use an oblique three-quarter environmental camera; no high-wide-central broadcast framing and no full-pitch master shot. "
     "Do not imply a specific real venue, club, match or person. Turf is optional context only and visually subordinate; do not fabricate exact pitch markings, tactical diagrams or regulation geometry. "
     "Keep the base fully unbranded, including platform names, readable text, numerals, logos and pseudo-text. "
@@ -58,12 +59,15 @@ class GoldenPromptBudget:
 
         lowered = _COMPACT_SCENE_PROMPT.casefold()
         for marker in (
+            "single illuminated players' tunnel mouth",
+            "right-center calm and low-detail",
+            "upper-left restrained",
             "no full-pitch master shot",
             "do not fabricate exact pitch markings",
             "tactical diagrams or regulation geometry",
         ):
             if marker not in lowered:
-                raise RuntimeError("Golden v6 compact prompt lost its preview geometry guardrails")
+                raise RuntimeError("Golden v6 compact prompt lost its focal or preview geometry guardrails")
         if "pul7sar" in lowered or "pulsar" in lowered:
             raise RuntimeError("platform brand leaked into compact Golden scene prompt")
 
@@ -76,5 +80,8 @@ class GoldenPromptBudget:
             "golden_scene_prompt_budget_chars": GOLDEN_SCENE_PROMPT_BUDGET_CHARS,
             "golden_scene_prompt_chars": len(_COMPACT_SCENE_PROMPT),
             "golden_prompt_policy_boundaries_preserved": True,
+            "golden_focal_anchor": "illuminated_tunnel_lower_left",
+            "golden_copy_negative_space": "right_center",
+            "golden_brand_quiet_zone": "upper_left",
         })
         return replace(package, scene_prompt=_COMPACT_SCENE_PROMPT, metadata=metadata)
