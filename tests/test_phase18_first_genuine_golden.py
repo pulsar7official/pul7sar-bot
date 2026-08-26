@@ -70,7 +70,15 @@ class FirstGenuineGoldenTests(unittest.TestCase):
             "deterministic_pitch_applied": False,
             "pitch_replacement_required": False,
             "editorial_png": str(png),
-            "semantic_visual_inspection": {"approved": True},
+            "semantic_runtime": {
+                "ready": True,
+                "model_id": golden.QWEN25_VL_3B_MODEL_ID,
+                "cuda_available": True,
+            },
+            "semantic_visual_inspection": {
+                "approved": True,
+                "verifier_id": golden.EXPECTED_QWEN_BASE_VERIFIER_ID,
+            },
             "base_scene_layer_gate": {"allowed": True, "inspection_complete": True},
         }), encoding="utf-8")
         return png, latest, semantic, executor, metadata
@@ -81,14 +89,21 @@ class FirstGenuineGoldenTests(unittest.TestCase):
             expected_sha = golden._sha256(png)
             expected_executor_sha = golden._sha256(executor)
             expected_metadata_sha = golden._sha256(metadata)
+            expected_semantic_sha = golden._sha256(semantic)
             payload = golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
-        self.assertEqual(payload["schema"], "pul7sar-first-genuine-golden-staging-v2")
+        self.assertEqual(payload["schema"], "pul7sar-first-genuine-golden-staging-v3")
         self.assertEqual(payload["status"], "FIRST_GENUINE_GOLDEN_EDITORIAL_CANDIDATE_READY_FOR_HUMAN_REVIEW")
         self.assertEqual(payload["png_sha256"], expected_sha)
         self.assertEqual(payload["executor_result_sha256"], expected_executor_sha)
         self.assertEqual(payload["proof_metadata_sha256"], expected_metadata_sha)
+        self.assertEqual(payload["semantic_receipt_sha256"], expected_semantic_sha)
         self.assertEqual(payload["model_id"], golden.FLUX2_KLEIN_4B_MODEL_ID)
         self.assertEqual(payload["model_revision"], golden.FLUX2_KLEIN_4B_REVISION)
+        self.assertEqual(payload["semantic_model_id"], golden.QWEN25_VL_3B_MODEL_ID)
+        self.assertEqual(payload["semantic_model_revision"], golden.QWEN25_VL_3B_REVISION)
+        self.assertEqual(payload["semantic_verifier_id"], golden.EXPECTED_QWEN_BASE_VERIFIER_ID)
+        self.assertTrue(payload["semantic_runtime_ready"])
+        self.assertTrue(payload["semantic_cuda_available"])
         self.assertEqual(payload["cost_mode"], "$0-local")
         self.assertEqual(payload["resolved_dtype"], "bfloat16")
         self.assertEqual(payload["precision_quality_tier"], "golden_reference")
@@ -109,6 +124,40 @@ class FirstGenuineGoldenTests(unittest.TestCase):
             payload["semantic_visual_inspection"] = {"approved": False}
             semantic.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "SEMANTIC_RECEIPT_NOT_APPROVED"):
+                golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
+
+    def test_semantic_runtime_identity_drift_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=golden.ROOT) as temp:
+            _, latest, semantic, _, _ = self._fixtures(Path(temp))
+            payload = json.loads(semantic.read_text(encoding="utf-8"))
+            payload["semantic_runtime"]["model_id"] = "other/semantic-model"
+            semantic.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "SEMANTIC_MODEL_ID_DRIFT"):
+                golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
+
+        with tempfile.TemporaryDirectory(dir=golden.ROOT) as temp:
+            _, latest, semantic, _, _ = self._fixtures(Path(temp))
+            payload = json.loads(semantic.read_text(encoding="utf-8"))
+            payload["semantic_runtime"]["ready"] = False
+            semantic.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "SEMANTIC_RUNTIME_NOT_READY"):
+                golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
+
+        with tempfile.TemporaryDirectory(dir=golden.ROOT) as temp:
+            _, latest, semantic, _, _ = self._fixtures(Path(temp))
+            payload = json.loads(semantic.read_text(encoding="utf-8"))
+            payload["semantic_runtime"]["cuda_available"] = False
+            semantic.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "SEMANTIC_RUNTIME_CUDA_NOT_PROVEN"):
+                golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
+
+    def test_semantic_verifier_identity_drift_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=golden.ROOT) as temp:
+            _, latest, semantic, _, _ = self._fixtures(Path(temp))
+            payload = json.loads(semantic.read_text(encoding="utf-8"))
+            payload["semantic_visual_inspection"]["verifier_id"] = "qwen-unpinned:base_scene"
+            semantic.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "SEMANTIC_VERIFIER_ID_DRIFT"):
                 golden.verify_genuine_candidate(latest_path=latest, semantic_receipt_path=semantic)
 
     def test_composition_map_drift_is_rejected_before_review(self):
