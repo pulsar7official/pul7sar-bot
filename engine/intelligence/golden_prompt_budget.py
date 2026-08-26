@@ -1,11 +1,15 @@
-"""Golden Hybrid v5 prompt compaction without weakening exact-layer policy.
+"""Golden editorial prompt compaction without weakening exact-layer policy.
 
 This module is deliberately benchmark-specific. The generic story-to-visual
-compiler remains provider-neutral and expressive, while the first Golden
+compiler remains provider-neutral and expressive, while the current Golden
 FLUX.2 Klein candidate receives a shorter scene description better suited to a
 4B image model. Negative constraints, factual constraints, layout ownership,
 VisualGrammar and VisualConcept metadata are preserved byte-for-byte at the
 package-contract level.
+
+Golden v6 differs from v5 in one important ownership rule: a generic PREVIEW does
+not reserve football-pitch geometry. Brand, typography and exact factual content
+remain deterministic, but sport-surface geometry is contextual/optional.
 """
 from __future__ import annotations
 
@@ -14,49 +18,40 @@ from dataclasses import replace
 from engine.intelligence.generation_package import GenerationPackage
 
 
-GOLDEN_PROMPT_BUDGET_CONTRACT = "pul7sar-golden-prompt-budget-v1"
-GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-hybrid-v5"
+GOLDEN_PROMPT_BUDGET_CONTRACT = "pul7sar-golden-prompt-budget-v2"
+GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-editorial-v6"
 GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1200
 
 
 _COMPACT_SCENE_PROMPT = (
-    "Create one single continuous full-bleed editorial image: a premium European football season-opening scene at dusk in a deliberately non-identifying generic stadium. "
+    "Create one single continuous full-bleed editorial image: a premium European football season-opening environment at dusk in a deliberately non-identifying generic stadium world. "
     "Story-specific visual concept archetype: generative_event_atmosphere. Story-specific non-identifying sports atmosphere. Must not imply a specific real venue; include no specific real-person depiction. "
-    "Use believable floodlights, cinematic air, natural turf texture, distant crowd, one anonymous silhouette, generic architecture and no distinctive landmark. "
-    "Keep one stable camera perspective, realistic scale, strong depth and calm editorial negative space. Use at most a restrained partial sport-surface context; do not make a full pitch the visual subject. "
-    "Keep the reserved surface region plain and unmarked: no field/court/rink lines. The exact surface will be replaced by deterministic code after generation. "
+    "Build an asymmetric editorial hierarchy around one atmospheric focal anchor such as an illuminated tunnel opening, floodlight bank or luminous stand entrance, with coherent architecture, foreground depth and restrained supporter atmosphere. "
+    "Use an oblique environmental wide-to-medium-wide viewpoint, stable natural perspective and useful negative space. Turf may appear only as a minor contextual glimpse and must never become the visual subject. "
+    "No high-wide-central broadcast framing, no full-pitch master shot, no tactical diagram and no prominent centre-circle or halfway-line geometry. "
     "Keep the base fully unbranded, including platform names. Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, framed-window, or image-within-image composition. "
-    "Exact regulation football geometry belongs to the later code compositor; the stadium atmosphere is the visual hero."
+    "The visual hero is anticipation, light, depth and place rather than playing-surface geometry."
 )
 
 
 class GoldenPromptBudget:
-    """Compact only the explicitly identified current Golden v5 benchmark.
-
-    ``GenerationPackageCompiler`` intentionally does not propagate arbitrary
-    benchmark labels from scene metadata into generic provider-neutral output.
-    Therefore the benchmark identity is supplied explicitly by the trusted
-    Golden builder instead of smuggling benchmark-only state into the generic
-    compiler. Exact prohibitions remain in ``negative_constraints`` and
-    ``factual_constraints`` and are compiled by the existing provider policy.
-    """
+    """Compact only the explicitly identified current Golden editorial benchmark."""
 
     def compact(self, package: GenerationPackage, *, benchmark_id: str) -> GenerationPackage:
         if not isinstance(package, GenerationPackage):
             raise TypeError("package must be GenerationPackage")
         if benchmark_id != GOLDEN_BENCHMARK_ID:
-            raise ValueError("golden prompt budget may only compact the current Golden Hybrid v5 benchmark")
+            raise ValueError("golden prompt budget may only compact the current Golden editorial v6 benchmark")
         if package.metadata.get("generated_branding_allowed") is not False:
             raise ValueError("Golden prompt compaction requires generated branding to remain forbidden")
         if package.metadata.get("hybrid_base_scene_contract") is not True:
             raise ValueError("Golden prompt compaction requires the hybrid base-scene contract")
-        reserved = tuple(str(item).casefold() for item in (package.metadata.get("reserved_base_scene_content") or ()))
-        geometry_reserved = any(
-            "playing-surface geometry" in item or "sport surface geometry" in item
-            for item in reserved
-        )
-        if not geometry_reserved:
-            raise ValueError("Golden prompt compaction requires sport geometry to remain code-owned")
+        if package.metadata.get("generated_sport_geometry_allowed") is not False:
+            raise ValueError("Golden prompt compaction requires generated exact sport geometry to remain forbidden")
+        if package.metadata.get("hybrid_surface_replacement_required") is not False:
+            raise ValueError("Golden editorial v6 PREVIEW must not require deterministic pitch replacement")
+        if package.metadata.get("visual_grammar_surface_visibility") != "context_only":
+            raise ValueError("Golden editorial v6 PREVIEW must remain context_only")
         if package.metadata.get("visual_concept_selected_before_renderer") is not True:
             raise ValueError("Golden prompt compaction requires an approved pre-render visual concept")
         if len(_COMPACT_SCENE_PROMPT) > GOLDEN_SCENE_PROMPT_BUDGET_CHARS:
