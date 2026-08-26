@@ -31,7 +31,8 @@ class SceneComplexityDecision:
 
 class SceneComplexityPolicy:
     _FULL_SURFACE_EVENTS = {EditorialEvent.TACTICS}
-    _PARTIAL_SURFACE_EVENTS = {EditorialEvent.RESULT, EditorialEvent.LIVE_MOMENT, EditorialEvent.PREVIEW}
+    _PARTIAL_SURFACE_EVENTS = {EditorialEvent.RESULT, EditorialEvent.LIVE_MOMENT}
+    _CONTEXT_SURFACE_EVENTS = {EditorialEvent.PREVIEW}
     _NO_SURFACE_EVENTS = {
         EditorialEvent.TRANSFER_CONFIRMED,
         EditorialEvent.TRANSFER_RUMOUR,
@@ -77,7 +78,15 @@ class SceneComplexityPolicy:
                 max_hero_subjects=2,
                 background_strategy="venue atmosphere plus only the minimum deterministic surface needed for context",
                 avoid_full_venue_generation=True,
-                rationale="preserve sporting context without making a full generated venue the visual dependency",
+                rationale="the sporting action/result benefits from limited exact surface context without making a full venue the visual dependency",
+            )
+        if event in self._CONTEXT_SURFACE_EVENTS:
+            return SceneComplexityDecision(
+                SurfaceVisibility.CONTEXT_ONLY,
+                max_hero_subjects=2,
+                background_strategy="editorial sport atmosphere with optional surface texture only when it strengthens the focal story",
+                avoid_full_venue_generation=True,
+                rationale="a preview needs anticipation and place, not mandatory playing-surface geometry",
             )
         if event in self._NO_SURFACE_EVENTS:
             return SceneComplexityDecision(
