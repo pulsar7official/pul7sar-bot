@@ -32,9 +32,9 @@ class PromptConstraintCompiler:
     _NO_SPLIT = "Use one uninterrupted photographic frame with continuous perspective and lighting across the whole canvas; do not divide the image with seams, borders, boxes, windows, or repeated frames."
     _NO_BRAND_TEXT = "Render a clean unbranded photographic base scene with no legible words, letters, numerals, platform names, sponsor writing, logos, wordmarks, watermarks, signatures, or pseudo-text anywhere in the generated image. Keep banners, screens, advertising boards, and kit sponsor areas visually neutral so all exact branding and typography can be added later by deterministic post-composition."
     _NO_RESERVED_MARKINGS = "Keep the reserved playing-surface context plain, grass-colored and completely unmarked so deterministic geometry can be applied after generation."
-    _NON_IDENTIFYING_VENUE = "Treat any specific real venue identity without verified reference as forbidden; use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, or other visual cue that could imply a particular real stadium or arena."
+    _NON_IDENTIFYING_VENUE = "No specific identifiable real venue is permitted; treat any specific real venue identity without verified reference as forbidden. Use a deliberately non-identifying sports venue atmosphere with generic architecture and no distinctive landmark, signage, club-specific decoration, or other visual cue that could imply a particular real stadium or arena."
     _NO_REAL_PERSON = "Keep the generated scene free of identifiable real people or celebrity likenesses; use crowd scale, silhouettes, or distant anonymous figures only when needed for atmosphere."
-    _CONTEXTUAL_TURF_ONLY = "Keep any visible football turf incidental, subordinate and non-structural; the environmental story focal point must dominate rather than a full playing surface."
+    _CONTEXTUAL_TURF_ONLY = "Keep any visible football turf incidental, subordinate and non-structural; the environmental story focal point must dominate and turf must never become the primary subject."
     _OBLIQUE_NOT_BROADCAST = "Use an asymmetric oblique environmental camera and avoid centered high-wide broadcast framing of the playing surface."
     _NO_TACTICAL_GEOMETRY = "Keep any incidental turf free of prominent tactical or regulation geometry such as a centre circle, halfway line, penalty boxes, or diagram-like markings."
 
@@ -48,7 +48,7 @@ class PromptConstraintCompiler:
         "no fake signing ceremony": "Depict only the verified negotiation, interest, or approach stage; keep the scene clearly pre-signing and non-ceremonial.",
         "no contract signature": "Keep the scene away from contracts, signing desks, signature gestures, presentation shirts, and official-announcement staging.",
         "no completed signing ceremony": "Keep the scene in an unresolved negotiation/interest context rather than a completed transfer presentation.",
-        "no invented result": "Create pre-event anticipation only and keep the sporting outcome completely unresolved.",
+        "no invented result": "Show the event approaching rather than already decided; create pre-event anticipation only and keep the sporting outcome completely unresolved.",
         "no sensational harm": "Use restrained factual visual drama and avoid graphic, sensational, or exploitative treatment of injury or harm.",
         "no collage or multi-panel layout": _UNIFIED,
         "no split-screen, grid, diptych, triptych, or contact-sheet framing": _NO_SPLIT,
