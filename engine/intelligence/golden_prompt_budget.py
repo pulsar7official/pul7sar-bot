@@ -20,9 +20,11 @@ GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1200
 
 
 _COMPACT_SCENE_PROMPT = (
-    "Single-frame photographic sports editorial scene at dusk. Build one coherent, premium, low-fantasy football-stadium atmosphere in a generic, non-identifiable venue: believable floodlights, deep stands, cinematic air, natural reflective turf texture, an indistinct distant crowd and at most one distant anonymous player silhouette. "
-    "Keep one stable camera perspective, realistic scale and strong foreground-to-background depth. Preserve calm negative space around the central visual area and keep the lower third visually quiet for deterministic editorial composition. "
-    "Show only restrained partial turf context in the lower frame; exact regulation football geometry belongs to the later code compositor. The stadium atmosphere is the visual hero."
+    "Create one single continuous full-bleed editorial image: a premium European football season-opening scene at dusk, built as a story-specific non-identifying sports atmosphere in a deliberately non-identifying generic stadium. "
+    "Story-specific visual concept archetype: generative_event_atmosphere. The scene must not imply a specific real venue; never imply specific real venue identity without verified reference, and include no specific real-person depiction. "
+    "Use believable floodlights, deep stands, cinematic air, natural turf texture, an indistinct distant crowd, and at most one distant anonymous silhouette. Keep generic architecture and no distinctive landmark, one stable camera perspective, realistic scale, strong depth, and calm editorial negative space. "
+    "Use at most a restrained partial sport-surface context in the lower frame; do not make a full pitch the visual subject. Exact regulation football geometry belongs to the later code compositor. "
+    "Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, framed-window, or image-within-image composition. The stadium atmosphere is the visual hero."
 )
 
 
