@@ -4,7 +4,9 @@
 GitHub remains source of truth. The runner validates the current v6 story-first
 contract, optionally runs discover-based CPU validation, rebuilds/verifies the
 batch, proves GPU readiness, executes exactly one candidate and writes durable
-generation provenance. Preview generation no longer implies pitch replacement.
+generation provenance. Golden-reference BF16 and explicit T4 FP16 engineering
+preview execution remain distinct precision tiers. Preview generation never
+implies pitch replacement or publication readiness.
 """
 from __future__ import annotations
 
@@ -121,10 +123,14 @@ def _json_command(command: list[str], *, root: Path, label: str) -> dict[str, An
         raise RuntimeError(f"{label} did not emit JSON") from exc
 
 
-def _golden_readiness(root: Path) -> dict[str, Any]:
-    payload = _json_command([sys.executable, str(root / "tools" / "phase18_local_readiness.py")], root=root, label="Golden readiness")
-    if payload.get("golden_generation_ready") is not True:
-        raise RuntimeError("COLAB_GOLDEN_GPU_NOT_READY\n" + json.dumps(payload, ensure_ascii=False, indent=2))
+def _generation_readiness(root: Path, dtype: str) -> dict[str, Any]:
+    payload = _json_command(
+        [sys.executable, str(root / "tools" / "phase18_local_readiness.py"), "--dtype", dtype],
+        root=root,
+        label="Visual generation readiness",
+    )
+    if payload.get("requested_generation_ready") is not True:
+        raise RuntimeError("COLAB_GPU_NOT_READY\n" + json.dumps(payload, ensure_ascii=False, indent=2))
     return payload
 
 
@@ -137,15 +143,20 @@ def _candidate(manifest: dict[str, Any], candidate_number: int) -> dict[str, Any
     raise ValueError(f"candidate {candidate_number} is not present in the Golden manifest")
 
 
-def _result_matches_candidate(result: dict[str, Any], selected: dict[str, Any]) -> bool:
-    return (
+def _result_matches_candidate(result: dict[str, Any], selected: dict[str, Any], *, dtype: str | None = None) -> bool:
+    if not (
         result.get("status") == "REAL_VISUAL_PROOF_GENERATED"
         and result.get("request_id") == selected.get("request_id")
         and result.get("seed") == selected.get("seed")
         and result.get("model_id") == selected.get("model_id")
         and result.get("payload_sha256") == selected.get("payload_sha256")
         and result.get("cost_mode") == "$0-local"
-    )
+    ):
+        return False
+    if dtype is None:
+        return True
+    expected_resolved = "float16" if dtype == "float16-preview" else "bfloat16"
+    return result.get("resolved_dtype") == expected_resolved
 
 
 def _proof_from_result(result: dict[str, Any], root: Path) -> Path:
@@ -171,7 +182,11 @@ def _attach_generation_provenance(*, root: Path, payload: dict[str, Any], png: P
         summary=payload,
         base_png=str(png),
     )
-    if provenance.get("status") != "GENERATION_PROVENANCE_LOCK_VERIFIED":
+    allowed_statuses = {
+        "GENERATION_PROVENANCE_LOCK_VERIFIED",
+        "GENERATION_PROVENANCE_ENGINEERING_PREVIEW_VERIFIED",
+    }
+    if provenance.get("status") not in allowed_statuses:
         raise RuntimeError("COLAB_GENERATION_PROVENANCE_NOT_VERIFIED")
     if provenance.get("publication_ready") is not False:
         raise RuntimeError("COLAB_GENERATION_PROVENANCE_CANNOT_BE_PUBLICATION_READY")
@@ -186,6 +201,7 @@ def _attach_generation_provenance(*, root: Path, payload: dict[str, Any], png: P
         "proof_metadata": provenance.get("metadata"),
         "proof_metadata_sha256": provenance.get("metadata_sha256"),
         "provenance_resolved_dtype": provenance.get("resolved_dtype"),
+        "provenance_precision_quality_tier": provenance.get("precision_quality_tier"),
         "provenance_cost_mode": provenance.get("cost_mode"),
         "publication_ready": False,
     })
@@ -221,7 +237,7 @@ def main() -> int:
     parser.add_argument("--generation-dir", default=DEFAULT_GENERATION_DIR)
     parser.add_argument("--proof-dir", default=DEFAULT_PROOF_DIR)
     parser.add_argument("--summary", default=DEFAULT_SUMMARY)
-    parser.add_argument("--dtype", choices=("auto", "bfloat16"), default="auto")
+    parser.add_argument("--dtype", choices=("auto", "bfloat16", "float16-preview"), default="auto")
     args = parser.parse_args()
 
     root = Path(args.repository_root).resolve()
@@ -244,7 +260,7 @@ def main() -> int:
     _assert_current_golden_contract(manifest)
     integrity = verify_batch(str(batch_dir / "manifest.json"))
     selected = _candidate(manifest, args.candidate)
-    readiness = _golden_readiness(root)
+    readiness = _generation_readiness(root, args.dtype)
 
     base_summary: dict[str, Any] = {
         "branch": branch,
@@ -273,14 +289,18 @@ def main() -> int:
         "integrity_status": integrity.get("status"),
         "cpu_preflight_status": cpu.get("status"),
         "cpu_preflight_mode": cpu.get("mode"),
+        "requested_dtype": args.dtype,
+        "precision_quality_tier": readiness.get("precision_quality_tier"),
         "golden_generation_ready": readiness.get("golden_generation_ready"),
+        "requested_generation_ready": readiness.get("requested_generation_ready"),
         "recommended_dtype": readiness.get("recommended_dtype"),
         "publication_ready": False,
     }
 
     summary_path = root / args.summary
     if args.prepare_only:
-        payload = {"status": "COLAB_GOLDEN_EDITORIAL_PREPARED", **base_summary}
+        status = "COLAB_T4_ENGINEERING_PREVIEW_PREPARED" if args.dtype == "float16-preview" else "COLAB_GOLDEN_EDITORIAL_PREPARED"
+        payload = {"status": status, **base_summary}
         _write_summary(summary_path, payload)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
@@ -294,12 +314,14 @@ def main() -> int:
             existing = json.loads(result_path.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             existing = {}
-        if _result_matches_candidate(existing, selected):
+        if _result_matches_candidate(existing, selected, dtype=args.dtype):
             png = _proof_from_result(existing, root)
             payload = {
-                "status": "COLAB_GOLDEN_EDITORIAL_ALREADY_EXISTS", **base_summary,
+                "status": "COLAB_EDITORIAL_ALREADY_EXISTS", **base_summary,
                 "png": str(png),
                 "executor_result": str(result_path.resolve()),
+                "resolved_dtype": existing.get("resolved_dtype"),
+                "precision_quality_tier": existing.get("precision_quality_tier"),
                 "displayed_inline": _maybe_display(png),
             }
             try:
@@ -323,8 +345,9 @@ def main() -> int:
         "--result", str(result_path),
     ]
 
-    print("=== PUL7SAR COLAB GPU — GOLDEN EDITORIAL v6 ===")
-    print(f"branch={branch} head={head} candidate={args.candidate} seed={selected.get('seed')}")
+    mode = "T4 ENGINEERING PREVIEW" if args.dtype == "float16-preview" else "GOLDEN EDITORIAL v6"
+    print(f"=== PUL7SAR COLAB GPU — {mode} ===")
+    print(f"branch={branch} head={head} candidate={args.candidate} seed={selected.get('seed')} dtype={args.dtype}")
     print(
         f"benchmark={manifest.get('benchmark')} manifest={manifest.get('manifest_version')} "
         f"surface={manifest.get('visual_grammar_surface_visibility')} geometry={manifest.get('sport_geometry')} "
@@ -338,22 +361,29 @@ def main() -> int:
         raise RuntimeError("executor succeeded without writing durable result JSON")
 
     result = json.loads(result_path.read_text(encoding="utf-8"))
-    if not _result_matches_candidate(result, selected):
-        raise RuntimeError("executor result identity/SHA/cost contract mismatch")
+    if not _result_matches_candidate(result, selected, dtype=args.dtype):
+        raise RuntimeError("executor result identity/SHA/cost/precision contract mismatch")
     png = _proof_from_result(result, root)
 
+    status = "COLAB_T4_ENGINEERING_PREVIEW_GENERATED" if args.dtype == "float16-preview" else "COLAB_REAL_GOLDEN_EDITORIAL_GENERATED"
     payload = {
-        "status": "COLAB_REAL_GOLDEN_EDITORIAL_GENERATED", **base_summary,
+        "status": status, **base_summary,
         "png": str(png),
         "executor_result": str(result_path.resolve()),
         "execution_seconds": result.get("execution_seconds"),
         "gpu_name": result.get("gpu_name"),
         "gpu_vram_gb": result.get("gpu_vram_gb"),
         "resolved_dtype": result.get("resolved_dtype"),
+        "precision_quality_tier": result.get("precision_quality_tier"),
+        "golden_reference_precision": result.get("golden_reference_precision"),
         "cuda_peak_allocated_gb": result.get("cuda_peak_allocated_gb"),
         "cuda_peak_reserved_gb": result.get("cuda_peak_reserved_gb"),
         "displayed_inline": _maybe_display(png),
-        "publication_note": "Story-first editorial base only. No deterministic pitch replacement is required for this PREVIEW; exact brand and typography remain later layers.",
+        "publication_note": (
+            "T4 FP16 engineering preview only; useful for visual-direction review but not a Golden-reference precision proof and never publication-ready."
+            if args.dtype == "float16-preview"
+            else "Story-first editorial base only. No deterministic pitch replacement is required for this PREVIEW; exact brand and typography remain later layers."
+        ),
     }
     payload = _attach_generation_provenance(root=root, payload=payload, png=png)
     _write_summary(summary_path, payload)
