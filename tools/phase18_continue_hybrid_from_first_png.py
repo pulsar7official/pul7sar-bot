@@ -7,6 +7,12 @@ generic football PREVIEW must preserve the generated editorial base unchanged.
 No deterministic pitch is composited, no pitch-replacement stage is required,
 and semantic QA evaluates the base scene only.
 
+The Golden editorial composition map is also fail-closed here. The focal anchor,
+copy-negative-space region, brand quiet zone and story-first visual priority must
+match the current v6 handoff and must survive into the semantic-review receipt.
+This prevents a stale or tampered Colab summary from being accepted merely
+because its pixels still pass generic semantic checks.
+
 Even on success this stage cannot authorize Golden visual quality or publication.
 Exact PUL7SAR branding and typography remain later deterministic layers.
 """
@@ -28,6 +34,10 @@ ACCEPTED_HANDOFF_STATUSES = {
     "COLAB_GOLDEN_EDITORIAL_ALREADY_EXISTS",
 }
 EXPECTED_MANIFEST = "pul7sar-golden-batch-v6"
+EXPECTED_VISUAL_PRIORITY = "story_focal_hierarchy_before_sport_surface"
+EXPECTED_FOCAL_ANCHOR = "illuminated_tunnel_lower_left"
+EXPECTED_COPY_NEGATIVE_SPACE = "right_center"
+EXPECTED_BRAND_QUIET_ZONE = "upper_left"
 LATEST = ROOT / "output" / "phase18_colab" / "latest.json"
 DEFAULT_RECEIPT = ROOT / "output" / "phase18_gpu_smoke" / "editorial-semantic-continuation.json"
 
@@ -63,6 +73,24 @@ def _inside_root(value: str | Path, *, label: str) -> Path:
     return path
 
 
+def _composition_map() -> dict[str, str]:
+    return {
+        "visual_priority": EXPECTED_VISUAL_PRIORITY,
+        "focal_anchor": EXPECTED_FOCAL_ANCHOR,
+        "copy_negative_space": EXPECTED_COPY_NEGATIVE_SPACE,
+        "brand_quiet_zone": EXPECTED_BRAND_QUIET_ZONE,
+    }
+
+
+def _require_composition_map(payload: dict[str, object], *, label: str) -> None:
+    failures = [
+        f"{key}={payload.get(key)!r}" for key, expected in _composition_map().items()
+        if payload.get(key) != expected
+    ]
+    if failures:
+        raise RuntimeError(f"EDITORIAL_CONTINUATION_{label}_COMPOSITION_MAP_DRIFT: " + "; ".join(failures))
+
+
 def _load_handoff(path: Path, *, candidate: int) -> tuple[dict[str, object], Path]:
     if not path.is_file():
         raise RuntimeError("EDITORIAL_CONTINUATION_HANDOFF_MISSING")
@@ -88,6 +116,7 @@ def _load_handoff(path: Path, *, candidate: int) -> tuple[dict[str, object], Pat
     ]
     if failures:
         raise RuntimeError("EDITORIAL_CONTINUATION_HANDOFF_DRIFT: " + "; ".join(failures))
+    _require_composition_map(payload, label="HANDOFF")
 
     png_value = payload.get("png")
     if not isinstance(png_value, str) or not png_value.strip():
@@ -118,6 +147,7 @@ def _require_semantic_success(
         raise RuntimeError("EDITORIAL_CONTINUATION_PITCH_MUST_NOT_BE_APPLIED")
     if result.get("pitch_replacement_required") is not False:
         raise RuntimeError("EDITORIAL_CONTINUATION_PITCH_REPLACEMENT_MUST_REMAIN_FALSE")
+    _require_composition_map(result, label="SEMANTIC_RESULT")
 
     layer_gate = result.get("base_scene_layer_gate")
     if not isinstance(layer_gate, dict) or layer_gate.get("allowed") is not True or layer_gate.get("inspection_complete") is not True:
@@ -137,7 +167,7 @@ def _require_semantic_success(
         raise RuntimeError("EDITORIAL_CONTINUATION_EDITORIAL_PNG_INVALID")
 
     return {
-        "schema": "pul7sar-first-png-editorial-semantic-continuation-v2",
+        "schema": "pul7sar-first-png-editorial-semantic-continuation-v3",
         "status": "FIRST_GOLDEN_EDITORIAL_SEMANTIC_PROOF_READY",
         "branch": EXPECTED_BRANCH,
         "manifest_version": EXPECTED_MANIFEST,
@@ -146,6 +176,11 @@ def _require_semantic_success(
         "editorial_png_sha256": _sha256(editorial_png),
         "pixel_identity_preserved": True,
         "visual_grammar_surface_visibility": "context_only",
+        "visual_priority": EXPECTED_VISUAL_PRIORITY,
+        "focal_anchor": EXPECTED_FOCAL_ANCHOR,
+        "copy_negative_space": EXPECTED_COPY_NEGATIVE_SPACE,
+        "brand_quiet_zone": EXPECTED_BRAND_QUIET_ZONE,
+        "composition_map_locked": True,
         "deterministic_pitch_applied": False,
         "pitch_replacement_required": False,
         "base_scene_layer_gate": layer_gate,
@@ -155,7 +190,7 @@ def _require_semantic_success(
         "dynamic_brand_applied": result.get("dynamic_brand_applied", False),
         "typography_applied": result.get("typography_applied", False),
         "publication_ready": False,
-        "next_gate": "human Golden visual review of focal hierarchy, depth, atmosphere and negative space",
+        "next_gate": "human Golden visual review of locked focal hierarchy, depth, atmosphere and negative space",
     }
 
 
