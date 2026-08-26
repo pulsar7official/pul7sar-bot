@@ -67,6 +67,8 @@ jobs:
           test -f tools/phase18_colab_first_golden_review_sealed.py
           test -f tools/phase18_first_png_original_scene.py
           test -f tools/phase18_qualify_gpu_host.py
+          test -f tools/phase18_preflight_flux2_offload.py
+          test -f engine/intelligence/flux2_offload_capability.py
           test -f engine/intelligence/generation_runtime_fingerprint.py
           test -f engine/intelligence/golden_original_scene_admission.py
           test -f engine/intelligence/first_golden_review_packet_integrity.py
@@ -187,7 +189,7 @@ jobs:
 
           receipt_path = inside_repo(str(runtime_evidence["strict_bootstrap"]["path"]))
           receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-          if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v4":
+          if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v5":
               raise SystemExit("unexpected first-Golden bootstrap schema")
           if receipt.get("status") != "FIRST_GOLDEN_COLAB_REVIEW_PACKET_READY":
               raise SystemExit("first-Golden bootstrap did not reach sealed review readiness")
@@ -199,6 +201,10 @@ jobs:
               raise SystemExit("first-Golden GPU host/native BF16 not proven")
           if receipt.get("live_free_vram_proven") is not True:
               raise SystemExit("first-Golden live free VRAM was not proven")
+          if receipt.get("flux2_safe_offload_proven") is not True:
+              raise SystemExit("first-Golden safe FLUX offload path was not proven")
+          if receipt.get("flux2_safe_offload_mode") not in {"sequential_cpu", "model_cpu"}:
+              raise SystemExit("first-Golden safe FLUX offload mode missing")
           free_vram = receipt.get("gpu_free_vram_gb")
           required_vram = receipt.get("required_vram_gb")
           if not isinstance(free_vram, (int, float)) or isinstance(free_vram, bool):
@@ -219,6 +225,7 @@ jobs:
           if not isinstance(evidence, dict) or set(evidence) != {
               "repository_integrity",
               "gpu_host_qualification",
+              "flux2_offload_preflight",
               "first_golden_cache_budget",
               "qwen_model_cache",
               "sealed_review_receipt",
@@ -251,6 +258,33 @@ jobs:
           policy = host.get("policy")
           if not isinstance(policy, dict) or policy.get("requires_live_free_vram") is not True:
               raise SystemExit("GPU host live free VRAM policy drift")
+
+          offload_record = evidence["flux2_offload_preflight"]
+          offload_path = inside_repo(str(offload_record["path"]))
+          offload = json.loads(offload_path.read_text(encoding="utf-8"))
+          if offload.get("schema") != "pul7sar-phase18-flux2-offload-preflight-v1" or offload.get("ready") is not True:
+              raise SystemExit("FLUX offload preflight evidence not ready")
+          if offload.get("model_id") != "black-forest-labs/FLUX.2-klein-4B" or offload.get("cost_mode") != "$0-local":
+              raise SystemExit("FLUX offload preflight identity/cost drift")
+          if offload.get("pipeline_available") is not True:
+              raise SystemExit("FLUX pipeline capability not proven")
+          selected = offload.get("selected_safe_mode")
+          if selected != receipt.get("flux2_safe_offload_mode"):
+              raise SystemExit("FLUX offload mode binding drift")
+          host_total = host.get("gpu_vram_gb")
+          offload_total = offload.get("gpu_vram_gb")
+          if not isinstance(host_total, (int, float)) or isinstance(host_total, bool):
+              raise SystemExit("GPU host total VRAM evidence missing")
+          if not isinstance(offload_total, (int, float)) or isinstance(offload_total, bool) or abs(float(host_total) - float(offload_total)) > 0.01:
+              raise SystemExit("FLUX offload/host VRAM binding drift")
+          floor = offload.get("model_offload_minimum_total_vram_gb")
+          if not isinstance(floor, (int, float)) or isinstance(floor, bool) or float(floor) <= 0:
+              raise SystemExit("FLUX model-offload safety floor missing")
+          if float(host_total) <= float(floor) and selected != "sequential_cpu":
+              raise SystemExit("low-VRAM host is not locked to sequential CPU offload")
+          for field in ("model_loaded", "downloads_performed", "generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"):
+              if offload.get(field) is not False:
+                  raise SystemExit(f"FLUX offload preflight authority drift: {field}")
 
           for path_field, sha_field in (
               ("review_base_png", "review_base_png_sha256"),
