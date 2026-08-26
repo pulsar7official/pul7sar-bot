@@ -150,7 +150,7 @@ jobs:
               'manifest_version':'pul7sar-golden-batch-v6',
               'composition_grammar':'single_continuous_scene',
               'visual_grammar_surface_visibility':'context_only',
-              'sport_geometry':'context_only_no_exact_surface_required',
+              'sport_geometry':'contextual_optional_not_required',
               'generated_sport_geometry_allowed':False,
               'hybrid_surface_replacement_required':False,
               'football_camera_preset':'editorial_environmental_oblique',
