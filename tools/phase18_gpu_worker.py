@@ -3,8 +3,8 @@
 
 This command is production-shaped but remains intentionally single-host and
 $0-local. It refuses to consume queued work unless CUDA, FLUX.2 Klein Diffusers
-support, native BF16, and sufficient *live* free VRAM are proven on the worker
-host.
+support, native BF16, sufficient *live* free VRAM, and sufficient *live* host
+RAM are proven on the worker host.
 
 Every non-idle generation cycle is timed and persisted as observed telemetry.
 Raw throughput is estimated only after at least one genuine successful PNG
@@ -27,6 +27,7 @@ from engine.intelligence.gpu_host_qualification import GpuHostQualificationPolic
 from engine.intelligence.local_backend import LocalBackendReadinessGate
 from engine.intelligence.local_dtype import LocalDTypeSelector
 from engine.intelligence.local_runtime import LocalRuntimeProbe
+from engine.intelligence.worker_host_memory_guard import WorkerHostMemoryGuard
 from engine.intelligence.worker_telemetry import (
     FilesystemWorkerTelemetryStore,
     GenerationCapacityEstimator,
@@ -101,6 +102,33 @@ def _requalify_live_host(capabilities: GenerationWorkerCapabilities) -> dict[str
     return payload
 
 
+def _requalify_live_host_memory() -> dict[str, object]:
+    """Re-prove live system RAM immediately before queue/execution boundaries."""
+    receipt = WorkerHostMemoryGuard().inspect()
+    return {
+        "schema": receipt.schema,
+        "ready": receipt.ready,
+        "available_ram_gb": receipt.available_ram_gb,
+        "minimum_available_ram_gb": receipt.minimum_available_ram_gb,
+        "total_ram_gb": receipt.total_ram_gb,
+        "measurement_source": receipt.measurement_source,
+        "reasons": list(receipt.reasons),
+        "cost_mode": receipt.cost_mode,
+        "requalified_immediately_before_queue_or_execution": receipt.requalified_immediately_before_queue_or_execution,
+        "queue_mutated_by_requalification": receipt.queue_mutated_by_requalification,
+        "generation_authorized_by_requalification": receipt.generation_authorized_by_requalification,
+        "publication_ready": receipt.publication_ready,
+    }
+
+
+def _requalify_execution_host(capabilities: GenerationWorkerCapabilities) -> dict[str, object]:
+    """Re-prove both GPU and live system RAM as one fail-closed execution guard."""
+    return {
+        "gpu": _requalify_live_host(capabilities),
+        "host_memory": _requalify_live_host_memory(),
+    }
+
+
 def _capacity_payload(report) -> dict[str, object]:
     return {
         "successful_samples": report.successful_samples,
@@ -146,7 +174,9 @@ def main() -> int:
         raise ValueError("capacity-utilization must be in (0, 1]")
 
     capabilities = build_capabilities(args.worker_id)
-    initial_live_host = _requalify_live_host(capabilities)
+    initial_execution_host = _requalify_execution_host(capabilities)
+    initial_live_host = initial_execution_host["gpu"]
+    initial_host_memory = initial_execution_host["host_memory"]
     store = FilesystemGenerationJobStore(args.queue_root)
     telemetry = FilesystemWorkerTelemetryStore(args.telemetry_root)
     estimator = GenerationCapacityEstimator()
@@ -166,7 +196,7 @@ def main() -> int:
         # The cycle-level requalification below protects recovery/lease entry.
         # This lease-bound guard runs again after a concrete job is leased and
         # immediately before it can transition to RUNNING / invoke FLUX.
-        pre_execute_guard=lambda _job: _requalify_live_host(capabilities),
+        pre_execute_guard=lambda _job: _requalify_execution_host(capabilities),
     )
 
     initial_snapshot = store.snapshot()
@@ -184,7 +214,10 @@ def main() -> int:
             "resolved_dtype": capabilities.metadata.get("resolved_dtype"),
             "live_free_vram_gb": initial_live_host.get("gpu_free_vram_gb"),
             "required_vram_gb": initial_live_host.get("required_vram_gb"),
+            "available_host_ram_gb": initial_host_memory.get("available_ram_gb"),
+            "required_host_ram_gb": initial_host_memory.get("minimum_available_ram_gb"),
             "live_host_requalified": True,
+            "live_host_memory_requalified": True,
             "lease_bound_pre_execute_guard": True,
             "cost_mode": "$0-local",
         },
@@ -197,6 +230,8 @@ def main() -> int:
         "vram_gb": capabilities.vram_gb,
         "live_free_vram_gb": initial_live_host.get("gpu_free_vram_gb"),
         "required_vram_gb": initial_live_host.get("required_vram_gb"),
+        "available_host_ram_gb": initial_host_memory.get("available_ram_gb"),
+        "required_host_ram_gb": initial_host_memory.get("minimum_available_ram_gb"),
         "bf16_supported": capabilities.bf16_supported,
         "lease_bound_pre_execute_guard": True,
         "provider_ids": sorted(capabilities.provider_ids),
@@ -207,10 +242,12 @@ def main() -> int:
 
     cycles = 0
     while True:
-        # Re-prove live VRAM and device identity before recovery or leasing can
-        # mutate durable queue state. A second guard runs after lease, directly
-        # before RUNNING/executor, closing the remaining TOCTOU window.
-        live_host = _requalify_live_host(capabilities)
+        # Re-prove live VRAM, host RAM and device identity before recovery or
+        # leasing can mutate durable queue state. A second combined guard runs
+        # after lease, directly before RUNNING/executor, closing the TOCTOU gap.
+        execution_host = _requalify_execution_host(capabilities)
+        live_host = execution_host["gpu"]
+        host_memory = execution_host["host_memory"]
         started_at = datetime.now(timezone.utc)
         started_monotonic = time.monotonic()
         recovery = store.recover_expired(now=started_at)
@@ -238,6 +275,8 @@ def main() -> int:
                     "resolved_dtype": capabilities.metadata.get("resolved_dtype"),
                     "live_free_vram_gb_before_cycle": live_host.get("gpu_free_vram_gb"),
                     "required_vram_gb": live_host.get("required_vram_gb"),
+                    "available_host_ram_gb_before_cycle": host_memory.get("available_ram_gb"),
+                    "required_host_ram_gb": host_memory.get("minimum_available_ram_gb"),
                     "lease_bound_pre_execute_guard": True,
                     "cost_mode": "$0-local",
                 },
@@ -260,6 +299,8 @@ def main() -> int:
                 "resolved_dtype": capabilities.metadata.get("resolved_dtype"),
                 "live_free_vram_gb_before_cycle": live_host.get("gpu_free_vram_gb"),
                 "required_vram_gb": live_host.get("required_vram_gb"),
+                "available_host_ram_gb_before_cycle": host_memory.get("available_ram_gb"),
+                "required_host_ram_gb": host_memory.get("minimum_available_ram_gb"),
                 "lease_bound_pre_execute_guard": True,
                 "cost_mode": "$0-local",
             },
@@ -279,6 +320,8 @@ def main() -> int:
             "cycle_seconds": elapsed,
             "live_free_vram_gb_before_cycle": live_host.get("gpu_free_vram_gb"),
             "required_vram_gb": live_host.get("required_vram_gb"),
+            "available_host_ram_gb_before_cycle": host_memory.get("available_ram_gb"),
+            "required_host_ram_gb": host_memory.get("minimum_available_ram_gb"),
             "lease_bound_pre_execute_guard": True,
             "recovered_expired_jobs": list(recovery.recovered_job_ids),
             "terminal_expired_jobs": list(recovery.terminal_job_ids),
