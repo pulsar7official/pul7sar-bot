@@ -49,6 +49,33 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         }
 
     @staticmethod
+    def _offload_payload():
+        return {
+            "schema": "pul7sar-phase18-flux2-offload-preflight-v1",
+            "branch": "phase18/story-intelligence",
+            "ready": True,
+            "model_id": "black-forest-labs/FLUX.2-klein-4B",
+            "diffusers_version": "0.test",
+            "pipeline_available": True,
+            "sequential_cpu_offload_available": True,
+            "model_cpu_offload_available": True,
+            "gpu_vram_gb": 24.0,
+            "model_offload_minimum_total_vram_gb": 16.0,
+            "low_vram_host": False,
+            "selected_safe_mode": "sequential_cpu",
+            "reasons": [],
+            "cost_mode": "$0-local",
+            "model_loaded": False,
+            "downloads_performed": False,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "semantic_approved": False,
+            "golden_quality_approved": False,
+            "publication_ready": False,
+        }
+
+    @staticmethod
     def _cache_budget_payload():
         return {
             "schema": "pul7sar-first-golden-cache-budget-v1",
@@ -95,7 +122,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
     def _evidence(path, *, label):
         return {"path": str(path), "sha256": label.lower().encode().hex().ljust(64, "0")[:64], "bytes": 123}
 
-    def test_repository_host_and_cache_budget_precede_semantic_prefetch_and_staging(self):
+    def test_repository_host_offload_and_cache_budget_precede_semantic_prefetch_and_staging(self):
         calls = []
 
         def fake_run_json(command, *, label):
@@ -104,6 +131,8 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
                 return self._repository_payload()
             if label == "FIRST_GOLDEN_GPU_HOST_QUALIFICATION":
                 return self._host_payload()
+            if label == "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT":
+                return self._offload_payload()
             if label == "FIRST_GOLDEN_CACHE_BUDGET":
                 return self._cache_budget_payload()
             if label == "FIRST_GOLDEN_SEALED_REVIEW_STAGING":
@@ -138,12 +167,13 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "FIRST_GOLDEN_REPOSITORY_INTEGRITY",
             "RUNTIME_REPAIR",
             "FIRST_GOLDEN_GPU_HOST_QUALIFICATION",
+            "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT",
             "FIRST_GOLDEN_CACHE_BUDGET",
             "SEMANTIC_RUNTIME_PROBE",
             "QWEN_PREFETCH",
             "FIRST_GOLDEN_SEALED_REVIEW_STAGING",
         ])
-        self.assertEqual(payload["schema"], "pul7sar-first-golden-colab-bootstrap-v4")
+        self.assertEqual(payload["schema"], "pul7sar-first-golden-colab-bootstrap-v5")
         self.assertEqual(payload["candidate"], 1)
         self.assertEqual(payload["gpu_host_qualification"], str(bootstrap.HOST_QUALIFICATION))
         self.assertTrue(payload["gpu_host_eligible"])
@@ -151,19 +181,23 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         self.assertEqual(payload["gpu_free_vram_gb"], 22.0)
         self.assertEqual(payload["required_vram_gb"], 13.0)
         self.assertTrue(payload["native_bf16_proven"])
+        self.assertEqual(payload["flux2_offload_preflight"], str(bootstrap.FLUX_OFFLOAD_PREFLIGHT))
+        self.assertEqual(payload["flux2_safe_offload_mode"], "sequential_cpu")
+        self.assertTrue(payload["flux2_safe_offload_proven"])
         self.assertEqual(payload["first_golden_cache_budget"], str(bootstrap.CACHE_BUDGET))
         self.assertEqual(payload["qwen_model_cache"], str(bootstrap.QWEN_MODEL_CACHE))
         self.assertEqual(payload["qwen_model_revision"], bootstrap.QWEN25_VL_3B_REVISION)
         self.assertTrue(payload["qwen_revision_pinned"])
         self.assertEqual(set(payload["bootstrap_evidence"]), {
-            "repository_integrity", "gpu_host_qualification", "first_golden_cache_budget", "qwen_model_cache", "sealed_review_receipt"
+            "repository_integrity", "gpu_host_qualification", "flux2_offload_preflight",
+            "first_golden_cache_budget", "qwen_model_cache", "sealed_review_receipt"
         })
         self.assertFalse(payload["human_visual_review_approved"])
         self.assertFalse(payload["golden_quality_approved"])
         self.assertFalse(payload["publication_ready"])
         self.assertFalse(payload["seeds_2_to_4_authorized"])
 
-    def test_host_failure_blocks_before_cache_budget_semantic_prefetch_and_staging(self):
+    def test_host_failure_blocks_before_offload_cache_semantic_prefetch_and_staging(self):
         blocked = self._host_payload()
         blocked["eligible"] = False
         blocked["bf16_supported"] = False
@@ -230,12 +264,67 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "GPU_HOST_QUALIFICATION_BLOCKED"):
                 bootstrap.run(worker_id="test-worker", timeout_seconds=60)
 
+    def test_low_vram_offload_failure_blocks_before_cache_and_model_downloads(self):
+        host = self._host_payload()
+        host["gpu_vram_gb"] = 14.6
+        host["gpu_free_vram_gb"] = 14.0
+        bad = self._offload_payload()
+        bad["ready"] = False
+        bad["gpu_vram_gb"] = 14.6
+        bad["low_vram_host"] = True
+        bad["sequential_cpu_offload_available"] = False
+        bad["selected_safe_mode"] = None
+        bad["reasons"] = ["sequential_cpu_offload_required_on_low_vram_host"]
+        labels = []
+
+        def fake_run_json(command, *, label):
+            labels.append(label)
+            if label == "FIRST_GOLDEN_REPOSITORY_INTEGRITY":
+                return self._repository_payload()
+            if label == "FIRST_GOLDEN_GPU_HOST_QUALIFICATION":
+                return host
+            if label == "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT":
+                return bad
+            raise AssertionError(label)
+
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=fake_run_json),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+            patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe") as probe,
+            patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model") as prefetch,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "FLUX_OFFLOAD_PREFLIGHT_BLOCKED"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+        self.assertEqual(labels, [
+            "FIRST_GOLDEN_REPOSITORY_INTEGRITY",
+            "FIRST_GOLDEN_GPU_HOST_QUALIFICATION",
+            "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT",
+        ])
+        probe.assert_not_called()
+        prefetch.assert_not_called()
+
+    def test_offload_authority_drift_is_rejected(self):
+        bad = self._offload_payload()
+        bad["downloads_performed"] = True
+        with (
+            patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
+            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._host_payload(), bad]),
+            patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "FLUX_OFFLOAD_PREFLIGHT_BLOCKED"):
+                bootstrap.run(worker_id="test-worker", timeout_seconds=60)
+
     def test_cache_budget_failure_blocks_before_semantic_probe_prefetch_and_staging(self):
         blocked = self._cache_budget_payload()
         blocked["ready"] = False
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
-            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._host_payload(), blocked]),
+            patch.object(
+                bootstrap,
+                "_run_json",
+                side_effect=[self._repository_payload(), self._host_payload(), self._offload_payload(), blocked],
+            ),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
             patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe") as probe,
             patch.object(bootstrap.runtime_bootstrap, "_prefetch_semantic_model") as prefetch,
@@ -254,6 +343,8 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
                 return self._repository_payload()
             if label == "FIRST_GOLDEN_GPU_HOST_QUALIFICATION":
                 return self._host_payload()
+            if label == "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT":
+                return self._offload_payload()
             if label == "FIRST_GOLDEN_CACHE_BUDGET":
                 return self._cache_budget_payload()
             raise AssertionError(label)
@@ -268,7 +359,12 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "SEMANTIC_RUNTIME_NOT_READY"):
                 bootstrap.run(worker_id="test-worker", timeout_seconds=60)
 
-        self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY", "FIRST_GOLDEN_GPU_HOST_QUALIFICATION", "FIRST_GOLDEN_CACHE_BUDGET"])
+        self.assertEqual(labels, [
+            "FIRST_GOLDEN_REPOSITORY_INTEGRITY",
+            "FIRST_GOLDEN_GPU_HOST_QUALIFICATION",
+            "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT",
+            "FIRST_GOLDEN_CACHE_BUDGET",
+        ])
         prefetch.assert_not_called()
 
     def test_qwen_prefetch_failure_blocks_before_sealed_staging(self):
@@ -280,6 +376,8 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
                 return self._repository_payload()
             if label == "FIRST_GOLDEN_GPU_HOST_QUALIFICATION":
                 return self._host_payload()
+            if label == "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT":
+                return self._offload_payload()
             if label == "FIRST_GOLDEN_CACHE_BUDGET":
                 return self._cache_budget_payload()
             raise AssertionError(label)
@@ -294,14 +392,23 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "QWEN_MODEL_NOT_READY"):
                 bootstrap.run(worker_id="test-worker", timeout_seconds=60)
 
-        self.assertEqual(labels, ["FIRST_GOLDEN_REPOSITORY_INTEGRITY", "FIRST_GOLDEN_GPU_HOST_QUALIFICATION", "FIRST_GOLDEN_CACHE_BUDGET"])
+        self.assertEqual(labels, [
+            "FIRST_GOLDEN_REPOSITORY_INTEGRITY",
+            "FIRST_GOLDEN_GPU_HOST_QUALIFICATION",
+            "FIRST_GOLDEN_FLUX_OFFLOAD_PREFLIGHT",
+            "FIRST_GOLDEN_CACHE_BUDGET",
+        ])
 
     def test_qwen_cache_receipt_identity_drift_blocks_before_staging(self):
         bad = self._qwen_cache_payload()
         bad["model_id"] = "wrong/model"
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
-            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._host_payload(), self._cache_budget_payload()]),
+            patch.object(
+                bootstrap,
+                "_run_json",
+                side_effect=[self._repository_payload(), self._host_payload(), self._offload_payload(), self._cache_budget_payload()],
+            ),
             patch.object(bootstrap, "_load_json_file", return_value=bad),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
             patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
@@ -315,7 +422,11 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
         bad["model_revision"] = "0" * 40
         with (
             patch.object(bootstrap, "_branch", return_value="phase18/story-intelligence"),
-            patch.object(bootstrap, "_run_json", side_effect=[self._repository_payload(), self._host_payload(), self._cache_budget_payload()]),
+            patch.object(
+                bootstrap,
+                "_run_json",
+                side_effect=[self._repository_payload(), self._host_payload(), self._offload_payload(), self._cache_budget_payload()],
+            ),
             patch.object(bootstrap, "_load_json_file", return_value=bad),
             patch.object(bootstrap.runtime_bootstrap, "_repair_runtime"),
             patch.object(bootstrap.runtime_bootstrap, "_fresh_process_probe", return_value=True),
@@ -330,7 +441,10 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             patch.object(
                 bootstrap,
                 "_run_json",
-                side_effect=[self._repository_payload(), self._host_payload(), self._cache_budget_payload(), self._staged_payload()],
+                side_effect=[
+                    self._repository_payload(), self._host_payload(), self._offload_payload(),
+                    self._cache_budget_payload(), self._staged_payload(),
+                ],
             ),
             patch.object(bootstrap, "_load_json_file", return_value=self._qwen_cache_payload()),
             patch.object(bootstrap, "_evidence_record", side_effect=RuntimeError("FIRST_GOLDEN_BOOTSTRAP_SEALED_REVIEW_EVIDENCE_MISSING")),
@@ -368,7 +482,10 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             patch.object(
                 bootstrap,
                 "_run_json",
-                side_effect=[self._repository_payload(), self._host_payload(), self._cache_budget_payload(), self._staged_payload()],
+                side_effect=[
+                    self._repository_payload(), self._host_payload(), self._offload_payload(),
+                    self._cache_budget_payload(), self._staged_payload(),
+                ],
             ),
             patch.object(bootstrap, "_load_json_file", return_value=self._qwen_cache_payload()),
             patch.object(bootstrap, "_evidence_record", side_effect=self._evidence),
