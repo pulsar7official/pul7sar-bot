@@ -40,6 +40,9 @@ class Phase18ColabRunnerTests(unittest.TestCase):
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
             "visual_priority": "story_focal_hierarchy_before_sport_surface",
+            "focal_anchor": "illuminated_tunnel_lower_left",
+            "copy_negative_space": "right_center",
+            "brand_quiet_zone": "upper_left",
         }
         _assert_current_golden_contract(current)
         for key, bad in (
@@ -53,6 +56,9 @@ class Phase18ColabRunnerTests(unittest.TestCase):
             ("generated_branding_allowed", True),
             ("brand_composition_policy", None),
             ("visual_priority", "sport_surface_before_story"),
+            ("focal_anchor", "center_pitch"),
+            ("copy_negative_space", "none"),
+            ("brand_quiet_zone", "lower_right"),
         ):
             changed = dict(current)
             changed[key] = bad
