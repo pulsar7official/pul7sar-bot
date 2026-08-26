@@ -95,11 +95,17 @@ class GpuWorkerLiveRequalificationTests(unittest.TestCase):
 
     def test_worker_binds_second_requalification_inside_leased_execution(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
+        helper_start = source.index("def _record_lease_bound_execution_evidence(")
+        helper = source[helper_start : source.index("def _capacity_payload", helper_start)]
+        self.assertIn("_requalify_execution_host(capabilities)", helper)
+        self.assertIn("evidence_store.write(", helper)
+
         service_start = source.index("service = GenerationWorkerService(")
         service = source[service_start : source.index("initial_snapshot =", service_start)]
         self.assertIn("pre_execute_guard=", service)
-        self.assertIn("_requalify_execution_host(capabilities)", service)
+        self.assertIn("_record_lease_bound_execution_evidence(", service)
         self.assertIn("lease_bound_pre_execute_guard", source)
+        self.assertIn("lease_bound_resource_evidence", source)
 
     def test_initial_requalification_occurs_before_store_creation(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
