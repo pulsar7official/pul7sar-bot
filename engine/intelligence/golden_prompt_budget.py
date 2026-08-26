@@ -21,8 +21,8 @@ GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1200
 
 _COMPACT_SCENE_PROMPT = (
     "Create one single continuous full-bleed editorial image: a premium European football season-opening scene at dusk in a deliberately non-identifying generic stadium. "
-    "Story-specific visual concept archetype: generative_event_atmosphere. Never imply specific real venue identity without verified reference; include no specific real-person depiction. "
-    "Use believable floodlights, deep stands, cinematic air, natural turf texture, an indistinct distant crowd, at most one anonymous silhouette, generic architecture and no distinctive landmark. "
+    "Story-specific visual concept archetype: generative_event_atmosphere. Story-specific non-identifying sports atmosphere. Must not imply a specific real venue; include no specific real-person depiction. "
+    "Use believable floodlights, cinematic air, natural turf texture, distant crowd, one anonymous silhouette, generic architecture and no distinctive landmark. "
     "Keep one stable camera perspective, realistic scale, strong depth and calm editorial negative space. Use at most a restrained partial sport-surface context; do not make a full pitch the visual subject. "
     "Keep the reserved surface region plain and unmarked: no field/court/rink lines. The exact surface will be replaced by deterministic code after generation. "
     "Keep the base fully unbranded, including platform names. Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, framed-window, or image-within-image composition. "
