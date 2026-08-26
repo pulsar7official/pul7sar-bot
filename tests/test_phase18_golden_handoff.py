@@ -55,7 +55,8 @@ class GoldenVisualHandoffTests(unittest.TestCase):
         self.assertIn("deliberately non-identifying generic stadium", prompt)
         self.assertIn("do not imply a specific real venue, club, match or person", prompt)
         self.assertIn("no specific identifiable real venue", prompt)
-        self.assertIn("no specific real-person depiction", prompt)
+        self.assertIn("free of identifiable real people or celebrity likenesses", prompt)
+        self.assertIn("silhouettes, or distant anonymous figures only", prompt)
 
     def test_golden_request_is_deterministic_for_same_seed(self):
         first = build_request(seed=42, request_id="same")
