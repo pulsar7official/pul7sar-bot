@@ -25,6 +25,9 @@ EXPECTED_SPORT_GEOMETRY = "contextual_optional_not_required"
 EXPECTED_CAMERA_PRESET = "editorial_environmental_oblique"
 EXPECTED_VISUAL_PRIORITY = "story_focal_hierarchy_before_sport_surface"
 EXPECTED_BRAND_POLICY = "dynamic_deterministic_after_generation"
+EXPECTED_FOCAL_ANCHOR = "illuminated_tunnel_lower_left"
+EXPECTED_COPY_NEGATIVE_SPACE = "right_center"
+EXPECTED_BRAND_QUIET_ZONE = "upper_left"
 DEFAULT_BATCH_DIR = "output/phase18_handoffs/golden-batch"
 DEFAULT_GENERATION_DIR = "output/phase18_generated"
 DEFAULT_PROOF_DIR = "output/phase18_visual_proof"
@@ -99,6 +102,9 @@ def _assert_current_golden_contract(manifest: dict[str, Any]) -> None:
         "generated_branding_allowed": False,
         "brand_composition_policy": EXPECTED_BRAND_POLICY,
         "visual_priority": EXPECTED_VISUAL_PRIORITY,
+        "focal_anchor": EXPECTED_FOCAL_ANCHOR,
+        "copy_negative_space": EXPECTED_COPY_NEGATIVE_SPACE,
+        "brand_quiet_zone": EXPECTED_BRAND_QUIET_ZONE,
     }
     failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
     if failures:
@@ -254,6 +260,9 @@ def main() -> int:
         "generated_branding_allowed": manifest.get("generated_branding_allowed"),
         "brand_composition_policy": manifest.get("brand_composition_policy"),
         "visual_priority": manifest.get("visual_priority"),
+        "focal_anchor": manifest.get("focal_anchor"),
+        "copy_negative_space": manifest.get("copy_negative_space"),
+        "brand_quiet_zone": manifest.get("brand_quiet_zone"),
         "candidate": args.candidate,
         "seed": selected.get("seed"),
         "request_id": selected.get("request_id"),
@@ -319,7 +328,8 @@ def main() -> int:
     print(
         f"benchmark={manifest.get('benchmark')} manifest={manifest.get('manifest_version')} "
         f"surface={manifest.get('visual_grammar_surface_visibility')} geometry={manifest.get('sport_geometry')} "
-        f"pitch_replacement={manifest.get('hybrid_surface_replacement_required')} brand_policy={manifest.get('brand_composition_policy')}"
+        f"pitch_replacement={manifest.get('hybrid_surface_replacement_required')} brand_policy={manifest.get('brand_composition_policy')} "
+        f"focal_anchor={manifest.get('focal_anchor')} copy_space={manifest.get('copy_negative_space')} brand_zone={manifest.get('brand_quiet_zone')}"
     )
     completed = _run(command, cwd=root, capture=False)
     if completed.returncode != 0:
