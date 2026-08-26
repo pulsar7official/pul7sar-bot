@@ -102,6 +102,8 @@ class GoldenPromptBudgetTests(unittest.TestCase):
         lowered = request.prompt.casefold()
         required_v5_markers = (
             "one single continuous full-bleed editorial image",
+            "story-specific non-identifying sports atmosphere",
+            "must not imply a specific real venue",
             "never use collage, montage, split-screen, grid, diptych, triptych",
             "reserved surface region plain and unmarked",
             "no field/court/rink lines",
