@@ -79,13 +79,28 @@ class WorkerHostMemoryGuardTests(unittest.TestCase):
         self.assertIn('initial_execution_host["gpu"]', main)
         self.assertIn('initial_execution_host["host_memory"]', main)
 
-    def test_gpu_worker_lease_bound_guard_rechecks_both_resources(self) -> None:
+    def test_gpu_worker_lease_bound_guard_rechecks_and_seals_both_resources(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
+        helper_start = source.index("def _record_lease_bound_execution_evidence(")
+        helper_end = source.index("def _capacity_payload", helper_start)
+        helper = source[helper_start:helper_end]
+        self.assertIn("_requalify_execution_host(capabilities)", helper)
+        self.assertIn("evidence_store.write(", helper)
+
         service_start = source.index("service = GenerationWorkerService(")
         service_end = source.index("initial_snapshot =", service_start)
         service = source[service_start:service_end]
         self.assertIn("pre_execute_guard=", service)
-        self.assertIn("_requalify_execution_host(capabilities)", service)
+        self.assertIn("_record_lease_bound_execution_evidence(", service)
+        self.assertIn("resource_evidence", service)
+
+    def test_resource_evidence_store_is_created_before_worker_service(self) -> None:
+        source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
+        main = source[source.index("def main()") :]
+        evidence_store = main.index("LeaseBoundExecutionResourceEvidenceStore(args.resource_evidence_root)")
+        service = main.index("service = GenerationWorkerService(")
+        self.assertLess(evidence_store, service)
+        self.assertIn('--resource-evidence-root", default="output/phase18_worker_results"', source)
 
     def test_cycle_requalification_precedes_queue_recovery(self) -> None:
         source = Path(phase18_gpu_worker.__file__).read_text(encoding="utf-8")
