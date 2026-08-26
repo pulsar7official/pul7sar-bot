@@ -152,10 +152,25 @@ class LocalBackendRequestCompiler:
 
         hybrid_contract = bool(package.metadata.get("hybrid_base_scene_contract"))
         reserved_content = tuple(package.metadata.get("reserved_base_scene_content") or ())
-        generated_geometry_allowed = not any(
+        reserved_geometry = any(
             "playing-surface geometry" in str(item).casefold() or "sport surface geometry" in str(item).casefold()
             for item in reserved_content
         )
+        surface_visibility = str(package.metadata.get("visual_grammar_surface_visibility") or "").strip().casefold()
+        explicit_surface_modes = {"none", "context_only", "partial_deterministic", "full_deterministic"}
+        if surface_visibility in explicit_surface_modes:
+            # VisualGrammar owns the decision. Even a context-only scene may show
+            # incidental turf, but the image model never receives authority to
+            # invent exact sport geometry or markings.
+            generated_geometry_allowed = False
+        else:
+            # Backwards-compatible fallback for older provider-neutral packages
+            # that predate VisualGrammar metadata.
+            generated_geometry_allowed = not reserved_geometry
+        deterministic_surface_required = reserved_geometry or surface_visibility in {
+            "partial_deterministic", "full_deterministic"
+        }
+        hybrid_surface_replacement_required = hybrid_contract and deterministic_surface_required
 
         return LocalBackendGenerationRequest(
             provider_id=model.provider_id,
@@ -183,7 +198,7 @@ class LocalBackendRequestCompiler:
                 "hybrid_base_scene_contract": hybrid_contract,
                 "reserved_base_scene_content": reserved_content,
                 "generated_sport_geometry_allowed": generated_geometry_allowed,
-                "hybrid_surface_replacement_required": hybrid_contract and not generated_geometry_allowed,
+                "hybrid_surface_replacement_required": hybrid_surface_replacement_required,
                 "base_scene_overlay_policy": package.metadata.get("base_scene_overlay_policy"),
                 "visual_grammar_contract": package.metadata.get("visual_grammar_contract"),
                 "visual_grammar_provider_agnostic": bool(package.metadata.get("visual_grammar_provider_agnostic")),
