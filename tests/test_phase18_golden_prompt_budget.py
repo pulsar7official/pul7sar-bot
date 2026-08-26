@@ -100,6 +100,18 @@ class GoldenPromptBudgetTests(unittest.TestCase):
         self.assertFalse(request.metadata["generated_branding_allowed"])
         self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
         lowered = request.prompt.casefold()
+        required_v5_markers = (
+            "one single continuous full-bleed editorial image",
+            "never use collage, montage, split-screen, grid, diptych, triptych",
+            "reserved surface region plain and unmarked",
+            "no field/court/rink lines",
+            "the exact surface will be replaced by deterministic code after generation",
+            "fully unbranded",
+            "platform names",
+        )
+        for marker in required_v5_markers:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, lowered)
         self.assertNotIn("pul7sar", lowered)
         self.assertNotIn("pulsar", lowered)
 
