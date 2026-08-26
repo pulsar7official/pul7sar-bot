@@ -137,16 +137,27 @@ jobs:
               assert e['generic_ecg_recreation_used'] is False and e['generator_used'] is False and e['network_used'] is False
               assert e['publication_ready'] is False and (r/e['png']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
           PY
-      - name: Build and verify Golden Hybrid v5
+      - name: Build and verify Golden editorial v6
         run: |
-          python tools/phase18_build_golden_handoff.py --output output/phase18_handoffs/golden-season-opener-hybrid-v5.json --seed 7007001 --request-id golden-season-opener-hybrid-v5-001
+          python tools/phase18_build_golden_handoff.py --output output/phase18_handoffs/golden-season-opener-editorial-v6.json --seed 7007001 --request-id golden-season-opener-editorial-v6-001
           python tools/phase18_build_golden_batch.py --output-dir output/phase18_handoffs/golden-batch --seeds 7007001 7007002 7007003 7007004
           python tools/phase18_verify_golden_batch.py --manifest output/phase18_handoffs/golden-batch/manifest.json
           python - <<'PY'
           import json
           from pathlib import Path
           m=json.loads(Path('output/phase18_handoffs/golden-batch/manifest.json').read_text())
-          expected={'manifest_version':'pul7sar-golden-batch-v5','composition_grammar':'single_continuous_scene','sport_geometry':'deterministic_football_pitch_projective_v1','generated_sport_geometry_allowed':False,'hybrid_surface_replacement_required':True,'football_camera_preset':'high_wide_central','generated_branding_allowed':False,'brand_composition_policy':'dynamic_deterministic_after_generation'}
+          expected={
+              'manifest_version':'pul7sar-golden-batch-v6',
+              'composition_grammar':'single_continuous_scene',
+              'visual_grammar_surface_visibility':'context_only',
+              'sport_geometry':'context_only_no_exact_surface_required',
+              'generated_sport_geometry_allowed':False,
+              'hybrid_surface_replacement_required':False,
+              'football_camera_preset':'editorial_environmental_oblique',
+              'generated_branding_allowed':False,
+              'brand_composition_policy':'dynamic_deterministic_after_generation',
+              'visual_priority':'story_focal_hierarchy_before_sport_surface',
+          }
           assert all(m.get(k)==v for k,v in expected.items()), m
           PY
       - name: Assert legacy logo remains non-canonical
@@ -167,9 +178,9 @@ jobs:
       - name: Upload self-contained reference brand study
         uses: actions/upload-artifact@v7
         with: {name: 'PUL7SAR-reference-brand-study-${{ github.sha }}', path: output/phase18_reference_brand_study/, if-no-files-found: error, retention-days: 14}
-      - name: Upload Golden Hybrid v5 GPU handoff
+      - name: Upload Golden editorial v6 GPU handoff
         uses: actions/upload-artifact@v7
-        with: {name: golden-season-opener-hybrid-v5.json, path: output/phase18_handoffs/golden-season-opener-hybrid-v5.json, archive: false, if-no-files-found: error, retention-days: 14}
-      - name: Upload Golden Hybrid v5 candidate batch
+        with: {name: golden-season-opener-editorial-v6.json, path: output/phase18_handoffs/golden-season-opener-editorial-v6.json, archive: false, if-no-files-found: error, retention-days: 14}
+      - name: Upload Golden editorial v6 candidate batch
         uses: actions/upload-artifact@v7
-        with: {name: 'PUL7SAR-golden-hybrid-v5-candidate-batch-${{ github.sha }}', path: output/phase18_handoffs/golden-batch/, if-no-files-found: error, retention-days: 14}
+        with: {name: 'PUL7SAR-golden-editorial-v6-candidate-batch-${{ github.sha }}', path: output/phase18_handoffs/golden-batch/, if-no-files-found: error, retention-days: 14}
