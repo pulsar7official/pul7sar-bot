@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Verify a Golden Visual handoff batch without CUDA or model downloads.
 
-v5 validates hybrid ownership primarily from integrity-hashed structured request
-metadata. Prompt prose is checked only for semantic safeguards and protected-name
-redaction, so editorial wording may evolve without weakening ownership policy.
+Legacy v1-v5 manifests remain readable. v6 adds a story-first ownership contract:
+a generic PREVIEW must stay context-only, must not require deterministic surface
+replacement, and must explicitly reject central/full-pitch template framing.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 SUPPORTED_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v1", "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3",
-    "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5",
+    "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
 }
 
 
@@ -29,7 +29,10 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
     if manifest.get("cost_mode") != "$0-local":
         raise ValueError("Golden Visual batch must remain locked to $0-local")
 
-    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"} and manifest.get("composition_grammar") != "single_continuous_scene":
+    if manifest_version in {
+        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4",
+        "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
+    } and manifest.get("composition_grammar") != "single_continuous_scene":
         raise ValueError("Golden Visual v2+ batch must lock single_continuous_scene")
     if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"} and manifest.get("sport_geometry") != "association_football_regulation_pitch":
         raise ValueError("Golden Visual v3/v4 must lock regulation pitch geometry")
@@ -50,6 +53,20 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
         if failures:
             raise ValueError("Golden Hybrid v5 contract mismatch: " + "; ".join(failures))
+    if manifest_version == "pul7sar-golden-batch-v6":
+        expected = {
+            "visual_grammar_surface_visibility": "context_only",
+            "sport_geometry": "context_only_no_exact_surface_required",
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": False,
+            "football_camera_preset": "editorial_environmental_oblique",
+            "generated_branding_allowed": False,
+            "brand_composition_policy": "dynamic_deterministic_after_generation",
+            "visual_priority": "story_focal_hierarchy_before_sport_surface",
+        }
+        failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
+        if failures:
+            raise ValueError("Golden editorial v6 contract mismatch: " + "; ".join(failures))
 
     candidates = manifest.get("candidates")
     if not isinstance(candidates, list) or not candidates:
@@ -97,16 +114,29 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             raise ValueError(f"candidate {request_id} escaped $0-local mode")
 
         prompt = request.prompt.casefold()
-        if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"}:
-            required = ("one single continuous full-bleed editorial image", "never use collage, montage, split-screen, grid, diptych, triptych")
+        if manifest_version in {
+            "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4",
+            "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
+        }:
+            required = (
+                "one single continuous full-bleed editorial image",
+                "never use collage, montage, split-screen, grid, diptych, triptych",
+            )
             if any(marker not in prompt for marker in required):
                 raise ValueError(f"candidate {request_id} is missing the unified-scene prompt lock")
         if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"}:
-            geometry = ("regulation association-football pitch geometry", "exactly one halfway line", "exactly one circular centre circle", "do not duplicate the halfway line or centre circle")
+            geometry = (
+                "regulation association-football pitch geometry", "exactly one halfway line",
+                "exactly one circular centre circle", "do not duplicate the halfway line or centre circle",
+            )
             if any(marker not in prompt for marker in geometry):
                 raise ValueError(f"candidate {request_id} is missing the legacy v3/v4 geometry lock")
         if manifest_version == "pul7sar-golden-batch-v4":
-            branding = ("zero pul7sar lettering", "never spell pul7sar, pulsar, or any approximation", "no legible words, letters, numerals, pseudo-text, fake logos", "exact branding and typography are added only by deterministic post-composition")
+            branding = (
+                "zero pul7sar lettering", "never spell pul7sar, pulsar, or any approximation",
+                "no legible words, letters, numerals, pseudo-text, fake logos",
+                "exact branding and typography are added only by deterministic post-composition",
+            )
             if any(marker not in prompt for marker in branding):
                 raise ValueError(f"candidate {request_id} is missing the v4 brand-exclusion lock")
         if manifest_version == "pul7sar-golden-batch-v5":
@@ -132,6 +162,39 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             failures = [f"{key}={request.metadata.get(key)!r}" for key, value in structured.items() if request.metadata.get(key) != value]
             if failures:
                 raise ValueError(f"candidate {request_id} structured Golden Hybrid v5 ownership mismatch: " + "; ".join(failures))
+        if manifest_version == "pul7sar-golden-batch-v6":
+            semantic = (
+                "asymmetric editorial hierarchy",
+                "no high-wide-central broadcast framing",
+                "no full-pitch master shot",
+                "fully unbranded",
+                "platform names",
+            )
+            if any(marker not in prompt for marker in semantic):
+                raise ValueError(f"candidate {request_id} is missing Golden editorial v6 visual safeguards")
+            if "pul7sar" in prompt or "pulsar" in prompt:
+                raise ValueError(f"candidate {request_id} leaked protected platform name into v6 generation prompt")
+            forbidden_old_contract = (
+                "the exact surface will be replaced by deterministic code after generation",
+                "high wide central stadium camera",
+            )
+            if any(marker in prompt for marker in forbidden_old_contract):
+                raise ValueError(f"candidate {request_id} regressed to the Golden v5 pitch-first contract")
+            structured = {
+                "brand_name_redacted_from_generation_prompt": True,
+                "generated_branding_allowed": False,
+                "composition_grammar": "single_continuous_scene",
+                "hybrid_base_scene_contract": True,
+                "generated_sport_geometry_allowed": False,
+                "hybrid_surface_replacement_required": False,
+                "visual_grammar_surface_visibility": "context_only",
+                "sport_geometry": "context_only_no_exact_surface_required",
+                "football_camera_preset": "editorial_environmental_oblique",
+                "visual_priority": "story_focal_hierarchy_before_sport_surface",
+            }
+            failures = [f"{key}={request.metadata.get(key)!r}" for key, value in structured.items() if request.metadata.get(key) != value]
+            if failures:
+                raise ValueError(f"candidate {request_id} structured Golden editorial v6 ownership mismatch: " + "; ".join(failures))
 
         target_width = request.metadata.get("target_width")
         target_height = request.metadata.get("target_height")
@@ -141,7 +204,13 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
             raise ValueError(f"target canvas mismatch for {request_id}")
         if item.get("native_canvas") != f"{request.width}x{request.height}":
             raise ValueError(f"native canvas mismatch for {request_id}")
-        verified.append({"request_id": request_id, "seed": seed, "payload_sha256": declared_hash, "native_canvas": f"{request.width}x{request.height}", "target_canvas": actual_target})
+        verified.append({
+            "request_id": request_id,
+            "seed": seed,
+            "payload_sha256": declared_hash,
+            "native_canvas": f"{request.width}x{request.height}",
+            "target_canvas": actual_target,
+        })
 
     json_files = {entry.name for entry in root.glob("candidate-*.json") if entry.is_file()}
     if json_files != seen_files:
@@ -151,14 +220,19 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         raise ValueError("candidate file coverage mismatch: " + "; ".join(details))
 
     return {
-        "status": "GOLDEN_BATCH_INTEGRITY_VERIFIED", "manifest_version": manifest_version,
+        "status": "GOLDEN_BATCH_INTEGRITY_VERIFIED",
+        "manifest_version": manifest_version,
         "composition_grammar": manifest.get("composition_grammar", "legacy_unspecified"),
+        "visual_grammar_surface_visibility": manifest.get("visual_grammar_surface_visibility", "legacy_unspecified"),
         "sport_geometry": manifest.get("sport_geometry", "legacy_unspecified"),
         "generated_sport_geometry_allowed": manifest.get("generated_sport_geometry_allowed", "legacy_unspecified"),
         "hybrid_surface_replacement_required": manifest.get("hybrid_surface_replacement_required", "legacy_unspecified"),
         "generated_branding_allowed": manifest.get("generated_branding_allowed", "legacy_unspecified"),
         "brand_composition_policy": manifest.get("brand_composition_policy", "legacy_unspecified"),
-        "cost_mode": "$0-local", "candidate_count": len(verified), "candidates": verified,
+        "visual_priority": manifest.get("visual_priority", "legacy_unspecified"),
+        "cost_mode": "$0-local",
+        "candidate_count": len(verified),
+        "candidates": verified,
     }
 
 
