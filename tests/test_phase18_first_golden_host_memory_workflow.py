@@ -31,7 +31,7 @@ class Phase18FirstGoldenHostMemoryWorkflowTests(unittest.TestCase):
         self.assertIn('git diff --name-only "$base"...HEAD', self.text)
         isolation = self.text.index("Unexpected main.py modification detected in Phase 18 diff.")
         cuda = self.text.index("Prove CUDA-enabled PyTorch exists without replacing it")
-        execution = self.text.index("phase18_colab_first_golden_host_memory_locked.py")
+        execution = self.text.index("python tools/phase18_colab_first_golden_host_memory_locked.py")
         self.assertLess(isolation, cuda)
         self.assertLess(cuda, execution)
 
@@ -66,7 +66,7 @@ class Phase18FirstGoldenHostMemoryWorkflowTests(unittest.TestCase):
         self.assertIn('"generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"', self.text)
 
     def test_artifact_upload_happens_only_after_replay(self):
-        execution = self.text.index("phase18_colab_first_golden_host_memory_locked.py")
+        execution = self.text.index("python tools/phase18_colab_first_golden_host_memory_locked.py")
         replay = self.text.index("FIRST_GOLDEN_HOST_MEMORY_RUNTIME_AND_REVIEW_REPLAY_VERIFIED")
         upload = self.text.index("uses: actions/upload-artifact@v4")
         self.assertLess(execution, replay)
