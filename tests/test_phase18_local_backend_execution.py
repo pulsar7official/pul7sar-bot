@@ -103,7 +103,7 @@ class LocalBackendExecutionTests(unittest.TestCase):
             platform="instagram_feed",
             canvas="1080x1350",
             scene_prompt="story-first season-opening atmosphere with incidental turf",
-            negative_constraints=("no invented pitch markings",),
+            negative_constraints=("no humiliation",),
             asset_ids=(),
             factual_constraints=("preview remains unresolved",),
             metadata={
@@ -130,7 +130,7 @@ class LocalBackendExecutionTests(unittest.TestCase):
             platform="instagram_feed",
             canvas="1080x1350",
             scene_prompt="football atmosphere with a reserved deterministic surface",
-            negative_constraints=("no invented pitch markings",),
+            negative_constraints=("no humiliation",),
             asset_ids=(),
             factual_constraints=("preview remains unresolved",),
             metadata={
