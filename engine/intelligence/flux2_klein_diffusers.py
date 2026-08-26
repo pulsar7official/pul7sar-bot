@@ -195,12 +195,12 @@ def build_flux2_klein_pipeline_factory(
     first path after a real ~14.6-GiB T4 host proved model-level offload can OOM
     inside FLUX.2 attention at the locked Golden canvas.
 
-    Critically, a low-VRAM host may no longer silently fall back from sequential
-    offload to model-level offload. If sequential offload is unavailable, model
-    offload is accepted only when physical CUDA VRAM is measurable and strictly
-    above the configured low-VRAM safety floor. Unknown VRAM also fails closed.
-    The exact model, BF16 dtype, prompt, seed, canvas and inference-step locks are
-    unchanged.
+    Critically, model-level CPU offload is never accepted as an unmeasured
+    fallback. Whenever model offload would be selected, physical CUDA VRAM must
+    be measurable and strictly above the configured safety floor. This prevents
+    a caller from bypassing the low-VRAM protection merely by disabling the
+    sequential preference. Unknown VRAM also fails closed. The exact model, BF16
+    dtype, prompt, seed, canvas and inference-step locks are unchanged.
     """
 
     if model_revision != FLUX2_KLEIN_4B_REVISION:
@@ -245,15 +245,14 @@ def build_flux2_klein_pipeline_factory(
                 offload_mode = "sequential_cpu"
             elif callable(model_offload):
                 total_vram_gb = _total_cuda_vram_gb(torch_module)
-                if inference.prefer_sequential_cpu_offload:
-                    if total_vram_gb is None:
-                        raise RuntimeError(
-                            "sequential CPU offload is unavailable and CUDA VRAM could not be proven; unsafe model-offload fallback blocked"
-                        )
-                    if total_vram_gb <= inference.model_offload_minimum_total_vram_gb:
-                        raise RuntimeError(
-                            "sequential CPU offload is required on low-VRAM FLUX.2 hosts; unsafe model-offload fallback blocked"
-                        )
+                if total_vram_gb is None:
+                    raise RuntimeError(
+                        "model CPU offload requires proven CUDA VRAM; unsafe unmeasured fallback blocked"
+                    )
+                if total_vram_gb <= inference.model_offload_minimum_total_vram_gb:
+                    raise RuntimeError(
+                        "sequential CPU offload is required on low-VRAM FLUX.2 hosts; unsafe model-offload fallback blocked"
+                    )
                 model_offload()
                 offload_mode = "model_cpu"
             else:
