@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       confirmation:
-        description: "Type RUN_PHASE18_FIRST_GOLDEN_REVIEW to execute Candidate 1 through the strict sealed review path"
+        description: "Type RUN_PHASE18_FIRST_GOLDEN_REVIEW to execute Candidate 1 through the runtime-locked sealed review path"
         required: true
         type: string
 
@@ -62,10 +62,12 @@ jobs:
           test "$(git branch --show-current)" = "phase18/story-intelligence"
           test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
 
+          test -f tools/phase18_colab_first_golden_runtime_locked.py
           test -f tools/phase18_colab_first_golden_bootstrap.py
           test -f tools/phase18_colab_first_golden_review_sealed.py
           test -f tools/phase18_first_png_original_scene.py
           test -f tools/phase18_qualify_gpu_host.py
+          test -f engine/intelligence/generation_runtime_fingerprint.py
           test -f engine/intelligence/golden_original_scene_admission.py
           test -f engine/intelligence/first_golden_review_packet_integrity.py
 
@@ -98,16 +100,16 @@ jobs:
               raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
           PY
 
-      - name: Run strict Candidate 1 pipeline through sealed human-review staging
+      - name: Run runtime-locked Candidate 1 pipeline through sealed human-review staging
         shell: bash
         run: |
           set -euo pipefail
-          python tools/phase18_colab_first_golden_bootstrap.py \
+          python tools/phase18_colab_first_golden_runtime_locked.py \
             --worker-id github-self-hosted-first-golden-review-01 \
             --timeout-seconds 1800 \
-            --output output/phase18_gpu_smoke/first-golden-colab-bootstrap.json
+            --output output/phase18_gpu_smoke/first-golden-runtime-locked.json
 
-      - name: Replay bootstrap evidence and verify exact review PNG bytes
+      - name: Replay runtime fingerprint, bootstrap evidence, and exact review PNG bytes
         shell: bash
         run: |
           set -euo pipefail
@@ -117,9 +119,73 @@ jobs:
           from pathlib import Path
 
           root = Path.cwd().resolve()
-          receipt_path = root / "output/phase18_gpu_smoke/first-golden-colab-bootstrap.json"
-          if not receipt_path.is_file():
-              raise SystemExit("first-Golden bootstrap receipt missing")
+          runtime_path = root / "output/phase18_gpu_smoke/first-golden-runtime-locked.json"
+          if not runtime_path.is_file():
+              raise SystemExit("first-Golden runtime-lock receipt missing")
+          runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+          if runtime.get("schema") != "pul7sar-first-golden-runtime-lock-v1":
+              raise SystemExit("unexpected first-Golden runtime-lock schema")
+          if runtime.get("status") != "FIRST_GOLDEN_RUNTIME_LOCK_VERIFIED":
+              raise SystemExit("first-Golden runtime lock not verified")
+          if runtime.get("branch") != "phase18/story-intelligence" or runtime.get("candidate") != 1:
+              raise SystemExit("first-Golden runtime-lock identity drift")
+          if runtime.get("cost_mode") != "$0-local":
+              raise SystemExit("first-Golden runtime lock escaped zero-cost mode")
+          if runtime.get("runtime_stable_across_generation") is not True:
+              raise SystemExit("first-Golden runtime stability was not proven")
+          runtime_sha = runtime.get("runtime_fingerprint_sha256")
+          if not isinstance(runtime_sha, str) or len(runtime_sha) != 64:
+              raise SystemExit("first-Golden runtime fingerprint SHA missing")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if runtime.get(field) is not False:
+                  raise SystemExit(f"first-Golden runtime lock illegally changed gate: {field}")
+
+          def inside_repo(value: str) -> Path:
+              path = Path(value)
+              if not path.is_absolute():
+                  path = root / path
+              path = path.resolve()
+              if path != root and root not in path.parents:
+                  raise SystemExit(f"evidence path escaped repository: {path}")
+              return path
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          runtime_evidence = runtime.get("evidence")
+          if not isinstance(runtime_evidence, dict) or set(runtime_evidence) != {
+              "runtime_fingerprint_pre",
+              "runtime_fingerprint_post",
+              "strict_bootstrap",
+          }:
+              raise SystemExit("first-Golden runtime-lock evidence set is incomplete")
+          for label, record in runtime_evidence.items():
+              if not isinstance(record, dict):
+                  raise SystemExit(f"invalid runtime-lock evidence record: {label}")
+              path = inside_repo(str(record.get("path", "")))
+              if not path.is_file():
+                  raise SystemExit(f"runtime-lock evidence file missing: {label}")
+              if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
+                  raise SystemExit(f"runtime-lock evidence replay mismatch: {label}")
+
+          for label in ("runtime_fingerprint_pre", "runtime_fingerprint_post"):
+              path = inside_repo(str(runtime_evidence[label]["path"]))
+              fingerprint = json.loads(path.read_text(encoding="utf-8"))
+              if fingerprint.get("schema") != "pul7sar-generation-runtime-fingerprint-v1":
+                  raise SystemExit(f"unexpected runtime fingerprint schema: {label}")
+              if fingerprint.get("runtime_fingerprint_sha256") != runtime_sha:
+                  raise SystemExit(f"runtime fingerprint digest drift: {label}")
+              if fingerprint.get("cost_mode") != "$0-local":
+                  raise SystemExit(f"runtime fingerprint cost-mode drift: {label}")
+              for field in ("generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"):
+                  if fingerprint.get(field) is not False:
+                      raise SystemExit(f"runtime fingerprint authority drift: {label}:{field}")
+
+          receipt_path = inside_repo(str(runtime_evidence["strict_bootstrap"]["path"]))
           receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
           if receipt.get("schema") != "pul7sar-first-golden-colab-bootstrap-v4":
               raise SystemExit("unexpected first-Golden bootstrap schema")
@@ -148,22 +214,6 @@ jobs:
           for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
               if receipt.get(field) is not False:
                   raise SystemExit(f"first-Golden bootstrap illegally changed gate: {field}")
-
-          def inside_repo(value: str) -> Path:
-              path = Path(value)
-              if not path.is_absolute():
-                  path = root / path
-              path = path.resolve()
-              if path != root and root not in path.parents:
-                  raise SystemExit(f"evidence path escaped repository: {path}")
-              return path
-
-          def sha256(path: Path) -> str:
-              digest = hashlib.sha256()
-              with path.open("rb") as handle:
-                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-                      digest.update(chunk)
-              return digest.hexdigest()
 
           evidence = receipt.get("bootstrap_evidence")
           if not isinstance(evidence, dict) or set(evidence) != {
@@ -206,23 +256,26 @@ jobs:
               ("review_base_png", "review_base_png_sha256"),
               ("review_hybrid_png", "review_hybrid_png_sha256"),
           ):
-              png = inside_repo(str(receipt.get(path_field, "")))
+              png = inside_repo(str(runtime.get(path_field, "")))
               if not png.is_file() or png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
                   raise SystemExit(f"review PNG missing or invalid: {path_field}")
-              if sha256(png) != receipt.get(sha_field):
+              if sha256(png) != runtime.get(sha_field):
                   raise SystemExit(f"review PNG SHA mismatch: {path_field}")
+              if str(runtime.get(path_field)) != str(receipt.get(path_field)) or runtime.get(sha_field) != receipt.get(sha_field):
+                  raise SystemExit(f"runtime/bootstrap review PNG binding drift: {path_field}")
 
           print(json.dumps({
-              "status": "FIRST_GOLDEN_REVIEW_ARTIFACT_REPLAY_VERIFIED",
+              "status": "FIRST_GOLDEN_RUNTIME_AND_REVIEW_ARTIFACT_REPLAY_VERIFIED",
               "candidate": 1,
+              "runtime_fingerprint_sha256": runtime_sha,
               "publication_ready": False,
               "seeds_2_to_4_authorized": False,
-              "review_base_png": receipt["review_base_png"],
-              "review_hybrid_png": receipt["review_hybrid_png"],
+              "review_base_png": runtime["review_base_png"],
+              "review_hybrid_png": runtime["review_hybrid_png"],
           }, indent=2, sort_keys=True))
           PY
 
-      - name: Upload sealed Candidate 1 review evidence
+      - name: Upload runtime-locked sealed Candidate 1 review evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
