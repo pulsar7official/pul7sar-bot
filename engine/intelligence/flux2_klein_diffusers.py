@@ -28,12 +28,15 @@ class Flux2KleinInferenceConfig:
     num_inference_steps: int = 4
     cpu_offload: bool = True
     prefer_sequential_cpu_offload: bool = True
+    model_offload_minimum_total_vram_gb: float = 16.0
 
     def __post_init__(self) -> None:
         if self.guidance_scale <= 0:
             raise ValueError("guidance_scale must be positive")
         if self.num_inference_steps <= 0:
             raise ValueError("num_inference_steps must be positive")
+        if self.model_offload_minimum_total_vram_gb <= 0:
+            raise ValueError("model_offload_minimum_total_vram_gb must be positive")
 
 
 class Flux2KleinDiffusersProbe:
@@ -141,6 +144,37 @@ class Flux2KleinPipelineWrapper:
         }
 
 
+def _total_cuda_vram_gb(torch_module: Any) -> float | None:
+    """Return physical CUDA VRAM when runtime evidence is available.
+
+    This helper deliberately does not guess. If CUDA/device properties cannot be
+    proven, callers that need the value must fail closed rather than assuming a
+    high-memory host.
+    """
+
+    cuda = getattr(torch_module, "cuda", None)
+    if cuda is None:
+        return None
+    is_available = getattr(cuda, "is_available", None)
+    if callable(is_available):
+        try:
+            if not bool(is_available()):
+                return None
+        except Exception:
+            return None
+    get_device_properties = getattr(cuda, "get_device_properties", None)
+    if not callable(get_device_properties):
+        return None
+    try:
+        properties = get_device_properties(0)
+        total_memory = int(getattr(properties, "total_memory"))
+    except Exception:
+        return None
+    if total_memory <= 0:
+        return None
+    return total_memory / float(1024 ** 3)
+
+
 def build_flux2_klein_pipeline_factory(
     *,
     inference: Flux2KleinInferenceConfig = Flux2KleinInferenceConfig(),
@@ -158,9 +192,14 @@ def build_flux2_klein_pipeline_factory(
     Low-VRAM hosts prefer Diffusers' sequential CPU offload when the installed
     pipeline exposes it. Sequential offload is slower than model-level offload,
     but materially lowers the resident CUDA parameter footprint and is the safe
-    first fallback after a real 14.56-GiB T4 host proved model-level offload can
-    still OOM inside FLUX.2 attention at the locked 1088x1360 Golden canvas.
-    The exact model, BF16 dtype, prompt, seed, canvas and inference-step lock are
+    first path after a real ~14.6-GiB T4 host proved model-level offload can OOM
+    inside FLUX.2 attention at the locked Golden canvas.
+
+    Critically, a low-VRAM host may no longer silently fall back from sequential
+    offload to model-level offload. If sequential offload is unavailable, model
+    offload is accepted only when physical CUDA VRAM is measurable and strictly
+    above the configured low-VRAM safety floor. Unknown VRAM also fails closed.
+    The exact model, BF16 dtype, prompt, seed, canvas and inference-step locks are
     unchanged.
     """
 
@@ -201,10 +240,20 @@ def build_flux2_klein_pipeline_factory(
         if inference.cpu_offload:
             sequential = getattr(pipe, "enable_sequential_cpu_offload", None)
             model_offload = getattr(pipe, "enable_model_cpu_offload", None)
-            if inference.prefer_sequential_cpu_offload and sequential is not None:
+            if inference.prefer_sequential_cpu_offload and callable(sequential):
                 sequential()
                 offload_mode = "sequential_cpu"
-            elif model_offload is not None:
+            elif callable(model_offload):
+                total_vram_gb = _total_cuda_vram_gb(torch_module)
+                if inference.prefer_sequential_cpu_offload:
+                    if total_vram_gb is None:
+                        raise RuntimeError(
+                            "sequential CPU offload is unavailable and CUDA VRAM could not be proven; unsafe model-offload fallback blocked"
+                        )
+                    if total_vram_gb <= inference.model_offload_minimum_total_vram_gb:
+                        raise RuntimeError(
+                            "sequential CPU offload is required on low-VRAM FLUX.2 hosts; unsafe model-offload fallback blocked"
+                        )
                 model_offload()
                 offload_mode = "model_cpu"
             else:
