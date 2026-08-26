@@ -9,6 +9,7 @@ whose semantics require it; it is not a default football template.
 from __future__ import annotations
 
 import argparse
+from dataclasses import replace
 import json
 
 from engine.intelligence.assets import AssetBundle
@@ -32,14 +33,13 @@ from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-editorial-v6"
 GOLDEN_MANIFEST_VERSION = "pul7sar-golden-batch-v6"
+GOLDEN_SPORT_GEOMETRY = "contextual_optional_not_required"
 GOLDEN_CAMERA_PRESET = "editorial_environmental_oblique"
-GOLDEN_SPORT_GEOMETRY = "context_only_no_exact_surface_required"
 
 
 def build_request(*, seed: int, request_id: str):
     platform = SocialPlatform.INSTAGRAM_FEED
     profile = PlatformProfileRegistry().get(platform)
-    layout = DeterministicLayoutPlanner().plan(profile, entity_accent_hex="#E10600")
 
     editorial = StoryVisualEditorialEngine().plan(
         event=EditorialEvent.PREVIEW,
@@ -49,64 +49,47 @@ def build_request(*, seed: int, request_id: str):
         headline_short="The season returns",
         confidence=1.0,
     )
-    visual_grammar = VisualGrammar().direct(editorial)
-    sports_scene = SportsEditorialSceneDirector().direct(EditorialEvent.PREVIEW, visual_grammar)
-    visual_concept = VisualConceptDirector().direct(
-        sports_scene.family,
-        VisualConceptSignals(safe_generated_context=True),
-    )
     sport_rule = SportVisualRuleRegistry().get("football")
-    layers = HybridVisualLayerPlanner().plan(editorial, sport_rule)
-    surface_layer = layers.by_name("sport_surface_geometry")
+    layer_plan = HybridVisualLayerPlanner().plan(editorial, sport_rule)
+    surface_layer = layer_plan.by_name("sport_surface_geometry")
     if surface_layer.source is not LayerSource.OPTIONAL or surface_layer.required:
-        raise RuntimeError("Golden v6 PREVIEW must not require deterministic football-surface geometry")
-    base_contract = HybridBaseSceneContractCompiler().compile(layers)
+        raise RuntimeError("GOLDEN_V6_PREVIEW_SURFACE_POLICY_REGRESSED")
 
-    # Dynamic brand geometry/color remains a later deterministic layer.
-    assets = AssetBundle(())
-    specification = OriginalSceneSpecification(
+    scene = SportsEditorialSceneDirector().direct(editorial)
+    layout = DeterministicLayoutPlanner().plan(
         platform=platform,
+        sentiment=Sentiment.NEUTRAL,
+        exact_score_required=False,
+        dominant_entity=None,
+    )
+    visual_grammar = VisualGrammar.from_editorial(editorial)
+    if visual_grammar.surface_visibility.value != "context_only":
+        raise RuntimeError("GOLDEN_V6_PREVIEW_VISUAL_GRAMMAR_REGRESSED")
+
+    visual_concept = VisualConceptDirector().direct(
+        editorial=editorial,
+        scene=scene,
+        signals=VisualConceptSignals(
+            has_verified_subject=False,
+            has_verified_story_moment=False,
+            has_verified_context_surface=False,
+            allow_non_identifying_generation=True,
+        ),
+    )
+    base_contract = HybridBaseSceneContractCompiler().compile(layer_plan)
+
+    assets = AssetBundle()
+    specification = OriginalSceneSpecification(
+        platform=platform.value,
         width=profile.width,
         height=profile.height,
-        aspect_ratio=profile.aspect_ratio,
-        safe_area={
-            "top": profile.safe_area.top,
-            "right": profile.safe_area.right,
-            "bottom": profile.safe_area.bottom,
-            "left": profile.safe_area.left,
-        },
-        family="general_world",
-        concept=(
-            "premium European football season-opening anticipation expressed through one cinematic editorial environment: "
-            "stadium lights waking at dusk, layered architecture and supporter atmosphere creating expectation, with a clear visual focal anchor "
-            "and no requirement to show the playing field"
+        scene_description=(
+            "premium football season-opening anticipation at dusk; one asymmetric editorial hierarchy built around a dominant atmospheric focal anchor, "
+            "layered stadium architecture and crowd depth; oblique three-quarter environmental camera; turf only as subordinate context if present"
         ),
-        subject=None,
-        identity_reference=None,
-        environment=(
-            "one photorealistic but deliberately non-identifying elite European football stadium world at dusk. Use coherent architecture, "
-            "floodlight glow, deep stands, tunnel or concourse light, realistic supporter atmosphere and cinematic air. The scene must not imply a "
-            "specific real venue, club, match or person. Turf may appear only as a minor contextual glimpse if it naturally improves depth; it is not "
-            "a required surface and must never become the subject. Advertising boards, screens, banners and sponsor surfaces stay visually neutral "
-            "with no readable words, numerals, logos or pseudo-text"
-        ),
-        composition=(
-            "single full-bleed premium sports-magazine scene with an asymmetric editorial hierarchy. Use one dominant atmospheric focal anchor such as "
-            "an illuminated tunnel opening, floodlight bank or luminous stand entrance, supported by foreground silhouettes/railings and layered crowd depth. "
-            "Prefer an oblique three-quarter environmental view rather than a central stadium master shot. Preserve useful negative space for later headline "
-            "and brand composition. If turf enters frame, keep it incidental and visually subordinate, roughly no more than the lower 15 percent of the image. "
-            "Do not center the composition on a pitch, centre circle, halfway line or field diagram"
-        ),
-        camera_direction=(
-            "cinematic environmental wide-to-medium-wide camera from an oblique concourse or lower/upper-stand viewpoint; natural perspective, stable horizon, "
-            "strong foreground-to-background depth and purposeful asymmetry. No high-wide-central broadcast framing, no full-pitch master shot, no extreme "
-            "fisheye and no artificial framing devices"
-        ),
-        emotional_mood=Sentiment.ANTICIPATORY.value,
-        palette_strategy="premium dark dusk atmosphere, natural floodlight whites, subtle warm concourse glow and restrained contextual red accents",
         factual_constraints=(
-            "the domestic football season is approaching rather than already decided",
-            "the scene is general and must not imply a result, champion, transfer, specific real venue, club or real-person claim",
+            "the story is a general season-opening preview, not a result or a specific match",
+            "the scene must remain non-identifying and must not claim a specific real venue, club or person",
             "playing-surface geometry is not a story dependency for this preview and must not dominate the composition",
             "all platform branding and typography remain absent from AI generation",
         ),
@@ -151,6 +134,24 @@ def build_request(*, seed: int, request_id: str):
         visual_grammar=visual_grammar,
         visual_concept=visual_concept,
     )
+
+    # GenerationPackageCompiler is intentionally generic and does not propagate
+    # arbitrary benchmark labels. Re-bind only the trusted Golden-v6 ownership
+    # fields here, after generic compilation and before benchmark compaction.
+    trusted_golden_metadata = {
+        "benchmark": GOLDEN_BENCHMARK_ID,
+        "composition_grammar": "single_continuous_scene",
+        "sport_geometry": GOLDEN_SPORT_GEOMETRY,
+        "generated_sport_geometry_allowed": False,
+        "hybrid_surface_replacement_required": False,
+        "football_camera_preset": GOLDEN_CAMERA_PRESET,
+        "generated_branding_allowed": False,
+        "brand_composition_policy": "dynamic_deterministic_after_generation",
+        "visual_grammar_surface_visibility": visual_grammar.surface_visibility.value,
+        "visual_priority": "story_focal_hierarchy_before_sport_surface",
+        "visual_concept_selected_before_renderer": True,
+    }
+    package = replace(package, metadata={**package.metadata, **trusted_golden_metadata})
     package = GoldenPromptBudget().compact(package, benchmark_id=GOLDEN_BENCHMARK_ID)
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
@@ -178,17 +179,12 @@ def main() -> int:
         "seed": request.seed,
         "canvas": f"{request.width}x{request.height}",
         "cost_mode": request.metadata["cost_mode"],
-        "portable_handoff": request.metadata["portable_handoff"],
-        "visual_grammar_surface_visibility": request.metadata["visual_grammar_surface_visibility"],
-        "visual_concept_archetype": request.metadata["visual_concept_archetype"],
-        "golden_prompt_contract": request.metadata["golden_prompt_contract"],
-        "golden_scene_prompt_budget_chars": request.metadata["golden_scene_prompt_budget_chars"],
-        "golden_scene_prompt_chars": request.metadata["golden_scene_prompt_chars"],
-        "compiled_local_prompt_chars": len(request.prompt),
-        "sport_geometry": GOLDEN_SPORT_GEOMETRY,
-        "generated_sport_geometry_allowed": False,
-        "hybrid_surface_replacement_required": False,
-    }, ensure_ascii=False, indent=2))
+        "generated_sport_geometry_allowed": request.metadata.get("generated_sport_geometry_allowed"),
+        "hybrid_surface_replacement_required": request.metadata.get("hybrid_surface_replacement_required"),
+        "visual_grammar_surface_visibility": request.metadata.get("visual_grammar_surface_visibility"),
+        "football_camera_preset": request.metadata.get("football_camera_preset"),
+        "publication_ready": False,
+    }, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
 
