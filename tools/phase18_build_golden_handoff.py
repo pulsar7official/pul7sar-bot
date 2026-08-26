@@ -79,7 +79,10 @@ def build_request(*, seed: int, request_id: str):
     )
     base_contract = HybridBaseSceneContractCompiler().compile(layer_plan)
 
-    assets = AssetBundle()
+    # Golden Editorial v6 deliberately generates no exact brand/entity assets in
+    # the base scene. AssetBundle requires an explicit tuple so that an empty
+    # bundle is intentional rather than an implicit legacy default.
+    assets = AssetBundle(assets=())
     safe_area = {
         "top": profile.safe_area.top,
         "right": profile.safe_area.right,
@@ -178,38 +181,40 @@ def build_request(*, seed: int, request_id: str):
     package = GoldenPromptBudget().compact(package, benchmark_id=GOLDEN_BENCHMARK_ID)
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
-        model=FLUX2_KLEIN_4B_LOCAL,
-        backend="diffusers",
+        profile=FLUX2_KLEIN_4B_LOCAL,
         seed=seed,
         request_id=request_id,
     )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden editorial v6 portable FLUX.2 handoff")
-    parser.add_argument("--output", default="output/phase18_handoffs/golden-season-opener-editorial-v6.json")
+    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden editorial v6 GPU handoff")
+    parser.add_argument("--output", required=True)
     parser.add_argument("--seed", type=int, default=7007001)
     parser.add_argument("--request-id", default="golden-season-opener-editorial-v6-001")
     args = parser.parse_args()
+
     request = build_request(seed=args.seed, request_id=args.request_id)
-    output = LocalGenerationHandoff.write(request, args.output)
+    digest = LocalGenerationHandoff().write(request, args.output)
     print(json.dumps({
-        "status": "GOLDEN_EDITORIAL_HANDOFF_READY",
+        "status": "GOLDEN_EDITORIAL_V6_HANDOFF_READY",
         "benchmark": GOLDEN_BENCHMARK_ID,
         "manifest_version": GOLDEN_MANIFEST_VERSION,
-        "output": output,
-        "model": request.model_id,
-        "seed": request.seed,
-        "canvas": f"{request.width}x{request.height}",
-        "cost_mode": request.metadata["cost_mode"],
-        "generated_sport_geometry_allowed": request.metadata.get("generated_sport_geometry_allowed"),
-        "hybrid_surface_replacement_required": request.metadata.get("hybrid_surface_replacement_required"),
+        "request_id": request.request_id,
+        "provider": request.provider,
+        "model": request.model,
+        "cost_mode": request.metadata.get("cost_mode"),
+        "visual_priority": request.metadata.get("visual_priority"),
         "visual_grammar_surface_visibility": request.metadata.get("visual_grammar_surface_visibility"),
-        "football_camera_preset": request.metadata.get("football_camera_preset"),
+        "hybrid_surface_replacement_required": request.metadata.get("hybrid_surface_replacement_required"),
         "focal_anchor": request.metadata.get("focal_anchor"),
         "copy_negative_space": request.metadata.get("copy_negative_space"),
+        "brand_quiet_zone": request.metadata.get("brand_quiet_zone"),
+        "seed": request.seed,
+        "output": args.output,
+        "payload_sha256": digest,
         "publication_ready": False,
-    }, ensure_ascii=False, indent=2, sort_keys=True))
+    }, indent=2, sort_keys=True))
     return 0
 
 
