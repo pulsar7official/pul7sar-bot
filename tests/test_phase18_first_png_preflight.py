@@ -116,6 +116,9 @@ class FirstPngPreflightTests(unittest.TestCase):
         payload = {
             "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
             "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "model_revision": phase18_first_png.EXPECTED_QWEN_MODEL_REVISION,
+            "resolved_snapshot_revision": phase18_first_png.EXPECTED_QWEN_MODEL_REVISION,
+            "revision_pinned": True,
             "cost_mode": "$0-local",
             "semantic_runtime_ready": True,
             "semantic_model_ready": True,
@@ -137,11 +140,16 @@ class FirstPngPreflightTests(unittest.TestCase):
             )
             self.assertTrue(result["semantic_runtime_ready"])
             self.assertTrue(result["semantic_model_ready"])
+            self.assertEqual(result["model_revision"], phase18_first_png.EXPECTED_QWEN_MODEL_REVISION)
+            self.assertTrue(result["revision_pinned"])
 
     def test_semantic_preflight_rejects_any_publication_or_generation_authority_drift(self) -> None:
         payload = {
             "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
             "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "model_revision": phase18_first_png.EXPECTED_QWEN_MODEL_REVISION,
+            "resolved_snapshot_revision": phase18_first_png.EXPECTED_QWEN_MODEL_REVISION,
+            "revision_pinned": True,
             "cost_mode": "$0-local",
             "semantic_runtime_ready": True,
             "semantic_model_ready": True,
@@ -163,10 +171,41 @@ class FirstPngPreflightTests(unittest.TestCase):
                     minimum_free_gib=12.0,
                 )
 
+    def test_semantic_preflight_rejects_qwen_revision_or_snapshot_drift(self) -> None:
+        payload = {
+            "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
+            "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "model_revision": "0" * 40,
+            "resolved_snapshot_revision": "0" * 40,
+            "revision_pinned": False,
+            "cost_mode": "$0-local",
+            "semantic_runtime_ready": True,
+            "semantic_model_ready": True,
+            "cuda_available": True,
+            "generation_authorized": False,
+            "queue_mutated": False,
+            "png_created": False,
+            "publication_ready": False,
+        }
+        completed = subprocess.CompletedProcess(args=[], returncode=0, stdout=json.dumps(payload), stderr="")
+        with tempfile.TemporaryDirectory() as temp, patch(
+            "tools.phase18_first_png.subprocess.run", return_value=completed
+        ):
+            with self.assertRaisesRegex(RuntimeError, "SEMANTIC_GPU_PREFLIGHT_CONTRACT_FAILED"):
+                phase18_first_png._run_semantic_preflight(
+                    Path(temp),
+                    Path(temp) / "semantic-preflight.json",
+                    Path(temp) / "qwen-cache.json",
+                    minimum_free_gib=12.0,
+                )
+
     def test_semantic_preflight_command_locks_qwen_disk_headroom_and_receipts(self) -> None:
         payload = {
             "schema": phase18_first_png.EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA,
             "model_id": phase18_first_png.EXPECTED_QWEN_MODEL_ID,
+            "model_revision": phase18_first_png.EXPECTED_QWEN_MODEL_REVISION,
+            "resolved_snapshot_revision": phase18_first_png.EXPECTED_QWEN_MODEL_REVISION,
+            "revision_pinned": True,
             "cost_mode": "$0-local",
             "semantic_runtime_ready": True,
             "semantic_model_ready": True,
