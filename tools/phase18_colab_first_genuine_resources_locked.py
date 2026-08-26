@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Resource-lock and stage the first genuine Golden Editorial v6 Candidate 1.
+"""Resource/runtime-lock and stage the first genuine Golden Editorial v6 Candidate 1.
 
 This wrapper is the preferred execution seam for an immutable self-hosted GPU
-checkout. It proves live GPU qualification and live host-memory readiness
-immediately before the strict genuine-Golden entrypoint, then binds those
-receipts and the strict staging receipt by SHA-256.
+checkout. It proves live GPU qualification and live host-memory readiness,
+captures the exact approved software/runtime fingerprint immediately before the
+strict genuine-Golden entrypoint, then captures it again after staging and fails
+closed on any drift. The resource, runtime and staging receipts are all bound by
+SHA-256.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -21,8 +23,18 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_HOST = ROOT / "output" / "phase18_gpu_host" / "qualification.json"
 HOST_MEMORY = ROOT / "output" / "phase18_gpu_smoke" / "host-memory-preflight.json"
+RUNTIME_PRE = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-pre.json"
+RUNTIME_POST = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-post.json"
 STAGING = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-first-genuine-golden-staging.json"
 FINAL = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-resource-lock.json"
+
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from engine.intelligence.generation_runtime_fingerprint import (
+    capture_generation_runtime_fingerprint,
+    verify_matching_runtime_fingerprints,
+)
 
 
 def _branch() -> str:
@@ -49,6 +61,12 @@ def _load(path: Path) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise RuntimeError("FIRST_GENUINE_GOLDEN_RESOURCE_EVIDENCE_INVALID")
     return payload
+
+
+def _write(path: Path, payload: dict[str, object]) -> None:
+    target = _inside_repo(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def _record(path: Path) -> dict[str, object]:
@@ -93,10 +111,20 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if memory.get("ready") is not True or memory.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_HOST_MEMORY_NOT_READY")
 
+    # Freeze the software/runtime identity immediately before Candidate 1.
+    runtime_before = capture_generation_runtime_fingerprint()
+    _write(RUNTIME_PRE, runtime_before)
+
     command = [sys.executable, str(ROOT / "tools" / "phase18_colab_first_genuine_golden.py")]
     if force:
         command.append("--force")
     _run(command, label="FIRST_GENUINE_GOLDEN_STRICT_STAGING")
+
+    # Candidate 1 is not accepted if the executing software stack changed while
+    # generation + BASE_SCENE inspection were running.
+    runtime_after = capture_generation_runtime_fingerprint()
+    _write(RUNTIME_POST, runtime_after)
+    runtime_fingerprint_sha = verify_matching_runtime_fingerprints(runtime_before, runtime_after)
 
     staging = _load(STAGING)
     if staging.get("schema") != "pul7sar-first-genuine-golden-staging-v3":
@@ -126,11 +154,13 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     evidence = {
         "gpu_host_qualification": _record(GPU_HOST),
         "host_memory_preflight": _record(HOST_MEMORY),
+        "runtime_fingerprint_pre": _record(RUNTIME_PRE),
+        "runtime_fingerprint_post": _record(RUNTIME_POST),
         "strict_golden_staging": _record(STAGING),
     }
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v1",
-        "status": "FIRST_GENUINE_GOLDEN_V6_RESOURCE_LOCK_VERIFIED",
+        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v2",
+        "status": "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_LOCK_VERIFIED",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
@@ -139,6 +169,8 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "live_free_vram_gb": free_vram,
         "required_vram_gb": required_vram,
         "host_memory_ready": True,
+        "runtime_fingerprint_sha256": runtime_fingerprint_sha,
+        "runtime_stable_across_generation": True,
         "staging_receipt": str(STAGING),
         "png": str(png),
         "png_sha256": png_sha,
@@ -158,7 +190,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Resource-lock the strict first genuine Golden Editorial v6 Candidate 1")
+    parser = argparse.ArgumentParser(description="Resource/runtime-lock the strict first genuine Golden Editorial v6 Candidate 1")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--output", type=Path, default=FINAL)
     args = parser.parse_args()
