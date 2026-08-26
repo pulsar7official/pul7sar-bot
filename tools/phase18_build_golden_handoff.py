@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Build the current PUL7SAR Golden Visual hybrid base-scene handoff.
+"""Build the current PUL7SAR Golden Visual editorial base-scene handoff.
 
-Golden v5 deliberately stops asking diffusion to draw exact football markings or
-platform branding. The model owns atmosphere and only the restrained contextual
-surface allowed by the story-level VisualGrammar and Visual Concept Director;
-exact regulation geometry is composited deterministically after GPU generation.
+Golden v6 is story-first. A generic football PREVIEW may use stadium atmosphere,
+light, crowd depth and a hint of turf, but it does not reserve or require a
+playing-surface region. Exact football geometry remains available to stories
+whose semantics require it; it is not a default football template.
 """
 from __future__ import annotations
 
@@ -13,13 +13,9 @@ import json
 
 from engine.intelligence.assets import AssetBundle
 from engine.intelligence.generation_package import GenerationPackageCompiler
-from engine.intelligence.golden_prompt_budget import (
-    GOLDEN_PROMPT_BUDGET_CONTRACT,
-    GOLDEN_SCENE_PROMPT_BUDGET_CHARS,
-    GoldenPromptBudget,
-)
+from engine.intelligence.golden_prompt_budget import GoldenPromptBudget
 from engine.intelligence.hybrid_base_scene_contract import HybridBaseSceneContractCompiler
-from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner
+from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner, LayerSource
 from engine.intelligence.layout_planner import DeterministicLayoutPlanner
 from engine.intelligence.local_backend_execution import LocalBackendRequestCompiler
 from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
@@ -34,7 +30,10 @@ from engine.intelligence.visual_grammar import VisualGrammar
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
-GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-hybrid-v5"
+GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-editorial-v6"
+GOLDEN_MANIFEST_VERSION = "pul7sar-golden-batch-v6"
+GOLDEN_CAMERA_PRESET = "editorial_environmental_oblique"
+GOLDEN_SPORT_GEOMETRY = "context_only_no_exact_surface_required"
 
 
 def build_request(*, seed: int, request_id: str):
@@ -58,10 +57,12 @@ def build_request(*, seed: int, request_id: str):
     )
     sport_rule = SportVisualRuleRegistry().get("football")
     layers = HybridVisualLayerPlanner().plan(editorial, sport_rule)
+    surface_layer = layers.by_name("sport_surface_geometry")
+    if surface_layer.source is not LayerSource.OPTIONAL or surface_layer.required:
+        raise RuntimeError("Golden v6 PREVIEW must not require deterministic football-surface geometry")
     base_contract = HybridBaseSceneContractCompiler().compile(layers)
 
-    # No fixed raster logo is required for base generation. Dynamic brand
-    # geometry/color is a later deterministic layer.
+    # Dynamic brand geometry/color remains a later deterministic layer.
     assets = AssetBundle(())
     specification = OriginalSceneSpecification(
         platform=platform,
@@ -76,34 +77,37 @@ def build_request(*, seed: int, request_id: str):
         },
         family="general_world",
         concept=(
-            "premium European football season-opening anticipation inside one continuous elite stadium world, "
-            "with atmosphere as the generative hero and only restrained contextual turf reserved for later exact geometry"
+            "premium European football season-opening anticipation expressed through one cinematic editorial environment: "
+            "stadium lights waking at dusk, layered architecture and supporter atmosphere creating expectation, with a clear visual focal anchor "
+            "and no requirement to show the playing field"
         ),
         subject=None,
         identity_reference=None,
         environment=(
-            "one photorealistic but deliberately non-identifying elite European football stadium at dusk, coherent architecture, floodlights, "
-            "realistic supporter atmosphere, deep stands and cinematic air. The scene must not imply a specific real venue, club, match or person. "
-            "Only a restrained partial grass-colored playing-surface context should enter the lower frame; it must remain plain and unmarked because exact "
-            "regulation geometry belongs to deterministic composition. Do not make a full pitch the visual subject. Advertising boards, screens, banners "
-            "and sponsor surfaces must be visually neutral with no readable words, numerals, logos or pseudo-text"
+            "one photorealistic but deliberately non-identifying elite European football stadium world at dusk. Use coherent architecture, "
+            "floodlight glow, deep stands, tunnel or concourse light, realistic supporter atmosphere and cinematic air. The scene must not imply a "
+            "specific real venue, club, match or person. Turf may appear only as a minor contextual glimpse if it naturally improves depth; it is not "
+            "a required surface and must never become the subject. Advertising boards, screens, banners and sponsor surfaces stay visually neutral "
+            "with no readable words, numerals, logos or pseudo-text"
         ),
         composition=(
-            "single full-bleed cinematic magazine-cover composition from a high wide central lower-stand/endline-oriented camera. Preserve a coherent "
-            "partial trapezoidal turf context in the lower foreground/middle distance for later deterministic projective geometry, but keep stadium atmosphere "
-            "and depth as the primary visual experience. Keep one coherent vanishing direction, strong foreground-to-background depth and clean overlay space. "
-            "Do not paint any football markings into the reserved surface context"
+            "single full-bleed premium sports-magazine scene with an asymmetric editorial hierarchy. Use one dominant atmospheric focal anchor such as "
+            "an illuminated tunnel opening, floodlight bank or luminous stand entrance, supported by foreground silhouettes/railings and layered crowd depth. "
+            "Prefer an oblique three-quarter environmental view rather than a central stadium master shot. Preserve useful negative space for later headline "
+            "and brand composition. If turf enters frame, keep it incidental and visually subordinate, roughly no more than the lower 15 percent of the image. "
+            "Do not center the composition on a pitch, centre circle, halfway line or field diagram"
         ),
         camera_direction=(
-            "high wide central stadium camera with a restrained partial playing-surface context receding into depth; no extreme fisheye, no tilted horizon, "
-            "no low touchline distortion and no artificial framing devices"
+            "cinematic environmental wide-to-medium-wide camera from an oblique concourse or lower/upper-stand viewpoint; natural perspective, stable horizon, "
+            "strong foreground-to-background depth and purposeful asymmetry. No high-wide-central broadcast framing, no full-pitch master shot, no extreme "
+            "fisheye and no artificial framing devices"
         ),
         emotional_mood=Sentiment.ANTICIPATORY.value,
-        palette_strategy="premium dark stadium atmosphere, natural floodlight whites and restrained contextual red accents outside the reserved surface context",
+        palette_strategy="premium dark dusk atmosphere, natural floodlight whites, subtle warm concourse glow and restrained contextual red accents",
         factual_constraints=(
             "the domestic football season is approaching rather than already decided",
             "the scene is general and must not imply a result, champion, transfer, specific real venue, club or real-person claim",
-            "exact football geometry is not generated and will be applied deterministically after generation",
+            "playing-surface geometry is not a story dependency for this preview and must not dominate the composition",
             "all platform branding and typography remain absent from AI generation",
         ),
         forbidden_visual_elements=(
@@ -113,26 +117,28 @@ def build_request(*, seed: int, request_id: str):
             "no collage or multi-panel layout",
             "no split-screen, grid, diptych, triptych or contact-sheet framing",
             "no image-within-image composition",
-            "no football pitch markings in the reserved surface context",
-            "no centre circle, halfway line, penalty boxes, goal-area markings or painted touchlines",
+            "no full football pitch as the main visual subject",
+            "no centered broadcast-style pitch composition",
+            "no tactical diagram or prominent centre-circle/halfway-line geometry",
             "no generated branding, wordmarks, readable text, numerals or pseudo-text",
         ),
         metadata={
             "benchmark": GOLDEN_BENCHMARK_ID,
             "composition_grammar": "single_continuous_scene",
-            "sport_geometry": "deterministic_football_pitch_projective_v1",
+            "sport_geometry": GOLDEN_SPORT_GEOMETRY,
             "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": False,
+            "football_camera_preset": GOLDEN_CAMERA_PRESET,
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
-            "hybrid_surface_replacement_required": True,
             "hybrid_surface_visibility": visual_grammar.surface_visibility.value,
-            "football_camera_preset": "high_wide_central",
             "visual_grammar_contract": visual_grammar.metadata["contract"],
             "visual_concept_contract": visual_concept.contract,
             "visual_concept_archetype": visual_concept.archetype.value,
             "visual_concept_selected_before_renderer": True,
+            "visual_priority": "story_focal_hierarchy_before_sport_surface",
             "visual_failures_addressed": (
-                "collage composition, generic-template fallback, over-dominant generated pitch dependency, malformed generated pitch proportions/markings, "
+                "full-pitch template dominance, central broadcast framing, geometry-first composition, collage composition, generic-template fallback, "
                 "incorrect generated platform wordmark, and accidental implication of a specific real venue"
             ),
         },
@@ -145,11 +151,6 @@ def build_request(*, seed: int, request_id: str):
         visual_grammar=visual_grammar,
         visual_concept=visual_concept,
     )
-    # The generic compiler deliberately preserves rich editorial context for all
-    # providers and deliberately omits benchmark-only labels. Golden v5 supplies
-    # its benchmark identity explicitly at this trusted builder boundary, then
-    # compacts only the scene prose. Exact negative/factual constraints remain
-    # untouched and are still compiled by the existing provider policy below.
     package = GoldenPromptBudget().compact(package, benchmark_id=GOLDEN_BENCHMARK_ID)
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
@@ -161,16 +162,17 @@ def build_request(*, seed: int, request_id: str):
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden Hybrid v5 portable FLUX.2 handoff")
-    parser.add_argument("--output", default="output/phase18_handoffs/golden-season-opener-hybrid-v5.json")
+    parser = argparse.ArgumentParser(description="Build PUL7SAR Golden editorial v6 portable FLUX.2 handoff")
+    parser.add_argument("--output", default="output/phase18_handoffs/golden-season-opener-editorial-v6.json")
     parser.add_argument("--seed", type=int, default=7007001)
-    parser.add_argument("--request-id", default="golden-season-opener-hybrid-v5-001")
+    parser.add_argument("--request-id", default="golden-season-opener-editorial-v6-001")
     args = parser.parse_args()
     request = build_request(seed=args.seed, request_id=args.request_id)
     output = LocalGenerationHandoff.write(request, args.output)
     print(json.dumps({
-        "status": "GOLDEN_HYBRID_HANDOFF_READY",
+        "status": "GOLDEN_EDITORIAL_HANDOFF_READY",
         "benchmark": GOLDEN_BENCHMARK_ID,
+        "manifest_version": GOLDEN_MANIFEST_VERSION,
         "output": output,
         "model": request.model_id,
         "seed": request.seed,
@@ -183,8 +185,9 @@ def main() -> int:
         "golden_scene_prompt_budget_chars": request.metadata["golden_scene_prompt_budget_chars"],
         "golden_scene_prompt_chars": request.metadata["golden_scene_prompt_chars"],
         "compiled_local_prompt_chars": len(request.prompt),
+        "sport_geometry": GOLDEN_SPORT_GEOMETRY,
         "generated_sport_geometry_allowed": False,
-        "hybrid_surface_replacement_required": True,
+        "hybrid_surface_replacement_required": False,
     }, ensure_ascii=False, indent=2))
     return 0
 
