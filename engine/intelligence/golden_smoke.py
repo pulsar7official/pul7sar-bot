@@ -1,9 +1,10 @@
 """Fail-closed coordinator for genuine Golden Visual GPU smoke runs.
 
-v5 coordinates an atmosphere-only generative candidate whose football surface
-is replaced deterministically after generation. The image-model prompt must not
-contain the protected platform-name token. Hybrid ownership is proven primarily
-from structured request metadata rather than brittle English prompt wording.
+Legacy v1-v5 manifests remain readable. The current v6 smoke candidate is a
+story-first editorial PREVIEW: the generated scene may contain contextual turf,
+but no deterministic football pitch replacement is required. Exact branding and
+typography remain later deterministic layers, and publication authority remains
+closed throughout smoke execution.
 """
 from __future__ import annotations
 
@@ -18,10 +19,11 @@ from engine.intelligence.local_generation_handoff import LocalGenerationHandoff
 
 SUPPORTED_GOLDEN_MANIFEST_VERSIONS = {
     "pul7sar-golden-batch-v1", "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3",
-    "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5",
+    "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
 }
 GOLDEN_COST_MODE = "$0-local"
 DEFAULT_SMOKE_JOB_ID = "golden-smoke-candidate-01"
+V6_SPORT_GEOMETRY = "contextual_optional_not_required"
 
 
 @dataclass(frozen=True)
@@ -44,7 +46,10 @@ class GoldenSmokePreparation:
 
 
 def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None:
-    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"} and data.get("composition_grammar") != "single_continuous_scene":
+    if manifest_version in {
+        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4",
+        "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
+    } and data.get("composition_grammar") != "single_continuous_scene":
         raise ValueError("Golden smoke v2+ requires single_continuous_scene composition grammar")
     if manifest_version in {"pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4"} and data.get("sport_geometry") != "association_football_regulation_pitch":
         raise ValueError("Golden smoke v3/v4 requires regulation association-football pitch geometry")
@@ -65,11 +70,28 @@ def _assert_manifest_policy(data: dict[str, Any], manifest_version: str) -> None
         failures = [f"{key}={data.get(key)!r}" for key, value in expected.items() if data.get(key) != value]
         if failures:
             raise ValueError("Golden smoke v5 hybrid policy mismatch: " + "; ".join(failures))
+    if manifest_version == "pul7sar-golden-batch-v6":
+        expected = {
+            "visual_grammar_surface_visibility": "context_only",
+            "sport_geometry": V6_SPORT_GEOMETRY,
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": False,
+            "football_camera_preset": "editorial_environmental_oblique",
+            "generated_branding_allowed": False,
+            "brand_composition_policy": "dynamic_deterministic_after_generation",
+            "visual_priority": "story_focal_hierarchy_before_sport_surface",
+        }
+        failures = [f"{key}={data.get(key)!r}" for key, value in expected.items() if data.get(key) != value]
+        if failures:
+            raise ValueError("Golden smoke v6 editorial policy mismatch: " + "; ".join(failures))
 
 
 def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
     prompt = request.prompt.casefold()
-    if manifest_version in {"pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4", "pul7sar-golden-batch-v5"}:
+    if manifest_version in {
+        "pul7sar-golden-batch-v2", "pul7sar-golden-batch-v3", "pul7sar-golden-batch-v4",
+        "pul7sar-golden-batch-v5", "pul7sar-golden-batch-v6",
+    }:
         unified_markers = (
             "one single continuous full-bleed editorial image",
             "never use collage, montage, split-screen, grid, diptych, triptych",
@@ -95,9 +117,6 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
             raise ValueError("candidate 1 v4 handoff is missing generated-brand exclusion prompt lock")
 
     if manifest_version == "pul7sar-golden-batch-v5":
-        # Prompt prose can evolve. These markers prove intent without requiring a
-        # single frozen English sentence. Exact ownership is asserted below from
-        # structured metadata that is integrity-hashed inside the handoff.
         semantic_markers = (
             "reserved surface region plain and unmarked",
             "no field/court/rink lines",
@@ -120,6 +139,38 @@ def _assert_handoff_prompt_policy(request: Any, manifest_version: str) -> None:
         failures = [f"{key}={request.metadata.get(key)!r}" for key, value in expected_metadata.items() if request.metadata.get(key) != value]
         if failures:
             raise ValueError("candidate 1 v5 structured ownership contract mismatch: " + "; ".join(failures))
+
+    if manifest_version == "pul7sar-golden-batch-v6":
+        semantic_markers = (
+            "asymmetric editorial hierarchy",
+            "oblique three-quarter environmental camera",
+            "no high-wide-central broadcast framing",
+            "no full-pitch master shot",
+            "turf is optional context only and visually subordinate",
+            "fully unbranded",
+            "platform names",
+        )
+        if any(marker not in prompt for marker in semantic_markers):
+            raise ValueError("candidate 1 v6 handoff is missing story-first editorial safeguards")
+        if "the exact surface will be replaced by deterministic code after generation" in prompt:
+            raise ValueError("candidate 1 v6 handoff regressed to pitch-replacement wording")
+        if "pul7sar" in prompt or "pulsar" in prompt:
+            raise ValueError("candidate 1 v6 handoff leaked protected platform name")
+        expected_metadata = {
+            "brand_name_redacted_from_generation_prompt": True,
+            "generated_branding_allowed": False,
+            "composition_grammar": "single_continuous_scene",
+            "hybrid_base_scene_contract": True,
+            "generated_sport_geometry_allowed": False,
+            "hybrid_surface_replacement_required": False,
+            "visual_grammar_surface_visibility": "context_only",
+            "sport_geometry": V6_SPORT_GEOMETRY,
+            "football_camera_preset": "editorial_environmental_oblique",
+            "visual_priority": "story_focal_hierarchy_before_sport_surface",
+        }
+        failures = [f"{key}={request.metadata.get(key)!r}" for key, value in expected_metadata.items() if request.metadata.get(key) != value]
+        if failures:
+            raise ValueError("candidate 1 v6 structured ownership contract mismatch: " + "; ".join(failures))
 
 
 def load_first_candidate(manifest_path: str | Path) -> GoldenSmokeCandidate:
@@ -176,7 +227,7 @@ def prepare_smoke_job(*, store: FilesystemGenerationJobStore, candidate: GoldenS
     job = GenerationJob(
         job_id=job_id, request_id=candidate.request_id, handoff_path=str(candidate.handoff_path), payload_sha256=candidate.payload_sha256,
         provider_id=candidate.provider_id, model_id=candidate.model_id, max_attempts=max_attempts,
-        metadata={"candidate": candidate.candidate, "seed": candidate.seed, "cost_mode": GOLDEN_COST_MODE, "smoke_role": "golden-hybrid-atmosphere-base", "manifest_path": str(candidate.manifest_path)},
+        metadata={"candidate": candidate.candidate, "seed": candidate.seed, "cost_mode": GOLDEN_COST_MODE, "smoke_role": "golden-editorial-base", "manifest_path": str(candidate.manifest_path)},
     )
     store.enqueue(job)
     return GoldenSmokePreparation(job=job, created=True, reusable_existing=False)
