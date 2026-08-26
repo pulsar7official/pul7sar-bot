@@ -33,6 +33,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.approved_model_revisions import QWEN25_VL_3B_REVISION
 from engine.intelligence.generation_job_store import FilesystemGenerationJobStore
 from engine.intelligence.generation_jobs import GenerationJobState
 from engine.intelligence.golden_smoke import (
@@ -46,9 +47,10 @@ from tools.phase18_verify_golden_batch import verify_batch
 
 
 EXPECTED_REPOSITORY_PREFLIGHT_SCHEMA = "pul7sar-phase18-pre-gpu-repository-integrity-v1"
-EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA = "pul7sar-phase18-semantic-gpu-preflight-v1"
+EXPECTED_SEMANTIC_PREFLIGHT_SCHEMA = "pul7sar-phase18-semantic-gpu-preflight-v2"
 EXPECTED_POSTFLIGHT_STATUS = "FIRST_GOLDEN_PNG_PROVENANCE_POSTFLIGHT_VERIFIED"
 EXPECTED_QWEN_MODEL_ID = "Qwen/Qwen2.5-VL-3B-Instruct"
+EXPECTED_QWEN_MODEL_REVISION = QWEN25_VL_3B_REVISION
 EXPECTED_COST_MODE = "$0-local"
 EXPECTED_DTYPE = "bfloat16"
 
@@ -154,6 +156,12 @@ def _run_semantic_preflight(
         failures.append("semantic_preflight_schema_drift")
     if payload.get("model_id") != EXPECTED_QWEN_MODEL_ID:
         failures.append("semantic_preflight_qwen_model_drift")
+    if payload.get("model_revision") != EXPECTED_QWEN_MODEL_REVISION:
+        failures.append("semantic_preflight_qwen_revision_drift")
+    if payload.get("resolved_snapshot_revision") != EXPECTED_QWEN_MODEL_REVISION:
+        failures.append("semantic_preflight_qwen_snapshot_revision_drift")
+    if payload.get("revision_pinned") is not True:
+        failures.append("semantic_preflight_qwen_revision_unpinned")
     if payload.get("cost_mode") != EXPECTED_COST_MODE:
         failures.append("semantic_preflight_escaped_zero_cost_policy")
     if payload.get("semantic_runtime_ready") is not True:
@@ -387,6 +395,9 @@ def main() -> int:
         "semantic_runtime_ready": semantic_preflight.get("semantic_runtime_ready"),
         "semantic_model_ready": semantic_preflight.get("semantic_model_ready"),
         "semantic_model_id": semantic_preflight.get("model_id"),
+        "semantic_model_revision": semantic_preflight.get("model_revision"),
+        "semantic_snapshot_revision": semantic_preflight.get("resolved_snapshot_revision"),
+        "semantic_revision_pinned": semantic_preflight.get("revision_pinned"),
         "semantic_cost_mode": semantic_preflight.get("cost_mode"),
         "model_cache_ready": model_cache.get("ready"),
         "golden_generation_ready": readiness.get("golden_generation_ready"),
