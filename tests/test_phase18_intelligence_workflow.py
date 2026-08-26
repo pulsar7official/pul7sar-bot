@@ -6,15 +6,20 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
     def setUp(self):
         self.text = Path(".github/workflows/phase18-intelligence.yml").read_text(encoding="utf-8")
 
-    def test_workflow_targets_current_golden_v5_contract(self):
-        self.assertIn("golden-season-opener-hybrid-v5-001", self.text)
-        self.assertIn("pul7sar-golden-batch-v5", self.text)
+    def test_workflow_targets_current_golden_v6_editorial_contract(self):
+        self.assertIn("golden-season-opener-editorial-v6-001", self.text)
+        self.assertIn("pul7sar-golden-batch-v6", self.text)
         self.assertIn("single_continuous_scene", self.text)
-        self.assertIn("deterministic_football_pitch_projective_v1", self.text)
+        self.assertIn("context_only", self.text)
+        self.assertIn("contextual_optional_not_required", self.text)
         self.assertIn("generated_sport_geometry_allowed", self.text)
         self.assertIn("hybrid_surface_replacement_required", self.text)
+        self.assertIn("editorial_environmental_oblique", self.text)
         self.assertIn("generated_branding_allowed", self.text)
         self.assertIn("dynamic_deterministic_after_generation", self.text)
+        self.assertIn("story_focal_hierarchy_before_sport_surface", self.text)
+        self.assertNotIn("deterministic_football_pitch_projective_v1", self.text)
+        self.assertNotIn("golden-season-opener-hybrid-v5-001", self.text)
 
     def test_editorial_study_uses_adaptive_reference_brand_without_identity_shelf(self):
         required = (
@@ -68,11 +73,13 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
         self.assertRegex(self.text, r"\[['\"]font_recreation_used['\"]\]\s+is\s+False")
         self.assertRegex(self.text, r"\[['\"]generic_ecg_recreation_used['\"]\]\s+is\s+False")
 
-    def test_artifacts_are_named_v5(self):
-        self.assertIn("golden-season-opener-hybrid-v5.json", self.text)
-        self.assertIn("PUL7SAR-golden-hybrid-v5-candidate-batch-", self.text)
+    def test_golden_artifacts_are_named_v6(self):
+        self.assertIn("golden-season-opener-editorial-v6.json", self.text)
+        self.assertIn("PUL7SAR-golden-editorial-v6-candidate-batch-", self.text)
+        self.assertNotIn("golden-season-opener-hybrid-v5.json", self.text)
+        self.assertNotIn("PUL7SAR-golden-hybrid-v5-candidate-batch-", self.text)
 
-    def test_stale_v2_and_v4_artifact_names_are_absent(self):
+    def test_stale_v2_v4_and_v5_artifact_names_are_absent(self):
         for stale in (
             "golden-general-season-opener-v2-001",
             "golden-general-season-opener-v2.json",
@@ -80,6 +87,9 @@ class Phase18IntelligenceWorkflowTests(unittest.TestCase):
             "golden-general-season-opener-v4-001",
             "golden-general-season-opener-v4.json",
             "PUL7SAR-golden-visual-v4-candidate-batch-",
+            "golden-season-opener-hybrid-v5-001",
+            "golden-season-opener-hybrid-v5.json",
+            "PUL7SAR-golden-hybrid-v5-candidate-batch-",
         ):
             self.assertNotIn(stale, self.text)
 
