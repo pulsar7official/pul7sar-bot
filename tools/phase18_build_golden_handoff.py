@@ -181,7 +181,8 @@ def build_request(*, seed: int, request_id: str):
     package = GoldenPromptBudget().compact(package, benchmark_id=GOLDEN_BENCHMARK_ID)
     return LocalBackendRequestCompiler().compile_portable_handoff(
         package=package,
-        profile=FLUX2_KLEIN_4B_LOCAL,
+        model=FLUX2_KLEIN_4B_LOCAL,
+        backend=FLUX2_KLEIN_4B_LOCAL.runtime_adapter,
         seed=seed,
         request_id=request_id,
     )
