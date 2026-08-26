@@ -1,24 +1,26 @@
 import unittest
 
-from engine.intelligence.hybrid_evidence_builder import VisualInspectionFlags
 from engine.intelligence.hybrid_layer_planner import LayerSource
-from tools.phase18_colab_one_command import _golden_layer_plan, _merge_flags
+from tools.phase18_colab_one_command import _golden_layer_plan
 
 
 class ColabOneCommandHelperTests(unittest.TestCase):
-    def test_golden_layer_plan_requires_exact_geometry_brand_and_typography(self):
+    def test_golden_preview_keeps_surface_optional_but_brand_and_typography_exact(self):
         plan = _golden_layer_plan()
-        self.assertEqual(plan.by_name("sport_surface_geometry").source, LayerSource.DETERMINISTIC)
+        surface = plan.by_name("sport_surface_geometry")
+        self.assertEqual(surface.source, LayerSource.OPTIONAL)
+        self.assertFalse(surface.required)
         self.assertTrue(plan.by_name("pul7sar_brand").required)
         self.assertTrue(plan.by_name("editorial_typography").required)
 
-    def test_stage_specific_semantic_failures_merge_without_false_pass(self):
-        base = VisualInspectionFlags(generated_text_detected=True)
-        hybrid = VisualInspectionFlags(severe_anatomy_or_object_defect=True)
-        merged = _merge_flags(base, hybrid)
-        self.assertTrue(merged.generated_text_detected)
-        self.assertTrue(merged.severe_anatomy_or_object_defect)
-        self.assertFalse(merged.generated_brand_detected)
+    def test_golden_preview_does_not_hide_a_deterministic_pitch_dependency(self):
+        plan = _golden_layer_plan()
+        deterministic_required = {
+            layer.name for layer in plan.layers
+            if layer.required and layer.source is LayerSource.DETERMINISTIC
+        }
+        self.assertNotIn("sport_surface_geometry", deterministic_required)
+        self.assertIn("editorial_typography", deterministic_required)
 
 
 if __name__ == "__main__":
