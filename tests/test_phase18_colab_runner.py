@@ -28,27 +28,31 @@ class Phase18ColabRunnerTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "positive"):
             _candidate({"candidates": []}, 0)
 
-    def test_current_v5_hybrid_contract_is_required_before_gpu(self):
+    def test_current_v6_editorial_contract_is_required_before_gpu(self):
         current = {
-            "manifest_version": "pul7sar-golden-batch-v5",
+            "manifest_version": "pul7sar-golden-batch-v6",
             "composition_grammar": "single_continuous_scene",
-            "sport_geometry": "deterministic_football_pitch_projective_v1",
+            "visual_grammar_surface_visibility": "context_only",
+            "sport_geometry": "context_only_no_exact_surface_required",
             "generated_sport_geometry_allowed": False,
-            "hybrid_surface_replacement_required": True,
-            "football_camera_preset": "high_wide_central",
+            "hybrid_surface_replacement_required": False,
+            "football_camera_preset": "editorial_environmental_oblique",
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
+            "visual_priority": "story_focal_hierarchy_before_sport_surface",
         }
         _assert_current_golden_contract(current)
         for key, bad in (
-            ("manifest_version", "pul7sar-golden-batch-v4"),
+            ("manifest_version", "pul7sar-golden-batch-v5"),
             ("composition_grammar", "multi_panel"),
-            ("sport_geometry", None),
+            ("visual_grammar_surface_visibility", "partial_deterministic"),
+            ("sport_geometry", "deterministic_football_pitch_projective_v1"),
             ("generated_sport_geometry_allowed", True),
-            ("hybrid_surface_replacement_required", False),
-            ("football_camera_preset", "unknown"),
+            ("hybrid_surface_replacement_required", True),
+            ("football_camera_preset", "high_wide_central"),
             ("generated_branding_allowed", True),
             ("brand_composition_policy", None),
+            ("visual_priority", "sport_surface_before_story"),
         ):
             changed = dict(current)
             changed[key] = bad
@@ -57,14 +61,14 @@ class Phase18ColabRunnerTests(unittest.TestCase):
 
     def test_result_reuse_requires_request_seed_model_sha_and_zero_cost(self):
         selected = {
-            "request_id": "golden-hybrid-v5-001",
+            "request_id": "golden-season-opener-editorial-v6-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "payload_sha256": "a" * 64,
         }
         result = {
             "status": "REAL_VISUAL_PROOF_GENERATED",
-            "request_id": "golden-hybrid-v5-001",
+            "request_id": "golden-season-opener-editorial-v6-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "payload_sha256": "a" * 64,
@@ -84,14 +88,14 @@ class Phase18ColabRunnerTests(unittest.TestCase):
 
     def test_legacy_result_without_payload_sha_is_never_reused(self):
         selected = {
-            "request_id": "golden-hybrid-v5-001",
+            "request_id": "golden-season-opener-editorial-v6-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "payload_sha256": "a" * 64,
         }
         legacy = {
             "status": "REAL_VISUAL_PROOF_GENERATED",
-            "request_id": "golden-hybrid-v5-001",
+            "request_id": "golden-season-opener-editorial-v6-001",
             "seed": 7007001,
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
             "cost_mode": "$0-local",
@@ -118,7 +122,7 @@ class Phase18ColabRunnerTests(unittest.TestCase):
             png.write_bytes(b"\x89PNG\r\n\x1a\nproof")
             payload = {
                 "candidate": 1,
-                "request_id": "golden-hybrid-v5-001",
+                "request_id": "golden-season-opener-editorial-v6-001",
                 "seed": 7007001,
                 "model_id": "black-forest-labs/FLUX.2-klein-4B",
                 "payload_sha256": "a" * 64,
