@@ -28,7 +28,7 @@ def readiness(*, ready=True, provider_id=None, model_id=None, runtime_kind="loca
 class GoldenOriginalSceneAdmissionTests(unittest.TestCase):
     def _candidate(self, root: Path, *, candidate_number=1):
         handoff_path = root / "candidate-01.json"
-        request = build_request(seed=7007001, request_id="golden-season-opener-hybrid-v5-001")
+        request = build_request(seed=7007001, request_id="golden-season-opener-editorial-v6-001")
         LocalGenerationHandoff.write(request, str(handoff_path))
         raw = json.loads(handoff_path.read_text(encoding="utf-8"))
         return GoldenSmokeCandidate(
