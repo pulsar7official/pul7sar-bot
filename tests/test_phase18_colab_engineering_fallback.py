@@ -34,6 +34,9 @@ class ColabEngineeringFallbackTests(unittest.TestCase):
                 "visual_grammar_surface_visibility": "context_only",
                 "hybrid_surface_replacement_required": False,
                 "football_camera_preset": "editorial_environmental_oblique",
+                "focal_anchor": one_command.EXPECTED_FOCAL_ANCHOR,
+                "copy_negative_space": one_command.EXPECTED_COPY_NEGATIVE_SPACE,
+                "brand_quiet_zone": one_command.EXPECTED_BRAND_QUIET_ZONE,
                 "png": str(base_png),
             }), encoding="utf-8")
 
@@ -49,6 +52,9 @@ class ColabEngineeringFallbackTests(unittest.TestCase):
             self.assertFalse(payload["deterministic_pitch_applied"])
             self.assertFalse(payload["pitch_replacement_required"])
             self.assertEqual(payload["visual_grammar_surface_visibility"], "context_only")
+            self.assertEqual(payload["focal_anchor"], one_command.EXPECTED_FOCAL_ANCHOR)
+            self.assertEqual(payload["copy_negative_space"], one_command.EXPECTED_COPY_NEGATIVE_SPACE)
+            self.assertEqual(payload["brand_quiet_zone"], one_command.EXPECTED_BRAND_QUIET_ZONE)
             self.assertEqual(payload["semantic_visual_inspection"]["status"], "SEMANTIC_QA_BLOCKED")
             self.assertTrue((proof_dir / "candidate-01-golden-editorial-v6-engineering-receipt.json").is_file())
 
