@@ -18,6 +18,7 @@ class LocalDTypeSelectorTests(unittest.TestCase):
     def test_auto_selects_bfloat16_when_proven(self):
         decision = LocalDTypeSelector().select(self.runtime(True), "auto")
         self.assertEqual(decision.resolved, "bfloat16")
+        self.assertEqual(decision.quality_tier, "golden_reference")
 
     def test_auto_fails_closed_when_bfloat16_is_not_supported(self):
         with self.assertRaisesRegex(ValueError, "no native bfloat16 support"):
@@ -31,12 +32,22 @@ class LocalDTypeSelectorTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "no native bfloat16 support"):
             LocalDTypeSelector().select(self.runtime(False), "bfloat16")
 
-    def test_unverified_float16_request_is_rejected_for_golden_path(self):
-        with self.assertRaisesRegex(ValueError, "only auto/bfloat16"):
+    def test_explicit_float16_preview_is_allowed_without_bf16(self):
+        decision = LocalDTypeSelector().select(self.runtime(False), "float16-preview")
+        self.assertEqual(decision.requested, "float16-preview")
+        self.assertEqual(decision.resolved, "float16")
+        self.assertEqual(decision.quality_tier, "t4_engineering_preview")
+
+    def test_float16_preview_never_claims_golden_reference(self):
+        decision = LocalDTypeSelector().select(self.runtime(True), "float16-preview")
+        self.assertNotEqual(decision.quality_tier, "golden_reference")
+
+    def test_raw_float16_request_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "explicit float16-preview"):
             LocalDTypeSelector().select(self.runtime(True), "float16")
 
-    def test_float32_request_is_rejected_for_golden_path(self):
-        with self.assertRaisesRegex(ValueError, "only auto/bfloat16"):
+    def test_float32_request_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "explicit float16-preview"):
             LocalDTypeSelector().select(self.runtime(True), "float32")
 
     def test_cpu_runtime_is_rejected(self):
