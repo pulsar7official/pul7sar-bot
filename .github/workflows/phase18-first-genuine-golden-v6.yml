@@ -72,14 +72,14 @@ jobs:
           print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
           PY
 
-      - name: Run resource-locked strict Golden Editorial v6 Candidate 1
+      - name: Run resource/runtime-locked strict Golden Editorial v6 Candidate 1
         shell: bash
         run: |
           set -euo pipefail
           python tools/phase18_colab_first_genuine_resources_locked.py \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json
 
-      - name: Replay exact resource and staging evidence
+      - name: Replay exact resource runtime and staging evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -88,21 +88,25 @@ jobs:
           import json
           from pathlib import Path
 
+          from engine.intelligence.generation_runtime_fingerprint import verify_matching_runtime_fingerprints
+
           root = Path.cwd().resolve()
           final_path = root / "output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json"
           if not final_path.is_file():
-              raise SystemExit("first genuine Golden v6 resource-lock receipt missing")
+              raise SystemExit("first genuine Golden v6 resource/runtime-lock receipt missing")
           final = json.loads(final_path.read_text(encoding="utf-8"))
-          if final.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v1":
-              raise SystemExit("unexpected first genuine Golden v6 resource-lock schema")
-          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_RESOURCE_LOCK_VERIFIED":
-              raise SystemExit("first genuine Golden v6 resource lock not verified")
+          if final.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v2":
+              raise SystemExit("unexpected first genuine Golden v6 resource/runtime-lock schema")
+          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_LOCK_VERIFIED":
+              raise SystemExit("first genuine Golden v6 resource/runtime lock not verified")
           if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
               raise SystemExit("first genuine Golden v6 identity drift")
           if final.get("cost_mode") != "$0-local" or final.get("native_bf16_proven") is not True:
               raise SystemExit("first genuine Golden v6 zero-cost/BF16 contract drift")
           if final.get("gpu_eligible") is not True or final.get("host_memory_ready") is not True:
               raise SystemExit("first genuine Golden v6 resources not proven")
+          if final.get("runtime_stable_across_generation") is not True:
+              raise SystemExit("first genuine Golden v6 runtime stability not proven")
           for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
               if final.get(field) is not False:
                   raise SystemExit(f"illegal authority drift: {field}")
@@ -124,7 +128,13 @@ jobs:
               return digest.hexdigest()
 
           evidence = final.get("evidence")
-          expected = {"gpu_host_qualification", "host_memory_preflight", "strict_golden_staging"}
+          expected = {
+              "gpu_host_qualification",
+              "host_memory_preflight",
+              "runtime_fingerprint_pre",
+              "runtime_fingerprint_post",
+              "strict_golden_staging",
+          }
           if not isinstance(evidence, dict) or set(evidence) != expected:
               raise SystemExit("first genuine Golden v6 evidence set incomplete")
           for label, record in evidence.items():
@@ -135,6 +145,12 @@ jobs:
                   raise SystemExit(f"evidence missing: {label}")
               if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
                   raise SystemExit(f"evidence replay mismatch: {label}")
+
+          runtime_pre = json.loads(inside(str(evidence["runtime_fingerprint_pre"]["path"])).read_text(encoding="utf-8"))
+          runtime_post = json.loads(inside(str(evidence["runtime_fingerprint_post"]["path"])).read_text(encoding="utf-8"))
+          runtime_sha = verify_matching_runtime_fingerprints(runtime_pre, runtime_post)
+          if runtime_sha != final.get("runtime_fingerprint_sha256"):
+              raise SystemExit("first genuine Golden v6 runtime fingerprint binding drift")
 
           staging = json.loads(inside(str(evidence["strict_golden_staging"]["path"])).read_text(encoding="utf-8"))
           if staging.get("schema") != "pul7sar-first-genuine-golden-staging-v3":
@@ -158,6 +174,7 @@ jobs:
           print(json.dumps({
               "status": "FIRST_GENUINE_GOLDEN_V6_WORKFLOW_EVIDENCE_REPLAY_VERIFIED",
               "candidate": 1,
+              "runtime_fingerprint_sha256": runtime_sha,
               "png": str(png),
               "publication_ready": False,
               "seeds_2_to_4_authorized": False,
