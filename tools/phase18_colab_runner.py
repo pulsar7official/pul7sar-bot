@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Semi-automatic Colab runner for the Phase 18 Golden Hybrid GPU loop.
+"""Semi-automatic Colab runner for the Phase 18 Golden editorial GPU loop.
 
-GitHub remains source of truth. The runner validates the current v5 hybrid
+GitHub remains source of truth. The runner validates the current v6 story-first
 contract, optionally runs discover-based CPU validation, rebuilds/verifies the
-batch, proves GPU readiness, executes exactly one atmosphere candidate and writes
-a durable summary. Deterministic football composition happens in the higher-level
-one-command wrapper after successful base generation.
+batch, proves GPU readiness, executes exactly one candidate and writes durable
+generation provenance. Preview generation no longer implies pitch replacement.
 """
 from __future__ import annotations
 
@@ -19,9 +18,12 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
-EXPECTED_MANIFEST_VERSION = "pul7sar-golden-batch-v5"
+EXPECTED_MANIFEST_VERSION = "pul7sar-golden-batch-v6"
 EXPECTED_COMPOSITION = "single_continuous_scene"
-EXPECTED_SPORT_GEOMETRY = "deterministic_football_pitch_projective_v1"
+EXPECTED_SURFACE_VISIBILITY = "context_only"
+EXPECTED_SPORT_GEOMETRY = "context_only_no_exact_surface_required"
+EXPECTED_CAMERA_PRESET = "editorial_environmental_oblique"
+EXPECTED_VISUAL_PRIORITY = "story_focal_hierarchy_before_sport_surface"
 EXPECTED_BRAND_POLICY = "dynamic_deterministic_after_generation"
 DEFAULT_BATCH_DIR = "output/phase18_handoffs/golden-batch"
 DEFAULT_GENERATION_DIR = "output/phase18_generated"
@@ -89,12 +91,14 @@ def _assert_current_golden_contract(manifest: dict[str, Any]) -> None:
     expected = {
         "manifest_version": EXPECTED_MANIFEST_VERSION,
         "composition_grammar": EXPECTED_COMPOSITION,
+        "visual_grammar_surface_visibility": EXPECTED_SURFACE_VISIBILITY,
         "sport_geometry": EXPECTED_SPORT_GEOMETRY,
         "generated_sport_geometry_allowed": False,
-        "hybrid_surface_replacement_required": True,
-        "football_camera_preset": "high_wide_central",
+        "hybrid_surface_replacement_required": False,
+        "football_camera_preset": EXPECTED_CAMERA_PRESET,
         "generated_branding_allowed": False,
         "brand_composition_policy": EXPECTED_BRAND_POLICY,
+        "visual_priority": EXPECTED_VISUAL_PRIORITY,
     }
     failures = [f"{key}={manifest.get(key)!r}" for key, value in expected.items() if manifest.get(key) != value]
     if failures:
@@ -200,7 +204,7 @@ def _write_summary(path: Path, payload: dict[str, Any]) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="PUL7SAR Phase 18 Colab Golden Hybrid runner")
+    parser = argparse.ArgumentParser(description="PUL7SAR Phase 18 Colab Golden editorial runner")
     parser.add_argument("--repository-root", default=str(ROOT))
     parser.add_argument("--update", action="store_true")
     parser.add_argument("--candidate", type=int, default=1)
@@ -242,12 +246,14 @@ def main() -> int:
         "benchmark": manifest.get("benchmark"),
         "manifest_version": manifest.get("manifest_version"),
         "composition_grammar": manifest.get("composition_grammar"),
+        "visual_grammar_surface_visibility": manifest.get("visual_grammar_surface_visibility"),
         "sport_geometry": manifest.get("sport_geometry"),
         "generated_sport_geometry_allowed": manifest.get("generated_sport_geometry_allowed"),
         "hybrid_surface_replacement_required": manifest.get("hybrid_surface_replacement_required"),
         "football_camera_preset": manifest.get("football_camera_preset"),
         "generated_branding_allowed": manifest.get("generated_branding_allowed"),
         "brand_composition_policy": manifest.get("brand_composition_policy"),
+        "visual_priority": manifest.get("visual_priority"),
         "candidate": args.candidate,
         "seed": selected.get("seed"),
         "request_id": selected.get("request_id"),
@@ -265,7 +271,7 @@ def main() -> int:
 
     summary_path = root / args.summary
     if args.prepare_only:
-        payload = {"status": "COLAB_GOLDEN_HYBRID_PREPARED", **base_summary}
+        payload = {"status": "COLAB_GOLDEN_EDITORIAL_PREPARED", **base_summary}
         _write_summary(summary_path, payload)
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
         return 0
@@ -308,12 +314,12 @@ def main() -> int:
         "--result", str(result_path),
     ]
 
-    print("=== PUL7SAR COLAB GPU — GOLDEN HYBRID v5 BASE ===")
+    print("=== PUL7SAR COLAB GPU — GOLDEN EDITORIAL v6 BASE ===")
     print(f"branch={branch} head={head} candidate={args.candidate} seed={selected.get('seed')}")
     print(
         f"benchmark={manifest.get('benchmark')} manifest={manifest.get('manifest_version')} "
-        f"geometry={manifest.get('sport_geometry')} generated_geometry={manifest.get('generated_sport_geometry_allowed')} "
-        f"brand_policy={manifest.get('brand_composition_policy')}"
+        f"surface={manifest.get('visual_grammar_surface_visibility')} geometry={manifest.get('sport_geometry')} "
+        f"camera={manifest.get('football_camera_preset')}"
     )
     completed = _run(command, cwd=root, capture=False)
     if completed.returncode != 0:
@@ -327,7 +333,7 @@ def main() -> int:
     png = _proof_from_result(result, root)
 
     payload = {
-        "status": "COLAB_REAL_HYBRID_BASE_GENERATED", **base_summary,
+        "status": "COLAB_REAL_EDITORIAL_BASE_GENERATED", **base_summary,
         "png": str(png),
         "executor_result": str(result_path.resolve()),
         "execution_seconds": result.get("execution_seconds"),
@@ -337,7 +343,9 @@ def main() -> int:
         "cuda_peak_allocated_gb": result.get("cuda_peak_allocated_gb"),
         "cuda_peak_reserved_gb": result.get("cuda_peak_reserved_gb"),
         "displayed_inline": _maybe_display(png),
-        "publication_note": "Atmosphere base only. Deterministic football surface and remaining exact layers are still required.",
+        "publication_note": (
+            "Story-first PREVIEW base only. No deterministic pitch replacement is required; exact brand and typography layers remain separate."
+        ),
     }
     payload = _attach_generation_provenance(root=root, payload=payload, png=png)
     _write_summary(summary_path, payload)
