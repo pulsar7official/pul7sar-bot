@@ -21,7 +21,7 @@ EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_MANIFEST_VERSION = "pul7sar-golden-batch-v6"
 EXPECTED_COMPOSITION = "single_continuous_scene"
 EXPECTED_SURFACE_VISIBILITY = "context_only"
-EXPECTED_SPORT_GEOMETRY = "context_only_no_exact_surface_required"
+EXPECTED_SPORT_GEOMETRY = "contextual_optional_not_required"
 EXPECTED_CAMERA_PRESET = "editorial_environmental_oblique"
 EXPECTED_VISUAL_PRIORITY = "story_focal_hierarchy_before_sport_surface"
 EXPECTED_BRAND_POLICY = "dynamic_deterministic_after_generation"
@@ -288,7 +288,7 @@ def main() -> int:
         if _result_matches_candidate(existing, selected):
             png = _proof_from_result(existing, root)
             payload = {
-                "status": "COLAB_GOLDEN_BASE_ALREADY_EXISTS", **base_summary,
+                "status": "COLAB_GOLDEN_EDITORIAL_ALREADY_EXISTS", **base_summary,
                 "png": str(png),
                 "executor_result": str(result_path.resolve()),
                 "displayed_inline": _maybe_display(png),
@@ -314,12 +314,12 @@ def main() -> int:
         "--result", str(result_path),
     ]
 
-    print("=== PUL7SAR COLAB GPU — GOLDEN EDITORIAL v6 BASE ===")
+    print("=== PUL7SAR COLAB GPU — GOLDEN EDITORIAL v6 ===")
     print(f"branch={branch} head={head} candidate={args.candidate} seed={selected.get('seed')}")
     print(
         f"benchmark={manifest.get('benchmark')} manifest={manifest.get('manifest_version')} "
         f"surface={manifest.get('visual_grammar_surface_visibility')} geometry={manifest.get('sport_geometry')} "
-        f"camera={manifest.get('football_camera_preset')}"
+        f"pitch_replacement={manifest.get('hybrid_surface_replacement_required')} brand_policy={manifest.get('brand_composition_policy')}"
     )
     completed = _run(command, cwd=root, capture=False)
     if completed.returncode != 0:
@@ -333,7 +333,7 @@ def main() -> int:
     png = _proof_from_result(result, root)
 
     payload = {
-        "status": "COLAB_REAL_EDITORIAL_BASE_GENERATED", **base_summary,
+        "status": "COLAB_REAL_GOLDEN_EDITORIAL_GENERATED", **base_summary,
         "png": str(png),
         "executor_result": str(result_path.resolve()),
         "execution_seconds": result.get("execution_seconds"),
@@ -343,9 +343,7 @@ def main() -> int:
         "cuda_peak_allocated_gb": result.get("cuda_peak_allocated_gb"),
         "cuda_peak_reserved_gb": result.get("cuda_peak_reserved_gb"),
         "displayed_inline": _maybe_display(png),
-        "publication_note": (
-            "Story-first PREVIEW base only. No deterministic pitch replacement is required; exact brand and typography layers remain separate."
-        ),
+        "publication_note": "Story-first editorial base only. No deterministic pitch replacement is required for this PREVIEW; exact brand and typography remain later layers.",
     }
     payload = _attach_generation_provenance(root=root, payload=payload, png=png)
     _write_summary(summary_path, payload)
