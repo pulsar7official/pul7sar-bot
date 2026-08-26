@@ -18,7 +18,7 @@ Phase 18 was actively migrating the Golden benchmark from Hybrid v5 to story-fir
 - branding and typography remain deterministic downstream layers;
 - publication readiness remains fail-closed.
 
-A CI failure during the migration also showed that multiple legacy v5 tests/contracts were still being aligned. No GPU success was inferred from CPU CI.
+No GPU success was inferred from CPU CI.
 
 ## Gap identified
 
@@ -40,7 +40,13 @@ This was a correctness and safety gap at the final provider-neutral → local FL
 - `tests/test_phase18_local_backend_execution.py`
   - added `context_only` regression: generated exact geometry false, replacement false;
   - added `partial_deterministic` regression: generated exact geometry false, replacement true;
+  - repaired both fixtures to use the already-supported `no humiliation` provider constraint so these ownership tests do not fail in unrelated prompt-translation code;
   - retained existing zero-cost, redaction, provenance, seed/canvas and visual metadata checks.
+
+- `engine/intelligence/golden_prompt_budget.py`
+  - repaired the concurrent Editorial v6 compact prompt so it remains below the locked 1,200-character budget;
+  - preserved the exact v6 fail-closed markers for a single full-bleed scene, asymmetric hierarchy, no high-wide-central broadcast framing, no full-pitch master shot, fully unbranded base including platform names, and anti-collage composition;
+  - kept turf contextual/subordinate and exact pitch markings/geometry forbidden.
 
 ### Added
 
@@ -55,9 +61,10 @@ None.
 
 - `975e788eff1e817af59f26fd684eb1f447ef277c` — separate contextual geometry ownership from replacement.
 - `06faeac71e0491ec59e724a7240b7bab52c853e2` — add local-backend regression coverage.
-- documentation commits follow on the same Phase 18 branch.
+- `7b7a3196e0a5d17035f8c88774a87e6e532b451e` — fit the current Golden editorial v6 scene prompt inside the locked budget.
+- `d18a8a61e3e9afaadc59ea79c14f58de05b11368` — repair geometry-ownership regression fixtures without changing runtime policy.
 
-A contemporaneous Phase 18 migration commit also added story-first specification metadata to `GenerationPackageCompiler`; this log does not claim that separate work as part of Change Set 173.
+Concurrent Phase 18 migration commits continued to align Golden v6 batch, Colab and semantic-continuation contracts. This log does not claim those separate changes as authored by Change Set 173.
 
 ## Gates preserved
 
@@ -69,8 +76,9 @@ No relaxation was made to:
 - `$0-local` cost policy;
 - FLUX/Qwen model/runtime integrity contracts;
 - branding/text/exact-number/entity-mark generation prohibitions;
+- generated exact sport-geometry prohibition;
 - Qwen semantic visual gates;
-- deterministic exact-layer ownership;
+- deterministic exact-layer ownership when story/grammar requires it;
 - provenance/evidence replay;
 - Golden visual-quality thresholds;
 - Exact Brand / Typography integrity;
@@ -78,7 +86,9 @@ No relaxation was made to:
 
 ## Testing status
 
-Regression tests were added, but this log does not mark Change Set 173 CI-green until a GitHub Story Intelligence Verification run completes successfully on a head containing these changes. CPU CI success must not be interpreted as a genuine image-generation result.
+Story Intelligence Verification run `32977527649` executed 1,217 Phase 18 tests and exposed the active v5→v6 migration debt. Two errors belonged to the new geometry-ownership test fixtures because they used an unsupported ad-hoc negative-constraint phrase; those fixtures were repaired without changing runtime behavior. A large group of Golden failures was caused by the concurrent v6 compact scene prompt exceeding its locked 1,200-character budget; that prompt was compacted while retaining the v6 verifier markers.
+
+Additional failures in that run were legacy-v5 Colab/smoke/continuation assertions still being migrated to the story-first v6 contract. This log does not mark Change Set 173 CI-green until a later Story Intelligence Verification run succeeds on a head containing the repairs. CPU CI success must never be interpreted as a genuine image-generation result.
 
 ## Genuine Golden Visual status / exact blocker
 
@@ -88,7 +98,7 @@ The remaining execution blocker is a compatible real local GPU environment able 
 
 ## Next safe work
 
-1. Let the current v6 CPU suite identify remaining legacy-v5 compatibility regressions.
-2. Keep the v6 story-first Golden handoff consistent end-to-end through batch, smoke, Colab and provenance tooling.
+1. Continue removing legacy-v5 assertions that conflict with the now-active story-first Editorial v6 contract, without weakening v6 gates.
+2. Keep v6 handoff, batch, smoke, Colab and provenance tooling consistent end-to-end.
 3. Run Candidate 1 only when a compatible CUDA/BF16 host is available.
 4. Do not authorize Seeds 2–4 until Candidate 1 is visually and semantically reviewed.
