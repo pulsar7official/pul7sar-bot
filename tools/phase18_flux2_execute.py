@@ -7,9 +7,11 @@ success it writes a native aligned PNG, normalizes it to the exact platform
 canvas, registers the exact-canvas PNG as the visual proof with provenance, and
 can persist a machine-readable result file that is immune to noisy library logs.
 
-The Golden Visual dtype is quality-locked to the model's documented bfloat16
-Diffusers path. `auto` means "prove native BF16 and use it"; it does not silently
-change precision when BF16 support is unavailable.
+The Golden reference dtype remains locked to the model's documented bfloat16
+Diffusers path. ``auto`` proves native BF16 and never falls back silently.
+``float16-preview`` is an explicit zero-cost engineering mode for legacy GPUs
+such as Colab T4; it is tagged as non-Golden and can never imply publication
+readiness.
 """
 
 from __future__ import annotations
@@ -47,8 +49,6 @@ def _handoff_payload_sha256(path: str) -> str:
     supplied = data.get("payload_sha256")
     if not isinstance(supplied, str) or len(supplied) != 64:
         raise ValueError("generation handoff is missing a valid payload_sha256")
-    # Reuse the canonical reader as the integrity authority. This makes the
-    # digest safe to persist only after the handoff itself has passed replay.
     LocalGenerationHandoff.read(path)
     return supplied
 
@@ -135,6 +135,8 @@ def execute_request(
         "requested_dtype": dtype_decision.requested,
         "resolved_dtype": dtype_decision.resolved,
         "dtype_reason": dtype_decision.reason,
+        "precision_quality_tier": dtype_decision.quality_tier,
+        "golden_reference_precision": dtype_decision.quality_tier == "golden_reference",
         "gpu_name": runtime.gpu_name,
         "gpu_vram_gb": runtime.gpu_vram_gb,
         "bf16_supported": runtime.metadata.get("bf16_supported"),
@@ -151,6 +153,7 @@ def execute_request(
         "cuda_current_reserved_gb": memory.current_reserved_gb,
         "cuda_memory_blocker": memory.blocker,
         "cost_mode": "$0-local",
+        "publication_ready": False,
     }
 
 
@@ -159,7 +162,7 @@ def main() -> int:
     parser.add_argument("--request", required=True, help="Versioned PUL7SAR local-generation handoff JSON")
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
-    parser.add_argument("--dtype", choices=("auto", "bfloat16"), default="auto")
+    parser.add_argument("--dtype", choices=("auto", "bfloat16", "float16-preview"), default="auto")
     parser.add_argument(
         "--result",
         help="Optional JSON result path. Batch execution should prefer this over parsing stdout.",
