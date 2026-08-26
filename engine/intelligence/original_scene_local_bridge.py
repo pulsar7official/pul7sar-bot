@@ -97,6 +97,8 @@ class OriginalSceneLocalBridge:
     _NO_COLLAGE = "no collage or multi-panel layout"
     _NO_VENUE = "no specific identifiable real venue"
     _NO_REAL_PERSON = "no specific real-person depiction"
+    _NO_FULL_PITCH_HERO = "no full football pitch as the main visual subject"
+    _NO_CENTERED_BROADCAST = "no centered broadcast-style pitch composition"
 
     def __init__(
         self,
@@ -228,6 +230,12 @@ class OriginalSceneLocalBridge:
                 constraints.append(self._NO_VENUE)
             elif "real-person" in item or "real person" in item or "celebrity" in item or "likeness" in item:
                 constraints.append(self._NO_REAL_PERSON)
+            elif "full-pitch" in item or "full pitch" in item or "full football pitch" in item:
+                constraints.append(self._NO_FULL_PITCH_HERO)
+                if "broadcast" in item or "central" in item or "centered" in item:
+                    constraints.append(self._NO_CENTERED_BROADCAST)
+            elif "broadcast" in item and ("pitch" in item or "framing" in item):
+                constraints.append(self._NO_CENTERED_BROADCAST)
             elif any(token in item for token in ("branding", "wordmark", "logo", "crest", "readable", "signage", "pseudo-text", "text")):
                 constraints.append(self._NO_BRAND_TEXT)
             else:
