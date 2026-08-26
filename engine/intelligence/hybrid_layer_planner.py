@@ -4,12 +4,16 @@ The final editorial image is split into layers by reliability. Diffusion is used
 for atmosphere and non-exact texture; code/assets own geometry, identities,
 branding, typography, scores and data. This prevents one generative model from
 being responsible for every pixel and every factual invariant.
+
+Sport rules define how exact geometry should be produced when a story needs it.
+Story complexity decides whether that geometry belongs in the composition at all.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import Enum
 
+from engine.intelligence.scene_complexity_policy import SceneComplexityPolicy, SurfaceVisibility
 from engine.intelligence.sport_visual_rules import SportVisualRule
 from engine.intelligence.story_visual_editorial import EditorialVisualPlan, ProductionMode
 
@@ -41,6 +45,9 @@ class HybridLayerPlan:
 
 
 class HybridVisualLayerPlanner:
+    def __init__(self, complexity_policy: SceneComplexityPolicy | None = None) -> None:
+        self._complexity = complexity_policy or SceneComplexityPolicy()
+
     def plan(self, editorial: EditorialVisualPlan, sport_rule: SportVisualRule) -> HybridLayerPlan:
         if not isinstance(editorial, EditorialVisualPlan):
             raise TypeError("editorial must be EditorialVisualPlan")
@@ -62,7 +69,18 @@ class HybridVisualLayerPlanner:
                 required=False,
             ))
 
-        if sport_rule.exact_geometry_preferred:
+        complexity = self._complexity.decide(
+            editorial.event,
+            secondary_subject_count=len(editorial.secondary_subjects),
+        )
+        exact_surface_required = (
+            sport_rule.exact_geometry_preferred
+            and complexity.surface_visibility in {
+                SurfaceVisibility.PARTIAL_DETERMINISTIC,
+                SurfaceVisibility.FULL_DETERMINISTIC,
+            }
+        )
+        if exact_surface_required:
             layers.append(VisualLayer(
                 "sport_surface_geometry",
                 LayerSource.DETERMINISTIC,
@@ -72,7 +90,7 @@ class HybridVisualLayerPlanner:
             layers.append(VisualLayer(
                 "sport_surface_geometry",
                 LayerSource.OPTIONAL,
-                "sport environment does not require a fully deterministic surface",
+                "sport-surface geometry is not a story dependency; use only contextual texture if composition benefits",
                 required=False,
             ))
 
