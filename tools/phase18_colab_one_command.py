@@ -22,6 +22,9 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_MANIFEST_VERSION = "pul7sar-golden-batch-v6"
+EXPECTED_FOCAL_ANCHOR = "illuminated_tunnel_lower_left"
+EXPECTED_COPY_NEGATIVE_SPACE = "right_center"
+EXPECTED_BRAND_QUIET_ZONE = "upper_left"
 LATEST = ROOT / "output" / "phase18_colab" / "latest.json"
 PROOF_DIR = ROOT / "output" / "phase18_visual_proof" / "editorial"
 
@@ -136,6 +139,17 @@ def _base_png_from_latest() -> tuple[dict[str, object], Path]:
         raise RuntimeError("GOLDEN_V6_PREVIEW_MUST_NOT_REQUIRE_PITCH_REPLACEMENT")
     if base.get("football_camera_preset") != "editorial_environmental_oblique":
         raise RuntimeError("GOLDEN_V6_EDITORIAL_CAMERA_NOT_LOCKED")
+    expected_composition = {
+        "focal_anchor": EXPECTED_FOCAL_ANCHOR,
+        "copy_negative_space": EXPECTED_COPY_NEGATIVE_SPACE,
+        "brand_quiet_zone": EXPECTED_BRAND_QUIET_ZONE,
+    }
+    failures = [
+        f"{key}={base.get(key)!r}" for key, expected in expected_composition.items()
+        if base.get(key) != expected
+    ]
+    if failures:
+        raise RuntimeError("GOLDEN_V6_COMPOSITION_MAP_DRIFT: " + "; ".join(failures))
     value = base.get("png")
     if not isinstance(value, str) or not value.strip():
         raise RuntimeError("BASE_PNG_MISSING_FROM_COLAB_SUMMARY")
@@ -157,6 +171,9 @@ def _engineering_proof(candidate: int, *, semantic_blocker: str) -> dict[str, ob
         "benchmark": base.get("benchmark"),
         "editorial_png": str(base_png),
         "visual_grammar_surface_visibility": base.get("visual_grammar_surface_visibility"),
+        "focal_anchor": base.get("focal_anchor"),
+        "copy_negative_space": base.get("copy_negative_space"),
+        "brand_quiet_zone": base.get("brand_quiet_zone"),
         "deterministic_pitch_applied": False,
         "pitch_replacement_required": False,
         "semantic_visual_inspection": {
@@ -217,6 +234,9 @@ def _review_editorial_base(candidate: int) -> dict[str, object]:
         "visual_priority": base.get("visual_priority"),
         "visual_grammar_surface_visibility": base.get("visual_grammar_surface_visibility"),
         "football_camera_preset": base.get("football_camera_preset"),
+        "focal_anchor": base.get("focal_anchor"),
+        "copy_negative_space": base.get("copy_negative_space"),
+        "brand_quiet_zone": base.get("brand_quiet_zone"),
         "deterministic_pitch_applied": False,
         "pitch_replacement_required": False,
         "semantic_runtime": readiness,
@@ -258,6 +278,7 @@ def main() -> int:
     print("1/9 Updating protected Phase 18 branch...")
     if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
         raise RuntimeError("COLAB_UPDATE_FAILED")
+
     print("2/9 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
         raise RuntimeError("COLAB_CPU_VALIDATION_FAILED: GPU execution blocked")
