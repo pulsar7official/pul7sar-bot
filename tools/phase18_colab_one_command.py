@@ -9,6 +9,11 @@ require it. Branding and typography remain separate deterministic layers.
 Publication-grade semantic QA stays fail-closed. If the semantic inspector is
 unavailable, the generated image may still be displayed as an engineering proof,
 but publication_ready always remains false.
+
+Interactive Colab use updates the protected Phase 18 branch by default. Immutable
+workflow callers may pass --skip-update only after they have already pinned and
+reattached the exact Phase 18 dispatch SHA; this prevents a later git pull from
+changing the source commit between workflow admission and GPU execution.
 """
 from __future__ import annotations
 
@@ -268,6 +273,11 @@ def main() -> int:
     parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--semantic-inspection", choices=("none", "qwen"), default="qwen")
     parser.add_argument("--strict-semantic", action="store_true", help="Fail instead of displaying engineering proof when semantic QA is unavailable")
+    parser.add_argument(
+        "--skip-update",
+        action="store_true",
+        help="Do not git pull. Reserved for immutable-SHA workflow callers that already pinned and reattached Phase 18.",
+    )
     args = parser.parse_args()
 
     branch = _branch()
@@ -275,9 +285,12 @@ def main() -> int:
         raise RuntimeError(f"COLAB_BRANCH_BLOCKED: expected {EXPECTED_BRANCH}, found {branch}")
 
     print("=== PUL7SAR PHASE 18 — ONE COMMAND EDITORIAL v6 ===")
-    print("1/9 Updating protected Phase 18 branch...")
-    if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
-        raise RuntimeError("COLAB_UPDATE_FAILED")
+    if args.skip_update:
+        print("1/9 Preserving immutable pre-pinned Phase 18 source; git update skipped by explicit caller request.")
+    else:
+        print("1/9 Updating protected Phase 18 branch...")
+        if _run(["git", "pull", "--ff-only", "origin", EXPECTED_BRANCH]) != 0:
+            raise RuntimeError("COLAB_UPDATE_FAILED")
 
     print("2/9 Discovering and running all Phase 18 CPU validation...")
     if _run([sys.executable, str(ROOT / "tools" / "phase18_cpu_validate.py")]) != 0:
