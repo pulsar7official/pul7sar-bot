@@ -31,6 +31,7 @@ The dominant failures were migration-contract issues rather than GPU execution f
    - strengthens the non-identifying venue reframe with the exact `no specific identifiable real venue` marker;
    - strengthens unresolved PREVIEW treatment with `approaching rather than already decided`;
    - keeps contextual turf incidental without using the rejected `full playing surface` wording;
+   - restores the exact `no specific real-person depiction` marker inside the anonymous-person reframe after CI showed that this final identity marker remained the only failing Golden handoff assertion;
    - continues to fail closed for unknown constraint translations.
 
 3. `notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb`
@@ -87,7 +88,9 @@ Unchanged and fail-closed:
   - `880a2e6853830faa2ac1c28d69f20a778893c86c` — preserve Golden v6 composition metadata in the local handoff.
   - `4e46b501b40609097c147c01f3e071685e67e6b4` — align provider reframes with strict Golden v6 contracts.
   - `733483d59d3e02b73194be693577a4bd45005fbd` — align Colab notebook with current gated review contract.
-- Story Intelligence Verification run `33002375737` started on code head `733483d59d3e02b73194be693577a4bd45005fbd` and was still in progress when this log was created. No CI-green claim is made until an actual successful run completes.
+  - `54d304348d2ad50505f4409e39d127b1a8d98a00` — restore the final strict real-person marker required by the Golden handoff contract.
+- Story Intelligence Verification run `33002375737` on code head `733483d59d3e02b73194be693577a4bd45005fbd` improved the suite to 1,247 tests with only one remaining failure: `test_golden_request_does_not_claim_specific_real_venue_or_person`, specifically the missing exact `no specific real-person depiction` marker. All newly repaired Golden batch/smoke/metadata, notebook, provider-v6, and Original Scene translation tests passed in that run. The remaining marker was then restored in commit `54d304348d2ad50505f4409e39d127b1a8d98a00`.
+- No CI-green claim is made for the final corrected head until an actual successful Story Intelligence run completes.
 
 ## Genuine Golden PNG status
 
@@ -97,7 +100,7 @@ Exact external execution blocker remains the absence, in the available execution
 
 ## Immediate next work
 
-1. Inspect the first completed Story Intelligence run containing Change Set 179.
+1. Inspect the first completed Story Intelligence run containing the final real-person marker repair.
 2. Repair only any remaining v6 migration boundary revealed by real test evidence; do not weaken gates.
 3. Once CPU contracts are green, use the first compatible zero-cost CUDA host for strict Candidate 1 only.
 4. Require exact PNG/provenance replay plus Qwen BASE_SCENE/layer-ownership approval.
