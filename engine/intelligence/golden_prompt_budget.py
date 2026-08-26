@@ -27,24 +27,32 @@ _COMPACT_SCENE_PROMPT = (
 
 
 class GoldenPromptBudget:
-    """Compact only the current Golden v5 scene description.
+    """Compact only the explicitly identified current Golden v5 benchmark.
 
-    Exact prohibitions are intentionally *not* folded into this short prose.
-    They remain in ``negative_constraints`` and ``factual_constraints`` and are
-    subsequently compiled by the existing provider policy. This removes prompt
-    repetition without deleting a safety or factual boundary.
+    ``GenerationPackageCompiler`` intentionally does not propagate arbitrary
+    benchmark labels from scene metadata into generic provider-neutral output.
+    Therefore the benchmark identity is supplied explicitly by the trusted
+    Golden builder instead of smuggling benchmark-only state into the generic
+    compiler. Exact prohibitions remain in ``negative_constraints`` and
+    ``factual_constraints`` and are compiled by the existing provider policy.
     """
 
-    def compact(self, package: GenerationPackage) -> GenerationPackage:
+    def compact(self, package: GenerationPackage, *, benchmark_id: str) -> GenerationPackage:
         if not isinstance(package, GenerationPackage):
             raise TypeError("package must be GenerationPackage")
-        benchmark = package.metadata.get("benchmark")
-        if benchmark != GOLDEN_BENCHMARK_ID:
+        if benchmark_id != GOLDEN_BENCHMARK_ID:
             raise ValueError("golden prompt budget may only compact the current Golden Hybrid v5 benchmark")
-        if package.metadata.get("generated_sport_geometry_allowed") is not False:
-            raise ValueError("Golden prompt compaction requires generated sport geometry to remain forbidden")
         if package.metadata.get("generated_branding_allowed") is not False:
             raise ValueError("Golden prompt compaction requires generated branding to remain forbidden")
+        if package.metadata.get("hybrid_base_scene_contract") is not True:
+            raise ValueError("Golden prompt compaction requires the hybrid base-scene contract")
+        reserved = tuple(str(item).casefold() for item in (package.metadata.get("reserved_base_scene_content") or ()))
+        geometry_reserved = any(
+            "playing-surface geometry" in item or "sport surface geometry" in item
+            for item in reserved
+        )
+        if not geometry_reserved:
+            raise ValueError("Golden prompt compaction requires sport geometry to remain code-owned")
         if package.metadata.get("visual_concept_selected_before_renderer") is not True:
             raise ValueError("Golden prompt compaction requires an approved pre-render visual concept")
         if len(_COMPACT_SCENE_PROMPT) > GOLDEN_SCENE_PROMPT_BUDGET_CHARS:
@@ -55,6 +63,7 @@ class GoldenPromptBudget:
 
         metadata = dict(package.metadata)
         metadata.update({
+            "benchmark": benchmark_id,
             "golden_prompt_contract": GOLDEN_PROMPT_BUDGET_CONTRACT,
             "golden_prompt_compacted": True,
             "golden_scene_prompt_budget_chars": GOLDEN_SCENE_PROMPT_BUDGET_CHARS,
