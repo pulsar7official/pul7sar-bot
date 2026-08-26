@@ -23,7 +23,7 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             candidate = load_first_candidate(manifest)
             self.assertEqual(candidate.candidate, 1)
             self.assertEqual(candidate.seed, 7007001)
-            self.assertEqual(candidate.request_id, "golden-season-opener-hybrid-v5-001")
+            self.assertEqual(candidate.request_id, "golden-season-opener-editorial-v6-001")
             self.assertEqual(len(candidate.payload_sha256), 64)
             self.assertTrue(candidate.handoff_path.is_file())
 
@@ -45,7 +45,7 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "0-local"):
                 load_first_candidate(manifest)
 
-    def test_v5_manifest_requires_unified_scene_grammar(self) -> None:
+    def test_v6_manifest_requires_unified_scene_grammar(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -54,40 +54,49 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "single_continuous_scene"):
                 load_first_candidate(manifest)
 
-    def test_v5_manifest_forbids_generated_pitch_geometry(self) -> None:
+    def test_v6_manifest_forbids_generated_exact_sport_geometry(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["generated_sport_geometry_allowed"] = True
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
+            with self.assertRaisesRegex(ValueError, "v6 editorial policy mismatch"):
                 load_first_candidate(manifest)
 
-    def test_v5_manifest_requires_deterministic_pitch_replacement(self) -> None:
+    def test_v6_manifest_forbids_pitch_replacement_regression(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
-            data["hybrid_surface_replacement_required"] = False
+            data["hybrid_surface_replacement_required"] = True
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
+            with self.assertRaisesRegex(ValueError, "v6 editorial policy mismatch"):
                 load_first_candidate(manifest)
 
-    def test_v5_manifest_forbids_generated_branding(self) -> None:
+    def test_v6_manifest_forbids_generated_branding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["generated_branding_allowed"] = True
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
+            with self.assertRaisesRegex(ValueError, "v6 editorial policy mismatch"):
                 load_first_candidate(manifest)
 
-    def test_v5_manifest_requires_dynamic_deterministic_branding(self) -> None:
+    def test_v6_manifest_requires_dynamic_deterministic_branding(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             manifest = self._build(Path(tmp))
             data = json.loads(manifest.read_text(encoding="utf-8"))
             data["brand_composition_policy"] = "generated_wordmark"
             manifest.write_text(json.dumps(data), encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "hybrid policy mismatch"):
+            with self.assertRaisesRegex(ValueError, "v6 editorial policy mismatch"):
+                load_first_candidate(manifest)
+
+    def test_v6_manifest_requires_story_first_visual_priority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            manifest = self._build(Path(tmp))
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+            data["visual_priority"] = "sport_surface_before_story"
+            manifest.write_text(json.dumps(data), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "v6 editorial policy mismatch"):
                 load_first_candidate(manifest)
 
     def test_prepare_creates_exactly_one_durable_smoke_job(self) -> None:
@@ -104,6 +113,7 @@ class GoldenSmokeCoordinatorTests(unittest.TestCase):
             self.assertEqual(first.job.state, GenerationJobState.QUEUED)
             self.assertEqual(store.snapshot().pending, 1)
             self.assertEqual(first.job.metadata["cost_mode"], "$0-local")
+            self.assertEqual(first.job.metadata["smoke_role"], "golden-editorial-base")
 
     def test_existing_job_with_different_locked_identity_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
