@@ -59,6 +59,7 @@ class GoldenVisualBatchTests(unittest.TestCase):
                 self.assertEqual(request.metadata["brand_quiet_zone"], "upper_left")
                 self.assertEqual(item["focal_anchor"], "illuminated_tunnel_lower_left")
                 self.assertEqual(item["copy_negative_space"], "right_center")
+                self.assertEqual(item["brand_quiet_zone"], "upper_left")
                 self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
                 self.assertEqual(item["visual_grammar_surface_visibility"], "context_only")
                 self.assertNotIn("pul7sar", prompt)
