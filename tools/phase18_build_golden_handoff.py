@@ -54,17 +54,14 @@ def build_request(*, seed: int, request_id: str):
     if surface_layer.source is not LayerSource.OPTIONAL or surface_layer.required:
         raise RuntimeError("GOLDEN_V6_PREVIEW_SURFACE_POLICY_REGRESSED")
 
-    # Current Phase 18 editorial API order is deliberate: the approved story plan
-    # produces provider-agnostic visual grammar first; the scene family consumes
-    # that grammar; only then can the visual-concept director select picture idea.
     visual_grammar = VisualGrammar().direct(editorial)
     if visual_grammar.surface_visibility.value != "context_only":
         raise RuntimeError("GOLDEN_V6_PREVIEW_VISUAL_GRAMMAR_REGRESSED")
     scene = SportsEditorialSceneDirector().direct(editorial.event, visual_grammar)
 
-    # Layout planning is profile-first in the current Phase 18 contract. A general
-    # PREVIEW uses the default requirements (hero/logo/headline/footer, no score or
-    # crest); no result/identity semantics are smuggled into deterministic layout.
+    # Instagram Feed portrait planning reserves the right-center for headline copy
+    # and upper-left for the compact PUL7SAR brand. The generated focal anchor is
+    # therefore deliberately placed lower-left/mid-left rather than centered.
     layout = DeterministicLayoutPlanner().plan(profile)
 
     visual_concept = VisualConceptDirector().direct(
@@ -100,14 +97,18 @@ def build_request(*, seed: int, request_id: str):
         subject=None,
         identity_reference=None,
         environment=(
-            "premium football season-opening anticipation at dusk; layered generic stadium architecture, crowd depth, believable floodlights, "
-            "cinematic air and optional subordinate turf context"
+            "premium football season-opening anticipation at dusk in a deliberately generic stadium; one illuminated players' tunnel mouth "
+            "as the dominant environmental anchor, layered stand architecture and crowd depth receding diagonally, believable floodlights as "
+            "secondary depth only, cinematic air, and optional subordinate turf context"
         ),
         composition=(
-            "one asymmetric editorial hierarchy built around a dominant atmospheric focal anchor; single continuous physical scene; "
-            "strong depth and calm negative space; no pitch-template dominance"
+            "one asymmetric editorial hierarchy: dominant illuminated tunnel lower-left to mid-left, diagonal depth into the stands, quiet "
+            "low-detail right-center reserved for later headline typography, restrained upper-left reserved for later brand placement; "
+            "single continuous physical scene; no centered pitch-template dominance"
         ),
-        camera_direction="oblique three-quarter environmental camera; explicitly not high-wide-central broadcast framing",
+        camera_direction=(
+            "oblique three-quarter environmental camera aimed across the tunnel/stand depth; explicitly not high-wide-central broadcast framing"
+        ),
         emotional_mood="premium anticipatory global-football energy without invented outcome or identity claims",
         palette_strategy=None,
         required_assets=(),
@@ -143,6 +144,9 @@ def build_request(*, seed: int, request_id: str):
             "generated_branding_allowed": False,
             "brand_composition_policy": "dynamic_deterministic_after_generation",
             "visual_priority": "story_focal_hierarchy_before_sport_surface",
+            "focal_anchor": "illuminated_tunnel_lower_left",
+            "copy_negative_space": "right_center",
+            "brand_quiet_zone": "upper_left",
         },
     )
     package = GenerationPackageCompiler().compile(
@@ -154,9 +158,6 @@ def build_request(*, seed: int, request_id: str):
         visual_concept=visual_concept,
     )
 
-    # GenerationPackageCompiler is intentionally generic. Re-bind only trusted
-    # Golden-v6 ownership fields after generic compilation and before benchmark
-    # compaction so the general compiler does not become benchmark-specific.
     trusted_golden_metadata = {
         "benchmark": GOLDEN_BENCHMARK_ID,
         "composition_grammar": "single_continuous_scene",
@@ -169,6 +170,9 @@ def build_request(*, seed: int, request_id: str):
         "visual_grammar_surface_visibility": visual_grammar.surface_visibility.value,
         "visual_priority": "story_focal_hierarchy_before_sport_surface",
         "visual_concept_selected_before_renderer": True,
+        "focal_anchor": "illuminated_tunnel_lower_left",
+        "copy_negative_space": "right_center",
+        "brand_quiet_zone": "upper_left",
     }
     package = replace(package, metadata={**package.metadata, **trusted_golden_metadata})
     package = GoldenPromptBudget().compact(package, benchmark_id=GOLDEN_BENCHMARK_ID)
@@ -202,6 +206,8 @@ def main() -> int:
         "hybrid_surface_replacement_required": request.metadata.get("hybrid_surface_replacement_required"),
         "visual_grammar_surface_visibility": request.metadata.get("visual_grammar_surface_visibility"),
         "football_camera_preset": request.metadata.get("football_camera_preset"),
+        "focal_anchor": request.metadata.get("focal_anchor"),
+        "copy_negative_space": request.metadata.get("copy_negative_space"),
         "publication_ready": False,
     }, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
