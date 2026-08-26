@@ -21,53 +21,36 @@ class ColabEngineeringFallbackTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "CUDA_NOT_AVAILABLE"):
                 bootstrap._fresh_process_probe()
 
-    def test_engineering_proof_is_never_publication_ready(self):
+    def test_engineering_proof_is_never_publication_ready_and_never_adds_pitch(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             latest = root / "latest.json"
             base_png = root / "base.png"
-            hybrid_dir = root / "hybrid"
+            proof_dir = root / "editorial"
             base_png.write_bytes(b"fake-png")
             latest.write_text(json.dumps({
-                "manifest_version": "pul7sar-golden-batch-v5",
-                "hybrid_surface_replacement_required": True,
+                "manifest_version": "pul7sar-golden-batch-v6",
+                "benchmark": "golden-visual-season-opener-editorial-v6",
+                "visual_grammar_surface_visibility": "context_only",
+                "hybrid_surface_replacement_required": False,
+                "football_camera_preset": "editorial_environmental_oblique",
                 "png": str(base_png),
             }), encoding="utf-8")
 
-            receipt = SimpleNamespace(
-                generated_pitch_markings_replaced=True,
-                surface_opacity=255,
-                input_sha256="a" * 64,
-                output_sha256="b" * 64,
-            )
-            integrity = SimpleNamespace(valid=True, failures=())
-
-            class FakeComposer:
-                def compose_file(self, **kwargs):
-                    Path(kwargs["output_path"]).write_bytes(b"hybrid")
-                    return receipt
-
-            class FakeIntegrityGate:
-                def validate_football(self, value):
-                    if value is not receipt:
-                        raise AssertionError("unexpected receipt")
-                    return integrity
-
             with (
                 patch.object(one_command, "LATEST", latest),
-                patch.object(one_command, "HYBRID_DIR", hybrid_dir),
-                patch.object(one_command, "FootballHybridComposer", return_value=FakeComposer()),
-                patch.object(one_command, "HybridArtifactIntegrityGate", return_value=FakeIntegrityGate()),
+                patch.object(one_command, "PROOF_DIR", proof_dir),
                 patch.object(one_command, "_display", return_value=False),
             ):
-                payload = one_command._compose_engineering_proof(1, semantic_blocker="qwen inference failed")
+                payload = one_command._engineering_proof(1, semantic_blocker="qwen inference failed")
 
-            self.assertEqual(payload["status"], "GOLDEN_HYBRID_ENGINEERING_PROOF")
+            self.assertEqual(payload["status"], "GOLDEN_EDITORIAL_ENGINEERING_PROOF")
             self.assertFalse(payload["publication_ready"])
-            self.assertFalse(payload["visual_inspection"]["automatic_visual_qa_ready"])
-            self.assertFalse(payload["visual_inspection"]["publication_visual_gate_ready"])
-            self.assertFalse(payload["hybrid_quality"]["approved"])
+            self.assertFalse(payload["deterministic_pitch_applied"])
+            self.assertFalse(payload["pitch_replacement_required"])
+            self.assertEqual(payload["visual_grammar_surface_visibility"], "context_only")
             self.assertEqual(payload["semantic_visual_inspection"]["status"], "SEMANTIC_QA_BLOCKED")
+            self.assertTrue((proof_dir / "candidate-01-golden-editorial-v6-engineering-receipt.json").is_file())
 
 
 if __name__ == "__main__":
