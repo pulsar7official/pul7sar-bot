@@ -8,6 +8,11 @@ from tools.phase18_build_golden_batch import build_batch
 
 
 class GoldenVisualBatchTests(unittest.TestCase):
+    def _assert_geometry_integrity(self, data):
+        self.assertFalse(data["partial_sport_geometry_allowed"])
+        self.assertEqual(data["sport_geometry_integrity_policy"], "exact_verified_or_visually_indeterminate")
+        self.assertTrue(data["partial_sport_geometry_hallucination_is_hard_failure"])
+
     def test_batch_builds_unique_integrity_locked_story_first_handoffs(self):
         with tempfile.TemporaryDirectory() as temp:
             manifest = build_batch(temp, (7007001, 7007002, 7007003))
@@ -17,6 +22,7 @@ class GoldenVisualBatchTests(unittest.TestCase):
             self.assertEqual(manifest["visual_grammar_surface_visibility"], "context_only")
             self.assertEqual(manifest["sport_geometry"], "contextual_optional_not_required")
             self.assertFalse(manifest["generated_sport_geometry_allowed"])
+            self._assert_geometry_integrity(manifest)
             self.assertFalse(manifest["hybrid_surface_replacement_required"])
             self.assertEqual(manifest["football_camera_preset"], "editorial_environmental_oblique")
             self.assertEqual(manifest["visual_priority"], "story_focal_hierarchy_before_sport_surface")
@@ -25,24 +31,32 @@ class GoldenVisualBatchTests(unittest.TestCase):
             self.assertEqual(manifest["brand_quiet_zone"], "upper_left")
             self.assertFalse(manifest["generated_branding_allowed"])
             self.assertEqual(manifest["brand_composition_policy"], "dynamic_deterministic_after_generation")
+            self.assertIn("hard-reject any candidate with invented partial regulation sport geometry", manifest["selection_rule"])
             self.assertEqual(len(manifest["candidates"]), 3)
             hashes = {item["payload_sha256"] for item in manifest["candidates"]}
             self.assertEqual(len(hashes), 3)
             for item in manifest["candidates"]:
+                self._assert_geometry_integrity(item)
                 request = LocalGenerationHandoff.read(str(Path(temp) / item["handoff"]))
                 self.assertEqual(request.seed, item["seed"])
                 self.assertEqual(request.metadata["cost_mode"], "$0-local")
                 prompt = request.prompt.casefold()
-                self.assertIn("one single continuous full-bleed editorial image", prompt)
-                self.assertIn("asymmetric editorial hierarchy", prompt)
-                self.assertIn("single illuminated players' tunnel mouth", prompt)
-                self.assertIn("lower-left to mid-left", prompt)
-                self.assertIn("right-center calm and low-detail", prompt)
-                self.assertIn("upper-left restrained", prompt)
-                self.assertIn("oblique three-quarter environmental camera", prompt)
-                self.assertIn("no high-wide-central broadcast framing", prompt)
-                self.assertIn("no full-pitch master shot", prompt)
-                self.assertIn("turf is optional context only and visually subordinate", prompt)
+                for marker in (
+                    "one single continuous full-bleed editorial image",
+                    "asymmetric editorial hierarchy",
+                    "single illuminated players' tunnel mouth",
+                    "lower-left to mid-left",
+                    "right-center calm and low-detail",
+                    "upper-left restrained",
+                    "oblique three-quarter environmental camera",
+                    "no high-wide-central broadcast framing",
+                    "no full-pitch master shot",
+                    "turf is optional context only and visually subordinate",
+                    "show no goal frame or goal net",
+                    "no corner arc or corner flag",
+                    "keep it outside the frame, fully occluded, or visually indeterminate",
+                ):
+                    self.assertIn(marker, prompt)
                 self.assertNotIn("reserved surface region plain and unmarked", prompt)
                 self.assertNotIn("exact surface will be replaced by deterministic code", prompt)
                 self.assertTrue(request.metadata["hybrid_base_scene_contract"])
@@ -51,6 +65,7 @@ class GoldenVisualBatchTests(unittest.TestCase):
                 self.assertEqual(request.metadata["visual_grammar_surface_visibility"], "context_only")
                 self.assertEqual(request.metadata["sport_geometry"], "contextual_optional_not_required")
                 self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
+                self._assert_geometry_integrity(request.metadata)
                 self.assertFalse(request.metadata["hybrid_surface_replacement_required"])
                 self.assertEqual(request.metadata["football_camera_preset"], "editorial_environmental_oblique")
                 self.assertEqual(request.metadata["visual_priority"], "story_focal_hierarchy_before_sport_surface")
@@ -76,6 +91,7 @@ class GoldenVisualBatchTests(unittest.TestCase):
             self.assertEqual(saved["visual_grammar_surface_visibility"], "context_only")
             self.assertEqual(saved["sport_geometry"], "contextual_optional_not_required")
             self.assertFalse(saved["generated_sport_geometry_allowed"])
+            self._assert_geometry_integrity(saved)
             self.assertFalse(saved["hybrid_surface_replacement_required"])
             self.assertEqual(saved["football_camera_preset"], "editorial_environmental_oblique")
             self.assertEqual(saved["visual_priority"], "story_focal_hierarchy_before_sport_surface")
