@@ -80,6 +80,7 @@ Regression coverage added for:
 ### Modified
 
 - None in existing generation/runtime paths. This Change Set is additive over Change Sets 212–214 and the existing worker/critic contracts.
+- This implementation log was updated after CI completion to record the verified result.
 
 ### Deleted
 
@@ -108,15 +109,12 @@ The new receipt always preserves `human_visual_review_required=true`, `golden_qu
 
 ## Validation status
 
-The code/test HEAD for this Change Set is `5161491f2dbd288c651605815b2d464351a6ee14`.
+Change Set 215 is verified green on the code/test HEAD `5161491f2dbd288c651605815b2d464351a6ee14`.
 
-At the time this log was first written:
+- Phase 18 Story Intelligence Verification Run `33100564970 / 3497` completed with `success`.
+- The returned companion Phase 18 workflows on the same code/test HEAD also completed successfully, including Composition Matrix, Result Statement, Adaptive Brand Pixel, Data Monument, Event Editorial, Tactical Intelligence, Premium Hybrid Result, Verified Match Result, and Event Hybrid Context.
 
-- Phase 18 Story Intelligence Verification Run `33100564970 / 3497` was `in_progress`;
-- Composition Matrix, Result Statement, Adaptive Brand Pixel, Data Monument, Event Editorial, Tactical Intelligence, Premium Hybrid Result and Event Hybrid Context had already completed with `success` on that code/test HEAD;
-- Verified Match Result was still in progress.
-
-No CI-green claim is made until the Story Intelligence verification completes successfully.
+No GPU visual result is inferred from CPU CI success.
 
 ## Genuine Golden Visual status
 
