@@ -13,7 +13,7 @@ class DynamicVisualBrainLocalAdmissionTests(unittest.TestCase):
     def _plan_lock(self):
         plan = DynamicVisualBrain().plan({
             "headline": "Verified League prepares for a new season",
-            "summary": "PUL7SAR reports that Verified League is scheduled to begin this weekend.",
+            "summary": "Verified sources state that Verified League is scheduled to begin this weekend.",
             "sport": "football",
             "story_type": "preview",
             "primary_entity": "Verified League",
