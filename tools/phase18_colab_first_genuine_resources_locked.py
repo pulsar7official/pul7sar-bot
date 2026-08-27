@@ -4,10 +4,12 @@
 This wrapper is the preferred execution seam for an immutable self-hosted GPU
 checkout. It proves live GPU qualification and live host-memory readiness,
 proves combined pinned-model cache headroom before any model download, binds the
-exact pinned Qwen and FLUX snapshots, captures the approved software/runtime
-fingerprint immediately before the strict genuine-Golden entrypoint, then
-captures it again after staging and fails closed on any drift. Resource, model
-cache, semantic, runtime and staging receipts are all bound by SHA-256.
+exact pinned Qwen and FLUX snapshots, verifies that conservative local working
+headroom still exists after the FLUX snapshot is ready, captures the approved
+software/runtime fingerprint immediately before the strict genuine-Golden
+entrypoint, then captures it again after staging and fails closed on any drift.
+Resource, model cache, semantic, runtime and staging receipts are all bound by
+SHA-256.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -153,7 +155,7 @@ def _validate_semantic_preflight(semantic: dict[str, object], qwen_cache: dict[s
         raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_CACHE_SNAPSHOT_DRIFT")
 
 
-def _validate_flux_cache(flux_cache: dict[str, object]) -> None:
+def _validate_flux_cache(flux_cache: dict[str, object]) -> tuple[float, float]:
     if flux_cache.get("schema") != "pul7sar-phase18-model-cache-v2":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_SCHEMA_DRIFT")
     if flux_cache.get("ready") is not True or flux_cache.get("revision_pinned") is not True:
@@ -171,6 +173,25 @@ def _validate_flux_cache(flux_cache: dict[str, object]) -> None:
         assert_snapshot_revision(snapshot, FLUX2_KLEIN_4B_REVISION)
     except (RuntimeError, ValueError) as exc:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_SNAPSHOT_PATH_DRIFT") from exc
+
+    if flux_cache.get("working_headroom_ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_POST_HEADROOM_NOT_READY")
+    headroom = flux_cache.get("working_headroom_after_cache")
+    if not isinstance(headroom, dict):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_POST_HEADROOM_EVIDENCE_MISSING")
+    if headroom.get("eligible") is not True or headroom.get("reason") != "post_cache_working_headroom_ready":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_POST_HEADROOM_INELIGIBLE")
+    free_gib = headroom.get("free_gib")
+    minimum_gib = headroom.get("minimum_working_free_gib")
+    free_bytes = headroom.get("free_bytes")
+    for value, label in ((free_gib, "FREE_GIB"), (minimum_gib, "MINIMUM_GIB")):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_FLUX_CACHE_POST_HEADROOM_{label}_INVALID")
+    if isinstance(free_bytes, bool) or not isinstance(free_bytes, int) or free_bytes < 0:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_POST_HEADROOM_FREE_BYTES_INVALID")
+    if float(free_gib) < float(minimum_gib):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_POST_HEADROOM_BELOW_FLOOR")
+    return float(free_gib), float(minimum_gib)
 
 
 def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
@@ -229,12 +250,14 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
 
     # Bind the exact immutable FLUX snapshot before Candidate 1. This prevents
     # the executor from performing an unsealed first download inside generation.
+    # The prefetch also performs a live post-cache disk measurement; validate
+    # that receipt here so the headroom guarantee becomes part of this lock.
     _run(
         [sys.executable, str(ROOT / "tools" / "phase18_prefetch_flux2.py"), "--receipt", str(FLUX_MODEL_CACHE)],
         label="FIRST_GENUINE_GOLDEN_FLUX_MODEL_PREFETCH",
     )
     flux_cache = _load(FLUX_MODEL_CACHE)
-    _validate_flux_cache(flux_cache)
+    post_cache_free_gib, post_cache_required_gib = _validate_flux_cache(flux_cache)
 
     # Freeze the software/runtime identity immediately before Candidate 1.
     runtime_before = capture_generation_runtime_fingerprint()
@@ -306,6 +329,9 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "semantic_preflight_bound": True,
         "qwen_model_cache_bound": True,
         "flux_model_cache_bound": True,
+        "post_cache_working_headroom_bound": True,
+        "post_cache_free_gib": post_cache_free_gib,
+        "post_cache_required_gib": post_cache_required_gib,
         "semantic_model_id": QWEN25_VL_3B_MODEL_ID,
         "semantic_model_revision": QWEN25_VL_3B_REVISION,
         "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
