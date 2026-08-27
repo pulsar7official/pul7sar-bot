@@ -5,11 +5,19 @@ from engine.intelligence.story_visual_editorial import EditorialEvent
 
 
 class VisualBenchmarkSuiteTests(unittest.TestCase):
-    def test_five_story_families_are_registered(self):
-        self.assertEqual(len(PHASE18_VISUAL_BENCHMARKS), 5)
+    def test_seven_canonical_validation_cases_are_registered(self):
+        self.assertEqual(len(PHASE18_VISUAL_BENCHMARKS), 7)
         self.assertEqual(
             {case.event for case in PHASE18_VISUAL_BENCHMARKS},
-            {EditorialEvent.TRANSFER_CONFIRMED, EditorialEvent.RESULT, EditorialEvent.INJURY, EditorialEvent.TACTICS, EditorialEvent.GENERAL},
+            {
+                EditorialEvent.TRANSFER_CONFIRMED,
+                EditorialEvent.RESULT,
+                EditorialEvent.INJURY,
+                EditorialEvent.TACTICS,
+                EditorialEvent.RECORD,
+                EditorialEvent.PREVIEW,
+                EditorialEvent.GENERAL,
+            },
         )
 
     def test_transfer_benchmark_rejects_legacy_logo_and_dense_stats(self):
@@ -31,6 +39,19 @@ class VisualBenchmarkSuiteTests(unittest.TestCase):
         case = benchmark_for(EditorialEvent.TACTICS)
         self.assertEqual(case.review_kind, BenchmarkReviewKind.STRUCTURAL)
         self.assertIn("deterministic sport geometry", case.must_show)
+
+    def test_record_benchmark_keeps_exact_numbers_deterministic(self):
+        case = benchmark_for(EditorialEvent.RECORD)
+        self.assertEqual(case.review_kind, BenchmarkReviewKind.STRUCTURAL)
+        self.assertIn("exact deterministic record value", case.must_show)
+        self.assertIn("AI-generated exact numbers", case.must_avoid)
+        self.assertIn("invented statistics", case.must_avoid)
+
+    def test_preview_benchmark_enforces_exact_or_indeterminate_geometry(self):
+        case = benchmark_for(EditorialEvent.PREVIEW)
+        self.assertIn("sport geometry either exact verified or visually indeterminate", case.must_show)
+        self.assertIn("isolated or partial unverifiable goal geometry", case.must_avoid)
+        self.assertIn("mandatory full-pitch master shot", case.must_avoid)
 
     def test_general_editorial_benchmark_uses_optional_not_mandatory_football_motifs(self):
         case = benchmark_for(EditorialEvent.GENERAL)
