@@ -86,8 +86,13 @@ class FirstGenuineGoldenV6OffloadLockTests(unittest.TestCase):
         inner = text.index("phase18_colab_first_genuine_resources_locked.py")
         self.assertLess(qualify, offload)
         self.assertLess(offload, inner)
-        self.assertIn("pul7sar-first-genuine-golden-v6-offload-lock-v1", text)
-        self.assertIn("FIRST_GENUINE_GOLDEN_V6_PREMODEL_OFFLOAD_RESOURCE_LOCK_VERIFIED", text)
+        # Change Set 191 upgraded the wrapper from pre-model-only evidence (v1)
+        # to pre-model + actual-executor offload provenance (v2). Keep this
+        # earlier capability test aligned with the stronger current contract.
+        self.assertIn("pul7sar-first-genuine-golden-v6-offload-lock-v2", text)
+        self.assertIn("FIRST_GENUINE_GOLDEN_V6_ACTUAL_OFFLOAD_RESOURCE_LOCK_VERIFIED", text)
+        self.assertIn('"safe_offload_preflight_bound": True', text)
+        self.assertIn('"actual_offload_mode_bound": True', text)
         self.assertIn('"human_visual_review_approved": False', text)
         self.assertIn('"golden_quality_approved": False', text)
         self.assertIn('"publication_ready": False', text)
