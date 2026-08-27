@@ -1,10 +1,10 @@
 """Bridge a locked Dynamic Visual Brain concept into the provider-neutral scene contract.
 
-This is the first execution-facing seam for the new story-specific Dynamic Visual
-Brain.  It does not choose a renderer or provider.  It proves that the exact
-concept competition and selected concept are still identical to the pre-render
-lock, then emits an OriginalSceneRequest that keeps facts, identity, branding,
-typography and exact sport geometry outside generation.
+This execution-facing seam proves the concept competition and selected concept are
+still identical to the pre-render lock, then translates that editorial concept
+through the renderer-safe compiler before it can become generation input. Exact
+facts, identity, branding, typography and exact sport geometry remain outside
+generation.
 """
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from hashlib import sha256
 import json
 from typing import Any
 
+from engine.intelligence.dynamic_renderer_prompt import DynamicRendererPromptCompiler
 from engine.intelligence.dynamic_visual_brain import DynamicVisualBrainPlan
 from engine.intelligence.dynamic_visual_brain_lock import (
     DynamicVisualBrainConceptLockReceipt,
@@ -26,7 +27,7 @@ from engine.intelligence.original_scene_runtime_contract import (
 from engine.intelligence.visual_concept_director import VisualConceptArchetype
 
 
-_CONTRACT = "pul7sar-dynamic-visual-brain-original-scene-bridge-v1"
+_CONTRACT = "pul7sar-dynamic-visual-brain-original-scene-bridge-v2-renderer-safe"
 _LOCK_CONTRACT = "pul7sar-dynamic-visual-brain-concept-lock-v1"
 
 
@@ -43,6 +44,9 @@ class DynamicVisualBrainOriginalSceneReceipt:
     selected_concept_id: str
     selected_concept_sha256: str
     scene_prompt_sha256: str
+    renderer_prompt_contract: str
+    renderer_prompt_sha256: str
+    renderer_identity_neutral: bool
     original_scene_request_sha256: str
     original_scene_request_contract: str
     runtime_kind: str
@@ -95,10 +99,21 @@ class DynamicVisualBrainOriginalSceneBridge:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_ORIGINAL_SCENE_SEED_INVALID")
 
         selected = next(item for item in plan.concepts if item.concept_id == lock.selected_concept_id)
+        renderer = DynamicRendererPromptCompiler().compile(
+            story=plan.story,
+            event=plan.event,
+            concept=selected,
+            verified_person_asset=False,
+        )
+        renderer_prompt_sha = sha256(renderer.prompt.encode("utf-8")).hexdigest()
+        lowered_renderer_prompt = renderer.prompt.casefold()
+        if "pul7sar" in lowered_renderer_prompt or "pulsar" in lowered_renderer_prompt:
+            raise ValueError("DYNAMIC_VISUAL_BRAIN_RENDERER_PROMPT_PLATFORM_NAME_LEAK")
+
         request = OriginalSceneRequest(
             archetype=VisualConceptArchetype.GENERATIVE_EVENT_ATMOSPHERE,
             runtime_kind=OriginalSceneRuntimeKind.ATMOSPHERE,
-            scene_intent=selected.scene_prompt,
+            scene_intent=renderer.prompt,
             emotional_tone="premium, restrained, story-specific and fact-respecting",
             safe_negative_space=selected.negative_space_strategy,
             forbidden_visual_claims=cls._CANONICAL_FORBIDDEN,
@@ -126,12 +141,15 @@ class DynamicVisualBrainOriginalSceneBridge:
         }
         receipt = DynamicVisualBrainOriginalSceneReceipt(
             contract=_CONTRACT,
-            status="DYNAMIC_VISUAL_BRAIN_ORIGINAL_SCENE_REQUEST_BOUND",
+            status="DYNAMIC_VISUAL_BRAIN_RENDERER_SAFE_ORIGINAL_SCENE_BOUND",
             story_fingerprint=lock.story_fingerprint,
             competition_sha256=lock.competition_sha256,
             selected_concept_id=lock.selected_concept_id,
             selected_concept_sha256=lock.selected_concept_sha256,
             scene_prompt_sha256=lock.scene_prompt_sha256,
+            renderer_prompt_contract=DynamicRendererPromptCompiler.CONTRACT,
+            renderer_prompt_sha256=renderer_prompt_sha,
+            renderer_identity_neutral=True,
             original_scene_request_sha256=_canonical_sha256(request_payload),
             original_scene_request_contract=request.contract,
             runtime_kind=request.runtime_kind.value,
