@@ -37,6 +37,10 @@ class PromptConstraintCompiler:
     _CONTEXTUAL_TURF_ONLY = "Keep any visible football turf incidental, subordinate and non-structural; the environmental story focal point must dominate and turf must never become the primary subject."
     _OBLIQUE_NOT_BROADCAST = "Use an asymmetric oblique environmental camera and avoid centered high-wide broadcast framing of the playing surface."
     _NO_TACTICAL_GEOMETRY = "Keep any incidental turf free of prominent tactical or regulation geometry such as a centre circle, halfway line, penalty boxes, or diagram-like markings."
+    _NO_PARTIAL_UNVERIFIED_GEOMETRY = (
+        "Keep regulation football structures entirely outside the frame, fully occluded, or visually indeterminate when exact sport geometry is not a verified story dependency. "
+        "Do not introduce isolated goal frames or nets, penalty-area or goal-area lines, corner arcs or flags, centre circles, halfway lines, or other partial pitch geometry merely as stadium decoration; any visible regulation geometry must be physically coherent and story-authorized."
+    )
 
     _REFRAMES = {
         "no humiliation": "Keep every losing or secondary side dignified and respectful; focus emotional emphasis on the winner without degrading anyone.",
@@ -62,6 +66,10 @@ class PromptConstraintCompiler:
         "no full football pitch as the main visual subject": _CONTEXTUAL_TURF_ONLY,
         "no centered broadcast-style pitch composition": _OBLIQUE_NOT_BROADCAST,
         "no tactical diagram or prominent centre-circle/halfway-line geometry": _NO_TACTICAL_GEOMETRY,
+        "no isolated or partial goal frame or goal net": _NO_PARTIAL_UNVERIFIED_GEOMETRY,
+        "no penalty-area or goal-area lines": _NO_PARTIAL_UNVERIFIED_GEOMETRY,
+        "no corner arc or corner flag": _NO_PARTIAL_UNVERIFIED_GEOMETRY,
+        "no partial regulation football geometry whose physical placement cannot be verified": _NO_PARTIAL_UNVERIFIED_GEOMETRY,
         "no generated branding, wordmarks, readable text, or pseudo-text": _NO_BRAND_TEXT,
         "no generated branding, wordmarks, readable text, numerals or pseudo-text": _NO_BRAND_TEXT,
         "no specific identifiable real venue": _NON_IDENTIFYING_VENUE,
