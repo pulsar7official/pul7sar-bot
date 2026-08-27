@@ -49,6 +49,19 @@ PHASE18_VISUAL_BENCHMARKS = (
         BenchmarkReviewKind.STRUCTURAL,
     ),
     VisualBenchmarkCase(
+        "record-data-editorial-v1", EditorialEvent.RECORD,
+        "data-led editorial visual where the verified record is exact and visually dominant without generated numeric invention",
+        ("exact deterministic record value", "verified data anchor", "clear data hierarchy", "supportive non-identifying atmosphere only when useful"),
+        ("AI-generated exact numbers", "invented statistics", "decorative numbers unrelated to the story", "generated pseudo-text competing with exact data"),
+        BenchmarkReviewKind.STRUCTURAL,
+    ),
+    VisualBenchmarkCase(
+        "event-preview-context-v1", EditorialEvent.PREVIEW,
+        "story-first match/event anticipation using contextual atmosphere without forcing a full pitch or unverifiable regulation geometry",
+        ("single coherent event atmosphere", "story-led focal hierarchy", "usable headline negative space", "sport geometry either exact verified or visually indeterminate"),
+        ("mandatory full-pitch master shot", "centered broadcast framing by default", "isolated or partial unverifiable goal geometry", "invented result or match state"),
+    ),
+    VisualBenchmarkCase(
         "football-editorial-atmosphere-v1", EditorialEvent.GENERAL,
         "premium football news visual that carries PUL7SAR atmosphere without forcing a person, pitch or infographic",
         (
