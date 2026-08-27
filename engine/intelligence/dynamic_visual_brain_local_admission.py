@@ -1,9 +1,11 @@
 """Measured $0-local runtime admission for locked Dynamic Visual Brain concepts.
 
-This module joins the new story-specific concept lock to the already-qualified
-Original Scene local runtime seam.  It may compile an executable local request
-only when measured readiness admits the model.  Publication remains impossible
-until downstream semantic, critic, human and publication gates succeed.
+This module joins the story-specific concept lock to the already-qualified
+Original Scene local runtime seam. It may compile an executable local request
+only when measured readiness admits the model. The renderer-safe prompt produced
+by the Original Scene bridge is explicitly bound into admission evidence.
+Publication remains impossible until downstream semantic, critic, human and
+publication gates succeed.
 """
 from __future__ import annotations
 
@@ -31,6 +33,9 @@ class DynamicVisualBrainLocalAdmissionReceipt:
     selected_concept_id: str
     selected_concept_sha256: str
     scene_prompt_sha256: str
+    renderer_prompt_contract: str
+    renderer_prompt_sha256: str
+    renderer_identity_neutral: bool
     original_scene_request_sha256: str
     provider_id: str
     model_id: str
@@ -53,7 +58,7 @@ class DynamicVisualBrainLocalAdmissionReceipt:
 
 
 class DynamicVisualBrainLocalAdmission:
-    CONTRACT = "pul7sar-dynamic-visual-brain-local-admission-v1"
+    CONTRACT = "pul7sar-dynamic-visual-brain-local-admission-v2-renderer-safe"
 
     @classmethod
     def admit(
@@ -101,7 +106,7 @@ class DynamicVisualBrainLocalAdmission:
         metadata = dict(local_request.metadata)
         cls._assert_runtime_metadata(metadata, concept_receipt)
         if original_request.scene_intent not in local_request.prompt:
-            raise ValueError("DYNAMIC_VISUAL_BRAIN_SCENE_INTENT_NOT_BOUND_TO_LOCAL_PROMPT")
+            raise ValueError("DYNAMIC_VISUAL_BRAIN_RENDERER_SAFE_SCENE_INTENT_NOT_BOUND_TO_LOCAL_PROMPT")
         lowered = local_request.prompt.casefold()
         if "pul7sar" in lowered or "pulsar" in lowered:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_PROMPT_PLATFORM_NAME_LEAK")
@@ -113,6 +118,9 @@ class DynamicVisualBrainLocalAdmission:
             "dynamic_visual_brain_selected_concept_id": lock.selected_concept_id,
             "dynamic_visual_brain_selected_concept_sha256": lock.selected_concept_sha256,
             "dynamic_visual_brain_scene_prompt_sha256": lock.scene_prompt_sha256,
+            "dynamic_renderer_prompt_contract": concept_receipt.renderer_prompt_contract,
+            "dynamic_renderer_prompt_sha256": concept_receipt.renderer_prompt_sha256,
+            "dynamic_renderer_identity_neutral": concept_receipt.renderer_identity_neutral,
             "dynamic_visual_brain_original_scene_request_sha256": concept_receipt.original_scene_request_sha256,
             "dynamic_visual_brain_selection_locked_before_rendering": True,
             "human_visual_review_required": True,
@@ -123,12 +131,15 @@ class DynamicVisualBrainLocalAdmission:
 
         receipt = DynamicVisualBrainLocalAdmissionReceipt(
             contract=cls.CONTRACT,
-            status="DYNAMIC_VISUAL_BRAIN_LOCAL_RUNTIME_ADMITTED",
+            status="DYNAMIC_VISUAL_BRAIN_RENDERER_SAFE_LOCAL_RUNTIME_ADMITTED",
             story_fingerprint=lock.story_fingerprint,
             competition_sha256=lock.competition_sha256,
             selected_concept_id=lock.selected_concept_id,
             selected_concept_sha256=lock.selected_concept_sha256,
             scene_prompt_sha256=lock.scene_prompt_sha256,
+            renderer_prompt_contract=concept_receipt.renderer_prompt_contract,
+            renderer_prompt_sha256=concept_receipt.renderer_prompt_sha256,
+            renderer_identity_neutral=concept_receipt.renderer_identity_neutral,
             original_scene_request_sha256=concept_receipt.original_scene_request_sha256,
             provider_id=bound_request.provider_id,
             model_id=bound_request.model_id,
@@ -164,3 +175,7 @@ class DynamicVisualBrainLocalAdmission:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_RUNTIME_PUBLICATION_AUTHORITY_DRIFT")
         if concept_receipt.publication_ready:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_ORIGINAL_SCENE_PUBLICATION_AUTHORITY_DRIFT")
+        if not concept_receipt.renderer_identity_neutral:
+            raise ValueError("DYNAMIC_VISUAL_BRAIN_RENDERER_IDENTITY_NEUTRALITY_MISSING")
+        if not isinstance(concept_receipt.renderer_prompt_sha256, str) or len(concept_receipt.renderer_prompt_sha256) != 64:
+            raise ValueError("DYNAMIC_VISUAL_BRAIN_RENDERER_PROMPT_SHA_INVALID")
