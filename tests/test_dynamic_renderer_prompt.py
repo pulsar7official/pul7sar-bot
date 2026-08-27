@@ -42,6 +42,24 @@ class DynamicRendererPromptTests(unittest.TestCase):
         self.assertIn("No football pitch", prompt)
         self.assertIn("later deterministic headline and brand layers", prompt)
 
+    def test_transfer_threshold_preserves_football_semantics_without_identity(self):
+        concept = next(c for c in self.plan.concepts if c.concept_id == "dynamic-transfer-threshold")
+        decision = DynamicRendererPromptCompiler().compile(
+            story=self.plan.story,
+            event=self.plan.event,
+            concept=concept,
+            verified_person_asset=False,
+        )
+        folded = decision.prompt.casefold()
+        self.assertIn("professional-football training-complex", folded)
+        self.assertIn("open locker alcove", folded)
+        self.assertIn("padded changing bench", folded)
+        self.assertIn("plain unlabeled football boots", folded)
+        self.assertIn("unbranded football", folded)
+        self.assertIn("not a generic corridor", folded)
+        self.assertIn("not a literal doorway as the sole subject", folded)
+        self.assertEqual(decision.renderer_risk, "low-football-semantic-anchor")
+
     def test_generic_story_strips_known_entities_and_platform_name(self):
         plan = DynamicVisualBrain().plan({
             "headline": "Verified League prepares for a new season",
@@ -74,7 +92,8 @@ class DynamicRendererPromptTests(unittest.TestCase):
         )
         self.assertIn("one uninterrupted floor plane", decision.prompt)
         self.assertIn("no central divider", decision.prompt)
-        self.assertEqual(decision.renderer_risk, "multi-zone-concept-normalized-to-single-scene")
+        self.assertIn("open locker alcove", decision.prompt)
+        self.assertEqual(decision.renderer_risk, "multi-zone-concept-normalized-to-single-football-scene")
 
 
 if __name__ == "__main__":
