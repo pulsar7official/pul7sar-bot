@@ -39,6 +39,18 @@ from engine.intelligence.visual_proof import VisualProofArtifactWriter
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
+_DYNAMIC_VISUAL_BRAIN_RESULT_KEYS = (
+    "dynamic_visual_brain_contract",
+    "dynamic_visual_brain_story_fingerprint",
+    "dynamic_visual_brain_competition_sha256",
+    "dynamic_visual_brain_selected_concept_id",
+    "dynamic_visual_brain_selected_concept_sha256",
+    "dynamic_visual_brain_scene_prompt_sha256",
+    "dynamic_visual_brain_original_scene_request_sha256",
+    "dynamic_visual_brain_selection_locked_before_rendering",
+)
+
+
 def _request_from_json(path: str):
     """Compatibility wrapper used by tests and callers; enforces versioned handoff."""
     return LocalGenerationHandoff.read(path)
@@ -55,14 +67,7 @@ def _handoff_payload_sha256(path: str) -> str:
 
 
 def _verified_execution_metadata(result) -> tuple[str, str]:
-    """Fail closed unless the real pipeline reports the approved revision/offload mode.
-
-    Pre-model capability checks prove what *should* be selected. This post-build
-    check proves what the actual Diffusers pipeline wrapper reports after it was
-    constructed for the request. Golden provenance must never infer this from the
-    host class alone.
-    """
-
+    """Fail closed unless the real pipeline reports the approved revision/offload mode."""
     metadata = getattr(result, "metadata", None)
     if not isinstance(metadata, dict) and not hasattr(metadata, "get"):
         raise RuntimeError("FLUX.2 execution metadata is missing")
@@ -75,6 +80,54 @@ def _verified_execution_metadata(result) -> tuple[str, str]:
     return str(offload_mode), str(model_revision)
 
 
+def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
+    """Carry only locked Dynamic Visual Brain identity into durable executor results.
+
+    The local handoff already SHA-protects request metadata.  This function makes
+    the story/concept hashes independently available to downstream PNG/critic
+    provenance without granting the generator any additional authority.
+    """
+    metadata = dict(request.metadata)
+    contract = metadata.get("dynamic_visual_brain_contract")
+    if not contract:
+        return {}
+
+    missing = [key for key in _DYNAMIC_VISUAL_BRAIN_RESULT_KEYS if key not in metadata]
+    if missing:
+        raise RuntimeError("Dynamic Visual Brain generation metadata is incomplete: " + ", ".join(missing))
+    for key in (
+        "dynamic_visual_brain_story_fingerprint",
+        "dynamic_visual_brain_competition_sha256",
+        "dynamic_visual_brain_selected_concept_sha256",
+        "dynamic_visual_brain_scene_prompt_sha256",
+        "dynamic_visual_brain_original_scene_request_sha256",
+    ):
+        value = metadata.get(key)
+        if not isinstance(value, str) or len(value) != 64:
+            raise RuntimeError(f"Dynamic Visual Brain generation metadata has invalid {key}")
+    if not isinstance(metadata.get("dynamic_visual_brain_selected_concept_id"), str) or not str(
+        metadata.get("dynamic_visual_brain_selected_concept_id")
+    ).strip():
+        raise RuntimeError("Dynamic Visual Brain generation metadata has invalid selected concept id")
+    if metadata.get("dynamic_visual_brain_selection_locked_before_rendering") is not True:
+        raise RuntimeError("Dynamic Visual Brain concept was not locked before rendering")
+
+    authority_expectations = {
+        "cost_mode": "$0-local",
+        "generated_branding_allowed": False,
+        "generated_exact_facts_allowed": False,
+        "generated_sport_geometry_allowed": False,
+        "semantic_inspection_required": True,
+        "human_visual_review_required": True,
+        "publication_ready": False,
+    }
+    for key, expected in authority_expectations.items():
+        if metadata.get(key) != expected:
+            raise RuntimeError(f"Dynamic Visual Brain generation authority drifted at {key}")
+
+    return {key: metadata[key] for key in _DYNAMIC_VISUAL_BRAIN_RESULT_KEYS}
+
+
 def execute_request(
     *,
     request_path: str,
@@ -84,6 +137,7 @@ def execute_request(
 ) -> dict[str, object]:
     request = _request_from_json(request_path)
     payload_sha256 = _handoff_payload_sha256(request_path)
+    dynamic_visual_brain_metadata = _dynamic_visual_brain_result_metadata(request)
     model = FLUX2_KLEIN_4B_LOCAL
     if request.provider_id != model.provider_id or request.model_id != model.model_id:
         raise ValueError("request does not target the approved zero-cost FLUX.2 klein candidate")
@@ -139,7 +193,7 @@ def execute_request(
     execution_finished_at = datetime.now(timezone.utc)
     memory = memory_tracker.capture()
 
-    return {
+    payload: dict[str, object] = {
         "status": "REAL_VISUAL_PROOF_GENERATED",
         "png": artifact.png_path,
         "metadata": artifact.metadata_path,
@@ -181,6 +235,8 @@ def execute_request(
         "cost_mode": "$0-local",
         "publication_ready": False,
     }
+    payload.update(dynamic_visual_brain_metadata)
+    return payload
 
 
 def main() -> int:
