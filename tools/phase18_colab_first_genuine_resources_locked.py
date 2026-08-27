@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Resource/runtime-lock and stage the first genuine Golden Editorial v6 Candidate 1.
+"""Resource/model-cache/runtime lock for first genuine Golden Editorial v6 Candidate 1.
 
 This wrapper is the preferred execution seam for an immutable self-hosted GPU
 checkout. It proves live GPU qualification and live host-memory readiness,
-proves the exact pinned Qwen semantic runtime/snapshot before Candidate 1,
-captures the approved software/runtime fingerprint immediately before the
-strict genuine-Golden entrypoint, then captures it again after staging and
-fails closed on any drift. Resource, semantic, runtime and staging receipts are
-all bound by SHA-256.
+proves combined pinned-model cache headroom before any model download, binds the
+exact pinned Qwen and FLUX snapshots, captures the approved software/runtime
+fingerprint immediately before the strict genuine-Golden entrypoint, then
+captures it again after staging and fails closed on any drift. Resource, model
+cache, semantic, runtime and staging receipts are all bound by SHA-256.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -24,8 +24,10 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_HOST = ROOT / "output" / "phase18_gpu_host" / "qualification.json"
 HOST_MEMORY = ROOT / "output" / "phase18_gpu_smoke" / "host-memory-preflight.json"
+CACHE_BUDGET = ROOT / "output" / "phase18_gpu_smoke" / "first-golden-cache-budget.json"
 SEMANTIC_PREFLIGHT = ROOT / "output" / "phase18_gpu_smoke" / "semantic-preflight.json"
 QWEN_MODEL_CACHE = ROOT / "output" / "phase18_gpu_smoke" / "qwen-model-cache.json"
+FLUX_MODEL_CACHE = ROOT / "output" / "phase18_gpu_smoke" / "flux-model-cache.json"
 RUNTIME_PRE = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-pre.json"
 RUNTIME_POST = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-post.json"
 STAGING = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-first-genuine-golden-staging.json"
@@ -35,6 +37,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
     QWEN25_VL_3B_MODEL_ID,
     QWEN25_VL_3B_REVISION,
     assert_snapshot_revision,
@@ -91,6 +95,22 @@ def _run(command: list[str], *, label: str) -> None:
         raise RuntimeError(f"{label}_FAILED:{completed.returncode}")
 
 
+def _validate_cache_budget(payload: dict[str, object]) -> None:
+    if payload.get("schema") != "pul7sar-first-golden-cache-budget-v1":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_CACHE_BUDGET_SCHEMA_DRIFT")
+    if payload.get("branch") != EXPECTED_BRANCH or payload.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_CACHE_BUDGET_POLICY_DRIFT")
+    if payload.get("ready") is not True or payload.get("revisions_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_CACHE_BUDGET_NOT_READY")
+    if payload.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or payload.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_CACHE_BUDGET_QWEN_IDENTITY_DRIFT")
+    if payload.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or payload.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_CACHE_BUDGET_FLUX_IDENTITY_DRIFT")
+    for field in ("downloads_performed", "generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+        if payload.get(field) is not False:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_CACHE_BUDGET_AUTHORITY_DRIFT:{field}")
+
+
 def _validate_semantic_preflight(semantic: dict[str, object], qwen_cache: dict[str, object]) -> None:
     if semantic.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_PREFLIGHT_SCHEMA_DRIFT")
@@ -133,6 +153,26 @@ def _validate_semantic_preflight(semantic: dict[str, object], qwen_cache: dict[s
         raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_CACHE_SNAPSHOT_DRIFT")
 
 
+def _validate_flux_cache(flux_cache: dict[str, object]) -> None:
+    if flux_cache.get("schema") != "pul7sar-phase18-model-cache-v2":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_SCHEMA_DRIFT")
+    if flux_cache.get("ready") is not True or flux_cache.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_NOT_READY")
+    if flux_cache.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or flux_cache.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_MODEL_DRIFT")
+    if flux_cache.get("resolved_snapshot_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_REVISION_DRIFT")
+    if flux_cache.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_COST_MODE_DRIFT")
+    snapshot = flux_cache.get("snapshot_path")
+    if not isinstance(snapshot, str) or not snapshot.strip():
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_SNAPSHOT_MISSING")
+    try:
+        assert_snapshot_revision(snapshot, FLUX2_KLEIN_4B_REVISION)
+    except (RuntimeError, ValueError) as exc:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_FLUX_CACHE_SNAPSHOT_PATH_DRIFT") from exc
+
+
 def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if _branch() != EXPECTED_BRANCH:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_RESOURCE_LOCK_BRANCH_BLOCKED")
@@ -161,8 +201,17 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if memory.get("ready") is not True or memory.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_HOST_MEMORY_NOT_READY")
 
-    # Semantic model qualification is part of the same resource lock, after the
-    # host has proved it is worth preparing model bytes and before FLUX begins.
+    # Prove combined disk headroom against the exact approved model revisions
+    # before either Qwen or FLUX is allowed to download model bytes.
+    _run(
+        [sys.executable, str(ROOT / "tools" / "phase18_preflight_first_golden_cache_budget.py"), "--receipt", str(CACHE_BUDGET)],
+        label="FIRST_GENUINE_GOLDEN_CACHE_BUDGET_PREFLIGHT",
+    )
+    cache_budget = _load(CACHE_BUDGET)
+    _validate_cache_budget(cache_budget)
+
+    # Semantic model qualification remains inside the same resource lock after
+    # host and combined cache headroom have been proven.
     _run(
         [
             sys.executable,
@@ -177,6 +226,15 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     semantic = _load(SEMANTIC_PREFLIGHT)
     qwen_cache = _load(QWEN_MODEL_CACHE)
     _validate_semantic_preflight(semantic, qwen_cache)
+
+    # Bind the exact immutable FLUX snapshot before Candidate 1. This prevents
+    # the executor from performing an unsealed first download inside generation.
+    _run(
+        [sys.executable, str(ROOT / "tools" / "phase18_prefetch_flux2.py"), "--receipt", str(FLUX_MODEL_CACHE)],
+        label="FIRST_GENUINE_GOLDEN_FLUX_MODEL_PREFETCH",
+    )
+    flux_cache = _load(FLUX_MODEL_CACHE)
+    _validate_flux_cache(flux_cache)
 
     # Freeze the software/runtime identity immediately before Candidate 1.
     runtime_before = capture_generation_runtime_fingerprint()
@@ -200,6 +258,8 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_NOT_READY")
     if staging.get("candidate") != 1 or staging.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_IDENTITY_DRIFT")
+    if staging.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or staging.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_FLUX_IDENTITY_DRIFT")
     if staging.get("resolved_dtype") != "bfloat16" or staging.get("precision_quality_tier") != "golden_reference":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_PRECISION_DRIFT")
     if staging.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID or staging.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
@@ -223,15 +283,17 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     evidence = {
         "gpu_host_qualification": _record(GPU_HOST),
         "host_memory_preflight": _record(HOST_MEMORY),
+        "cache_budget": _record(CACHE_BUDGET),
         "semantic_preflight": _record(SEMANTIC_PREFLIGHT),
         "qwen_model_cache": _record(QWEN_MODEL_CACHE),
+        "flux_model_cache": _record(FLUX_MODEL_CACHE),
         "runtime_fingerprint_pre": _record(RUNTIME_PRE),
         "runtime_fingerprint_post": _record(RUNTIME_POST),
         "strict_golden_staging": _record(STAGING),
     }
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v3",
-        "status": "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED",
+        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v4",
+        "status": "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
@@ -240,9 +302,14 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "live_free_vram_gb": free_vram,
         "required_vram_gb": required_vram,
         "host_memory_ready": True,
+        "cache_budget_bound": True,
         "semantic_preflight_bound": True,
+        "qwen_model_cache_bound": True,
+        "flux_model_cache_bound": True,
         "semantic_model_id": QWEN25_VL_3B_MODEL_ID,
         "semantic_model_revision": QWEN25_VL_3B_REVISION,
+        "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
         "runtime_fingerprint_sha256": runtime_fingerprint_sha,
         "runtime_stable_across_generation": True,
         "staging_receipt": str(STAGING),
@@ -264,7 +331,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Resource/runtime/semantic-lock the strict first genuine Golden Editorial v6 Candidate 1")
+    parser = argparse.ArgumentParser(description="Model-cache/resource/runtime/semantic-lock the strict first genuine Golden Editorial v6 Candidate 1")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--output", type=Path, default=FINAL)
     args = parser.parse_args()
