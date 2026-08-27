@@ -1,6 +1,7 @@
 import unittest
 from dataclasses import replace
 
+from engine.intelligence.dynamic_renderer_prompt import DynamicRendererPromptCompiler
 from engine.intelligence.dynamic_visual_brain import DynamicVisualBrain
 from engine.intelligence.dynamic_visual_brain_lock import DynamicVisualBrainConceptLock
 from engine.intelligence.dynamic_visual_brain_local_admission import DynamicVisualBrainLocalAdmission
@@ -11,8 +12,8 @@ from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 class DynamicVisualBrainLocalAdmissionTests(unittest.TestCase):
     def _plan_lock(self):
         plan = DynamicVisualBrain().plan({
-            "headline": "League prepares for a new season",
-            "summary": "The verified league season is scheduled to begin this weekend.",
+            "headline": "Verified League prepares for a new season",
+            "summary": "PUL7SAR reports that Verified League is scheduled to begin this weekend.",
             "sport": "football",
             "story_type": "preview",
             "primary_entity": "Verified League",
@@ -33,7 +34,7 @@ class DynamicVisualBrainLocalAdmissionTests(unittest.TestCase):
             warnings=(),
         )
 
-    def test_measured_local_cuda_readiness_compiles_concept_bound_request(self):
+    def test_measured_local_cuda_readiness_compiles_renderer_safe_concept_bound_request(self):
         plan, lock = self._plan_lock()
         request, concept_receipt, runtime_receipt, receipt = DynamicVisualBrainLocalAdmission.admit(
             plan=plan,
@@ -44,7 +45,15 @@ class DynamicVisualBrainLocalAdmissionTests(unittest.TestCase):
             request_id="dynamic-preview-001",
             seed=42,
         )
-        self.assertIn(plan.concepts[0].scene_prompt, request.prompt)
+        self.assertNotIn(plan.concepts[0].scene_prompt, request.prompt)
+        self.assertEqual(concept_receipt.renderer_prompt_contract, DynamicRendererPromptCompiler.CONTRACT)
+        self.assertEqual(len(concept_receipt.renderer_prompt_sha256), 64)
+        self.assertTrue(concept_receipt.renderer_identity_neutral)
+        lowered = request.prompt.casefold()
+        self.assertNotIn("verified league", lowered)
+        self.assertNotIn("pul7sar", lowered)
+        self.assertNotIn("pulsar", lowered)
+        self.assertIn("no readable text", lowered)
         self.assertEqual(request.metadata["dynamic_visual_brain_story_fingerprint"], lock.story_fingerprint)
         self.assertEqual(request.metadata["dynamic_visual_brain_competition_sha256"], lock.competition_sha256)
         self.assertEqual(request.metadata["dynamic_visual_brain_selected_concept_sha256"], lock.selected_concept_sha256)
@@ -139,6 +148,7 @@ class DynamicVisualBrainLocalAdmissionTests(unittest.TestCase):
         lowered = request.prompt.casefold()
         self.assertNotIn("pul7sar", lowered)
         self.assertNotIn("pulsar", lowered)
+        self.assertNotIn("verified league", lowered)
 
 
 if __name__ == "__main__":
