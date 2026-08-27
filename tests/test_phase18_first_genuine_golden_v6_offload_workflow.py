@@ -25,7 +25,11 @@ class FirstGenuineGoldenV6OffloadWorkflowTests(unittest.TestCase):
         qualify = wrapper.index("phase18_qualify_gpu_host.py")
         offload = wrapper.index("phase18_preflight_flux2_offload.py")
         inner = wrapper.index("phase18_colab_first_genuine_resources_locked.py")
-        actual = wrapper.index("GoldenOffloadProvenanceLock().verify")
+        # Order the runtime call sites, not the helper implementation.  The helper
+        # definition containing GoldenOffloadProvenanceLock().verify intentionally
+        # appears before main(), so indexing that implementation text would produce
+        # a false negative even when the runtime order is correct.
+        actual = wrapper.index("actual_offload = _bind_actual_offload(inner, offload)")
         self.assertLess(qualify, offload)
         self.assertLess(offload, inner)
         self.assertLess(inner, actual)
@@ -36,6 +40,13 @@ class FirstGenuineGoldenV6OffloadWorkflowTests(unittest.TestCase):
         self.assertIn('"actual_offload_mode_bound": True', wrapper)
         self.assertIn('"publication_ready": False', wrapper)
         self.assertIn('"seeds_2_to_4_authorized": False', wrapper)
+
+    def test_actual_offload_postflight_helper_still_performs_the_provenance_verification(self):
+        wrapper = Path("tools/phase18_colab_first_genuine_offload_locked.py").read_text(encoding="utf-8")
+        self.assertIn("def _bind_actual_offload", wrapper)
+        self.assertIn("GoldenOffloadProvenanceLock().verify", wrapper)
+        self.assertIn('receipt.get("actual_offload_mode") != offload.get("selected_safe_mode")', wrapper)
+        self.assertIn('receipt.get("actual_offload_mode_bound") is not True', wrapper)
 
     def test_workflow_replays_preflight_actual_offload_and_inner_resource_before_upload(self):
         execute = self.text.index("Run pre-model and actual-execution offload locked strict Golden Editorial v6 Candidate 1")
