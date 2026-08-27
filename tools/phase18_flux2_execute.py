@@ -25,10 +25,7 @@ import time
 from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_REVISION
 from engine.intelligence.canvas_normalization import PillowPlatformCanvasNormalizer
 from engine.intelligence.cuda_memory import CudaPeakMemoryTracker
-from engine.intelligence.flux2_klein_diffusers import (
-    Flux2KleinDiffusersProbe,
-    build_flux2_klein_pipeline_factory,
-)
+from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, build_flux2_klein_pipeline_factory
 from engine.intelligence.local_backend import LocalBackendReadinessGate
 from engine.intelligence.local_backend_execution import LocalBackendResultGate
 from engine.intelligence.local_diffusers_adapter import DiffusersExecutionConfig, DiffusersLocalBackend
@@ -57,7 +54,6 @@ def _request_from_json(path: str):
 
 
 def _handoff_payload_sha256(path: str) -> str:
-    """Return the already-verified handoff digest for durable result provenance."""
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     supplied = data.get("payload_sha256")
     if not isinstance(supplied, str) or len(supplied) != 64:
@@ -67,7 +63,6 @@ def _handoff_payload_sha256(path: str) -> str:
 
 
 def _verified_execution_metadata(result) -> tuple[str, str]:
-    """Fail closed unless the real pipeline reports the approved revision/offload mode."""
     metadata = getattr(result, "metadata", None)
     if not isinstance(metadata, dict) and not hasattr(metadata, "get"):
         raise RuntimeError("FLUX.2 execution metadata is missing")
@@ -81,15 +76,15 @@ def _verified_execution_metadata(result) -> tuple[str, str]:
 
 
 def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
-    """Carry only locked Dynamic Visual Brain identity into durable executor results.
+    """Expose SHA-locked concept identity in the durable generation result.
 
-    The local handoff already SHA-protects request metadata.  This function makes
-    the story/concept hashes independently available to downstream PNG/critic
-    provenance without granting the generator any additional authority.
+    These fields already belong to the SHA-protected local handoff.  Copying the
+    whitelisted identity into the executor result lets downstream critic replay
+    prove that the exact selected concept produced the exact PNG; it grants no
+    additional generation or publication authority.
     """
     metadata = dict(request.metadata)
-    contract = metadata.get("dynamic_visual_brain_contract")
-    if not contract:
+    if not metadata.get("dynamic_visual_brain_contract"):
         return {}
 
     missing = [key for key in _DYNAMIC_VISUAL_BRAIN_RESULT_KEYS if key not in metadata]
@@ -105,9 +100,8 @@ def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
         value = metadata.get(key)
         if not isinstance(value, str) or len(value) != 64:
             raise RuntimeError(f"Dynamic Visual Brain generation metadata has invalid {key}")
-    if not isinstance(metadata.get("dynamic_visual_brain_selected_concept_id"), str) or not str(
-        metadata.get("dynamic_visual_brain_selected_concept_id")
-    ).strip():
+    concept_id = metadata.get("dynamic_visual_brain_selected_concept_id")
+    if not isinstance(concept_id, str) or not concept_id.strip():
         raise RuntimeError("Dynamic Visual Brain generation metadata has invalid selected concept id")
     if metadata.get("dynamic_visual_brain_selection_locked_before_rendering") is not True:
         raise RuntimeError("Dynamic Visual Brain concept was not locked before rendering")
@@ -125,16 +119,12 @@ def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
         if metadata.get(key) != expected:
             raise RuntimeError(f"Dynamic Visual Brain generation authority drifted at {key}")
 
-    return {key: metadata[key] for key in _DYNAMIC_VISUAL_BRAIN_RESULT_KEYS}
+    bound = {key: metadata[key] for key in _DYNAMIC_VISUAL_BRAIN_RESULT_KEYS}
+    bound["concept_id"] = concept_id
+    return bound
 
 
-def execute_request(
-    *,
-    request_path: str,
-    generation_dir: str,
-    proof_dir: str,
-    dtype: str,
-) -> dict[str, object]:
+def execute_request(*, request_path: str, generation_dir: str, proof_dir: str, dtype: str) -> dict[str, object]:
     request = _request_from_json(request_path)
     payload_sha256 = _handoff_payload_sha256(request_path)
     dynamic_visual_brain_metadata = _dynamic_visual_brain_result_metadata(request)
@@ -144,24 +134,14 @@ def execute_request(
     if request.backend != "diffusers":
         raise ValueError("this execution command only accepts the local diffusers backend")
     if request.reference_asset_ids:
-        raise ValueError(
-            "reference-image execution remains blocked until the verified asset-path resolver is connected"
-        )
+        raise ValueError("reference-image execution remains blocked until the verified asset-path resolver is connected")
 
     runtime = LocalRuntimeProbe().detect()
     backend_snapshot = Flux2KleinDiffusersProbe().probe()
-    readiness = LocalBackendReadinessGate().evaluate(
-        model=model,
-        runtime=runtime,
-        backend=backend_snapshot,
-    )
+    readiness = LocalBackendReadinessGate().evaluate(model=model, runtime=runtime, backend=backend_snapshot)
     if not readiness.ready:
         detail = ", ".join(backend_snapshot.details)
-        raise RuntimeError(
-            "local FLUX.2 execution is not ready: "
-            + "; ".join(readiness.failures)
-            + (f"; backend_details={detail}" if detail else "")
-        )
+        raise RuntimeError("local FLUX.2 execution is not ready: " + "; ".join(readiness.failures) + (f"; backend_details={detail}" if detail else ""))
 
     dtype_decision = LocalDTypeSelector().select(runtime, dtype)
     memory_tracker = CudaPeakMemoryTracker()
@@ -184,10 +164,7 @@ def execute_request(
         source_provenance=native_provenance,
         output_path=normalized_path,
     )
-    artifact = VisualProofArtifactWriter(proof_dir).register(
-        png_path=normalized.output_ref,
-        provenance=normalized.provenance,
-    )
+    artifact = VisualProofArtifactWriter(proof_dir).register(png_path=normalized.output_ref, provenance=normalized.provenance)
 
     execution_seconds = time.monotonic() - execution_started_monotonic
     execution_finished_at = datetime.now(timezone.utc)
@@ -245,25 +222,14 @@ def main() -> int:
     parser.add_argument("--generation-dir", default="output/phase18_generated")
     parser.add_argument("--proof-dir", default="output/phase18_visual_proof")
     parser.add_argument("--dtype", choices=("auto", "bfloat16", "float16-preview"), default="auto")
-    parser.add_argument(
-        "--result",
-        help="Optional JSON result path. Batch execution should prefer this over parsing stdout.",
-    )
+    parser.add_argument("--result", help="Optional JSON result path. Batch execution should prefer this over parsing stdout.")
     args = parser.parse_args()
 
-    payload = execute_request(
-        request_path=args.request,
-        generation_dir=args.generation_dir,
-        proof_dir=args.proof_dir,
-        dtype=args.dtype,
-    )
+    payload = execute_request(request_path=args.request, generation_dir=args.generation_dir, proof_dir=args.proof_dir, dtype=args.dtype)
     if args.result:
         result_path = Path(args.result)
         result_path.parent.mkdir(parents=True, exist_ok=True)
-        result_path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True),
-            encoding="utf-8",
-        )
+        result_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     print(json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
 
