@@ -37,6 +37,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from engine.intelligence.base_scene_execution_gate import BaseSceneExecutionGate
+from engine.intelligence.generation_provenance_lock import GenerationProvenanceLock
 from engine.intelligence.hybrid_layer_planner import HybridVisualLayerPlanner, LayerSource
 from engine.intelligence.qwen25_vl_inspector import Qwen25VLInspectionError, Qwen25VLSemanticInspector, SemanticInspectionStage
 from engine.intelligence.semantic_inspector_readiness import Qwen25VLReadinessProbe
@@ -163,7 +164,38 @@ def _base_png_from_latest() -> tuple[dict[str, object], Path]:
         base_png = ROOT / base_png
     if not base_png.is_file():
         raise RuntimeError("BASE_PNG_DOES_NOT_EXIST")
-    return base, base_png
+    return base, base_png.resolve()
+
+
+def _require_existing_generation_for_semantic(candidate: int) -> tuple[dict[str, object], Path, dict[str, object]]:
+    """Fail closed unless semantic QA is bound to an already-generated durable PNG."""
+    base, base_png = _base_png_from_latest()
+    try:
+        recorded_candidate = int(base.get("candidate", -1))
+    except (TypeError, ValueError):
+        recorded_candidate = -1
+    if recorded_candidate != candidate:
+        raise RuntimeError(
+            f"SEMANTIC_ONLY_CANDIDATE_MISMATCH: requested {candidate}, saved generation is {recorded_candidate}"
+        )
+    if base.get("publication_ready") is not False:
+        raise RuntimeError("SEMANTIC_ONLY_REQUIRES_UNPUBLISHED_GENERATION")
+    provenance = GenerationProvenanceLock().verify(
+        repository_root=str(ROOT),
+        summary=base,
+        base_png=str(base_png),
+    )
+    allowed_statuses = {
+        "GENERATION_PROVENANCE_LOCK_VERIFIED",
+        "GENERATION_PROVENANCE_ENGINEERING_PREVIEW_VERIFIED",
+    }
+    if provenance.get("status") not in allowed_statuses:
+        raise RuntimeError("SEMANTIC_ONLY_GENERATION_PROVENANCE_NOT_VERIFIED")
+    if provenance.get("publication_ready") is not False:
+        raise RuntimeError("SEMANTIC_ONLY_PROVENANCE_CANNOT_AUTHORIZE_PUBLICATION")
+    if provenance.get("base_png") != str(base_png):
+        raise RuntimeError("SEMANTIC_ONLY_PROVENANCE_PNG_MISMATCH")
+    return base, base_png, provenance
 
 
 def _engineering_proof(candidate: int, *, semantic_blocker: str) -> dict[str, object]:
@@ -274,11 +306,24 @@ def main() -> int:
     parser.add_argument("--semantic-inspection", choices=("none", "qwen"), default="qwen")
     parser.add_argument("--strict-semantic", action="store_true", help="Fail instead of displaying engineering proof when semantic QA is unavailable")
     parser.add_argument(
+        "--semantic-only-existing",
+        action="store_true",
+        help="Run semantic QA only against the already-saved provenance-verified Candidate; never invoke generation.",
+    )
+    parser.add_argument(
         "--skip-update",
         action="store_true",
         help="Do not git pull. Reserved for immutable-SHA workflow callers that already pinned and reattached Phase 18.",
     )
     args = parser.parse_args()
+
+    if args.semantic_only_existing:
+        if args.prepare_only:
+            raise RuntimeError("SEMANTIC_ONLY_CANNOT_PREPARE_GENERATION")
+        if args.force:
+            raise RuntimeError("SEMANTIC_ONLY_CANNOT_FORCE_GENERATION")
+        if args.semantic_inspection != "qwen":
+            raise RuntimeError("SEMANTIC_ONLY_REQUIRES_QWEN")
 
     branch = _branch()
     if branch != EXPECTED_BRANCH:
@@ -301,7 +346,8 @@ def main() -> int:
         if args.semantic_inspection != "qwen":
             semantic_preflight_error = "SEMANTIC_INSPECTION_DISABLED"
         else:
-            print("3/9 Proving semantic runtime compatibility before GPU generation...")
+            stage_text = "before semantic-only reuse" if args.semantic_only_existing else "before GPU generation"
+            print(f"3/9 Proving semantic runtime compatibility {stage_text}...")
             try:
                 _require_semantic_runtime_ready()
             except RuntimeError as exc:
@@ -312,20 +358,24 @@ def main() -> int:
     else:
         print("3/9 Semantic runtime preflight deferred because --prepare-only was requested.")
 
-    print("4/9 Entering story-first Golden editorial runner...")
-    command = [
-        sys.executable, str(ROOT / "tools" / "phase18_colab_runner.py"),
-        "--candidate", str(args.candidate), "--skip-targeted-tests",
-    ]
-    if args.force:
-        command.append("--force")
-    if args.prepare_only:
-        command.append("--prepare-only")
-    result = _run(command)
-    if result != 0:
-        return result
-    if args.prepare_only:
-        return 0
+    if args.semantic_only_existing:
+        print("4/9 Reusing provenance-verified saved Candidate; generation is disabled for this semantic pass...")
+        _require_existing_generation_for_semantic(args.candidate)
+    else:
+        print("4/9 Entering story-first Golden editorial runner...")
+        command = [
+            sys.executable, str(ROOT / "tools" / "phase18_colab_runner.py"),
+            "--candidate", str(args.candidate), "--skip-targeted-tests",
+        ]
+        if args.force:
+            command.append("--force")
+        if args.prepare_only:
+            command.append("--prepare-only")
+        result = _run(command)
+        if result != 0:
+            return result
+        if args.prepare_only:
+            return 0
 
     print("5/9 Confirming PREVIEW stayed context-only with no pitch replacement...")
     print("6/9 Inspecting base for forbidden text/brand/numbers/prominent generated sport geometry...")
