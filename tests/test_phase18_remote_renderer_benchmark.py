@@ -42,7 +42,10 @@ class RemoteRendererBenchmarkTests(unittest.TestCase):
 
     def test_missing_safety_marker_fails_closed(self) -> None:
         safe = PROMPT.read_text(encoding="utf-8")
-        broken = safe.replace("No sponsor mark", "Avoid commercial marks")
+        self.assertIn("no sponsor mark", safe.lower())
+        broken = safe.replace("no sponsor mark", "avoid commercial marks", 1)
+        self.assertNotEqual(broken, safe)
+        self.assertNotIn("no sponsor mark", broken.lower())
         with self.assertRaisesRegex(ValueError, "REMOTE_RENDERER_SAFETY_MARKER_MISSING"):
             self.tool._validate_prompt(broken)
 
