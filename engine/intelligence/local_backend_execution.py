@@ -159,18 +159,18 @@ class LocalBackendRequestCompiler:
         surface_visibility = str(package.metadata.get("visual_grammar_surface_visibility") or "").strip().casefold()
         explicit_surface_modes = {"none", "context_only", "partial_deterministic", "full_deterministic"}
         if surface_visibility in explicit_surface_modes:
-            # VisualGrammar owns the decision. Even a context-only scene may show
-            # incidental turf, but the image model never receives authority to
-            # invent exact sport geometry or markings.
             generated_geometry_allowed = False
         else:
-            # Backwards-compatible fallback for older provider-neutral packages
-            # that predate VisualGrammar metadata.
             generated_geometry_allowed = not reserved_geometry
-        deterministic_surface_required = reserved_geometry or surface_visibility in {
-            "partial_deterministic", "full_deterministic"
-        }
+        deterministic_surface_required = reserved_geometry or surface_visibility in {"partial_deterministic", "full_deterministic"}
         hybrid_surface_replacement_required = hybrid_contract and deterministic_surface_required
+
+        # These policy fields are deliberately preserved from the provider-neutral
+        # package into the durable local handoff. They must never be inferred from
+        # the generated pixels or silently dropped by a backend adapter.
+        partial_geometry_allowed = package.metadata.get("partial_sport_geometry_allowed")
+        geometry_integrity_policy = package.metadata.get("sport_geometry_integrity_policy")
+        partial_geometry_hard_failure = package.metadata.get("partial_sport_geometry_hallucination_is_hard_failure")
 
         return LocalBackendGenerationRequest(
             provider_id=model.provider_id,
@@ -198,6 +198,10 @@ class LocalBackendRequestCompiler:
                 "brand_composition_policy": package.metadata.get("brand_composition_policy"),
                 "composition_grammar": package.metadata.get("composition_grammar", "single_continuous_scene"),
                 "sport_geometry": package.metadata.get("sport_geometry"),
+                "generated_sport_geometry_allowed": generated_geometry_allowed,
+                "partial_sport_geometry_allowed": partial_geometry_allowed,
+                "sport_geometry_integrity_policy": geometry_integrity_policy,
+                "partial_sport_geometry_hallucination_is_hard_failure": partial_geometry_hard_failure,
                 "football_camera_preset": package.metadata.get("football_camera_preset"),
                 "visual_priority": package.metadata.get("visual_priority"),
                 "focal_anchor": package.metadata.get("focal_anchor"),
@@ -205,7 +209,6 @@ class LocalBackendRequestCompiler:
                 "brand_quiet_zone": package.metadata.get("brand_quiet_zone"),
                 "hybrid_base_scene_contract": hybrid_contract,
                 "reserved_base_scene_content": reserved_content,
-                "generated_sport_geometry_allowed": generated_geometry_allowed,
                 "hybrid_surface_replacement_required": hybrid_surface_replacement_required,
                 "base_scene_overlay_policy": package.metadata.get("base_scene_overlay_policy"),
                 "visual_grammar_contract": package.metadata.get("visual_grammar_contract"),
