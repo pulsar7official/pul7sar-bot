@@ -17,6 +17,7 @@ from tools.phase18_build_golden_handoff import (
     GOLDEN_CAMERA_PRESET,
     GOLDEN_MANIFEST_VERSION,
     GOLDEN_SPORT_GEOMETRY,
+    GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY,
     build_request,
 )
 
@@ -46,6 +47,12 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         focal_anchor = str(request.metadata["focal_anchor"])
         copy_space = str(request.metadata["copy_negative_space"])
         brand_quiet_zone = str(request.metadata["brand_quiet_zone"])
+        if request.metadata.get("partial_sport_geometry_allowed") is not False:
+            raise RuntimeError("Golden candidate may not allow partial sport geometry")
+        if request.metadata.get("sport_geometry_integrity_policy") != GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY:
+            raise RuntimeError("Golden candidate sport geometry integrity policy drift detected")
+        if request.metadata.get("partial_sport_geometry_hallucination_is_hard_failure") is not True:
+            raise RuntimeError("Golden candidate must hard-fail partial sport geometry hallucination")
         if observed_surface_visibility is None:
             observed_surface_visibility = surface_visibility
             observed_visual_grammar_contract = visual_grammar_contract
@@ -78,6 +85,9 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
             "target_canvas": f"{target_width}x{target_height}",
             "canvas_normalization_required": bool(request.metadata["canvas_normalization_required"]),
             "visual_grammar_surface_visibility": surface_visibility,
+            "partial_sport_geometry_allowed": False,
+            "sport_geometry_integrity_policy": GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY,
+            "partial_sport_geometry_hallucination_is_hard_failure": True,
             "focal_anchor": focal_anchor,
             "copy_negative_space": copy_space,
             "brand_quiet_zone": brand_quiet_zone,
@@ -101,6 +111,9 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         "visual_grammar_surface_visibility": observed_surface_visibility,
         "sport_geometry": GOLDEN_SPORT_GEOMETRY,
         "generated_sport_geometry_allowed": False,
+        "partial_sport_geometry_allowed": False,
+        "sport_geometry_integrity_policy": GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY,
+        "partial_sport_geometry_hallucination_is_hard_failure": True,
         "hybrid_surface_replacement_required": False,
         "football_camera_preset": GOLDEN_CAMERA_PRESET,
         "generated_branding_allowed": False,
@@ -111,7 +124,7 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         "brand_quiet_zone": observed_brand_quiet_zone,
         "selection_rule": (
             "quality-first; compare focal hierarchy, atmosphere, depth, negative space and editorial coherence under identical visual grammar; "
-            "never prefer a candidate merely because it exposes more playing surface or because of seed order"
+            "hard-reject any candidate with invented partial regulation sport geometry; never prefer a candidate merely because it exposes more playing surface or because of seed order"
         ),
         "candidates": candidates,
     }
@@ -137,6 +150,9 @@ def main() -> int:
         "visual_grammar_contract": manifest["visual_grammar_contract"],
         "visual_grammar_surface_visibility": manifest["visual_grammar_surface_visibility"],
         "sport_geometry": manifest["sport_geometry"],
+        "partial_sport_geometry_allowed": manifest["partial_sport_geometry_allowed"],
+        "sport_geometry_integrity_policy": manifest["sport_geometry_integrity_policy"],
+        "partial_sport_geometry_hallucination_is_hard_failure": manifest["partial_sport_geometry_hallucination_is_hard_failure"],
         "hybrid_surface_replacement_required": manifest["hybrid_surface_replacement_required"],
         "generated_branding_allowed": manifest["generated_branding_allowed"],
         "focal_anchor": manifest["focal_anchor"],
