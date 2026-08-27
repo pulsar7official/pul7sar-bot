@@ -12,17 +12,35 @@ The branches remain diverged. The starting compare showed Phase 18 ahead by 1657
 
 ## Baseline verification state
 
-Story Intelligence Verification run `33047722293` / run number `3216` completed with `failure`. Dependency setup completed and the failure was reported in `Syntax and discover validation`. Multiple companion Phase 18 visual workflows on the same source state succeeded.
+Story Intelligence Verification run `33047722293` / run number `3216` completed with `failure` in `Syntax and discover validation` after successfully installing dependencies. The downloaded job log shows **1,284 Phase 18 tests** were executed and exactly two tests failed. Multiple companion Phase 18 visual workflows on the same source state succeeded.
 
-Because job-log retrieval is unavailable through the current repository connector, the failing regression was isolated by source inspection of the Change Set 191 integration surface rather than by inventing a log message.
+### Exact failure 1 — source-position false negative
 
-The identified false-negative was in `tests/test_phase18_first_genuine_golden_v6_offload_workflow.py`. Its runtime-order assertion searched for the first textual occurrence of `GoldenOffloadProvenanceLock().verify`. That occurrence is inside the helper definition `_bind_actual_offload()` and therefore appears textually before the `main()` runtime call sites. The actual runtime sequence is correct: the inner Candidate-1 resource lock completes before `_bind_actual_offload(inner, offload)` is called.
+`test_phase18_first_genuine_golden_v6_offload_workflow.FirstGenuineGoldenV6OffloadWorkflowTests.test_pre_model_offload_guard_runs_before_inner_candidate_path`
+
+The test compared the source position of `phase18_colab_first_genuine_resources_locked.py` with the first occurrence of `GoldenOffloadProvenanceLock().verify`. The latter occurs inside the helper definition `_bind_actual_offload()` before `main()`, so the source-position assertion reported `inner=11836` and `actual=10001` even though the runtime call site `actual_offload = _bind_actual_offload(inner, offload)` is correctly after the inner Candidate-1 resource lock.
+
+### Exact failure 2 — stale pre-model-only schema expectation
+
+`test_phase18_first_genuine_golden_v6_offload_lock.FirstGenuineGoldenV6OffloadLockTests.test_wrapper_orders_offload_before_resource_model_work`
+
+This older regression still required:
+
+- `pul7sar-first-genuine-golden-v6-offload-lock-v1`
+- `FIRST_GENUINE_GOLDEN_V6_PREMODEL_OFFLOAD_RESOURCE_LOCK_VERIFIED`
+
+Change Set 191 deliberately upgraded the wrapper to bind the actual executor offload result, so the current stronger contract is:
+
+- `pul7sar-first-genuine-golden-v6-offload-lock-v2`
+- `FIRST_GENUINE_GOLDEN_V6_ACTUAL_OFFLOAD_RESOURCE_LOCK_VERIFIED`
+
+The runtime was correct; the stale regression had not migrated to the v2 evidence contract.
 
 ## Implemented
 
 ### 1. Runtime-call-site order regression repair
 
-Updated `tests/test_phase18_first_genuine_golden_v6_offload_workflow.py` so ordering is measured using the concrete call site:
+Updated `tests/test_phase18_first_genuine_golden_v6_offload_workflow.py` so ordering is measured using the concrete runtime call site:
 
 `actual_offload = _bind_actual_offload(inner, offload)`
 
@@ -35,21 +53,23 @@ The test continues to require:
 - Inner Candidate-1 resource/runtime/semantic lock before actual-offload postflight.
 - Actual offload mode binding and publication/seeds closure.
 
-### 2. Separate helper-integrity regression
+A separate helper-integrity regression now asserts that `_bind_actual_offload()` still calls `GoldenOffloadProvenanceLock().verify`, rejects selected/actual mode drift, and rejects missing `actual_offload_mode_bound` evidence.
 
-Added a distinct test asserting that `_bind_actual_offload()` still:
+### 2. Legacy v1 offload regression aligned to stronger v2 contract
 
-- calls `GoldenOffloadProvenanceLock().verify`;
-- rejects selected-safe-mode vs actual-mode drift;
-- rejects missing `actual_offload_mode_bound` evidence.
+Updated `tests/test_phase18_first_genuine_golden_v6_offload_lock.py` to require the current Change Set 191 v2 schema/status and both evidence bindings:
 
-This avoids coupling helper-definition placement to runtime-order verification.
+- `safe_offload_preflight_bound = true`
+- `actual_offload_mode_bound = true`
+
+The existing tests for low-VRAM sequential offload, verified high-VRAM model-CPU fallback, total-VRAM identity and authority drift remain unchanged in intent.
 
 ## Files changed
 
 Modified:
 
 - `tests/test_phase18_first_genuine_golden_v6_offload_workflow.py`
+- `tests/test_phase18_first_genuine_golden_v6_offload_lock.py`
 
 Added:
 
@@ -72,7 +92,7 @@ No gate was weakened. The following remain fail-closed:
 - pinned Qwen revision/snapshot;
 - native BF16;
 - total/live-free VRAM and live host-RAM qualification;
-- safe Diffusers offload qualification;
+- safe Diffusers offload qualification and actual-executor offload binding;
 - post-cache disk headroom;
 - stable runtime fingerprint;
 - lease-bound resource evidence;
@@ -86,7 +106,10 @@ No gate was weakened. The following remain fail-closed:
 
 ## Test status for Change Set 192
 
-The code/test repair commit is `a2c9cdb5c5a4efb928275eb71fd7104f8d4f4e0c`.
+Regression repair commits:
+
+- `a2c9cdb5c5a4efb928275eb71fd7104f8d4f4e0c` — runtime-call-site order regression repair.
+- `3008a61651ee5d82583bba1e9e50ab96d233c454` — stale v1 offload-lock regression aligned to v2 actual provenance.
 
 A new GitHub verification result must complete before Change Set 192 is described as CI-green. No success is claimed in this log until an actual run completes successfully.
 
