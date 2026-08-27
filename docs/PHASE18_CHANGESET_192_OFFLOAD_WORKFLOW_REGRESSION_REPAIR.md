@@ -6,20 +6,34 @@ Branch: `phase18/story-intelligence` only. `main` and `main.py` are not modified
 
 ## Why this change was required
 
-Change Set 191 correctly introduced end-to-end binding between the safe FLUX.2 CPU-offload mode selected before model work and the actual offload mode reported by the executor that produced Candidate 1. The corresponding Story Intelligence verification run (`33047722293`) failed in `Syntax and discover validation`.
+Change Set 191 correctly introduced end-to-end binding between the safe FLUX.2 CPU-offload mode selected before model work and the actual offload mode reported by the executor that produced Candidate 1. Story Intelligence Verification run `33047722293` / run `3216` executed **1,284 Phase 18 tests** and failed with exactly two regression failures; the runtime/offload implementation itself was not reported as failing.
 
-Source review identified a regression-test ordering bug in `tests/test_phase18_first_genuine_golden_v6_offload_workflow.py`: the test used `wrapper.index("GoldenOffloadProvenanceLock().verify")` as the position of the runtime postflight. That text occurs inside the helper function definition `_bind_actual_offload()` near the top of the file, before `main()` and before the actual Candidate-1 resource-lock call sites. Therefore the test could report that actual-offload provenance ran too early even though runtime execution correctly calls `_bind_actual_offload(inner, offload)` only after the inner Golden v6 resource lock returns.
+The downloaded job log identified both failures precisely:
 
-## Change
+1. `test_phase18_first_genuine_golden_v6_offload_workflow.FirstGenuineGoldenV6OffloadWorkflowTests.test_pre_model_offload_guard_runs_before_inner_candidate_path` compared the location of `phase18_colab_first_genuine_resources_locked.py` with the first textual occurrence of `GoldenOffloadProvenanceLock().verify`. That verifier text occurs inside the helper definition `_bind_actual_offload()` before `main()`, so the source-position assertion produced a false negative even though runtime execution correctly calls `_bind_actual_offload(inner, offload)` after the inner Candidate-1 resource lock completes.
+2. `test_phase18_first_genuine_golden_v6_offload_lock.FirstGenuineGoldenV6OffloadLockTests.test_wrapper_orders_offload_before_resource_model_work` still expected the Change Set 189 pre-model-only wrapper contract `pul7sar-first-genuine-golden-v6-offload-lock-v1` / `FIRST_GENUINE_GOLDEN_V6_PREMODEL_OFFLOAD_RESOURCE_LOCK_VERIFIED`. Change Set 191 intentionally upgraded the wrapper to v2 with actual-executor provenance: `pul7sar-first-genuine-golden-v6-offload-lock-v2` / `FIRST_GENUINE_GOLDEN_V6_ACTUAL_OFFLOAD_RESOURCE_LOCK_VERIFIED`.
 
-The regression test now orders concrete runtime call sites:
+## Changes
+
+### Runtime-call-site ordering regression repair
+
+`tests/test_phase18_first_genuine_golden_v6_offload_workflow.py` now orders concrete runtime call sites:
 
 1. GPU host qualification.
 2. FLUX.2 pre-model offload capability preflight.
 3. Golden v6 resource/runtime/semantic Candidate-1 path.
 4. `actual_offload = _bind_actual_offload(inner, offload)`.
 
-A separate regression assertion still verifies that `_bind_actual_offload()` itself calls `GoldenOffloadProvenanceLock().verify`, and that it rejects selected/actual mode drift and missing actual-mode binding.
+A separate regression assertion verifies that `_bind_actual_offload()` itself still calls `GoldenOffloadProvenanceLock().verify` and rejects selected/actual mode drift or missing actual-mode binding.
+
+### Legacy v1 regression alignment to actual-offload v2
+
+`tests/test_phase18_first_genuine_golden_v6_offload_lock.py` now expects the stronger current v2 contract and status, and explicitly requires both:
+
+- `safe_offload_preflight_bound = true`;
+- `actual_offload_mode_bound = true`.
+
+The earlier low-VRAM sequential requirement, high-VRAM verified model-CPU fallback, total-VRAM identity binding and authority-drift tests remain intact.
 
 No production/runtime implementation was weakened or changed.
 
@@ -47,6 +61,7 @@ This change does not modify or relax:
 Modified:
 
 - `tests/test_phase18_first_genuine_golden_v6_offload_workflow.py`
+- `tests/test_phase18_first_genuine_golden_v6_offload_lock.py`
 
 Added:
 
