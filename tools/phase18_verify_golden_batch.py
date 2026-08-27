@@ -129,8 +129,16 @@ def verify_batch(manifest_path: str) -> dict[str, object]:
         if raw.get("payload_sha256") != declared_hash:
             raise ValueError(f"manifest/handoff SHA-256 mismatch for {request_id}")
         request = LocalGenerationHandoff.read(str(handoff_path))
-        if request.request_id != request_id or request.seed != seed:
-            raise ValueError(f"candidate identity mismatch for {handoff_name}")
+        if request.request_id != request_id:
+            raise ValueError(
+                f"candidate request_id mismatch for {handoff_name}: "
+                f"manifest={request_id!r}, handoff={request.request_id!r}"
+            )
+        if request.seed != seed:
+            raise ValueError(
+                f"candidate seed mismatch for {handoff_name}: "
+                f"manifest={seed!r}, handoff={request.seed!r}"
+            )
         if request.provider_id != FLUX2_KLEIN_4B_LOCAL.provider_id or request.model_id != FLUX2_KLEIN_4B_LOCAL.model_id or request.backend != "diffusers":
             raise ValueError(f"unexpected local generation route for {request_id}")
         if request.metadata.get("cost_mode") != "$0-local":
