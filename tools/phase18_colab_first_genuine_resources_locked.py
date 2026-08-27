@@ -3,10 +3,11 @@
 
 This wrapper is the preferred execution seam for an immutable self-hosted GPU
 checkout. It proves live GPU qualification and live host-memory readiness,
-captures the exact approved software/runtime fingerprint immediately before the
-strict genuine-Golden entrypoint, then captures it again after staging and fails
-closed on any drift. The resource, runtime and staging receipts are all bound by
-SHA-256.
+proves the exact pinned Qwen semantic runtime/snapshot before Candidate 1,
+captures the approved software/runtime fingerprint immediately before the
+strict genuine-Golden entrypoint, then captures it again after staging and
+fails closed on any drift. Resource, semantic, runtime and staging receipts are
+all bound by SHA-256.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -23,6 +24,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
 GPU_HOST = ROOT / "output" / "phase18_gpu_host" / "qualification.json"
 HOST_MEMORY = ROOT / "output" / "phase18_gpu_smoke" / "host-memory-preflight.json"
+SEMANTIC_PREFLIGHT = ROOT / "output" / "phase18_gpu_smoke" / "semantic-preflight.json"
+QWEN_MODEL_CACHE = ROOT / "output" / "phase18_gpu_smoke" / "qwen-model-cache.json"
 RUNTIME_PRE = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-pre.json"
 RUNTIME_POST = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-post.json"
 STAGING = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-first-genuine-golden-staging.json"
@@ -31,6 +34,11 @@ FINAL = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-resourc
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.approved_model_revisions import (
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+    assert_snapshot_revision,
+)
 from engine.intelligence.generation_runtime_fingerprint import (
     capture_generation_runtime_fingerprint,
     verify_matching_runtime_fingerprints,
@@ -83,6 +91,48 @@ def _run(command: list[str], *, label: str) -> None:
         raise RuntimeError(f"{label}_FAILED:{completed.returncode}")
 
 
+def _validate_semantic_preflight(semantic: dict[str, object], qwen_cache: dict[str, object]) -> None:
+    if semantic.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_PREFLIGHT_SCHEMA_DRIFT")
+    if semantic.get("branch") != EXPECTED_BRANCH:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_PREFLIGHT_BRANCH_DRIFT")
+    if semantic.get("model_id") != QWEN25_VL_3B_MODEL_ID or semantic.get("model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_MODEL_IDENTITY_DRIFT")
+    if semantic.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or semantic.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_SNAPSHOT_REVISION_UNPROVEN")
+    if semantic.get("semantic_runtime_ready") is not True or semantic.get("semantic_model_ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_RUNTIME_NOT_READY")
+    if semantic.get("cuda_available") is not True or semantic.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_RUNTIME_POLICY_DRIFT")
+    for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+        if semantic.get(field) is not False:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_SEMANTIC_AUTHORITY_DRIFT:{field}")
+
+    if qwen_cache.get("schema") != "pul7sar-phase18-qwen-model-cache-v2":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_SCHEMA_DRIFT")
+    if qwen_cache.get("ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_NOT_READY")
+    if qwen_cache.get("model_id") != QWEN25_VL_3B_MODEL_ID or qwen_cache.get("model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_MODEL_DRIFT")
+    if qwen_cache.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or qwen_cache.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_REVISION_UNPROVEN")
+    if qwen_cache.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_COST_MODE_DRIFT")
+    snapshot = qwen_cache.get("snapshot_path")
+    if not isinstance(snapshot, str) or not snapshot.strip():
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_SNAPSHOT_MISSING")
+    try:
+        assert_snapshot_revision(snapshot, QWEN25_VL_3B_REVISION)
+    except (RuntimeError, ValueError) as exc:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_QWEN_CACHE_SNAPSHOT_PATH_DRIFT") from exc
+
+    semantic_cache_receipt = semantic.get("model_prefetch_receipt")
+    if not isinstance(semantic_cache_receipt, str) or _inside_repo(Path(semantic_cache_receipt)) != _inside_repo(QWEN_MODEL_CACHE):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_CACHE_RECEIPT_PATH_DRIFT")
+    if semantic.get("model_snapshot_path") != snapshot:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_SEMANTIC_CACHE_SNAPSHOT_DRIFT")
+
+
 def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if _branch() != EXPECTED_BRANCH:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_RESOURCE_LOCK_BRANCH_BLOCKED")
@@ -111,6 +161,23 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if memory.get("ready") is not True or memory.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_HOST_MEMORY_NOT_READY")
 
+    # Semantic model qualification is part of the same resource lock, after the
+    # host has proved it is worth preparing model bytes and before FLUX begins.
+    _run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "phase18_preflight_semantic_gpu.py"),
+            "--output",
+            str(SEMANTIC_PREFLIGHT),
+            "--qwen-cache-receipt",
+            str(QWEN_MODEL_CACHE),
+        ],
+        label="FIRST_GENUINE_GOLDEN_SEMANTIC_PREFLIGHT",
+    )
+    semantic = _load(SEMANTIC_PREFLIGHT)
+    qwen_cache = _load(QWEN_MODEL_CACHE)
+    _validate_semantic_preflight(semantic, qwen_cache)
+
     # Freeze the software/runtime identity immediately before Candidate 1.
     runtime_before = capture_generation_runtime_fingerprint()
     _write(RUNTIME_PRE, runtime_before)
@@ -135,6 +202,8 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_IDENTITY_DRIFT")
     if staging.get("resolved_dtype") != "bfloat16" or staging.get("precision_quality_tier") != "golden_reference":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_PRECISION_DRIFT")
+    if staging.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID or staging.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_SEMANTIC_IDENTITY_DRIFT")
     if staging.get("semantic_approved") is not True or staging.get("layer_ownership_approved") is not True:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_STAGING_SEMANTIC_GATE_NOT_APPROVED")
     for field in ("golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
@@ -154,13 +223,15 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     evidence = {
         "gpu_host_qualification": _record(GPU_HOST),
         "host_memory_preflight": _record(HOST_MEMORY),
+        "semantic_preflight": _record(SEMANTIC_PREFLIGHT),
+        "qwen_model_cache": _record(QWEN_MODEL_CACHE),
         "runtime_fingerprint_pre": _record(RUNTIME_PRE),
         "runtime_fingerprint_post": _record(RUNTIME_POST),
         "strict_golden_staging": _record(STAGING),
     }
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v2",
-        "status": "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_LOCK_VERIFIED",
+        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v3",
+        "status": "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
@@ -169,6 +240,9 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "live_free_vram_gb": free_vram,
         "required_vram_gb": required_vram,
         "host_memory_ready": True,
+        "semantic_preflight_bound": True,
+        "semantic_model_id": QWEN25_VL_3B_MODEL_ID,
+        "semantic_model_revision": QWEN25_VL_3B_REVISION,
         "runtime_fingerprint_sha256": runtime_fingerprint_sha,
         "runtime_stable_across_generation": True,
         "staging_receipt": str(STAGING),
@@ -190,7 +264,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Resource/runtime-lock the strict first genuine Golden Editorial v6 Candidate 1")
+    parser = argparse.ArgumentParser(description="Resource/runtime/semantic-lock the strict first genuine Golden Editorial v6 Candidate 1")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--output", type=Path, default=FINAL)
     args = parser.parse_args()
