@@ -75,7 +75,7 @@ Regression coverage for:
 - clean exact concept/PNG binding;
 - concept-hash substitution;
 - local-admission publication-authority drift;
-- Visual Critic geometry hard failure;
+- Visual Critic geometry hard failure remaining rejected;
 - PNG tampering after critic evidence.
 
 ### Added — `tests/test_phase18_dynamic_visual_brain_executor_provenance.py`
@@ -102,6 +102,7 @@ Regression coverage for:
 - `b976cb9faf0d5a9d3ab216344fb0700a4e94f64d` — add executor-provenance regression suite.
 - `b3086c0552f19bff0475141c21f7dee3b9c0890c` — document Change Set 212.
 - `6e39816a989d1c32d4facde1fa2bac545c432a9b` — add CPU replay CLI.
+- `d812867fefcc88fc93b80547a4de4fd052f84d81` — add implementation log used by the successful verification run.
 
 ## Deleted
 
@@ -132,7 +133,9 @@ No gate was relaxed or bypassed:
 
 Baseline CI before this work was green: Story Intelligence Verification `33084035748 / 3414` = `success`, with all returned companion workflows also successful.
 
-New regression tests have been committed on `phase18/story-intelligence`. Final CI status for the new HEAD must be read from GitHub Actions after the run completes; do not treat Change Set 212 as CI-green until that result is observed.
+Final code/test/documentation HEAD `d812867fefcc88fc93b80547a4de4fd052f84d81` then passed **Phase 18 Story Intelligence Verification run `33085497102 / 3432` with conclusion `success`**. The run completed syntax/discover validation, completion and production isolation, all visual-study handoff build/verification stages, Golden Editorial v6 build/verification, and artifact uploads successfully. Every companion Phase 18 workflow returned for the same HEAD also completed with `success`.
+
+This verifies the two new regression suites together with the full existing Phase 18 CPU validation surface. It does not constitute GPU/visual-quality proof.
 
 ## Golden Visual status
 
