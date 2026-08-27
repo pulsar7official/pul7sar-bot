@@ -20,7 +20,7 @@ from engine.intelligence.generation_package import GenerationPackage
 
 GOLDEN_PROMPT_BUDGET_CONTRACT = "pul7sar-golden-prompt-budget-v2"
 GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-editorial-v6"
-GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1500
+GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1700
 
 
 _COMPACT_SCENE_PROMPT = (
