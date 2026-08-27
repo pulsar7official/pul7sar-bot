@@ -1,0 +1,198 @@
+name: Phase 18 First Genuine Golden Editorial v6 Offload Locked
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_PHASE18_FIRST_GENUINE_GOLDEN_V6_OFFLOAD to execute Candidate 1 on the immutable Phase 18 source"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-first-genuine-golden-v6-offload
+  cancel-in-progress: false
+
+jobs:
+  candidate-1-genuine-golden-v6-offload:
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+
+    steps:
+      - name: Require explicit confirmation and immutable Phase 18 dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "RUN_PHASE18_FIRST_GENUINE_GOLDEN_V6_OFFLOAD"
+          test "$DISPATCH_REF" = "refs/heads/phase18/story-intelligence"
+          printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout immutable Phase 18 commit with complete ancestry
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Reattach exact Phase 18 branch and prove main isolation
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          test -f tools/phase18_colab_first_genuine_offload_locked.py
+          test -f tools/phase18_preflight_flux2_offload.py
+          test -f tools/phase18_colab_first_genuine_resources_locked.py
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          test -n "$base"
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 6
+          fi
+
+      - name: Prove CUDA-enabled PyTorch exists without replacing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
+          PY
+
+      - name: Run pre-model offload locked strict Golden Editorial v6 Candidate 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_colab_first_genuine_offload_locked.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-offload-lock.json
+
+      - name: Replay offload and inner resource evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_MODEL_ID
+
+          root = Path.cwd().resolve()
+          final_path = root / "output/phase18_gpu_smoke/first-genuine-golden-v6-offload-lock.json"
+          if not final_path.is_file():
+              raise SystemExit("first genuine Golden v6 offload-lock receipt missing")
+          final = json.loads(final_path.read_text(encoding="utf-8"))
+          if final.get("schema") != "pul7sar-first-genuine-golden-v6-offload-lock-v1":
+              raise SystemExit("unexpected offload-lock schema")
+          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_PREMODEL_OFFLOAD_RESOURCE_LOCK_VERIFIED":
+              raise SystemExit("offload/resource lock not verified")
+          if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
+              raise SystemExit("offload-lock identity drift")
+          if final.get("cost_mode") != "$0-local" or final.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID:
+              raise SystemExit("offload-lock execution policy drift")
+          if final.get("safe_offload_preflight_bound") is not True:
+              raise SystemExit("safe offload preflight not bound")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if final.get(field) is not False:
+                  raise SystemExit(f"illegal authority drift: {field}")
+
+          def inside(value: str) -> Path:
+              path = Path(value)
+              if not path.is_absolute():
+                  path = root / path
+              path = path.resolve()
+              if path != root and root not in path.parents:
+                  raise SystemExit(f"evidence path escaped repository: {path}")
+              return path
+
+          def sha256(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          evidence = final.get("evidence")
+          expected = {"offload_gpu_host_qualification", "flux2_offload_preflight", "inner_resource_lock"}
+          if not isinstance(evidence, dict) or set(evidence) != expected:
+              raise SystemExit("offload-lock evidence set incomplete")
+          for label, record in evidence.items():
+              if not isinstance(record, dict):
+                  raise SystemExit(f"invalid evidence record: {label}")
+              path = inside(str(record.get("path", "")))
+              if not path.is_file():
+                  raise SystemExit(f"evidence missing: {label}")
+              if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
+                  raise SystemExit(f"evidence replay mismatch: {label}")
+
+          host = json.loads(inside(str(evidence["offload_gpu_host_qualification"]["path"])).read_text(encoding="utf-8"))
+          offload = json.loads(inside(str(evidence["flux2_offload_preflight"]["path"])).read_text(encoding="utf-8"))
+          inner = json.loads(inside(str(evidence["inner_resource_lock"]["path"])).read_text(encoding="utf-8"))
+          if host.get("eligible") is not True or host.get("cuda_available") is not True or host.get("bf16_supported") is not True:
+              raise SystemExit("offload host qualification drift")
+          if host.get("cost_mode") != "$0-local" or host.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID:
+              raise SystemExit("offload host policy drift")
+          if offload.get("schema") != "pul7sar-phase18-flux2-offload-preflight-v1" or offload.get("ready") is not True:
+              raise SystemExit("offload preflight contract drift")
+          if offload.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or offload.get("cost_mode") != "$0-local":
+              raise SystemExit("offload preflight model/cost drift")
+          for field in ("model_loaded", "downloads_performed", "generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"):
+              if offload.get(field) is not False:
+                  raise SystemExit(f"offload preflight authority drift: {field}")
+          if offload.get("low_vram_host") is True:
+              if offload.get("selected_safe_mode") != "sequential_cpu" or offload.get("sequential_cpu_offload_available") is not True:
+                  raise SystemExit("low-VRAM host is not locked to sequential CPU offload")
+          elif offload.get("selected_safe_mode") not in {"sequential_cpu", "model_cpu"}:
+              raise SystemExit("safe offload mode missing")
+
+          if inner.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v4":
+              raise SystemExit("inner resource-lock schema drift")
+          if inner.get("status") != "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED":
+              raise SystemExit("inner resource lock not verified")
+          if inner.get("candidate") != 1 or inner.get("cost_mode") != "$0-local" or inner.get("native_bf16_proven") is not True:
+              raise SystemExit("inner resource-lock execution drift")
+          if inner.get("runtime_stable_across_generation") is not True:
+              raise SystemExit("inner runtime stability not proven")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if inner.get(field) is not False:
+                  raise SystemExit(f"inner resource-lock authority drift: {field}")
+
+          png = inside(str(final.get("png", "")))
+          if not png.is_file() or png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("Golden v6 PNG missing or invalid")
+          if sha256(png) != final.get("png_sha256") or png.stat().st_size != final.get("png_bytes"):
+              raise SystemExit("Golden v6 PNG replay mismatch")
+          if final.get("png_sha256") != inner.get("png_sha256") or final.get("png") != inner.get("png"):
+              raise SystemExit("offload-lock/inner PNG binding drift")
+          print(json.dumps({
+              "status": "FIRST_GENUINE_GOLDEN_V6_OFFLOAD_REPLAY_VERIFIED",
+              "selected_safe_offload_mode": final.get("selected_safe_offload_mode"),
+              "png": str(png),
+              "png_sha256": final.get("png_sha256"),
+              "publication_ready": False,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload offload-locked genuine Golden v6 Candidate 1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-genuine-golden-v6-offload-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/**
+            output/phase18_gpu_host/**
+            output/phase18_colab/**
+            output/phase18_visual_proof/**
+            output/phase18_generated/**
+            output/phase18_handoffs/golden-batch/**
