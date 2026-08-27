@@ -1,10 +1,10 @@
-"""End-to-end concept binding for Dynamic Visual Brain critic evidence.
+"""End-to-end concept and renderer-prompt binding for Dynamic Visual Brain critic evidence.
 
 A visually strong PNG must not inherit a critic decision from a nearby concept,
-seed, or request. This gate binds the pre-render concept lock and measured local
-runtime admission to the durable generation result, exact PNG bytes, and the
-existing byte-bound Visual Critic provenance. It never grants Golden or
-publication authority.
+seed, request, or renderer translation. This gate binds the pre-render concept
+lock and measured local runtime admission to the durable generation result, exact
+PNG bytes, renderer-safe prompt identity, and the existing byte-bound Visual
+Critic provenance. It never grants Golden or publication authority.
 """
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from engine.intelligence.dynamic_renderer_prompt import DynamicRendererPromptCompiler
 from engine.intelligence.dynamic_visual_brain_local_admission import DynamicVisualBrainLocalAdmission
 from engine.intelligence.dynamic_visual_brain_lock import DynamicVisualBrainConceptLock
 from engine.intelligence.visual_brain_critic_provenance import VisualCriticProvenanceGate
@@ -28,6 +29,9 @@ class DynamicVisualBrainCriticBindingReceipt:
     selected_concept_id: str
     selected_concept_sha256: str
     scene_prompt_sha256: str
+    renderer_prompt_contract: str
+    renderer_prompt_sha256: str
+    renderer_identity_neutral: bool
     original_scene_request_sha256: str
     request_id: str
     seed: int
@@ -48,7 +52,7 @@ class DynamicVisualBrainCriticBindingReceipt:
 
 
 class DynamicVisualBrainCriticBindingGate:
-    CONTRACT = "pul7sar-dynamic-visual-brain-critic-binding-v1"
+    CONTRACT = "pul7sar-dynamic-visual-brain-critic-binding-v2-renderer-safe"
     PLAN_CONTRACT = "pul7sar-dynamic-visual-brain-v1"
 
     @classmethod
@@ -90,12 +94,15 @@ class DynamicVisualBrainCriticBindingGate:
 
         return DynamicVisualBrainCriticBindingReceipt(
             contract=cls.CONTRACT,
-            status="DYNAMIC_VISUAL_BRAIN_CRITIC_PROVENANCE_BOUND",
+            status="DYNAMIC_VISUAL_BRAIN_RENDERER_SAFE_CRITIC_PROVENANCE_BOUND",
             story_fingerprint=lock["story_fingerprint"],
             competition_sha256=lock["competition_sha256"],
             selected_concept_id=lock["selected_concept_id"],
             selected_concept_sha256=lock["selected_concept_sha256"],
             scene_prompt_sha256=lock["scene_prompt_sha256"],
+            renderer_prompt_contract=admission["renderer_prompt_contract"],
+            renderer_prompt_sha256=admission["renderer_prompt_sha256"],
+            renderer_identity_neutral=True,
             original_scene_request_sha256=admission["original_scene_request_sha256"],
             request_id=admission["request_id"],
             seed=int(admission["seed"]),
@@ -138,7 +145,7 @@ class DynamicVisualBrainCriticBindingGate:
     def _verify_admission(lock: dict[str, Any], admission: dict[str, Any]) -> None:
         if admission.get("contract") != DynamicVisualBrainLocalAdmission.CONTRACT:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_CONTRACT_MISMATCH")
-        if admission.get("status") != "DYNAMIC_VISUAL_BRAIN_LOCAL_RUNTIME_ADMITTED":
+        if admission.get("status") != "DYNAMIC_VISUAL_BRAIN_RENDERER_SAFE_LOCAL_RUNTIME_ADMITTED":
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_STATUS_INVALID")
         for key, expected in {
             "story_fingerprint": lock["story_fingerprint"],
@@ -149,9 +156,14 @@ class DynamicVisualBrainCriticBindingGate:
         }.items():
             if admission.get(key) != expected:
                 raise ValueError(f"DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_{key.upper()}_DRIFT")
+        DynamicVisualBrainCriticBindingGate._digest(admission.get("renderer_prompt_sha256"), "renderer_prompt_sha256")
         DynamicVisualBrainCriticBindingGate._digest(
             admission.get("original_scene_request_sha256"), "original_scene_request_sha256"
         )
+        if admission.get("renderer_prompt_contract") != DynamicRendererPromptCompiler.CONTRACT:
+            raise ValueError("DYNAMIC_VISUAL_BRAIN_RENDERER_PROMPT_CONTRACT_DRIFT")
+        if admission.get("renderer_identity_neutral") is not True:
+            raise ValueError("DYNAMIC_VISUAL_BRAIN_RENDERER_IDENTITY_NEUTRALITY_DRIFT")
         if not isinstance(admission.get("request_id"), str) or not admission["request_id"].strip():
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_REQUEST_ID_INVALID")
         if not isinstance(admission.get("seed"), int) or isinstance(admission.get("seed"), bool) or admission["seed"] < 0:
@@ -182,6 +194,9 @@ class DynamicVisualBrainCriticBindingGate:
             "dynamic_visual_brain_selected_concept_id": lock["selected_concept_id"],
             "dynamic_visual_brain_selected_concept_sha256": lock["selected_concept_sha256"],
             "dynamic_visual_brain_scene_prompt_sha256": lock["scene_prompt_sha256"],
+            "dynamic_renderer_prompt_contract": admission["renderer_prompt_contract"],
+            "dynamic_renderer_prompt_sha256": admission["renderer_prompt_sha256"],
+            "dynamic_renderer_identity_neutral": True,
             "dynamic_visual_brain_original_scene_request_sha256": admission["original_scene_request_sha256"],
             "concept_id": lock["selected_concept_id"],
             "request_id": admission["request_id"],
@@ -221,6 +236,6 @@ class DynamicVisualBrainCriticBindingGate:
         return sha256(path.read_bytes()).hexdigest()
 
     @staticmethod
-    def _digest(value: Any, field: str) -> None:
+    def _digest(value: Any, name: str) -> None:
         if not isinstance(value, str) or len(value) != 64 or any(ch not in "0123456789abcdef" for ch in value):
-            raise ValueError(f"DYNAMIC_VISUAL_BRAIN_DIGEST_INVALID:{field}")
+            raise ValueError(f"DYNAMIC_VISUAL_BRAIN_INVALID_DIGEST:{name}")
