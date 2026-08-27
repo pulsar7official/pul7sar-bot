@@ -1,0 +1,177 @@
+name: Phase 18 First Genuine Golden Editorial v6 JIT Replay Locked
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_PHASE18_FIRST_GENUINE_GOLDEN_V6_JIT to execute Candidate 1 on the immutable Phase 18 source"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-first-genuine-golden-v6-jit
+  cancel-in-progress: false
+
+jobs:
+  candidate-1-genuine-golden-v6-jit:
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+
+    steps:
+      - name: Require explicit confirmation and immutable Phase 18 dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "RUN_PHASE18_FIRST_GENUINE_GOLDEN_V6_JIT"
+          test "$DISPATCH_REF" = "refs/heads/phase18/story-intelligence"
+          printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout immutable Phase 18 commit with complete ancestry
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Reattach exact Phase 18 branch and prove main isolation
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          test -f tools/phase18_colab_first_genuine_jit_replay_locked.py
+          test -f engine/intelligence/golden_jit_resource_replay.py
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          test -n "$base"
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 6
+          fi
+
+      - name: Prove CUDA-enabled PyTorch exists without replacing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
+          PY
+
+      - name: Run JIT-resource replay locked strict Golden Editorial v6 Candidate 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_colab_first_genuine_jit_replay_locked.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-jit-lock.json
+
+      - name: Replay JIT-bound Candidate 1 evidence before artifact upload
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+          from engine.intelligence.golden_jit_resource_replay import verify_golden_jit_resource_replay
+
+          root = Path.cwd().resolve()
+          final_path = root / "output/phase18_gpu_smoke/first-genuine-golden-v6-jit-lock.json"
+          if not final_path.is_file():
+              raise SystemExit("JIT-bound first genuine Golden v6 receipt missing")
+          final = json.loads(final_path.read_text(encoding="utf-8"))
+          if final.get("schema") != "pul7sar-first-genuine-golden-v6-jit-lock-v1":
+              raise SystemExit("unexpected JIT-lock schema")
+          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_JIT_RESOURCE_REPLAY_LOCK_VERIFIED":
+              raise SystemExit("JIT resource replay lock not verified")
+          if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
+              raise SystemExit("JIT-lock identity drift")
+          if final.get("cost_mode") != "$0-local" or final.get("jit_pre_execution_resource_replay_bound") is not True:
+              raise SystemExit("JIT-lock execution policy drift")
+          if final.get("selected_safe_offload_mode") != final.get("actual_offload_mode"):
+              raise SystemExit("offload selection/actual mode drift")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if final.get(field) is not False:
+                  raise SystemExit(f"illegal authority drift: {field}")
+
+          def inside(value: str) -> Path:
+              path = Path(value)
+              if not path.is_absolute():
+                  path = root / path
+              path = path.resolve()
+              if path != root and root not in path.parents:
+                  raise SystemExit(f"evidence path escaped repository: {path}")
+              return path
+
+          def sha256(path: Path) -> str:
+              return hashlib.sha256(path.read_bytes()).hexdigest()
+
+          evidence = final.get("evidence")
+          expected = {"offload_lock", "inner_resource_lock", "strict_golden_staging", "jit_resource_replay"}
+          if not isinstance(evidence, dict) or set(evidence) != expected:
+              raise SystemExit("JIT-lock evidence set incomplete")
+          for label, record in evidence.items():
+              if not isinstance(record, dict):
+                  raise SystemExit(f"invalid evidence record: {label}")
+              path = inside(str(record.get("path", "")))
+              if not path.is_file():
+                  raise SystemExit(f"evidence missing: {label}")
+              if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
+                  raise SystemExit(f"evidence replay mismatch: {label}")
+
+          staging_path = inside(str(evidence["strict_golden_staging"]["path"]))
+          staging = json.loads(staging_path.read_text(encoding="utf-8"))
+          replay = verify_golden_jit_resource_replay(repository_root=root, staging=staging)
+          if replay.get("status") != "GOLDEN_JIT_PREEXECUTION_RESOURCE_REPLAY_VERIFIED":
+              raise SystemExit("nested JIT resource replay failed")
+          if replay.get("resource_fingerprint_sha256") != final.get("jit_resource_fingerprint_sha256"):
+              raise SystemExit("JIT resource fingerprint drift")
+          replay_path = inside(str(evidence["jit_resource_replay"]["path"]))
+          recorded_replay = json.loads(replay_path.read_text(encoding="utf-8"))
+          if recorded_replay.get("resource_fingerprint_sha256") != replay.get("resource_fingerprint_sha256"):
+              raise SystemExit("recorded/replayed JIT resource fingerprint drift")
+          if recorded_replay.get("publication_ready") is not False or recorded_replay.get("golden_quality_approved") is not False:
+              raise SystemExit("JIT replay authority drift")
+
+          png = inside(str(final.get("png", "")))
+          if not png.is_file() or png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("Golden v6 PNG missing or invalid")
+          if sha256(png) != final.get("png_sha256") or png.stat().st_size != final.get("png_bytes"):
+              raise SystemExit("Golden v6 PNG replay mismatch")
+          print(json.dumps({
+              "status": "FIRST_GENUINE_GOLDEN_V6_JIT_REPLAY_VERIFIED",
+              "jit_resource_fingerprint_sha256": replay.get("resource_fingerprint_sha256"),
+              "png": str(png),
+              "png_sha256": final.get("png_sha256"),
+              "publication_ready": False,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload JIT-replay locked genuine Golden v6 Candidate 1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-genuine-golden-v6-jit-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/**
+            output/phase18_gpu_host/**
+            output/phase18_colab/**
+            output/phase18_visual_proof/**
+            output/phase18_generated/**
+            output/phase18_handoffs/golden-batch/**
