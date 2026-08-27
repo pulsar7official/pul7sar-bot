@@ -4,6 +4,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from engine.intelligence.dynamic_renderer_prompt import DynamicRendererPromptCompiler
 from engine.intelligence.dynamic_visual_brain_critic_binding import DynamicVisualBrainCriticBindingGate
 from engine.intelligence.dynamic_visual_brain_local_admission import DynamicVisualBrainLocalAdmission
 from engine.intelligence.dynamic_visual_brain_lock import DynamicVisualBrainConceptLock
@@ -18,6 +19,7 @@ class DynamicVisualBrainCriticBindingTests(unittest.TestCase):
         competition = digest("competition")
         concept_hash = digest("concept")
         prompt_hash = digest("prompt")
+        renderer_prompt_hash = digest("renderer-safe-prompt")
         original_hash = digest("original")
         payload_hash = digest("payload")
         concept_id = "preview-atmosphere-01"
@@ -48,12 +50,15 @@ class DynamicVisualBrainCriticBindingTests(unittest.TestCase):
         }
         admission = {
             "contract": DynamicVisualBrainLocalAdmission.CONTRACT,
-            "status": "DYNAMIC_VISUAL_BRAIN_LOCAL_RUNTIME_ADMITTED",
+            "status": "DYNAMIC_VISUAL_BRAIN_RENDERER_SAFE_LOCAL_RUNTIME_ADMITTED",
             "story_fingerprint": story,
             "competition_sha256": competition,
             "selected_concept_id": concept_id,
             "selected_concept_sha256": concept_hash,
             "scene_prompt_sha256": prompt_hash,
+            "renderer_prompt_contract": DynamicRendererPromptCompiler.CONTRACT,
+            "renderer_prompt_sha256": renderer_prompt_hash,
+            "renderer_identity_neutral": True,
             "original_scene_request_sha256": original_hash,
             "provider_id": "local-diffusers",
             "model_id": "black-forest-labs/FLUX.2-klein-4B",
@@ -104,6 +109,9 @@ class DynamicVisualBrainCriticBindingTests(unittest.TestCase):
             "dynamic_visual_brain_selected_concept_id": concept_id,
             "dynamic_visual_brain_selected_concept_sha256": concept_hash,
             "dynamic_visual_brain_scene_prompt_sha256": prompt_hash,
+            "dynamic_renderer_prompt_contract": DynamicRendererPromptCompiler.CONTRACT,
+            "dynamic_renderer_prompt_sha256": renderer_prompt_hash,
+            "dynamic_renderer_identity_neutral": True,
             "dynamic_visual_brain_original_scene_request_sha256": original_hash,
             "dynamic_visual_brain_selection_locked_before_rendering": True,
         }
@@ -143,11 +151,14 @@ class DynamicVisualBrainCriticBindingTests(unittest.TestCase):
             repository_root=str(root),
         )
 
-    def test_exact_locked_concept_and_png_can_reach_human_review_only(self):
+    def test_exact_locked_concept_renderer_prompt_and_png_can_reach_human_review_only(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             receipt = self._verify(root, self._fixture(root))
             self.assertTrue(receipt.critic_approved)
+            self.assertEqual(receipt.renderer_prompt_contract, DynamicRendererPromptCompiler.CONTRACT)
+            self.assertEqual(len(receipt.renderer_prompt_sha256), 64)
+            self.assertTrue(receipt.renderer_identity_neutral)
             self.assertTrue(receipt.human_visual_review_required)
             self.assertFalse(receipt.golden_quality_approved)
             self.assertFalse(receipt.publication_ready)
@@ -160,6 +171,26 @@ class DynamicVisualBrainCriticBindingTests(unittest.TestCase):
             result["dynamic_visual_brain_selected_concept_sha256"] = "0" * 64
             paths["result"].write_text(json.dumps(result), encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "selected_concept_sha256"):
+                self._verify(root, paths)
+
+    def test_renderer_safe_prompt_cannot_be_swapped_after_admission(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = self._fixture(root)
+            result = json.loads(paths["result"].read_text())
+            result["dynamic_renderer_prompt_sha256"] = "0" * 64
+            paths["result"].write_text(json.dumps(result), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "dynamic_renderer_prompt_sha256"):
+                self._verify(root, paths)
+
+    def test_renderer_identity_neutrality_cannot_drift(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            paths = self._fixture(root)
+            admission = json.loads(paths["admission"].read_text())
+            admission["renderer_identity_neutral"] = False
+            paths["admission"].write_text(json.dumps(admission), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "IDENTITY_NEUTRALITY"):
                 self._verify(root, paths)
 
     def test_local_admission_cannot_gain_publication_authority(self):
