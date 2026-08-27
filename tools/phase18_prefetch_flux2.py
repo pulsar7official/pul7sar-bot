@@ -4,8 +4,10 @@
 The command never generates an image and never selects a paid inference provider.
 It proves that the exact approved immutable model revision is already cached or
 that the cache filesystem has enough free space, then uses Hugging Face Hub only
-to download that pinned open-weight revision. A machine-readable receipt is
-written for later GPU-smoke evidence.
+to download that pinned open-weight revision. After the approved snapshot exists,
+it also rechecks live filesystem headroom so Candidate 1 never begins with a
+model cache that has consumed nearly all remaining local storage. A machine-
+readable receipt is written for later GPU-smoke evidence.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from engine.intelligence.approved_model_revisions import (
     assert_snapshot_revision,
 )
 from engine.intelligence.model_cache import ModelCachePolicy
+from engine.intelligence.model_cache_headroom import ModelCacheHeadroomPolicy
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
@@ -56,6 +59,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Prefetch the approved Phase 18 FLUX.2 Klein model snapshot")
     parser.add_argument("--receipt", default="output/phase18_gpu_smoke/model-cache.json")
     parser.add_argument("--minimum-free-gib", type=float, default=30.0)
+    parser.add_argument(
+        "--minimum-working-free-gib",
+        type=float,
+        default=8.0,
+        help="Minimum live cache-filesystem headroom that must remain after the pinned snapshot is ready",
+    )
     args = parser.parse_args()
 
     try:
@@ -100,6 +109,15 @@ def main() -> int:
     if not (snapshot / "model_index.json").is_file():
         raise RuntimeError("cached FLUX.2 snapshot is incomplete: model_index.json is missing")
 
+    # The pre-download budget is not a reservation. Re-check the actual live
+    # filesystem after the exact pinned snapshot exists so concurrent disk use,
+    # cache expansion, or an unexpectedly large snapshot cannot leave Candidate
+    # 1 without a conservative local working-space floor.
+    post_cache_free_bytes = shutil.disk_usage(cache_root).free
+    headroom_policy = ModelCacheHeadroomPolicy(minimum_working_free_gib=args.minimum_working_free_gib)
+    after = headroom_policy.evaluate(free_bytes=post_cache_free_bytes)
+    headroom_policy.assert_eligible(after)
+
     files = [p for p in snapshot.rglob("*") if p.is_file()]
     apparent_bytes = sum(p.stat().st_size for p in files)
     receipt = {
@@ -117,6 +135,8 @@ def main() -> int:
         "file_count": len(files),
         "apparent_snapshot_gib": round(apparent_bytes / (1024 ** 3), 3),
         "qualification_before_download": asdict(before),
+        "working_headroom_after_cache": asdict(after),
+        "working_headroom_ready": True,
         "revision_pinned": True,
         "ready": True,
     }
