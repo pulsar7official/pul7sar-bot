@@ -5,7 +5,9 @@ This tool is deliberately isolated from the canonical `$0-local` Golden path.
 It may call public Hugging Face ZeroGPU Spaces to compare renderer quality, but
 its outputs can never authorize Semantic approval, Golden approval, or
 publication. Branding, typography, verified identity, exact facts, and exact
-sport geometry remain outside the renderer.
+sport geometry remain outside the renderer. Remote benchmark prompts must also
+stay entity-neutral: they may study visual quality, but they may not smuggle a
+real club, venue, or color-coded entity identity into the renderer.
 """
 from __future__ import annotations
 
@@ -19,10 +21,23 @@ import time
 from typing import Any
 
 
-SCHEMA = "pul7sar-phase18-remote-renderer-benchmark-v2"
+SCHEMA = "pul7sar-phase18-remote-renderer-benchmark-v3"
 COST_MODE = "$0-remote-zerogpu-study"
 PLATFORM_TOKENS = ("PUL7SAR", "PULSAR")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+ENTITY_NEUTRAL_MARKER = "no identifiable real club or venue cues"
+# These fragments encode the known real-club/venue identity hints that existed
+# in the current transfer renderer study. This lane is intentionally anonymous;
+# verified entity identity belongs to canonical verified-asset paths instead.
+FORBIDDEN_ENTITY_CUES = (
+    "north london",
+    "tottenham",
+    "spurs",
+    "manchester city",
+    "man city",
+    "deep navy and clean white destination atmosphere",
+    "cool sky-blue traces",
+)
 
 
 def _sha256_bytes(payload: bytes) -> str:
@@ -42,14 +57,20 @@ def _validate_prompt(prompt: str) -> str:
     if leaked:
         raise ValueError(f"REMOTE_RENDERER_PLATFORM_NAME_LEAK: {', '.join(leaked)}")
 
+    lowered = value.lower()
+    entity_cues = [cue for cue in FORBIDDEN_ENTITY_CUES if cue in lowered]
+    if entity_cues:
+        raise ValueError(f"REMOTE_RENDERER_ENTITY_CUE_LEAK: {entity_cues}")
+
     required_markers = (
         "identity must remain non-recognizable",
         "one continuous physical scene only",
         "no readable text",
         "no club crest",
         "no sponsor mark",
+        ENTITY_NEUTRAL_MARKER,
     )
-    missing = [marker for marker in required_markers if marker not in value.lower()]
+    missing = [marker for marker in required_markers if marker not in lowered]
     if missing:
         raise ValueError(f"REMOTE_RENDERER_SAFETY_MARKER_MISSING: {missing}")
     return value
@@ -99,6 +120,9 @@ def _report(*, renderer: str, space: str, output_evidence: dict[str, Any], seed:
         "prompt_sha256": prompt_sha256,
         "elapsed_seconds": round(elapsed_seconds, 3),
         "cost_mode": COST_MODE,
+        "entity_neutral_benchmark": True,
+        "verified_identity_asset_used": False,
+        "verified_venue_asset_used": False,
         "engineering_benchmark_only": True,
         "canonical_golden_eligible": False,
         "semantic_approved": False,
@@ -203,6 +227,9 @@ def main() -> int:
         "failures": failures,
         "cost_mode": COST_MODE,
         "paid_provider_configured": False,
+        "entity_neutral_benchmark": True,
+        "verified_identity_asset_used": False,
+        "verified_venue_asset_used": False,
         "engineering_benchmark_only": True,
         "canonical_golden_eligible": False,
         "semantic_approved": False,
