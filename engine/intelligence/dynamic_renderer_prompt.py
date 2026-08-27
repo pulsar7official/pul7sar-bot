@@ -12,6 +12,7 @@ other factual assets remain deterministic/reference-owned later layers.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 
 from engine.intelligence.models import StoryBrief
 from engine.intelligence.story_visual_editorial import EditorialEvent
@@ -28,9 +29,9 @@ class RendererPromptDecision:
 
 
 class DynamicRendererPromptCompiler:
-    """Compile dynamic concepts into a single-scene FLUX-safe base prompt."""
+    """Compile dynamic concepts into a single-scene identity-neutral base prompt."""
 
-    CONTRACT = "pul7sar-dynamic-renderer-prompt-v1"
+    CONTRACT = "pul7sar-dynamic-renderer-prompt-v2-identity-neutral"
 
     _ABSOLUTE_BASE_RULES = (
         "ONE continuous physical scene only; never split-screen, diptych, collage, poster halves, panels, borders, before-and-after layout, or image-within-image. "
@@ -43,6 +44,15 @@ class DynamicRendererPromptCompiler:
         "NO people or human figures anywhere in frame: no player, athlete, silhouette, face, body, hands, crowd portrait, mannequin, reflected person, or distant recognizable human form. "
         "Communicate the story only through environment, material, light and spatial design. "
     )
+
+    _EVENT_CONTEXT = {
+        EditorialEvent.TRANSFER_CONFIRMED: "Convey a confirmed move into a new professional chapter without depicting any real person, club identity or readable announcement. ",
+        EditorialEvent.TRANSFER_RUMOUR: "Convey uncertainty around a possible move without implying confirmation, a real person likeness, club identity or readable announcement. ",
+        EditorialEvent.CONTRACT: "Convey a professional agreement or commitment through environment and material cues only, without signatures, documents, readable text or real-person likeness. ",
+        EditorialEvent.INJURY: "Convey absence, interruption or recovery in a restrained sports-editorial environment without depicting an identifiable person or medical claim. ",
+        EditorialEvent.RESULT: "Convey a completed competitive outcome without readable score, crests, humiliation, collapse imagery or disrespect toward the losing side. ",
+        EditorialEvent.PREVIEW: "Convey anticipation before competition without implying a completed result, a specific real venue or a specific real-person depiction. ",
+    }
 
     def compile(
         self,
@@ -58,29 +68,25 @@ class DynamicRendererPromptCompiler:
         if event in {EditorialEvent.TRANSFER_CONFIRMED, EditorialEvent.TRANSFER_RUMOUR, EditorialEvent.CONTRACT}:
             scene, risk = self._transfer_scene(concept)
         else:
-            scene = self._generic_scene(concept)
+            scene = self._generic_scene(story, concept)
             risk = "controlled"
 
         person_rule = "" if verified_person_asset else self._NO_PERSON_RULE
-        story_fact = (story.summary or story.headline).strip()
-        # Keep the factual meaning but deliberately omit entity names when there is
-        # no verified identity asset. Names strongly bias text-to-image systems
-        # toward invented player portraits and fake kit branding.
-        factual_context = (
-            f"Editorial meaning to convey without literal text: {story_fact}. "
-            if story_fact
-            else ""
+        safe_event_context = self._EVENT_CONTEXT.get(
+            event,
+            "Convey the verified editorial meaning through atmosphere and physical environment only, without inventing exact facts, identity or branding. ",
         )
 
         prompt = (
             "Premium global-sports editorial base image. "
             + self._ABSOLUTE_BASE_RULES
             + person_rule
-            + factual_context
+            + safe_event_context
             + scene
-            + " Reserve a calm low-detail area for later deterministic PUL7SAR headline and branding layers. "
+            + " Reserve a calm low-detail area for later deterministic headline and brand layers. "
             + "The generated base must look like an original editorial photograph/set, not a social-media template."
         )
+        self._assert_identity_neutral(prompt, story)
         return RendererPromptDecision(
             concept_id=concept.concept_id,
             prompt=prompt,
@@ -88,22 +94,22 @@ class DynamicRendererPromptCompiler:
             verified_person_asset=verified_person_asset,
         )
 
-    @staticmethod
-    def _generic_scene(concept: VisualConceptCandidate) -> str:
+    @classmethod
+    def _generic_scene(cls, story: StoryBrief, concept: VisualConceptCandidate) -> str:
+        camera = cls._strip_known_entities(concept.camera_language, story)
+        focal = cls._strip_known_entities(concept.focal_strategy, story)
+        negative_space = cls._strip_known_entities(concept.negative_space_strategy, story)
         return (
-            f"Visual idea: {concept.editorial_metaphor}. "
-            f"Camera language: {concept.camera_language}. "
-            f"Primary focal strategy: {concept.focal_strategy}. "
-            f"Negative-space strategy: {concept.negative_space_strategy}. "
+            "Create one story-specific, non-identifying sports-editorial environment in a single coherent camera view. "
+            f"Camera language: {camera}. "
+            f"Primary focal strategy: {focal}. "
+            f"Negative-space strategy: {negative_space}. "
         )
 
     @staticmethod
     def _transfer_scene(concept: VisualConceptCandidate) -> tuple[str, str]:
         cid = concept.concept_id
         if cid == "dynamic-transfer-two-worlds":
-            # Do not literally say two worlds/zones: image models often translate
-            # that into a split-screen. Preserve the editorial idea as one spatial
-            # light transition inside a single architectural environment.
             return (
                 "Create one believable modern sports-architecture interior or arrival corridor in a single camera view. "
                 "A continuous gradient of practical light changes gradually from a cooler, dimmer foreground into a warmer destination glow deeper in the same space. "
@@ -123,7 +129,30 @@ class DynamicRendererPromptCompiler:
                 "Use restrained material detail and practical light; no jersey, nameplate, contract, boots with logos, football, or readable markings. ",
                 "low",
             )
-        return DynamicRendererPromptCompiler._generic_scene(concept), "controlled"
+        return (
+            "Create one restrained, non-identifying sports-editorial environment with one clear focal hierarchy and deliberate negative space. ",
+            "controlled",
+        )
+
+    @staticmethod
+    def _strip_known_entities(value: str, story: StoryBrief) -> str:
+        text = str(value or "").strip()
+        entities = [story.primary_entity, *story.secondary_entities]
+        for entity in entities:
+            if not entity:
+                continue
+            text = re.sub(re.escape(entity), "anonymous subject", text, flags=re.IGNORECASE)
+        text = re.sub(r"\b(?:pul7sar|pulsar)\b", "platform", text, flags=re.IGNORECASE)
+        return text or "restrained editorial framing"
+
+    @staticmethod
+    def _assert_identity_neutral(prompt: str, story: StoryBrief) -> None:
+        folded = prompt.casefold()
+        if "pul7sar" in folded or "pulsar" in folded:
+            raise ValueError("DYNAMIC_RENDERER_PROMPT_PLATFORM_NAME_LEAK")
+        for entity in (story.primary_entity, *story.secondary_entities):
+            if entity and entity.casefold() in folded:
+                raise ValueError("DYNAMIC_RENDERER_PROMPT_ENTITY_NAME_LEAK")
 
 
 class DynamicConceptRenderSelector:
