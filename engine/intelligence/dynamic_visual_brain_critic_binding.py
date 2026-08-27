@@ -1,10 +1,10 @@
 """End-to-end concept binding for Dynamic Visual Brain critic evidence.
 
-A visually strong PNG must not be allowed to inherit a critic decision from a
-nearby concept, seed, or generation request.  This gate binds the pre-render
-concept lock and measured local-runtime admission to the durable generation
-result, exact PNG bytes, and the existing byte-bound Visual Critic provenance.
-It never grants Golden or publication authority.
+A visually strong PNG must not inherit a critic decision from a nearby concept,
+seed, or request. This gate binds the pre-render concept lock and measured local
+runtime admission to the durable generation result, exact PNG bytes, and the
+existing byte-bound Visual Critic provenance. It never grants Golden or
+publication authority.
 """
 from __future__ import annotations
 
@@ -49,6 +49,7 @@ class DynamicVisualBrainCriticBindingReceipt:
 
 class DynamicVisualBrainCriticBindingGate:
     CONTRACT = "pul7sar-dynamic-visual-brain-critic-binding-v1"
+    PLAN_CONTRACT = "pul7sar-dynamic-visual-brain-v1"
 
     @classmethod
     def verify(
@@ -65,7 +66,6 @@ class DynamicVisualBrainCriticBindingGate:
         lock_path = cls._inside(root, concept_lock_path)
         admission_path = cls._inside(root, local_admission_path)
         result_path = cls._inside(root, generation_result_path)
-        critic_path = cls._inside(root, critic_evidence_path)
 
         lock = cls._load(lock_path)
         admission = cls._load(admission_path)
@@ -75,13 +75,12 @@ class DynamicVisualBrainCriticBindingGate:
         cls._verify_admission(lock, admission)
         cls._verify_generation(lock, admission, result)
 
-        critic = VisualCriticProvenanceGate.evaluate(
-            batch_manifest_path=batch_manifest_path,
+        critic = VisualCriticProvenanceGate().verify(
+            repository_root=repository_root,
+            manifest_path=batch_manifest_path,
             generation_result_path=generation_result_path,
             critic_evidence_path=critic_evidence_path,
-            repository_root=repository_root,
         )
-
         if critic.concept_id != lock["selected_concept_id"]:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_CRITIC_CONCEPT_DRIFT")
         if critic.request_id != admission["request_id"] or critic.seed != admission["seed"]:
@@ -106,8 +105,8 @@ class DynamicVisualBrainCriticBindingGate:
             generation_result_sha256=critic.generation_result_sha256,
             critic_evidence_sha256=critic.critic_evidence_sha256,
             png_sha256=critic.png_sha256,
-            critic_approved=critic.critic_approved,
-            critic_rejections=tuple(critic.critic_rejections),
+            critic_approved=critic.critic_accepted,
+            critic_rejections=tuple(critic.critic_failures),
             human_visual_review_required=True,
             golden_quality_approved=False,
             publication_ready=False,
@@ -123,15 +122,15 @@ class DynamicVisualBrainCriticBindingGate:
             DynamicVisualBrainCriticBindingGate._digest(lock.get(key), key)
         if not isinstance(lock.get("selected_concept_id"), str) or not lock["selected_concept_id"].strip():
             raise ValueError("DYNAMIC_VISUAL_BRAIN_SELECTED_CONCEPT_ID_INVALID")
-        expected_false = (
+        for key in (
             "generation_authorized",
             "human_visual_review_approved",
             "golden_quality_approved",
             "publication_ready",
             "seeds_2_to_4_authorized",
-        )
-        if any(lock.get(key) is not False for key in expected_false):
-            raise ValueError("DYNAMIC_VISUAL_BRAIN_CONCEPT_LOCK_AUTHORITY_DRIFT")
+        ):
+            if lock.get(key) is not False:
+                raise ValueError("DYNAMIC_VISUAL_BRAIN_CONCEPT_LOCK_AUTHORITY_DRIFT")
         if lock.get("selection_locked_before_rendering") is not True:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_SELECTION_NOT_LOCKED_BEFORE_RENDERING")
 
@@ -141,23 +140,23 @@ class DynamicVisualBrainCriticBindingGate:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_CONTRACT_MISMATCH")
         if admission.get("status") != "DYNAMIC_VISUAL_BRAIN_LOCAL_RUNTIME_ADMITTED":
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_STATUS_INVALID")
-        matches = {
+        for key, expected in {
             "story_fingerprint": lock["story_fingerprint"],
             "competition_sha256": lock["competition_sha256"],
             "selected_concept_id": lock["selected_concept_id"],
             "selected_concept_sha256": lock["selected_concept_sha256"],
             "scene_prompt_sha256": lock["scene_prompt_sha256"],
-        }
-        for key, expected in matches.items():
+        }.items():
             if admission.get(key) != expected:
                 raise ValueError(f"DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_{key.upper()}_DRIFT")
-        DynamicVisualBrainCriticBindingGate._digest(admission.get("original_scene_request_sha256"), "original_scene_request_sha256")
-        DynamicVisualBrainCriticBindingGate._digest(admission.get("request_id") if False else "0" * 64, "internal")
+        DynamicVisualBrainCriticBindingGate._digest(
+            admission.get("original_scene_request_sha256"), "original_scene_request_sha256"
+        )
         if not isinstance(admission.get("request_id"), str) or not admission["request_id"].strip():
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_REQUEST_ID_INVALID")
         if not isinstance(admission.get("seed"), int) or isinstance(admission.get("seed"), bool) or admission["seed"] < 0:
             raise ValueError("DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_SEED_INVALID")
-        expectations = {
+        for key, expected in {
             "cost_mode": "$0-local",
             "semantic_inspection_required": True,
             "runtime_qualified": True,
@@ -168,8 +167,7 @@ class DynamicVisualBrainCriticBindingGate:
             "human_visual_review_required": True,
             "golden_quality_approved": False,
             "publication_ready": False,
-        }
-        for key, expected in expectations.items():
+        }.items():
             if admission.get(key) != expected:
                 raise ValueError(f"DYNAMIC_VISUAL_BRAIN_LOCAL_ADMISSION_AUTHORITY_DRIFT:{key}")
 
@@ -177,21 +175,22 @@ class DynamicVisualBrainCriticBindingGate:
     def _verify_generation(lock: dict[str, Any], admission: dict[str, Any], result: dict[str, Any]) -> None:
         if result.get("status") != "REAL_VISUAL_PROOF_GENERATED":
             raise ValueError("DYNAMIC_VISUAL_BRAIN_GENERATION_NOT_REAL_VISUAL_PROOF")
-        pairs = {
+        for key, expected in {
+            "dynamic_visual_brain_contract": DynamicVisualBrainCriticBindingGate.PLAN_CONTRACT,
             "dynamic_visual_brain_story_fingerprint": lock["story_fingerprint"],
             "dynamic_visual_brain_competition_sha256": lock["competition_sha256"],
             "dynamic_visual_brain_selected_concept_id": lock["selected_concept_id"],
             "dynamic_visual_brain_selected_concept_sha256": lock["selected_concept_sha256"],
             "dynamic_visual_brain_scene_prompt_sha256": lock["scene_prompt_sha256"],
             "dynamic_visual_brain_original_scene_request_sha256": admission["original_scene_request_sha256"],
+            "concept_id": lock["selected_concept_id"],
             "request_id": admission["request_id"],
             "seed": admission["seed"],
             "provider_id": admission["provider_id"],
             "model_id": admission["model_id"],
             "cost_mode": "$0-local",
             "publication_ready": False,
-        }
-        for key, expected in pairs.items():
+        }.items():
             if result.get(key) != expected:
                 raise ValueError(f"DYNAMIC_VISUAL_BRAIN_GENERATION_BINDING_DRIFT:{key}")
         if result.get("dynamic_visual_brain_selection_locked_before_rendering") is not True:
