@@ -34,6 +34,7 @@ GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-editorial-v6"
 GOLDEN_MANIFEST_VERSION = "pul7sar-golden-batch-v6"
 GOLDEN_SPORT_GEOMETRY = "contextual_optional_not_required"
 GOLDEN_CAMERA_PRESET = "editorial_environmental_oblique"
+GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY = "exact_verified_or_visually_indeterminate"
 
 
 def build_request(*, seed: int, request_id: str):
@@ -58,10 +59,6 @@ def build_request(*, seed: int, request_id: str):
     if visual_grammar.surface_visibility.value != "context_only":
         raise RuntimeError("GOLDEN_V6_PREVIEW_VISUAL_GRAMMAR_REGRESSED")
     scene = SportsEditorialSceneDirector().direct(editorial.event, visual_grammar)
-
-    # Instagram Feed portrait planning reserves the right-center for headline copy
-    # and upper-left for the compact PUL7SAR brand. The generated focal anchor is
-    # therefore deliberately placed lower-left/mid-left rather than centered.
     layout = DeterministicLayoutPlanner().plan(profile)
 
     visual_concept = VisualConceptDirector().direct(
@@ -78,10 +75,6 @@ def build_request(*, seed: int, request_id: str):
         ),
     )
     base_contract = HybridBaseSceneContractCompiler().compile(layer_plan)
-
-    # Golden Editorial v6 deliberately generates no exact brand/entity assets in
-    # the base scene. AssetBundle requires an explicit tuple so that an empty
-    # bundle is intentional rather than an implicit legacy default.
     assets = AssetBundle(assets=())
     safe_area = {
         "top": profile.safe_area.top,
@@ -120,6 +113,7 @@ def build_request(*, seed: int, request_id: str):
             "the story is a general season-opening preview, not a result or a specific match",
             "the scene must remain non-identifying and must not claim a specific real venue, club or person",
             "playing-surface geometry is not a story dependency for this preview and must not dominate the composition",
+            "when exact sport geometry is not a verified story dependency, any such geometry must remain outside frame, fully occluded or visually indeterminate",
             "all platform branding and typography remain absent from AI generation",
         ),
         forbidden_visual_elements=(
@@ -131,7 +125,11 @@ def build_request(*, seed: int, request_id: str):
             "no image-within-image composition",
             "no full football pitch as the main visual subject",
             "no centered broadcast-style pitch composition",
+            "no isolated or partial goal frame or goal net",
+            "no penalty-area or goal-area lines",
+            "no corner arc or corner flag",
             "no tactical diagram or prominent centre-circle/halfway-line geometry",
+            "no partial regulation football geometry whose physical placement cannot be verified",
             "no generated branding, wordmarks, readable text, numerals or pseudo-text",
         ),
         metadata={
@@ -142,6 +140,9 @@ def build_request(*, seed: int, request_id: str):
             "composition_grammar": "single_continuous_scene",
             "sport_geometry": GOLDEN_SPORT_GEOMETRY,
             "generated_sport_geometry_allowed": False,
+            "partial_sport_geometry_allowed": False,
+            "sport_geometry_integrity_policy": GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY,
+            "partial_sport_geometry_hallucination_is_hard_failure": True,
             "hybrid_surface_replacement_required": False,
             "football_camera_preset": GOLDEN_CAMERA_PRESET,
             "generated_branding_allowed": False,
@@ -166,6 +167,9 @@ def build_request(*, seed: int, request_id: str):
         "composition_grammar": "single_continuous_scene",
         "sport_geometry": GOLDEN_SPORT_GEOMETRY,
         "generated_sport_geometry_allowed": False,
+        "partial_sport_geometry_allowed": False,
+        "sport_geometry_integrity_policy": GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY,
+        "partial_sport_geometry_hallucination_is_hard_failure": True,
         "hybrid_surface_replacement_required": False,
         "football_camera_preset": GOLDEN_CAMERA_PRESET,
         "generated_branding_allowed": False,
@@ -207,6 +211,7 @@ def main() -> int:
         "cost_mode": request.metadata.get("cost_mode"),
         "visual_priority": request.metadata.get("visual_priority"),
         "visual_grammar_surface_visibility": request.metadata.get("visual_grammar_surface_visibility"),
+        "sport_geometry_integrity_policy": request.metadata.get("sport_geometry_integrity_policy"),
         "hybrid_surface_replacement_required": request.metadata.get("hybrid_surface_replacement_required"),
         "focal_anchor": request.metadata.get("focal_anchor"),
         "copy_negative_space": request.metadata.get("copy_negative_space"),
