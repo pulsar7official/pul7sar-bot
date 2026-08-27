@@ -81,6 +81,12 @@ class RemoteRendererLocalQualificationTests(unittest.TestCase):
         path.write_text(json.dumps(ledger), encoding="utf-8")
         return output, path, ledger
 
+    @staticmethod
+    def _rewrite(path: Path, ledger: dict) -> None:
+        ledger.pop("ledger_sha256", None)
+        ledger["ledger_sha256"] = _sha256_json(ledger)
+        path.write_text(json.dumps(ledger), encoding="utf-8")
+
     def test_builds_non_authoritative_local_measurement_docket(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -89,6 +95,7 @@ class RemoteRendererLocalQualificationTests(unittest.TestCase):
             self.assertEqual(docket["schema"], DOCKET_SCHEMA)
             self.assertEqual(docket["renderer"], "qwen-image-2512")
             self.assertEqual(docket["research_output"], str(output.resolve()))
+            self.assertEqual(docket["research_output_bytes"], len(PNG))
             self.assertTrue(docket["recommended_for_local_measurement"])
             self.assertTrue(docket["requires_explicit_local_model_candidate"])
             self.assertIsNone(docket["local_model_candidate_id"])
@@ -107,9 +114,7 @@ class RemoteRendererLocalQualificationTests(unittest.TestCase):
             root = Path(tmp)
             _, path, ledger = self._fixture(root)
             ledger["entries"][0]["average_score"] = 8.49
-            ledger.pop("ledger_sha256")
-            ledger["ledger_sha256"] = _sha256_json(ledger)
-            path.write_text(json.dumps(ledger), encoding="utf-8")
+            self._rewrite(path, ledger)
             with self.assertRaisesRegex(ValueError, "SCORE_BELOW_QUALIFICATION_FLOOR"):
                 RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
 
@@ -118,10 +123,18 @@ class RemoteRendererLocalQualificationTests(unittest.TestCase):
             root = Path(tmp)
             _, path, ledger = self._fixture(root)
             ledger["entries"][0]["scores"]["geometry_integrity"] = 8.4
-            ledger.pop("ledger_sha256")
-            ledger["ledger_sha256"] = _sha256_json(ledger)
-            path.write_text(json.dumps(ledger), encoding="utf-8")
+            self._rewrite(path, ledger)
             with self.assertRaisesRegex(ValueError, "CRITICAL_SCORE_BELOW_FLOOR: geometry_integrity"):
+                RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
+
+    def test_hard_blocker_is_replayed_not_trusted_from_blocker_free_boolean(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _, path, ledger = self._fixture(root)
+            ledger["entries"][0]["hard_blockers"]["pseudo_text"] = True
+            ledger["entries"][0]["blocker_free"] = True
+            self._rewrite(path, ledger)
+            with self.assertRaisesRegex(ValueError, "HARD_BLOCKER_PRESENT: pseudo_text"):
                 RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
 
     def test_remote_authority_drift_is_forbidden(self) -> None:
@@ -129,9 +142,7 @@ class RemoteRendererLocalQualificationTests(unittest.TestCase):
             root = Path(tmp)
             _, path, ledger = self._fixture(root)
             ledger["canonical_golden_eligible"] = True
-            ledger.pop("ledger_sha256")
-            ledger["ledger_sha256"] = _sha256_json(ledger)
-            path.write_text(json.dumps(ledger), encoding="utf-8")
+            self._rewrite(path, ledger)
             with self.assertRaisesRegex(ValueError, "REMOTE_AUTHORITY_FORBIDDEN"):
                 RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
 
@@ -152,15 +163,26 @@ class RemoteRendererLocalQualificationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "LEADER_PNG_SHA_MISMATCH"):
                 RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
 
+    def test_non_png_bytes_are_rejected_even_if_ledger_is_rehashed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output, path, ledger = self._fixture(root)
+            payload = b"not-a-png"
+            output.write_bytes(payload)
+            ledger["entries"][0]["output_sha256"] = hashlib.sha256(payload).hexdigest()
+            ledger["entries"][0]["output_bytes"] = len(payload)
+            ledger["research_leader_output_sha256"] = ledger["entries"][0]["output_sha256"]
+            self._rewrite(path, ledger)
+            with self.assertRaisesRegex(ValueError, "LEADER_OUTPUT_NOT_PNG"):
+                RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
+
     def test_no_research_leader_cannot_create_docket(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _, path, ledger = self._fixture(root)
             ledger["research_leader"] = None
             ledger["research_leader_output_sha256"] = None
-            ledger.pop("ledger_sha256")
-            ledger["ledger_sha256"] = _sha256_json(ledger)
-            path.write_text(json.dumps(ledger), encoding="utf-8")
+            self._rewrite(path, ledger)
             with self.assertRaisesRegex(ValueError, "NO_RESEARCH_LEADER"):
                 RemoteRendererLocalQualificationDocketBuilder(root).build(research_ledger_path=path)
 
