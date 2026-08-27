@@ -76,7 +76,11 @@ The new ledger itself is incapable of setting `publication_ready=true`.
 
 ## Testing state
 
-The baseline head reviewed before Change Set 196 had successful Phase 18 GitHub Actions coverage. The new files and regression tests were committed to `phase18/story-intelligence`; a new Story Intelligence verification run is expected to be triggered by these commits. This log does not claim the new head is CI-green until a completed successful run is observed.
+The first Story Intelligence run on Change Set 196, Run `33069556783`, executed 1,326 discovered Phase 18 tests. All seven new `VisualValidationLedgerTests` passed. The run failed on one pre-existing Golden batch regression assertion: the test expected the text `seed mismatch`, while the verifier at that exact commit still reported the combined legacy message `candidate identity mismatch` for the intentionally modified manifest seed.
+
+The verifier was then strengthened on the same Phase 18 branch in commit `67b0392c3a7ecb5dfdc62075243a33abb5b3bb66` to report request-ID drift and seed drift separately without weakening verification. That change preserved the existing test expectation while making integrity failures more diagnostic.
+
+Story Intelligence Verification Run `33069725072` / run `3341` on commit `67b0392c3a7ecb5dfdc62075243a33abb5b3bb66` completed with `success`. All returned companion Phase 18 pull-request workflows for the same commit also completed successfully. Therefore the Change Set 196 ledger, completion-audit integration and precise Golden candidate identity verification are now observed CI-green.
 
 ## Genuine Golden PNG status
 
