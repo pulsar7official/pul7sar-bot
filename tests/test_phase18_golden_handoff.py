@@ -30,6 +30,9 @@ class GoldenVisualHandoffTests(unittest.TestCase):
         self.assertNotIn("exact surface will be replaced by deterministic code", prompt)
         self.assertTrue(request.metadata["brand_name_redacted_from_generation_prompt"])
         self.assertFalse(request.metadata["generated_sport_geometry_allowed"])
+        self.assertFalse(request.metadata["partial_sport_geometry_allowed"])
+        self.assertEqual(request.metadata["sport_geometry_integrity_policy"], "exact_verified_or_visually_indeterminate")
+        self.assertTrue(request.metadata["partial_sport_geometry_hallucination_is_hard_failure"])
         self.assertFalse(request.metadata["hybrid_surface_replacement_required"])
         self.assertEqual(request.metadata["sport_geometry"], "contextual_optional_not_required")
         self.assertEqual(request.metadata["football_camera_preset"], "editorial_environmental_oblique")
@@ -48,6 +51,25 @@ class GoldenVisualHandoffTests(unittest.TestCase):
         self.assertFalse(request.metadata["visual_concept_publication_ready"])
         self.assertNotIn("pul7sar", prompt)
         self.assertNotIn("pulsar", prompt)
+
+    def test_preview_hard_blocks_partial_unverified_football_geometry(self):
+        request = build_request(seed=7007001, request_id="golden-geometry-integrity")
+        prompt = request.prompt.casefold()
+        required = (
+            "show no goal frame or goal net",
+            "no penalty-area or goal-area lines",
+            "no corner arc or corner flag",
+            "no centre circle or halfway line",
+            "never invent isolated football geometry",
+            "keep it outside the frame, fully occluded, or visually indeterminate",
+            "no isolated or partial goal frame or goal net",
+            "no partial regulation football geometry whose physical placement cannot be verified",
+        )
+        for marker in required:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, prompt)
+        self.assertFalse(request.metadata["partial_sport_geometry_allowed"])
+        self.assertTrue(request.metadata["partial_sport_geometry_hallucination_is_hard_failure"])
 
     def test_golden_request_does_not_claim_specific_real_venue_or_person(self):
         request = build_request(seed=7007001, request_id="golden-safe-context")
