@@ -135,7 +135,23 @@ Repair commits:
 - `410109f6a68152e056782ad2311d39c449e39e06` — Original Scene fixture repair.
 - `460873c19407f12e6a52c05f7215d270c8f1593d` — measured local-admission fixture repair.
 
-A new GitHub Actions verification run is required before Change Set 213 can be called CI-green.
+## Final CI verification
+
+The repaired documented-head commit `296f3e58fe3a06b51f3510a391a398e0020889ca` passed **Phase 18 Story Intelligence Verification run `33091023154 / run 3474` with conclusion `success`**.
+
+The completed job confirms:
+
+- `Syntax and discover validation` — success;
+- Completion and production isolation — success;
+- visual-study handoff build/verification — success;
+- cross-platform result composition matrix — success;
+- project-native editorial visual study — success;
+- adaptive/self-contained reference-brand verification — success;
+- Golden Editorial v6 build and verification — success;
+- legacy-logo non-canonical assertion — success;
+- required artifacts uploaded successfully.
+
+Thus Change Set 213 is CI-green after the fixture repair, with the production platform-name safety lock left intact.
 
 ## Added documentation
 
@@ -169,7 +185,7 @@ No safety or quality gate was relaxed:
 
 ## Current testing status
 
-The original Change Set 213 verification failure was isolated to invalid test fixtures and repaired without modifying the production safety gate. A fresh Story Intelligence Verification result is pending; no success is claimed until a completed run is inspected.
+**CI-green.** The first run exposed invalid test fixtures and failed closed as intended; the fixtures were repaired without changing production safety behavior, and run `33091023154 / 3474` completed successfully on the repaired code/documentation head.
 
 ## Golden Visual status
 
