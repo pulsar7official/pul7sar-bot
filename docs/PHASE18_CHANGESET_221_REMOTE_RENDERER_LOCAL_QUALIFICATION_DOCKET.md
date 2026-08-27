@@ -22,6 +22,8 @@ Added `engine/intelligence/remote_renderer_local_qualification.py`.
 The builder:
 - accepts only `pul7sar-phase18-remote-renderer-research-ledger-v1`;
 - replays the ledger canonical SHA-256 and the leader PNG SHA-256;
+- independently replays all five hard blockers instead of trusting `blocker_free=true` alone;
+- verifies PNG signature and byte size again before creating a docket;
 - requires `$0-remote-zerogpu-study`, `research_only=true`, and `canonical_admission_required=true`;
 - rejects any remote Semantic, Golden, canonical, or Publication authority;
 - requires a unique research leader;
@@ -39,9 +41,11 @@ Added `tests/test_phase18_remote_renderer_local_qualification.py` covering:
 - successful non-authoritative qualification docket creation;
 - average score below the qualification floor;
 - critical geometry score below its floor;
+- a hard blocker remaining fatal even if `blocker_free` is maliciously left `true`;
 - remote authority drift;
 - research-ledger digest tampering;
 - research PNG tampering;
+- non-PNG bytes even when ledger hashes are recomputed;
 - missing research leader; and
 - repository path escape.
 
@@ -69,7 +73,11 @@ Added:
 - `docs/PHASE18_CHANGESET_221_REMOTE_RENDERER_LOCAL_QUALIFICATION_DOCKET.md`
 - `docs/PHASE18_IMPLEMENTATION_LOG_221.md`
 
-Modified existing production/runtime files:
+Modified during hardening:
+- `engine/intelligence/remote_renderer_local_qualification.py`
+- `tests/test_phase18_remote_renderer_local_qualification.py`
+
+Modified existing production/runtime files outside this new isolated research-qualification component:
 - none.
 
 Deleted:
