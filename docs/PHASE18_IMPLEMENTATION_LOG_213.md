@@ -8,7 +8,7 @@ All work was performed on `phase18/story-intelligence` only. `main` was inspecte
 
 ## State reviewed before changes
 
-- Phase 18 HEAD: `fe43894e53c15635a7c95ff5611977a71aeb7e77` (`Phase 18: add renderer-safe dynamic transfer handoff builder`).
+- Phase 18 HEAD at the start of this change: `fe43894e53c15635a7c95ff5611977a71aeb7e77` (`Phase 18: add renderer-safe dynamic transfer handoff builder`).
 - `main` HEAD reviewed independently: `813ef31d2647e4353ca604e60e48975c79d7d95e`.
 - Recent branch work had introduced `DynamicRendererPromptCompiler`, renderer-safe prompt tests, and a transfer handoff helper after successful Change Set 212.
 - No compatible Golden-reference CUDA execution host is available in the current automation environment; no new PNG was generated or fabricated.
@@ -110,6 +110,33 @@ Regression coverage now explicitly checks:
 - exact facts/branding/sport geometry remain generator-forbidden;
 - Human review stays required and publication stays false.
 
+## CI feedback and repair
+
+The first documented-head Story Intelligence Verification run was **GitHub Actions run `33090584750`**, job `98582021673`.
+
+- Checkout, Python setup and dependency installation succeeded.
+- `Syntax and discover validation` executed **1,387 Phase 18 tests** and ended with **11 errors**.
+- The newly added transfer handoff tests, renderer-prompt critic-binding tests and executor-provenance tests were already passing.
+- All 11 errors happened before the new Original Scene / local-admission code was reached: the two new preview fixtures embedded the literal text `PUL7SAR reports ...`, and the existing `DynamicVisualBrainConceptLock` correctly rejected those fixtures with `DYNAMIC_VISUAL_BRAIN_PLATFORM_NAME_LEAK`.
+
+This was a test-fixture regression, not a reason to relax the production lock. The platform-name lock remains unchanged and fail-closed.
+
+### Fixture repair
+
+The invalid preview summaries in:
+
+- `tests/test_phase18_dynamic_visual_brain_original_scene.py`
+- `tests/test_phase18_dynamic_visual_brain_local_admission.py`
+
+were changed from a platform-authored phrase to a neutral verified-source phrase. The tests still assert that `PUL7SAR/PULSAR` cannot reach renderer/local prompts, while the canonical concept lock continues to reject platform naming before rendering.
+
+Repair commits:
+
+- `410109f6a68152e056782ad2311d39c449e39e06` — Original Scene fixture repair.
+- `460873c19407f12e6a52c05f7215d270c8f1593d` — measured local-admission fixture repair.
+
+A new GitHub Actions verification run is required before Change Set 213 can be called CI-green.
+
 ## Added documentation
 
 - `docs/PHASE18_CHANGESET_213_RENDERER_SAFE_DYNAMIC_EXECUTION_BINDING.md`
@@ -140,9 +167,9 @@ No safety or quality gate was relaxed:
 - SemanticPublicationGate remains downstream;
 - `publication_ready=false` throughout this Change Set.
 
-## Testing status
+## Current testing status
 
-GitHub Actions was triggered on the code/test head and again on the documented head. At the time this log was first written, `verify-story-intelligence` and several companion jobs were still queued/in progress. No CI success is claimed until a completed run is available and inspected.
+The original Change Set 213 verification failure was isolated to invalid test fixtures and repaired without modifying the production safety gate. A fresh Story Intelligence Verification result is pending; no success is claimed until a completed run is inspected.
 
 ## Golden Visual status
 
