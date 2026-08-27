@@ -53,9 +53,11 @@ class Phase18ColabNotebookContractTests(unittest.TestCase):
     def test_semantic_qa_is_explicitly_separate_and_non_destructive(self):
         self.assertIn("phase18_colab_one_command.py", self.text)
         self.assertIn("'--semantic-inspection', 'qwen'", self.text)
+        self.assertIn("'--semantic-only-existing'", self.text)
         self.assertIn("'--skip-update'", self.text)
+        self.assertIn("forbidden from invoking generation", self.lowered)
+        self.assertIn("reuse the already-saved provenance-verified candidate 1", self.lowered)
         self.assertIn("Candidate 1 PNG remains safely saved", self.text)
-        self.assertIn("can no longer prevent Step 2 from saving and showing the FLUX image", self.text)
 
     def test_t4_preview_never_claims_golden_or_publication_ready(self):
         self.assertIn("not golden", self.lowered)
