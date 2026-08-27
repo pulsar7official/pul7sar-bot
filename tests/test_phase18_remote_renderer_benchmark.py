@@ -30,15 +30,41 @@ class RemoteRendererBenchmarkTests(unittest.TestCase):
         validated = self.tool._validate_prompt(prompt)
         self.assertTrue(validated)
         upper = validated.upper()
+        lower = validated.lower()
         self.assertNotIn("PUL7SAR", upper)
         self.assertNotIn("PULSAR", upper)
-        self.assertIn("identity must remain non-recognizable", validated.lower())
-        self.assertIn("one continuous physical scene only", validated.lower())
+        self.assertIn("identity must remain non-recognizable", lower)
+        self.assertIn("one continuous physical scene only", lower)
+        self.assertIn("no identifiable real club or venue cues", lower)
+        for cue in self.tool.FORBIDDEN_ENTITY_CUES:
+            self.assertNotIn(cue, lower)
 
     def test_platform_name_leak_fails_closed(self) -> None:
         safe = PROMPT.read_text(encoding="utf-8")
         with self.assertRaisesRegex(ValueError, "REMOTE_RENDERER_PLATFORM_NAME_LEAK"):
             self.tool._validate_prompt(safe + " Later add PUL7SAR branding.")
+
+    def test_real_club_or_venue_cue_fails_closed(self) -> None:
+        safe = PROMPT.read_text(encoding="utf-8")
+        for cue in ("North London", "Tottenham", "Manchester City"):
+            with self.subTest(cue=cue):
+                with self.assertRaisesRegex(ValueError, "REMOTE_RENDERER_ENTITY_CUE_LEAK"):
+                    self.tool._validate_prompt(safe + f" The destination is {cue}.")
+
+    def test_color_coded_entity_cue_fails_closed(self) -> None:
+        safe = PROMPT.read_text(encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "REMOTE_RENDERER_ENTITY_CUE_LEAK"):
+            self.tool._validate_prompt(
+                safe + " Use deep navy and clean white destination atmosphere with cool sky-blue traces."
+            )
+
+    def test_missing_entity_neutrality_marker_fails_closed(self) -> None:
+        safe = PROMPT.read_text(encoding="utf-8")
+        marker = "No identifiable real club or venue cues."
+        self.assertIn(marker, safe)
+        broken = safe.replace(marker, "", 1)
+        with self.assertRaisesRegex(ValueError, "REMOTE_RENDERER_SAFETY_MARKER_MISSING"):
+            self.tool._validate_prompt(broken)
 
     def test_missing_safety_marker_fails_closed(self) -> None:
         safe = PROMPT.read_text(encoding="utf-8")
@@ -78,6 +104,9 @@ class RemoteRendererBenchmarkTests(unittest.TestCase):
             elapsed_seconds=1.0,
         )
         self.assertEqual(report["cost_mode"], "$0-remote-zerogpu-study")
+        self.assertTrue(report["entity_neutral_benchmark"])
+        self.assertFalse(report["verified_identity_asset_used"])
+        self.assertFalse(report["verified_venue_asset_used"])
         self.assertTrue(report["engineering_benchmark_only"])
         self.assertFalse(report["canonical_golden_eligible"])
         self.assertFalse(report["semantic_approved"])
@@ -87,6 +116,7 @@ class RemoteRendererBenchmarkTests(unittest.TestCase):
     def test_source_keeps_remote_study_outside_canonical_zero_local_path(self) -> None:
         source = TOOL.read_text(encoding="utf-8")
         self.assertIn("$0-remote-zerogpu-study", source)
+        self.assertIn('"entity_neutral_benchmark": True', source)
         self.assertIn('"canonical_golden_eligible": False', source)
         self.assertIn('"publication_ready": False', source)
         self.assertNotIn('cost_mode = "$0-local"', source)
