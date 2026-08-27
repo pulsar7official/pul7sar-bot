@@ -22,6 +22,7 @@ REQUIRED_FILES = (
     "engine/intelligence/sports_editorial_scene.py",
     "engine/intelligence/sports_editorial_production.py",
     "engine/intelligence/visual_benchmark_suite.py",
+    "engine/intelligence/visual_validation_ledger.py",
     "engine/intelligence/visual_review_readiness.py",
     "engine/intelligence/visual_candidate_readiness.py",
     "engine/intelligence/visual_study_handoff.py",
@@ -62,6 +63,7 @@ REQUIRED_FILES = (
     "engine/intelligence/publication_readiness.py",
     "tools/phase18_build_editorial_scene_study.py",
     "tools/phase18_build_visual_study_handoffs.py",
+    "tools/phase18_build_visual_validation_ledger.py",
     "tools/phase18_build_golden_handoff.py",
     "tools/phase18_build_golden_batch.py",
     "tools/phase18_verify_golden_batch.py",
@@ -77,6 +79,16 @@ CONTRACT_MARKERS = {
         '"event-preview-context-v1", EditorialEvent.PREVIEW',
         "sport geometry either exact verified or visually indeterminate",
         "AI-generated exact numbers",
+    ),
+    "engine/intelligence/visual_validation_ledger.py": (
+        'SCHEMA = "pul7sar-phase18-visual-validation-ledger-v1"',
+        "GOLDEN_MINIMUM = 8.5",
+        "VISUAL_VALIDATION_ACCEPTED_CASE_HAS_HARD_BLOCKER",
+        "VISUAL_VALIDATION_LEDGER_CANNOT_AUTHORIZE_PUBLICATION",
+    ),
+    "tools/phase18_build_visual_validation_ledger.py": (
+        "PHASE18_VISUAL_VALIDATION_LEDGER_READY",
+        "--validate-existing",
     ),
     "tools/phase18_build_golden_handoff.py": (
         'GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY = "exact_verified_or_visually_indeterminate"',
@@ -188,6 +200,9 @@ def main() -> int:
         "contract_propagation_complete": not contract_failures,
         "canonical_visual_validation_cases": 7,
         "canonical_visual_validation_events": ["transfer_confirmed", "result", "injury", "tactics", "record", "preview", "general"],
+        "canonical_visual_validation_ledger_present": (ROOT / "engine/intelligence/visual_validation_ledger.py").is_file(),
+        "canonical_visual_validation_ledger_schema": "pul7sar-phase18-visual-validation-ledger-v1",
+        "canonical_visual_validation_ledger_publication_authority": False,
         "partial_sport_geometry_policy": "exact_verified_or_visually_indeterminate",
         "partial_sport_geometry_hallucination_is_hard_failure": True,
         "local_handoff_preserves_geometry_integrity_metadata": True,
@@ -204,7 +219,7 @@ def main() -> int:
         "remaining_runtime_or_approval_blockers": runtime_or_approval_blockers,
         "ready_for_human_visual_validation": engineering_complete,
         "ready_for_publication_claim": False,
-        "next_target": "run real multi-family visual validation, repair output defects, then bind owner-approved brand/typography/verified-subject assets before publication",
+        "next_target": "bind every real benchmark PNG into the canonical visual-validation ledger, repair output defects, then bind owner-approved brand/typography/verified-subject assets before publication",
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if engineering_complete else 1
