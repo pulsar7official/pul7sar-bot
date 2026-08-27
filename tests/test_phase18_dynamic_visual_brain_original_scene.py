@@ -13,7 +13,7 @@ class DynamicVisualBrainOriginalSceneBridgeTests(unittest.TestCase):
     def _plan_and_lock(self, story_type="preview"):
         plan = DynamicVisualBrain().plan({
             "headline": "Verified League prepares for a new season",
-            "summary": "PUL7SAR reports that Verified League is scheduled to begin this weekend.",
+            "summary": "Verified sources state that Verified League is scheduled to begin this weekend.",
             "sport": "football",
             "story_type": story_type,
             "primary_entity": "Verified League",
