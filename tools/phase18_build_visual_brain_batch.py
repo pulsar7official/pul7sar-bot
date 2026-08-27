@@ -2,7 +2,7 @@
 """Build the first concept-diverse PUL7SAR Visual Brain GPU benchmark.
 
 Unlike Golden v6, candidates are not the same composition with different seeds.
-Each candidate expresses a genuinely different editorial idea.  The renderer is
+Each candidate expresses a genuinely different editorial idea. The renderer is
 still the zero-cost local FLUX backend; the intelligence contract is renderer-
 agnostic and publication remains blocked pending visual criticism.
 """
@@ -34,6 +34,8 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
     concepts = VisualConceptCompetition().preview_season_return()
     if len(seeds) < len(concepts):
         raise ValueError("one unique seed is required for every concept")
+    if len(set(seeds[:len(concepts)])) != len(concepts):
+        raise ValueError("visual-brain concept seeds must be unique")
     target = Path(output_dir)
     target.mkdir(parents=True, exist_ok=True)
     candidates: list[dict[str, object]] = []
@@ -68,7 +70,10 @@ def build_batch(output_dir: str, seeds: tuple[int, ...] = DEFAULT_SEEDS) -> dict
         request = replace(base, prompt=prompt, metadata=metadata)
         filename = f"candidate-{index:02d}-{concept.concept_id}-seed-{seed}.json"
         path = target / filename
-        digest = LocalGenerationHandoff.write(request, str(path))
+        LocalGenerationHandoff.write(request, str(path))
+        handoff_payload = json.loads(path.read_text(encoding="utf-8"))
+        digest = str(handoff_payload["payload_sha256"])
+        LocalGenerationHandoff.read(str(path))
         candidates.append({
             "candidate": index,
             "concept_id": concept.concept_id,
