@@ -3,11 +3,13 @@ from pathlib import Path
 
 
 class ColabSemanticPreflightOrderTests(unittest.TestCase):
-    def test_semantic_runtime_is_proven_before_gpu_runner(self):
+    def test_semantic_runtime_is_proven_before_any_full_flow_gpu_generation(self):
         text = Path("tools/phase18_colab_one_command.py").read_text(encoding="utf-8")
-        preflight = text.index("Proving semantic runtime compatibility before GPU generation")
-        runner = text.index("Entering story-first Golden editorial runner")
+        preflight = text.index('print(f"3/9 Proving semantic runtime compatibility {stage_text}...")')
+        runner = text.index('print("4/9 Entering story-first Golden editorial runner...")')
         self.assertLess(preflight, runner)
+        self.assertIn('"before semantic-only reuse" if args.semantic_only_existing else "before GPU generation"', text)
+        self.assertIn("_require_existing_generation_for_semantic(args.candidate)", text)
 
     def test_full_execution_keeps_qwen_as_publication_gate_but_can_degrade_to_engineering_proof(self):
         text = Path("tools/phase18_colab_one_command.py").read_text(encoding="utf-8")
