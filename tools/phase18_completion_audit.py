@@ -68,9 +68,16 @@ REQUIRED_FILES = (
     "tools/phase18_colab_runner.py",
     "tools/phase18_colab_one_command.py",
     "notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb",
+    "docs/PHASE18_ENGINEERING_COMPLETION.md",
 )
 
 CONTRACT_MARKERS = {
+    "engine/intelligence/visual_benchmark_suite.py": (
+        '"record-data-editorial-v1", EditorialEvent.RECORD',
+        '"event-preview-context-v1", EditorialEvent.PREVIEW',
+        "sport geometry either exact verified or visually indeterminate",
+        "AI-generated exact numbers",
+    ),
     "tools/phase18_build_golden_handoff.py": (
         'GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY = "exact_verified_or_visually_indeterminate"',
         '"partial_sport_geometry_allowed": False',
@@ -114,6 +121,11 @@ CONTRACT_MARKERS = {
     "notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb": (
         "Generate, save and display Candidate 1",
         "Semantic QA",
+    ),
+    "docs/PHASE18_ENGINEERING_COMPLETION.md": (
+        "Canonical Candidate 1 rejection",
+        "exact_verified_or_visually_indeterminate",
+        "publication_ready",
     ),
 }
 
@@ -174,6 +186,8 @@ def main() -> int:
         "engineering_complete": engineering_complete,
         "architecture_components_present": not missing,
         "contract_propagation_complete": not contract_failures,
+        "canonical_visual_validation_cases": 7,
+        "canonical_visual_validation_events": ["transfer_confirmed", "result", "injury", "tactics", "record", "preview", "general"],
         "partial_sport_geometry_policy": "exact_verified_or_visually_indeterminate",
         "partial_sport_geometry_hallucination_is_hard_failure": True,
         "local_handoff_preserves_geometry_integrity_metadata": True,
