@@ -22,6 +22,7 @@ import json
 from pathlib import Path
 import time
 
+from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_REVISION
 from engine.intelligence.canvas_normalization import PillowPlatformCanvasNormalizer
 from engine.intelligence.cuda_memory import CudaPeakMemoryTracker
 from engine.intelligence.flux2_klein_diffusers import (
@@ -51,6 +52,27 @@ def _handoff_payload_sha256(path: str) -> str:
         raise ValueError("generation handoff is missing a valid payload_sha256")
     LocalGenerationHandoff.read(path)
     return supplied
+
+
+def _verified_execution_metadata(result) -> tuple[str, str]:
+    """Fail closed unless the real pipeline reports the approved revision/offload mode.
+
+    Pre-model capability checks prove what *should* be selected. This post-build
+    check proves what the actual Diffusers pipeline wrapper reports after it was
+    constructed for the request. Golden provenance must never infer this from the
+    host class alone.
+    """
+
+    metadata = getattr(result, "metadata", None)
+    if not isinstance(metadata, dict) and not hasattr(metadata, "get"):
+        raise RuntimeError("FLUX.2 execution metadata is missing")
+    model_revision = metadata.get("model_revision")
+    if model_revision != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FLUX.2 execution model revision drifted from the approved immutable revision")
+    offload_mode = metadata.get("offload_mode")
+    if offload_mode not in {"sequential_cpu", "model_cpu"}:
+        raise RuntimeError("FLUX.2 execution did not prove a safe CPU offload mode")
+    return str(offload_mode), str(model_revision)
 
 
 def execute_request(
@@ -98,6 +120,7 @@ def execute_request(
         build_flux2_klein_pipeline_factory(),
     )
     result = backend.generate(request)
+    actual_offload_mode, actual_model_revision = _verified_execution_metadata(result)
     native_provenance = LocalBackendResultGate().validate(request, result)
 
     normalized_path = str(Path(generation_dir) / f"{request.request_id}-platform.png")
@@ -123,6 +146,7 @@ def execute_request(
         "native_png": result.output_ref,
         "provider_id": normalized.provenance.provider_id,
         "model_id": normalized.provenance.model_id,
+        "model_revision": actual_model_revision,
         "backend": normalized.provenance.backend,
         "backend_version": backend_snapshot.version,
         "seed": normalized.provenance.seed,
@@ -137,6 +161,8 @@ def execute_request(
         "dtype_reason": dtype_decision.reason,
         "precision_quality_tier": dtype_decision.quality_tier,
         "golden_reference_precision": dtype_decision.quality_tier == "golden_reference",
+        "actual_offload_mode": actual_offload_mode,
+        "offload_mode_proven": True,
         "gpu_name": runtime.gpu_name,
         "gpu_vram_gb": runtime.gpu_vram_gb,
         "bf16_supported": runtime.metadata.get("bf16_supported"),
