@@ -9,7 +9,9 @@ class FirstGenuineGoldenV6JitLockTests(unittest.TestCase):
     def test_jit_replay_occurs_after_offload_lock_and_before_final_receipt(self):
         inner = self.wrapper.index("phase18_colab_first_genuine_offload_locked.py")
         load_outer = self.wrapper.index("outer = _load(OFFLOAD_LOCK)")
-        replay = self.wrapper.index("verify_golden_jit_resource_replay")
+        # Measure the runtime call site rather than the import statement near the
+        # top of the file.
+        replay = self.wrapper.index("jit = verify_golden_jit_resource_replay(repository_root=ROOT, staging=staging)")
         final_payload = self.wrapper.index('"schema": "pul7sar-first-genuine-golden-v6-jit-lock-v1"')
         self.assertLess(inner, load_outer)
         self.assertLess(load_outer, replay)
