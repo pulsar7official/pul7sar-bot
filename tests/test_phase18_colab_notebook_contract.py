@@ -34,18 +34,33 @@ class Phase18ColabNotebookContractTests(unittest.TestCase):
         self.assertIn("upper-left", self.lowered)
         self.assertIn("'--candidate', '1'", self.text)
 
-    def test_notebook_routes_reference_and_t4_preview_separately(self):
+    def test_notebook_routes_precision_tiers_through_generation_runner(self):
         self.assertIn("precision_mode = 'auto' if bf16_ok else 'float16-preview'", self.text)
+        self.assertIn("phase18_colab_runner.py", self.text)
+        self.assertIn("'--dtype', precision_mode", self.text)
+        self.assertIn("'--skip-targeted-tests'", self.text)
+        self.assertIn("'--force'", self.text)
+
+    def test_generation_is_saved_and_displayed_before_semantic_qa(self):
+        generation_index = self.text.index("=== CANDIDATE 1 SAVED SUCCESSFULLY ===")
+        semantic_index = self.text.index("## 3 — Optional semantic QA")
+        self.assertLess(generation_index, semantic_index)
+        self.assertIn("latest.json", self.text)
+        self.assertIn("candidate1_png", self.text)
+        self.assertIn("display(Image(filename=candidate1_png))", self.text)
+        self.assertIn("Semantic QA has NOT run yet", self.text)
+
+    def test_semantic_qa_is_explicitly_separate_and_non_destructive(self):
         self.assertIn("phase18_colab_one_command.py", self.text)
         self.assertIn("'--semantic-inspection', 'qwen'", self.text)
-        self.assertIn("phase18_colab_runner.py", self.text)
-        self.assertIn("'--dtype', 'float16-preview'", self.text)
-        self.assertIn("'--force'", self.text)
+        self.assertIn("'--skip-update'", self.text)
+        self.assertIn("Candidate 1 PNG remains safely saved", self.text)
+        self.assertIn("can no longer prevent Step 2 from saving and showing the FLUX image", self.text)
 
     def test_t4_preview_never_claims_golden_or_publication_ready(self):
         self.assertIn("not golden", self.lowered)
-        self.assertIn("never publication-ready", self.lowered)
         self.assertIn("cannot satisfy the golden precision gate", self.lowered)
+        self.assertIn("publication_ready remains false", self.lowered)
 
     def test_notebook_keeps_exact_branding_post_generation(self):
         self.assertIn("exact branding and typography are added only after the base image survives visual review", self.lowered)
