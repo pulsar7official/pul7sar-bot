@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Prove combined Qwen + FLUX cache headroom before either model download.
+"""Prove combined pinned Qwen + FLUX cache headroom before either model download.
 
 This command is intentionally download-free. It only checks whether the exact
-approved Qwen and FLUX snapshots are already present in the local Hugging Face
-cache and, for every missing snapshot, reserves the conservative free-space
-budget used by the existing individual prefetch tools.
+approved immutable Qwen and FLUX revisions are already present in the local
+Hugging Face cache and, for every missing approved snapshot, reserves the
+conservative free-space budget used by the individual prefetch tools.
+
+An unrelated or stale snapshot never counts as cached evidence.
 """
 from __future__ import annotations
 
@@ -23,8 +25,14 @@ EXPECTED_BRANCH = "phase18/story-intelligence"
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+    assert_snapshot_revision,
+)
 from engine.intelligence.first_golden_cache_budget import FirstGoldenCacheBudgetPolicy
-from engine.intelligence.qwen25_vl_inspector import MODEL_ID as QWEN_MODEL_ID
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 
@@ -48,9 +56,17 @@ def _cache_root() -> Path:
     return (Path.home() / ".cache" / "huggingface").resolve()
 
 
-def _cached_snapshot(snapshot_download, model_id: str) -> str | None:
+def _cached_snapshot(snapshot_download, model_id: str, revision: str) -> str | None:
     try:
-        return str(snapshot_download(repo_id=model_id, local_files_only=True))
+        snapshot = str(
+            snapshot_download(
+                repo_id=model_id,
+                revision=revision,
+                local_files_only=True,
+            )
+        )
+        assert_snapshot_revision(snapshot, revision)
+        return snapshot
     except Exception:
         return None
 
@@ -70,10 +86,13 @@ def main() -> int:
     except ImportError as exc:
         raise RuntimeError("huggingface_hub is required for first Golden cache-budget preflight") from exc
 
+    if FLUX2_KLEIN_4B_LOCAL.model_id != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("FIRST_GOLDEN_CACHE_BUDGET_FLUX_MODEL_IDENTITY_DRIFT")
+
     cache_root = _cache_root()
     cache_root.mkdir(parents=True, exist_ok=True)
-    qwen_cached = _cached_snapshot(snapshot_download, QWEN_MODEL_ID)
-    flux_cached = _cached_snapshot(snapshot_download, FLUX2_KLEIN_4B_LOCAL.model_id)
+    qwen_cached = _cached_snapshot(snapshot_download, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION)
+    flux_cached = _cached_snapshot(snapshot_download, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION)
     free_bytes = shutil.disk_usage(cache_root).free
 
     policy = FirstGoldenCacheBudgetPolicy(
@@ -93,10 +112,15 @@ def main() -> int:
         "branch": EXPECTED_BRANCH,
         "cost_mode": "$0-local",
         "cache_root": str(cache_root),
-        "qwen_model_id": QWEN_MODEL_ID,
-        "flux_model_id": FLUX2_KLEIN_4B_LOCAL.model_id,
+        "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+        "qwen_model_revision": QWEN25_VL_3B_REVISION,
+        "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
         "qwen_snapshot_path": qwen_cached,
+        "qwen_snapshot_revision": QWEN25_VL_3B_REVISION if qwen_cached is not None else None,
         "flux_snapshot_path": flux_cached,
+        "flux_snapshot_revision": FLUX2_KLEIN_4B_REVISION if flux_cached is not None else None,
+        "revisions_pinned": True,
         "budget": asdict(decision),
         "ready": True,
         "downloads_performed": False,
