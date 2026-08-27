@@ -3,9 +3,10 @@
 
 The wrapper proves the installed Diffusers FLUX.2 offload capability before the
 resource/model-cache/runtime/semantic lock is allowed to begin model work. It
-then replays the host identity against the inner resource lock and seals the
-offload receipt, the host qualification receipt, and the inner resource lock by
-SHA-256.
+then replays the host identity against the inner resource lock and proves that
+the real FLUX executor used the exact safe offload mode selected by preflight.
+The preflight, actual-execution provenance, host qualification and inner resource
+lock are sealed by SHA-256.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -23,12 +24,14 @@ EXPECTED_BRANCH = "phase18/story-intelligence"
 OFFLOAD_GPU_HOST = ROOT / "output" / "phase18_gpu_smoke" / "offload-gpu-host-qualification.json"
 OFFLOAD_PREFLIGHT = ROOT / "output" / "phase18_gpu_smoke" / "flux2-offload-preflight.json"
 INNER_RESOURCE_LOCK = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-resource-lock.json"
+ACTUAL_OFFLOAD_PROVENANCE = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-actual-offload-provenance.json"
 FINAL = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-offload-lock.json"
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_MODEL_ID
+from engine.intelligence.golden_offload_provenance import GoldenOffloadProvenanceLock
 
 
 def _branch() -> str:
@@ -69,6 +72,12 @@ def _record(path: Path) -> dict[str, object]:
         raise RuntimeError(f"FIRST_GENUINE_GOLDEN_OFFLOAD_EVIDENCE_MISSING:{target}")
     data = target.read_bytes()
     return {"path": str(target), "sha256": hashlib.sha256(data).hexdigest(), "bytes": len(data)}
+
+
+def _write(path: Path, payload: dict[str, object]) -> None:
+    target = _inside_repo(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
 
 
 def _run(command: list[str], *, label: str) -> None:
@@ -180,6 +189,28 @@ def _validate_inner(inner: dict[str, object], initial_host: dict[str, object]) -
     return inner_host
 
 
+def _bind_actual_offload(inner: dict[str, object], offload: dict[str, object]) -> dict[str, object]:
+    staging_value = inner.get("staging_receipt")
+    if not isinstance(staging_value, str) or not staging_value.strip():
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_OFFLOAD_STAGING_RECEIPT_MISSING")
+    staging = _inside_repo(Path(staging_value))
+    receipt = GoldenOffloadProvenanceLock().verify(
+        repository_root=ROOT,
+        preflight_receipt=OFFLOAD_PREFLIGHT,
+        staging_receipt=staging,
+    )
+    if receipt.get("selected_safe_offload_mode") != offload.get("selected_safe_mode"):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_OFFLOAD_PROVENANCE_PREFLIGHT_MODE_DRIFT")
+    if receipt.get("actual_offload_mode") != offload.get("selected_safe_mode"):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_OFFLOAD_ACTUAL_MODE_DRIFT")
+    if receipt.get("actual_offload_mode_bound") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_OFFLOAD_ACTUAL_MODE_NOT_BOUND")
+    if receipt.get("publication_ready") is not False or receipt.get("golden_quality_approved") is not False:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_OFFLOAD_PROVENANCE_AUTHORITY_DRIFT")
+    _write(ACTUAL_OFFLOAD_PROVENANCE, receipt)
+    return receipt
+
+
 def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if _branch() != EXPECTED_BRANCH:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_OFFLOAD_LOCK_BRANCH_BLOCKED")
@@ -217,6 +248,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
 
     inner = _load(INNER_RESOURCE_LOCK)
     _validate_inner(inner, initial_host)
+    actual_offload = _bind_actual_offload(inner, offload)
 
     png_value = inner.get("png")
     if not isinstance(png_value, str) or not png_value.strip():
@@ -231,19 +263,23 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     evidence = {
         "offload_gpu_host_qualification": _record(OFFLOAD_GPU_HOST),
         "flux2_offload_preflight": _record(OFFLOAD_PREFLIGHT),
+        "actual_offload_provenance": _record(ACTUAL_OFFLOAD_PROVENANCE),
         "inner_resource_lock": _record(INNER_RESOURCE_LOCK),
     }
     payload: dict[str, object] = {
-        "schema": "pul7sar-first-genuine-golden-v6-offload-lock-v1",
-        "status": "FIRST_GENUINE_GOLDEN_V6_PREMODEL_OFFLOAD_RESOURCE_LOCK_VERIFIED",
+        "schema": "pul7sar-first-genuine-golden-v6-offload-lock-v2",
+        "status": "FIRST_GENUINE_GOLDEN_V6_ACTUAL_OFFLOAD_RESOURCE_LOCK_VERIFIED",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": "$0-local",
         "model_id": FLUX2_KLEIN_4B_MODEL_ID,
         "safe_offload_preflight_bound": True,
+        "actual_offload_mode_bound": True,
         "low_vram_host": offload.get("low_vram_host"),
         "selected_safe_offload_mode": offload.get("selected_safe_mode"),
+        "actual_offload_mode": actual_offload.get("actual_offload_mode"),
         "diffusers_version": offload.get("diffusers_version"),
+        "actual_offload_provenance": str(ACTUAL_OFFLOAD_PROVENANCE),
         "inner_resource_lock": str(INNER_RESOURCE_LOCK),
         "png": str(png),
         "png_sha256": png_sha,
@@ -263,7 +299,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Pre-model offload-lock the canonical first genuine Golden Editorial v6 Candidate 1")
+    parser = argparse.ArgumentParser(description="Pre-model and actual-execution offload-lock the canonical first genuine Golden Editorial v6 Candidate 1")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--output", type=Path, default=FINAL)
     args = parser.parse_args()
