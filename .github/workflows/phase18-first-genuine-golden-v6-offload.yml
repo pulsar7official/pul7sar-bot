@@ -54,6 +54,7 @@ jobs:
           test -f tools/phase18_colab_first_genuine_offload_locked.py
           test -f tools/phase18_preflight_flux2_offload.py
           test -f tools/phase18_colab_first_genuine_resources_locked.py
+          test -f engine/intelligence/golden_offload_provenance.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -73,14 +74,14 @@ jobs:
           print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
           PY
 
-      - name: Run pre-model offload locked strict Golden Editorial v6 Candidate 1
+      - name: Run pre-model and actual-execution offload locked strict Golden Editorial v6 Candidate 1
         shell: bash
         run: |
           set -euo pipefail
           python tools/phase18_colab_first_genuine_offload_locked.py \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-offload-lock.json
 
-      - name: Replay offload and inner resource evidence
+      - name: Replay pre-model and actual offload evidence
         shell: bash
         run: |
           set -euo pipefail
@@ -88,23 +89,25 @@ jobs:
           import hashlib
           import json
           from pathlib import Path
-          from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_MODEL_ID
+          from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION
 
           root = Path.cwd().resolve()
           final_path = root / "output/phase18_gpu_smoke/first-genuine-golden-v6-offload-lock.json"
           if not final_path.is_file():
               raise SystemExit("first genuine Golden v6 offload-lock receipt missing")
           final = json.loads(final_path.read_text(encoding="utf-8"))
-          if final.get("schema") != "pul7sar-first-genuine-golden-v6-offload-lock-v1":
+          if final.get("schema") != "pul7sar-first-genuine-golden-v6-offload-lock-v2":
               raise SystemExit("unexpected offload-lock schema")
-          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_PREMODEL_OFFLOAD_RESOURCE_LOCK_VERIFIED":
+          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_ACTUAL_OFFLOAD_RESOURCE_LOCK_VERIFIED":
               raise SystemExit("offload/resource lock not verified")
           if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
               raise SystemExit("offload-lock identity drift")
           if final.get("cost_mode") != "$0-local" or final.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID:
               raise SystemExit("offload-lock execution policy drift")
-          if final.get("safe_offload_preflight_bound") is not True:
-              raise SystemExit("safe offload preflight not bound")
+          if final.get("safe_offload_preflight_bound") is not True or final.get("actual_offload_mode_bound") is not True:
+              raise SystemExit("offload preflight/actual mode binding not proven")
+          if final.get("selected_safe_offload_mode") != final.get("actual_offload_mode"):
+              raise SystemExit("pre-model selected mode does not match actual executor mode")
           for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
               if final.get(field) is not False:
                   raise SystemExit(f"illegal authority drift: {field}")
@@ -122,7 +125,7 @@ jobs:
               return hashlib.sha256(path.read_bytes()).hexdigest()
 
           evidence = final.get("evidence")
-          expected = {"offload_gpu_host_qualification", "flux2_offload_preflight", "inner_resource_lock"}
+          expected = {"offload_gpu_host_qualification", "flux2_offload_preflight", "actual_offload_provenance", "inner_resource_lock"}
           if not isinstance(evidence, dict) or set(evidence) != expected:
               raise SystemExit("offload-lock evidence set incomplete")
           for label, record in evidence.items():
@@ -136,6 +139,7 @@ jobs:
 
           host = json.loads(inside(str(evidence["offload_gpu_host_qualification"]["path"])).read_text(encoding="utf-8"))
           offload = json.loads(inside(str(evidence["flux2_offload_preflight"]["path"])).read_text(encoding="utf-8"))
+          actual = json.loads(inside(str(evidence["actual_offload_provenance"]["path"])).read_text(encoding="utf-8"))
           inner = json.loads(inside(str(evidence["inner_resource_lock"]["path"])).read_text(encoding="utf-8"))
           if host.get("eligible") is not True or host.get("cuda_available") is not True or host.get("bf16_supported") is not True:
               raise SystemExit("offload host qualification drift")
@@ -153,6 +157,29 @@ jobs:
                   raise SystemExit("low-VRAM host is not locked to sequential CPU offload")
           elif offload.get("selected_safe_mode") not in {"sequential_cpu", "model_cpu"}:
               raise SystemExit("safe offload mode missing")
+
+          if actual.get("schema") != "pul7sar-golden-offload-provenance-v1" or actual.get("status") != "GOLDEN_FLUX_ACTUAL_OFFLOAD_PROVENANCE_VERIFIED":
+              raise SystemExit("actual offload provenance contract drift")
+          if actual.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or actual.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("actual offload provenance model/revision drift")
+          if actual.get("cost_mode") != "$0-local" or actual.get("actual_offload_mode_bound") is not True:
+              raise SystemExit("actual offload provenance policy drift")
+          if actual.get("selected_safe_offload_mode") != offload.get("selected_safe_mode"):
+              raise SystemExit("actual provenance/preflight selected mode drift")
+          if actual.get("actual_offload_mode") != offload.get("selected_safe_mode"):
+              raise SystemExit("actual executor offload mode does not match preflight")
+          if actual.get("publication_ready") is not False or actual.get("golden_quality_approved") is not False:
+              raise SystemExit("actual offload provenance authority drift")
+          executor = inside(str(actual.get("executor_result", "")))
+          if not executor.is_file() or sha256(executor) != actual.get("executor_result_sha256"):
+              raise SystemExit("actual offload executor result replay mismatch")
+          executor_payload = json.loads(executor.read_text(encoding="utf-8"))
+          if executor_payload.get("offload_mode_proven") is not True:
+              raise SystemExit("executor did not prove actual offload mode")
+          if executor_payload.get("actual_offload_mode") != actual.get("actual_offload_mode"):
+              raise SystemExit("executor/actual-provenance offload mode drift")
+          if executor_payload.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("executor FLUX revision drift")
 
           if inner.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v4":
               raise SystemExit("inner resource-lock schema drift")
@@ -174,8 +201,9 @@ jobs:
           if final.get("png_sha256") != inner.get("png_sha256") or final.get("png") != inner.get("png"):
               raise SystemExit("offload-lock/inner PNG binding drift")
           print(json.dumps({
-              "status": "FIRST_GENUINE_GOLDEN_V6_OFFLOAD_REPLAY_VERIFIED",
+              "status": "FIRST_GENUINE_GOLDEN_V6_ACTUAL_OFFLOAD_REPLAY_VERIFIED",
               "selected_safe_offload_mode": final.get("selected_safe_offload_mode"),
+              "actual_offload_mode": final.get("actual_offload_mode"),
               "png": str(png),
               "png_sha256": final.get("png_sha256"),
               "publication_ready": False,
