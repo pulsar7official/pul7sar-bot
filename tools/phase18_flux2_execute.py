@@ -25,6 +25,7 @@ import time
 from engine.intelligence.approved_model_revisions import FLUX2_KLEIN_4B_REVISION
 from engine.intelligence.canvas_normalization import PillowPlatformCanvasNormalizer
 from engine.intelligence.cuda_memory import CudaPeakMemoryTracker
+from engine.intelligence.dynamic_renderer_prompt import DynamicRendererPromptCompiler
 from engine.intelligence.flux2_klein_diffusers import Flux2KleinDiffusersProbe, build_flux2_klein_pipeline_factory
 from engine.intelligence.local_backend import LocalBackendReadinessGate
 from engine.intelligence.local_backend_execution import LocalBackendResultGate
@@ -43,6 +44,9 @@ _DYNAMIC_VISUAL_BRAIN_RESULT_KEYS = (
     "dynamic_visual_brain_selected_concept_id",
     "dynamic_visual_brain_selected_concept_sha256",
     "dynamic_visual_brain_scene_prompt_sha256",
+    "dynamic_renderer_prompt_contract",
+    "dynamic_renderer_prompt_sha256",
+    "dynamic_renderer_identity_neutral",
     "dynamic_visual_brain_original_scene_request_sha256",
     "dynamic_visual_brain_selection_locked_before_rendering",
 )
@@ -76,13 +80,7 @@ def _verified_execution_metadata(result) -> tuple[str, str]:
 
 
 def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
-    """Expose SHA-locked concept identity in the durable generation result.
-
-    These fields already belong to the SHA-protected local handoff.  Copying the
-    whitelisted identity into the executor result lets downstream critic replay
-    prove that the exact selected concept produced the exact PNG; it grants no
-    additional generation or publication authority.
-    """
+    """Expose SHA-locked concept and renderer-safe prompt identity in the durable result."""
     metadata = dict(request.metadata)
     if not metadata.get("dynamic_visual_brain_contract"):
         return {}
@@ -95,6 +93,7 @@ def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
         "dynamic_visual_brain_competition_sha256",
         "dynamic_visual_brain_selected_concept_sha256",
         "dynamic_visual_brain_scene_prompt_sha256",
+        "dynamic_renderer_prompt_sha256",
         "dynamic_visual_brain_original_scene_request_sha256",
     ):
         value = metadata.get(key)
@@ -105,6 +104,10 @@ def _dynamic_visual_brain_result_metadata(request) -> dict[str, object]:
         raise RuntimeError("Dynamic Visual Brain generation metadata has invalid selected concept id")
     if metadata.get("dynamic_visual_brain_selection_locked_before_rendering") is not True:
         raise RuntimeError("Dynamic Visual Brain concept was not locked before rendering")
+    if metadata.get("dynamic_renderer_prompt_contract") != DynamicRendererPromptCompiler.CONTRACT:
+        raise RuntimeError("Dynamic Visual Brain renderer-safe prompt contract drifted")
+    if metadata.get("dynamic_renderer_identity_neutral") is not True:
+        raise RuntimeError("Dynamic Visual Brain renderer prompt did not prove identity neutrality")
 
     authority_expectations = {
         "cost_mode": "$0-local",
