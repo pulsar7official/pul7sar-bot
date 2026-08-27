@@ -50,6 +50,7 @@ REQUIRED_FILES = (
     "engine/intelligence/semantic_inspector_readiness.py",
     "engine/intelligence/provider_prompting.py",
     "engine/intelligence/golden_prompt_budget.py",
+    "engine/intelligence/local_backend_execution.py",
     "engine/intelligence/typography_renderer.py",
     "engine/intelligence/source_consensus.py",
     "engine/intelligence/story_state_integrity.py",
@@ -85,6 +86,11 @@ CONTRACT_MARKERS = {
         "no isolated or partial goal frame or goal net",
         "physically coherent and story-authorized",
     ),
+    "engine/intelligence/local_backend_execution.py": (
+        '"partial_sport_geometry_allowed": partial_geometry_allowed',
+        '"sport_geometry_integrity_policy": geometry_integrity_policy',
+        '"partial_sport_geometry_hallucination_is_hard_failure": partial_geometry_hard_failure',
+    ),
     "tools/phase18_build_golden_batch.py": (
         '"sport_geometry_integrity_policy": GOLDEN_SPORT_GEOMETRY_INTEGRITY_POLICY',
         "hard-reject any candidate with invented partial regulation sport geometry",
@@ -100,6 +106,10 @@ CONTRACT_MARKERS = {
     "engine/intelligence/qwen25_vl_inspector.py": (
         "exact or partial regulation sport geometry",
         "physically impossible relationship to a touchline/endline",
+    ),
+    "tools/phase18_build_golden_review_template.py": (
+        "broken_sport_surface_geometry as a hard blocker",
+        "exact regulation geometry must be verified or visually indeterminate",
     ),
     "notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb": (
         "Generate, save and display Candidate 1",
@@ -140,10 +150,11 @@ def main() -> int:
     missing = tuple(path for path in REQUIRED_FILES if not (ROOT / path).is_file())
     baseline_blob, baseline_ref = _baseline_main_blob(); head_blob = _git_blob("HEAD", "main.py")
     production_isolated = bool(baseline_blob and head_blob and baseline_blob == head_blob)
+    contract_failures = _contract_failures()
     engineering_failures: list[str] = []
     if missing: engineering_failures.append("required_phase18_files_missing")
     if not production_isolated: engineering_failures.append("production_entrypoint_differs_from_main")
-    engineering_failures.extend(_contract_failures())
+    engineering_failures.extend(contract_failures)
 
     runtime_or_approval_blockers = [
         "multi_family_real_png_visual_quality_validation_not_yet_owner_accepted",
@@ -162,9 +173,10 @@ def main() -> int:
         "status": "PHASE18_ENGINEERING_COMPLETION_AUDIT_V3",
         "engineering_complete": engineering_complete,
         "architecture_components_present": not missing,
-        "contract_propagation_complete": not _contract_failures(),
+        "contract_propagation_complete": not contract_failures,
         "partial_sport_geometry_policy": "exact_verified_or_visually_indeterminate",
         "partial_sport_geometry_hallucination_is_hard_failure": True,
+        "local_handoff_preserves_geometry_integrity_metadata": True,
         "colab_generation_saved_before_semantic_qa": True,
         "missing_required_files": list(missing),
         "production_main_isolated": production_isolated,
