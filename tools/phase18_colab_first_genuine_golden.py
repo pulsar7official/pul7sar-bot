@@ -7,12 +7,18 @@ actual generation and semantic inspection to phase18_colab_one_command.py with
 story-first Candidate 1 artifact recorded by both the Colab summary and the
 semantic receipt.
 
+Immediately before Candidate 1 is delegated, the wrapper re-qualifies the live
+CUDA/BF16/VRAM state and live host RAM again. Those receipts are SHA-bound
+across generation so a stale early resource preflight cannot by itself qualify
+the first genuine Golden execution.
+
 Passing this wrapper does NOT mean Golden quality or publication approval. It
 only proves that a genuine BF16/$0-local PNG exists, its durable generation
-provenance replays against the pinned FLUX revision, and BASE_SCENE
-semantic/layer QA completed on the same bytes using the approved pinned Qwen
-semantic runtime identity. Human visual review, Golden 8.5/9.0+, exact brand,
-typography and SemanticPublicationGate remain downstream and fail-closed.
+provenance replays against the pinned FLUX revision, BASE_SCENE semantic/layer
+QA completed on the same bytes using the approved pinned Qwen semantic runtime
+identity, and the final pre-generation resource state was still eligible.
+Human visual review, Golden 8.5/9.0+, exact brand, typography and
+SemanticPublicationGate remain downstream and fail-closed.
 
 The wrapper always requests --skip-update from the delegated one-command flow.
 Its caller must therefore pin and reattach the exact Phase 18 source commit
@@ -43,6 +49,8 @@ EXPECTED_PRECISION_TIER = "golden_reference"
 LATEST = ROOT / "output" / "phase18_colab" / "latest.json"
 SEMANTIC_RECEIPT = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-golden-editorial-v6-receipt.json"
 STAGING_RECEIPT = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-first-genuine-golden-staging.json"
+JIT_GPU_RECEIPT = ROOT / "output" / "phase18_gpu_smoke" / "candidate-01-jit-gpu-qualification.json"
+JIT_HOST_MEMORY_RECEIPT = ROOT / "output" / "phase18_gpu_smoke" / "candidate-01-jit-host-memory.json"
 
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -113,6 +121,127 @@ def _resolve_png(value: object) -> Path:
     if path.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
         raise RuntimeError("GOLDEN_PNG_SIGNATURE_INVALID")
     return path
+
+
+def _evidence_record(path: Path) -> dict[str, object]:
+    target = _inside_repo(path)
+    if not target.is_file():
+        raise RuntimeError(f"REQUIRED_EVIDENCE_MISSING: {target}")
+    return {
+        "path": str(target),
+        "sha256": _sha256(target),
+        "bytes": target.stat().st_size,
+    }
+
+
+def _assert_evidence_unchanged(record: dict[str, object]) -> None:
+    value = record.get("path")
+    if not isinstance(value, str) or not value.strip():
+        raise RuntimeError("JIT_RESOURCE_EVIDENCE_PATH_MISSING")
+    target = _inside_repo(Path(value))
+    if not target.is_file():
+        raise RuntimeError("JIT_RESOURCE_EVIDENCE_MISSING_AFTER_GENERATION")
+    if record.get("sha256") != _sha256(target) or record.get("bytes") != target.stat().st_size:
+        raise RuntimeError("JIT_RESOURCE_EVIDENCE_DRIFT_DURING_GENERATION")
+
+
+def _validate_jit_gpu(payload: dict[str, object]) -> tuple[float, float]:
+    if payload.get("eligible") is not True:
+        raise RuntimeError("JIT_GPU_NOT_ELIGIBLE")
+    if payload.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("JIT_GPU_MODEL_ID_DRIFT")
+    if payload.get("runtime_kind") != "local_cuda" or payload.get("cuda_available") is not True:
+        raise RuntimeError("JIT_GPU_CUDA_NOT_PROVEN")
+    if payload.get("bf16_supported") is not True:
+        raise RuntimeError("JIT_GPU_BF16_NOT_PROVEN")
+    if payload.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("JIT_GPU_ZERO_COST_CONTRACT_DRIFT")
+
+    free_vram = payload.get("gpu_free_vram_gb")
+    required_vram = payload.get("required_vram_gb")
+    for value, label in ((free_vram, "FREE_VRAM"), (required_vram, "REQUIRED_VRAM")):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0:
+            raise RuntimeError(f"JIT_GPU_{label}_INVALID")
+    if float(free_vram) < float(required_vram):
+        raise RuntimeError("JIT_GPU_LIVE_FREE_VRAM_BELOW_FLOOR")
+
+    policy = payload.get("policy")
+    if not isinstance(policy, dict):
+        raise RuntimeError("JIT_GPU_POLICY_EVIDENCE_MISSING")
+    if policy.get("requires_live_free_vram") is not True or policy.get("required_dtype") != EXPECTED_DTYPE:
+        raise RuntimeError("JIT_GPU_POLICY_DRIFT")
+    if policy.get("required_model") != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("JIT_GPU_POLICY_MODEL_DRIFT")
+    for field in ("queue_mutation", "downloads_model_weights", "installs_dependencies", "uses_paid_api"):
+        if policy.get(field) is not False:
+            raise RuntimeError(f"JIT_GPU_ILLEGAL_AUTHORITY:{field}")
+    return float(free_vram), float(required_vram)
+
+
+def _validate_jit_host_memory(payload: dict[str, object]) -> tuple[float, float]:
+    if payload.get("schema") != "pul7sar-first-golden-host-memory-preflight-v1":
+        raise RuntimeError("JIT_HOST_MEMORY_SCHEMA_DRIFT")
+    if payload.get("branch") != EXPECTED_BRANCH or payload.get("ready") is not True:
+        raise RuntimeError("JIT_HOST_MEMORY_NOT_READY")
+    if payload.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("JIT_HOST_MEMORY_ZERO_COST_CONTRACT_DRIFT")
+
+    available = payload.get("available_ram_gb")
+    minimum = payload.get("minimum_available_ram_gb")
+    for value, label in ((available, "AVAILABLE_RAM"), (minimum, "MINIMUM_RAM")):
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0:
+            raise RuntimeError(f"JIT_HOST_MEMORY_{label}_INVALID")
+    if float(available) < float(minimum):
+        raise RuntimeError("JIT_HOST_MEMORY_BELOW_FLOOR")
+
+    for field in (
+        "model_downloads_performed",
+        "model_loaded",
+        "generation_authorized",
+        "queue_mutated",
+        "png_created",
+        "semantic_approved",
+        "golden_quality_approved",
+        "publication_ready",
+    ):
+        if payload.get(field) is not False:
+            raise RuntimeError(f"JIT_HOST_MEMORY_ILLEGAL_AUTHORITY:{field}")
+    return float(available), float(minimum)
+
+
+def _run_pre_execution_resource_guard() -> dict[str, object]:
+    gpu_command = [
+        sys.executable,
+        str(ROOT / "tools" / "phase18_qualify_gpu_host.py"),
+        "--output",
+        str(JIT_GPU_RECEIPT),
+    ]
+    gpu_completed = subprocess.run(gpu_command, cwd=ROOT)
+    if gpu_completed.returncode != 0:
+        raise RuntimeError(f"JIT_GPU_QUALIFICATION_FAILED:{gpu_completed.returncode}")
+    gpu = _load_json(JIT_GPU_RECEIPT)
+    free_vram, required_vram = _validate_jit_gpu(gpu)
+
+    memory_command = [
+        sys.executable,
+        str(ROOT / "tools" / "phase18_preflight_host_memory.py"),
+        "--output",
+        str(JIT_HOST_MEMORY_RECEIPT),
+    ]
+    memory_completed = subprocess.run(memory_command, cwd=ROOT)
+    if memory_completed.returncode != 0:
+        raise RuntimeError(f"JIT_HOST_MEMORY_PREFLIGHT_FAILED:{memory_completed.returncode}")
+    memory = _load_json(JIT_HOST_MEMORY_RECEIPT)
+    available_ram, minimum_ram = _validate_jit_host_memory(memory)
+
+    return {
+        "gpu": _evidence_record(JIT_GPU_RECEIPT),
+        "host_memory": _evidence_record(JIT_HOST_MEMORY_RECEIPT),
+        "live_free_vram_gb": free_vram,
+        "required_vram_gb": required_vram,
+        "available_host_ram_gb": available_ram,
+        "required_host_ram_gb": minimum_ram,
+    }
 
 
 def _require_golden_generation_identity(latest: dict[str, object]) -> None:
@@ -284,6 +413,8 @@ def main() -> int:
     if _branch() != EXPECTED_BRANCH:
         raise RuntimeError(f"BRANCH_BLOCKED: expected {EXPECTED_BRANCH}")
 
+    pre_execution_resources = _run_pre_execution_resource_guard()
+
     command = [
         sys.executable,
         str(ROOT / "tools" / "phase18_colab_one_command.py"),
@@ -298,7 +429,18 @@ def main() -> int:
     if completed.returncode != 0:
         return completed.returncode
 
+    _assert_evidence_unchanged(pre_execution_resources["gpu"])
+    _assert_evidence_unchanged(pre_execution_resources["host_memory"])
+
     payload = verify_genuine_candidate()
+    payload["pre_execution_resource_guard_bound"] = True
+    payload["pre_execution_gpu_host_qualification"] = pre_execution_resources["gpu"]
+    payload["pre_execution_host_memory"] = pre_execution_resources["host_memory"]
+    payload["pre_execution_live_free_vram_gb"] = pre_execution_resources["live_free_vram_gb"]
+    payload["pre_execution_required_vram_gb"] = pre_execution_resources["required_vram_gb"]
+    payload["pre_execution_available_host_ram_gb"] = pre_execution_resources["available_host_ram_gb"]
+    payload["pre_execution_required_host_ram_gb"] = pre_execution_resources["required_host_ram_gb"]
+
     STAGING_RECEIPT.parent.mkdir(parents=True, exist_ok=True)
     STAGING_RECEIPT.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     print("\n=== FIRST GENUINE GOLDEN EDITORIAL CANDIDATE STAGED ===")
