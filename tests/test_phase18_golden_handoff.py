@@ -62,13 +62,14 @@ class GoldenVisualHandoffTests(unittest.TestCase):
             "no centre circle or halfway line",
             "never invent isolated football geometry",
             "keep it outside the frame, fully occluded, or visually indeterminate",
-            "no isolated or partial goal frame or goal net",
-            "no partial regulation football geometry whose physical placement cannot be verified",
+            "do not introduce isolated goal frames or nets",
+            "physically coherent and story-authorized",
         )
         for marker in required:
             with self.subTest(marker=marker):
                 self.assertIn(marker, prompt)
         self.assertFalse(request.metadata["partial_sport_geometry_allowed"])
+        self.assertEqual(request.metadata["sport_geometry_integrity_policy"], "exact_verified_or_visually_indeterminate")
         self.assertTrue(request.metadata["partial_sport_geometry_hallucination_is_hard_failure"])
 
     def test_golden_request_does_not_claim_specific_real_venue_or_person(self):
