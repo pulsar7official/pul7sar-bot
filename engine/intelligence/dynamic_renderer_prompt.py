@@ -31,7 +31,7 @@ class RendererPromptDecision:
 class DynamicRendererPromptCompiler:
     """Compile dynamic concepts into a single-scene identity-neutral base prompt."""
 
-    CONTRACT = "pul7sar-dynamic-renderer-prompt-v2-identity-neutral"
+    CONTRACT = "pul7sar-dynamic-renderer-prompt-v3-sport-semantic-anchor"
 
     _ABSOLUTE_BASE_RULES = (
         "ONE continuous physical scene only; never split-screen, diptych, collage, poster halves, panels, borders, before-and-after layout, or image-within-image. "
@@ -46,9 +46,9 @@ class DynamicRendererPromptCompiler:
     )
 
     _EVENT_CONTEXT = {
-        EditorialEvent.TRANSFER_CONFIRMED: "Convey a confirmed move into a new professional chapter without depicting any real person, club identity or readable announcement. ",
-        EditorialEvent.TRANSFER_RUMOUR: "Convey uncertainty around a possible move without implying confirmation, a real person likeness, club identity or readable announcement. ",
-        EditorialEvent.CONTRACT: "Convey a professional agreement or commitment through environment and material cues only, without signatures, documents, readable text or real-person likeness. ",
+        EditorialEvent.TRANSFER_CONFIRMED: "Convey a confirmed football move into a new professional chapter without depicting any real person, club identity or readable announcement. The image must still read immediately as football-transfer editorial context, not generic architecture. ",
+        EditorialEvent.TRANSFER_RUMOUR: "Convey uncertainty around a possible football move without implying confirmation, a real person likeness, club identity or readable announcement. The image must remain recognizably football-related without fabricating identity. ",
+        EditorialEvent.CONTRACT: "Convey a football professional agreement or commitment through environment and material cues only, without signatures, documents, readable text or real-person likeness. ",
         EditorialEvent.INJURY: "Convey absence, interruption or recovery in a restrained sports-editorial environment without depicting an identifiable person or medical claim. ",
         EditorialEvent.RESULT: "Convey a completed competitive outcome without readable score, crests, humiliation, collapse imagery or disrespect toward the losing side. ",
         EditorialEvent.PREVIEW: "Convey anticipation before competition without implying a completed result, a specific real venue or a specific real-person depiction. ",
@@ -111,26 +111,31 @@ class DynamicRendererPromptCompiler:
         cid = concept.concept_id
         if cid == "dynamic-transfer-two-worlds":
             return (
-                "Create one believable modern sports-architecture interior or arrival corridor in a single camera view. "
-                "A continuous gradient of practical light changes gradually from a cooler, dimmer foreground into a warmer destination glow deeper in the same space. "
-                "Use one uninterrupted floor plane, one uninterrupted ceiling/wall system, and one vanishing point; there must be no central divider, seam, border or duplicated scene. "
-                "The visual hero is the gradual transition of light and material suggesting movement into a new chapter, not a person and not club identity. ",
-                "multi-zone-concept-normalized-to-single-scene",
+                "Create one believable modern professional-football training-complex arrival/changing environment in a single camera view. "
+                "Use one uninterrupted architectural space with a continuous gradient of practical light changing gradually from a cooler, quieter foreground into a warmer destination zone deeper in the same room. "
+                "Keep unmistakable but anonymous football context through an open locker alcove, padded changing bench, equipment cubbies, plain unlabeled football boots and one unbranded football resting in a storage rack; these are supporting semantic cues, not the visual hero. "
+                "Use one uninterrupted floor plane, one uninterrupted ceiling/wall system and one vanishing point; there must be no central divider, seam, border or duplicated scene. "
+                "The visual hero is movement toward the prepared football destination, not a person, club identity or generic hallway. ",
+                "multi-zone-concept-normalized-to-single-football-scene",
             )
         if cid == "dynamic-transfer-threshold":
             return (
-                "Create one original non-branded architectural threshold within a single premium sports facility environment. "
-                "The threshold is defined by believable destination light, tactile materials and forward depth, with no signing-room, airport, scarf, shirt or presentation cliches. ",
-                "low",
+                "Create one premium professional-football training-complex arrival/changing zone, not a generic corridor and not an empty architectural hallway. "
+                "The scene should contain a believable open locker alcove and padded changing bench near the destination side, restrained equipment cubbies, a pair of plain unlabeled football boots placed naturally, and one unbranded football partially visible in a storage rack. "
+                "Shape the transfer metaphor through a subtle threshold of destination light and material change leading toward this prepared football space; the threshold must be spatial and atmospheric, not a literal doorway as the sole subject. "
+                "Frame from a three-quarter editorial camera angle with layered foreground-to-background depth, asymmetry and a clear football-semantic focal hierarchy. "
+                "Avoid signing-room, airport, scarf, shirt-presentation, handshake, contract-table and empty-hallway cliches. ",
+                "low-football-semantic-anchor",
             )
         if cid == "dynamic-transfer-object":
             return (
-                "Create one intimate premium still-life in a non-branded arrival/locker environment: a prepared but anonymous destination space awaiting its occupant. "
-                "Use restrained material detail and practical light; no jersey, nameplate, contract, boots with logos, football, or readable markings. ",
-                "low",
+                "Create one intimate premium still-life inside a non-branded professional-football changing/arrival environment: a prepared anonymous destination locker bay awaiting its occupant. "
+                "Use a padded bench, tactile locker material, plain unlabeled football boots and one partially visible unbranded football as restrained football context. "
+                "No jersey, nameplate, contract, readable markings, sponsor graphics or generic football-on-grass imagery. ",
+                "low-football-semantic-anchor",
             )
         return (
-            "Create one restrained, non-identifying sports-editorial environment with one clear focal hierarchy and deliberate negative space. ",
+            "Create one restrained, non-identifying professional-football editorial environment with one clear focal hierarchy, recognizable football context and deliberate negative space. ",
             "controlled",
         )
 
