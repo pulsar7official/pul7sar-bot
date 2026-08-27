@@ -8,7 +8,7 @@ Starting Phase 18 HEAD reviewed for this run: `8f15e83e5d213d3e063edf999484ec71a
 
 Starting `main` HEAD observed during this run: `813ef31d2647e4353ca604e60e48975c79d7d95e`.
 
-After the code/test/workflow additions and before this log commit, Phase 18 HEAD was `bde63cd474c3401f9dfac5fe8d37274e0674224d`. GitHub compare reported the branches still diverged, with Phase 18 ahead by 1679 commits and behind by 208 commits relative to the observed main HEAD. `main` and `main.py` were not modified, merged, rebased, force-updated, or used as write targets.
+After the main code/test/workflow additions, Phase 18 HEAD reached `bde63cd474c3401f9dfac5fe8d37274e0674224d`. GitHub compare reported the branches still diverged, with Phase 18 ahead by 1679 commits and behind by 208 commits relative to the observed main HEAD. `main` and `main.py` were not modified, merged, rebased, force-updated, or used as write targets.
 
 ## Baseline verification state
 
@@ -106,6 +106,8 @@ Coverage includes:
 - JIT replay before artifact upload;
 - exact outer evidence-set replay and PNG replay.
 
+One ordering regression assertion was corrected after review: the first version searched for the imported function name `verify_golden_jit_resource_replay`, which appears before runtime execution. It was changed to target the actual runtime call site `jit = verify_golden_jit_resource_replay(...)`, preserving the intended ordering contract without weakening runtime behavior.
+
 ## Files changed
 
 Added:
@@ -119,7 +121,9 @@ Added:
 - `docs/PHASE18_CHANGESET_194_JIT_RESOURCE_REPLAY_BINDING.md`
 - `docs/PHASE18_IMPLEMENTATION_LOG_194.md`
 
-Modified: none.
+Modified during the change set:
+
+- `tests/test_phase18_first_genuine_golden_v6_jit_lock.py` (runtime-order assertion correction only).
 
 Deleted: none.
 
@@ -150,9 +154,9 @@ No gate was weakened. The following remain fail-closed:
 
 ## Test status for Change Set 194
 
-The code, tests, workflow, and documentation were committed to `phase18/story-intelligence`.
+The code, tests, workflow, documentation, and runtime-order regression correction were committed to `phase18/story-intelligence`.
 
-A new GitHub Actions verification run is expected from the branch updates. No CI-green claim is made for Change Set 194 until an actual Story Intelligence Verification run completes successfully on a HEAD containing these changes.
+Story Intelligence Verification run `33060887668` was created for the code/test HEAD `52666471564bb5d82419556f84110284637dfd38` and was still `queued` at the last check. No CI-green claim is made for Change Set 194 until an actual Story Intelligence Verification run completes successfully on a HEAD containing these changes.
 
 ## First genuine Golden PNG status
 
