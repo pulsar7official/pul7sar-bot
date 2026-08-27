@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""Compare stronger remote ZeroGPU renderers for one PUL7SAR editorial prompt.
+"""Compare remote ZeroGPU renderers as a non-canonical Phase 18 engineering study.
 
-This is a Phase 18 development benchmark. It intentionally bypasses local T4
-inference and calls public Hugging Face Spaces through gradio_client so PUL7SAR
-can compare current open-weight renderers without rebuilding its editorial brain.
-
-Renderers:
-- Qwen/Qwen-Image-2512 (official ZeroGPU Space)
-- black-forest-labs/FLUX.2-dev (official ZeroGPU Space)
-
-The tool saves raw base visuals only. PUL7SAR branding/typography remain separate,
-deterministic post-composition layers.
+This tool is deliberately isolated from the canonical `$0-local` Golden path.
+It may call public Hugging Face ZeroGPU Spaces to compare renderer quality, but
+its outputs can never authorize Semantic approval, Golden approval, or
+publication. Branding, typography, verified identity, exact facts, and exact
+sport geometry remain outside the renderer.
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -23,15 +19,52 @@ import time
 from typing import Any
 
 
+SCHEMA = "pul7sar-phase18-remote-renderer-benchmark-v2"
+COST_MODE = "$0-remote-zerogpu-study"
+PLATFORM_TOKENS = ("PUL7SAR", "PULSAR")
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+
+def _sha256_bytes(payload: bytes) -> str:
+    return hashlib.sha256(payload).hexdigest()
+
+
+def _sha256_text(value: str) -> str:
+    return _sha256_bytes(value.encode("utf-8"))
+
+
+def _validate_prompt(prompt: str) -> str:
+    value = prompt.strip()
+    if not value:
+        raise ValueError("prompt file is empty")
+    upper = value.upper()
+    leaked = [token for token in PLATFORM_TOKENS if token in upper]
+    if leaked:
+        raise ValueError(f"REMOTE_RENDERER_PLATFORM_NAME_LEAK: {', '.join(leaked)}")
+
+    required_markers = (
+        "identity must remain non-recognizable",
+        "one continuous physical scene only",
+        "no readable text",
+        "no club crest",
+        "no sponsor mark",
+    )
+    missing = [marker for marker in required_markers if marker not in value.lower()]
+    if missing:
+        raise ValueError(f"REMOTE_RENDERER_SAFETY_MARKER_MISSING: {missing}")
+    return value
+
+
 def _client(space: str):
     from gradio_client import Client
+
     token = os.environ.get("HF_TOKEN") or os.environ.get("HUGGINGFACE_TOKEN")
     kwargs = {"hf_token": token} if token else {}
     return Client(space, **kwargs)
 
 
-def _copy_result(result: Any, target: Path) -> None:
-    """Accept common gradio_client image return shapes and persist one PNG."""
+def _copy_result(result: Any, target: Path) -> dict[str, Any]:
+    """Persist one returned image and prove that the resulting bytes are PNG."""
     candidate = result
     if isinstance(candidate, (tuple, list)) and candidate:
         candidate = candidate[0]
@@ -46,13 +79,37 @@ def _copy_result(result: Any, target: Path) -> None:
         raise FileNotFoundError(f"Gradio result file not found: {candidate}")
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(source, target)
+    payload = target.read_bytes()
+    if not payload.startswith(PNG_SIGNATURE):
+        raise RuntimeError("REMOTE_RENDERER_OUTPUT_NOT_PNG")
+    return {
+        "output": str(target.resolve()),
+        "output_sha256": _sha256_bytes(payload),
+        "output_bytes": len(payload),
+    }
 
 
-def render_qwen(*, prompt: str, output: Path, seed: int) -> dict[str, Any]:
+def _report(*, renderer: str, space: str, output_evidence: dict[str, Any], seed: int,
+            prompt_sha256: str, elapsed_seconds: float) -> dict[str, Any]:
+    return {
+        "renderer": renderer,
+        "space": space,
+        **output_evidence,
+        "seed": seed,
+        "prompt_sha256": prompt_sha256,
+        "elapsed_seconds": round(elapsed_seconds, 3),
+        "cost_mode": COST_MODE,
+        "engineering_benchmark_only": True,
+        "canonical_golden_eligible": False,
+        "semantic_approved": False,
+        "golden_quality_approved": False,
+        "publication_ready": False,
+    }
+
+
+def render_qwen(*, prompt: str, output: Path, seed: int, prompt_sha256: str) -> dict[str, Any]:
     client = _client("Qwen/Qwen-Image-2512")
     started = time.monotonic()
-    # Official Space inputs: prompt, seed, randomize_seed, aspect_ratio,
-    # guidance_scale, num_inference_steps, prompt_enhance.
     result = client.predict(
         prompt,
         seed,
@@ -63,22 +120,20 @@ def render_qwen(*, prompt: str, output: Path, seed: int) -> dict[str, Any]:
         True,
         api_name="/infer",
     )
-    _copy_result(result, output)
-    return {
-        "renderer": "qwen-image-2512",
-        "space": "Qwen/Qwen-Image-2512",
-        "output": str(output.resolve()),
-        "seed": seed,
-        "elapsed_seconds": round(time.monotonic() - started, 3),
-        "publication_ready": False,
-    }
+    evidence = _copy_result(result, output)
+    return _report(
+        renderer="qwen-image-2512",
+        space="Qwen/Qwen-Image-2512",
+        output_evidence=evidence,
+        seed=seed,
+        prompt_sha256=prompt_sha256,
+        elapsed_seconds=time.monotonic() - started,
+    )
 
 
-def render_flux2_dev(*, prompt: str, output: Path, seed: int) -> dict[str, Any]:
+def render_flux2_dev(*, prompt: str, output: Path, seed: int, prompt_sha256: str) -> dict[str, Any]:
     client = _client("black-forest-labs/FLUX.2-dev")
     started = time.monotonic()
-    # Official Space inputs: prompt, input_images, seed, randomize_seed, width,
-    # height, num_inference_steps, guidance_scale, prompt_upsampling.
     result = client.predict(
         prompt,
         None,
@@ -91,15 +146,15 @@ def render_flux2_dev(*, prompt: str, output: Path, seed: int) -> dict[str, Any]:
         True,
         api_name="/infer",
     )
-    _copy_result(result, output)
-    return {
-        "renderer": "flux2-dev",
-        "space": "black-forest-labs/FLUX.2-dev",
-        "output": str(output.resolve()),
-        "seed": seed,
-        "elapsed_seconds": round(time.monotonic() - started, 3),
-        "publication_ready": False,
-    }
+    evidence = _copy_result(result, output)
+    return _report(
+        renderer="flux2-dev",
+        space="black-forest-labs/FLUX.2-dev",
+        output_evidence=evidence,
+        seed=seed,
+        prompt_sha256=prompt_sha256,
+        elapsed_seconds=time.monotonic() - started,
+    )
 
 
 def main() -> int:
@@ -111,9 +166,8 @@ def main() -> int:
     args = parser.parse_args()
 
     prompt_path = Path(args.prompt_file)
-    prompt = prompt_path.read_text(encoding="utf-8").strip()
-    if not prompt:
-        raise ValueError("prompt file is empty")
+    prompt = _validate_prompt(prompt_path.read_text(encoding="utf-8"))
+    prompt_sha256 = _sha256_text(prompt)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -127,7 +181,12 @@ def main() -> int:
     for name, fn, output in jobs:
         print(f"\n=== {name} ===", flush=True)
         try:
-            report = fn(prompt=prompt, output=output, seed=args.seed)
+            report = fn(
+                prompt=prompt,
+                output=output,
+                seed=args.seed,
+                prompt_sha256=prompt_sha256,
+            )
             reports.append(report)
             print(json.dumps(report, indent=2), flush=True)
         except Exception as exc:
@@ -136,10 +195,18 @@ def main() -> int:
             print(json.dumps(failure, indent=2), flush=True)
 
     payload = {
-        "status": "REMOTE_RENDERER_COMPARISON_COMPLETE" if reports else "REMOTE_RENDERER_COMPARISON_FAILED",
+        "schema": SCHEMA,
+        "status": "REMOTE_RENDERER_ENGINEERING_BENCHMARK_COMPLETE" if reports else "REMOTE_RENDERER_ENGINEERING_BENCHMARK_FAILED",
         "prompt_file": str(prompt_path.resolve()),
+        "prompt_sha256": prompt_sha256,
         "successful": reports,
         "failures": failures,
+        "cost_mode": COST_MODE,
+        "paid_provider_configured": False,
+        "engineering_benchmark_only": True,
+        "canonical_golden_eligible": False,
+        "semantic_approved": False,
+        "golden_quality_approved": False,
         "publication_ready": False,
         "human_visual_review_required": True,
     }
