@@ -20,7 +20,7 @@ from engine.intelligence.generation_package import GenerationPackage
 
 GOLDEN_PROMPT_BUDGET_CONTRACT = "pul7sar-golden-prompt-budget-v2"
 GOLDEN_BENCHMARK_ID = "golden-visual-season-opener-editorial-v6"
-GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1200
+GOLDEN_SCENE_PROMPT_BUDGET_CHARS = 1500
 
 
 _COMPACT_SCENE_PROMPT = (
@@ -28,7 +28,8 @@ _COMPACT_SCENE_PROMPT = (
     "Build one asymmetric editorial hierarchy around a single illuminated players' tunnel mouth in the lower-left to mid-left as the dominant atmospheric focal anchor; let layered stands and crowd depth recede diagonally behind it, with believable floodlights only as a secondary depth cue. "
     "Keep the right-center calm and low-detail for later headline typography and keep the upper-left restrained for later brand placement. "
     "Use an oblique three-quarter environmental camera; no high-wide-central broadcast framing and no full-pitch master shot. "
-    "Do not imply a specific real venue, club, match or person. Turf is optional context only and visually subordinate; do not fabricate exact pitch markings, tactical diagrams or regulation geometry. "
+    "Do not imply a specific real venue, club, match or person. Turf is optional context only and visually subordinate. Because playing-surface geometry is not required by this story, show no goal frame or goal net, no penalty-area or goal-area lines, no corner arc or corner flag, no centre circle or halfway line, and no other partial regulation pitch geometry. "
+    "Never invent isolated football geometry merely to signal a stadium. If exact sport geometry is not a verified story dependency, keep it outside the frame, fully occluded, or visually indeterminate. Do not fabricate exact pitch markings, tactical diagrams or regulation geometry. "
     "Keep the base fully unbranded, including platform names, readable text, numerals, logos and pseudo-text. "
     "Never use collage, montage, split-screen, grid, diptych, triptych, contact-sheet, framed-window or image-within-image composition."
 )
@@ -63,6 +64,11 @@ class GoldenPromptBudget:
             "right-center calm and low-detail",
             "upper-left restrained",
             "no full-pitch master shot",
+            "show no goal frame or goal net",
+            "no penalty-area or goal-area lines",
+            "no corner arc or corner flag",
+            "no centre circle or halfway line",
+            "keep it outside the frame, fully occluded, or visually indeterminate",
             "do not fabricate exact pitch markings",
             "tactical diagrams or regulation geometry",
         ):
@@ -75,6 +81,9 @@ class GoldenPromptBudget:
         metadata.update({
             "benchmark": benchmark_id,
             "generated_sport_geometry_allowed": False,
+            "partial_sport_geometry_allowed": False,
+            "sport_geometry_integrity_policy": "exact_verified_or_visually_indeterminate",
+            "partial_sport_geometry_hallucination_is_hard_failure": True,
             "golden_prompt_contract": GOLDEN_PROMPT_BUDGET_CONTRACT,
             "golden_prompt_compacted": True,
             "golden_scene_prompt_budget_chars": GOLDEN_SCENE_PROMPT_BUDGET_CHARS,
