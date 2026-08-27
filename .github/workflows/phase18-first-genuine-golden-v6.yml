@@ -73,47 +73,7 @@ jobs:
           print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
           PY
 
-      - name: Preflight immutable Qwen semantic runtime and snapshot before FLUX
-        shell: bash
-        run: |
-          set -euo pipefail
-          python tools/phase18_preflight_semantic_gpu.py \
-            --output output/phase18_gpu_smoke/semantic-preflight.json \
-            --qwen-cache-receipt output/phase18_gpu_smoke/qwen-model-cache.json
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          from engine.intelligence.approved_model_revisions import QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION
-
-          receipt = json.loads(Path("output/phase18_gpu_smoke/semantic-preflight.json").read_text(encoding="utf-8"))
-          if receipt.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
-              raise SystemExit("semantic preflight schema drift")
-          if receipt.get("branch") != "phase18/story-intelligence":
-              raise SystemExit("semantic preflight branch drift")
-          if receipt.get("model_id") != QWEN25_VL_3B_MODEL_ID:
-              raise SystemExit("semantic model id drift")
-          if receipt.get("model_revision") != QWEN25_VL_3B_REVISION:
-              raise SystemExit("semantic model revision drift")
-          if receipt.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or receipt.get("revision_pinned") is not True:
-              raise SystemExit("semantic snapshot revision not pinned")
-          if receipt.get("cost_mode") != "$0-local":
-              raise SystemExit("semantic preflight escaped zero-cost policy")
-          if receipt.get("semantic_runtime_ready") is not True or receipt.get("semantic_model_ready") is not True:
-              raise SystemExit("semantic runtime/model not ready before FLUX")
-          if receipt.get("cuda_available") is not True:
-              raise SystemExit("semantic CUDA runtime not proven")
-          for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
-              if receipt.get(field) is not False:
-                  raise SystemExit(f"semantic preflight authority drift: {field}")
-          print({
-              "status": "IMMUTABLE_QWEN_SEMANTIC_PREFLIGHT_VERIFIED",
-              "model_id": receipt.get("model_id"),
-              "model_revision": receipt.get("model_revision"),
-              "publication_ready": False,
-          })
-          PY
-
-      - name: Run resource/runtime-locked strict Golden Editorial v6 Candidate 1
+      - name: Run resource runtime semantic locked strict Golden Editorial v6 Candidate 1
         shell: bash
         run: |
           set -euo pipefail
@@ -129,42 +89,32 @@ jobs:
           import json
           from pathlib import Path
 
-          from engine.intelligence.approved_model_revisions import QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION
+          from engine.intelligence.approved_model_revisions import (
+              QWEN25_VL_3B_MODEL_ID,
+              QWEN25_VL_3B_REVISION,
+              assert_snapshot_revision,
+          )
           from engine.intelligence.generation_runtime_fingerprint import verify_matching_runtime_fingerprints
 
           root = Path.cwd().resolve()
-          semantic_path = root / "output/phase18_gpu_smoke/semantic-preflight.json"
-          if not semantic_path.is_file():
-              raise SystemExit("immutable Qwen semantic preflight receipt missing")
-          semantic = json.loads(semantic_path.read_text(encoding="utf-8"))
-          if semantic.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
-              raise SystemExit("semantic preflight schema drift during replay")
-          if semantic.get("model_id") != QWEN25_VL_3B_MODEL_ID or semantic.get("model_revision") != QWEN25_VL_3B_REVISION:
-              raise SystemExit("semantic model identity drift during replay")
-          if semantic.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or semantic.get("revision_pinned") is not True:
-              raise SystemExit("semantic snapshot revision drift during replay")
-          if semantic.get("semantic_runtime_ready") is not True or semantic.get("semantic_model_ready") is not True or semantic.get("cuda_available") is not True:
-              raise SystemExit("semantic preflight readiness drift during replay")
-          if semantic.get("cost_mode") != "$0-local":
-              raise SystemExit("semantic preflight zero-cost drift during replay")
-          for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
-              if semantic.get(field) is not False:
-                  raise SystemExit(f"semantic preflight authority drift during replay: {field}")
-
           final_path = root / "output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json"
           if not final_path.is_file():
-              raise SystemExit("first genuine Golden v6 resource/runtime-lock receipt missing")
+              raise SystemExit("first genuine Golden v6 resource/runtime/semantic-lock receipt missing")
           final = json.loads(final_path.read_text(encoding="utf-8"))
-          if final.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v2":
-              raise SystemExit("unexpected first genuine Golden v6 resource/runtime-lock schema")
-          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_LOCK_VERIFIED":
-              raise SystemExit("first genuine Golden v6 resource/runtime lock not verified")
+          if final.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v3":
+              raise SystemExit("unexpected first genuine Golden v6 resource/runtime/semantic-lock schema")
+          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED":
+              raise SystemExit("first genuine Golden v6 resource/runtime/semantic lock not verified")
           if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
               raise SystemExit("first genuine Golden v6 identity drift")
           if final.get("cost_mode") != "$0-local" or final.get("native_bf16_proven") is not True:
               raise SystemExit("first genuine Golden v6 zero-cost/BF16 contract drift")
           if final.get("gpu_eligible") is not True or final.get("host_memory_ready") is not True:
               raise SystemExit("first genuine Golden v6 resources not proven")
+          if final.get("semantic_preflight_bound") is not True:
+              raise SystemExit("first genuine Golden v6 semantic preflight not bound")
+          if final.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID or final.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("first genuine Golden v6 semantic identity drift")
           if final.get("runtime_stable_across_generation") is not True:
               raise SystemExit("first genuine Golden v6 runtime stability not proven")
           for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
@@ -191,6 +141,8 @@ jobs:
           expected = {
               "gpu_host_qualification",
               "host_memory_preflight",
+              "semantic_preflight",
+              "qwen_model_cache",
               "runtime_fingerprint_pre",
               "runtime_fingerprint_post",
               "strict_golden_staging",
@@ -205,6 +157,45 @@ jobs:
                   raise SystemExit(f"evidence missing: {label}")
               if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
                   raise SystemExit(f"evidence replay mismatch: {label}")
+
+          semantic = json.loads(inside(str(evidence["semantic_preflight"]["path"])).read_text(encoding="utf-8"))
+          qwen_cache = json.loads(inside(str(evidence["qwen_model_cache"]["path"])).read_text(encoding="utf-8"))
+          if semantic.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
+              raise SystemExit("semantic preflight schema drift during replay")
+          if semantic.get("branch") != "phase18/story-intelligence":
+              raise SystemExit("semantic preflight branch drift during replay")
+          if semantic.get("model_id") != QWEN25_VL_3B_MODEL_ID or semantic.get("model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("semantic model identity drift during replay")
+          if semantic.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or semantic.get("revision_pinned") is not True:
+              raise SystemExit("semantic snapshot revision drift during replay")
+          if semantic.get("semantic_runtime_ready") is not True or semantic.get("semantic_model_ready") is not True or semantic.get("cuda_available") is not True:
+              raise SystemExit("semantic preflight readiness drift during replay")
+          if semantic.get("cost_mode") != "$0-local":
+              raise SystemExit("semantic preflight zero-cost drift during replay")
+          for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+              if semantic.get(field) is not False:
+                  raise SystemExit(f"semantic preflight authority drift during replay: {field}")
+
+          if qwen_cache.get("schema") != "pul7sar-phase18-qwen-model-cache-v2" or qwen_cache.get("ready") is not True:
+              raise SystemExit("Qwen cache contract drift during replay")
+          if qwen_cache.get("model_id") != QWEN25_VL_3B_MODEL_ID or qwen_cache.get("model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("Qwen cache model identity drift during replay")
+          if qwen_cache.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or qwen_cache.get("revision_pinned") is not True:
+              raise SystemExit("Qwen cache revision drift during replay")
+          if qwen_cache.get("cost_mode") != "$0-local":
+              raise SystemExit("Qwen cache zero-cost drift during replay")
+          snapshot = qwen_cache.get("snapshot_path")
+          if not isinstance(snapshot, str) or not snapshot.strip():
+              raise SystemExit("Qwen cache snapshot path missing during replay")
+          try:
+              assert_snapshot_revision(snapshot, QWEN25_VL_3B_REVISION)
+          except (RuntimeError, ValueError) as exc:
+              raise SystemExit("Qwen cache snapshot path revision drift during replay") from exc
+          semantic_cache_receipt = semantic.get("model_prefetch_receipt")
+          if not isinstance(semantic_cache_receipt, str) or inside(semantic_cache_receipt) != inside(str(evidence["qwen_model_cache"]["path"])):
+              raise SystemExit("semantic preflight cache receipt binding drift")
+          if semantic.get("model_snapshot_path") != snapshot:
+              raise SystemExit("semantic preflight cache snapshot binding drift")
 
           runtime_pre = json.loads(inside(str(evidence["runtime_fingerprint_pre"]["path"])).read_text(encoding="utf-8"))
           runtime_post = json.loads(inside(str(evidence["runtime_fingerprint_post"]["path"])).read_text(encoding="utf-8"))
