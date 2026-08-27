@@ -18,10 +18,18 @@ from typing import Any
 LEDGER_SCHEMA = "pul7sar-phase18-remote-renderer-research-ledger-v1"
 DOCKET_SCHEMA = "pul7sar-phase18-remote-renderer-local-qualification-v1"
 REMOTE_COST_MODE = "$0-remote-zerogpu-study"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 QUALIFICATION_SCORE_FLOOR = 8.5
 MIN_GEOMETRY_SCORE = 8.5
 MIN_ENTITY_NEUTRALITY_SCORE = 9.0
 MIN_TEXT_BRAND_CLEANLINESS_SCORE = 9.0
+HARD_BLOCKERS = (
+    "broken_geometry",
+    "pseudo_text",
+    "identifiable_entity_cue",
+    "multi_scene_or_collage",
+    "generated_brand_or_crest",
+)
 REQUIRED_LOCAL_GATES = (
     "explicit_local_model_candidate",
     "pinned_model_revision",
@@ -110,6 +118,15 @@ def _leader_entry(ledger: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate_research_strength(entry: dict[str, Any]) -> None:
+    blockers = entry.get("hard_blockers")
+    if not isinstance(blockers, dict):
+        raise ValueError("REMOTE_LOCAL_QUALIFICATION_HARD_BLOCKERS_MISSING")
+    for field in HARD_BLOCKERS:
+        value = blockers.get(field)
+        if not isinstance(value, bool):
+            raise ValueError(f"REMOTE_LOCAL_QUALIFICATION_HARD_BLOCKER_INVALID: {field}")
+        if value:
+            raise ValueError(f"REMOTE_LOCAL_QUALIFICATION_HARD_BLOCKER_PRESENT: {field}")
     if entry.get("blocker_free") is not True or entry.get("research_score_floor_met") is not True:
         raise ValueError("REMOTE_LOCAL_QUALIFICATION_RESEARCH_BLOCKED")
     average = entry.get("average_score")
@@ -145,9 +162,14 @@ class RemoteRendererLocalQualificationDocketBuilder:
         if not isinstance(output, str) or not output:
             raise ValueError("REMOTE_LOCAL_QUALIFICATION_LEADER_OUTPUT_PATH_INVALID")
         output_path = _require_repo_path(Path(output), self.repo_root)
-        actual_output_sha = _sha256_file(output_path)
+        output_payload = output_path.read_bytes()
+        if not output_payload.startswith(PNG_SIGNATURE):
+            raise ValueError("REMOTE_LOCAL_QUALIFICATION_LEADER_OUTPUT_NOT_PNG")
+        actual_output_sha = _sha256_bytes(output_payload)
         if actual_output_sha != entry.get("output_sha256"):
             raise ValueError("REMOTE_LOCAL_QUALIFICATION_LEADER_PNG_SHA_MISMATCH")
+        if len(output_payload) != entry.get("output_bytes"):
+            raise ValueError("REMOTE_LOCAL_QUALIFICATION_LEADER_PNG_SIZE_MISMATCH")
 
         payload = {
             "schema": DOCKET_SCHEMA,
@@ -159,6 +181,7 @@ class RemoteRendererLocalQualificationDocketBuilder:
             "remote_space": entry.get("space"),
             "research_output": str(output_path),
             "research_output_sha256": actual_output_sha,
+            "research_output_bytes": len(output_payload),
             "research_average_score": float(entry.get("average_score")),
             "research_scores": dict(entry.get("scores") or {}),
             "qualification_score_floor": QUALIFICATION_SCORE_FLOOR,
