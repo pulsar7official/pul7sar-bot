@@ -1,9 +1,9 @@
 """Fail-closed Qwen Image 2512 single-inference measurement evidence.
 
-This module is intentionally narrower than canonical generation.  It can prove
+This module is intentionally narrower than canonical generation. It can prove
 only that the exact pinned Qwen Image 2512 snapshot completed one tiny,
 identity-neutral, local inference probe after a successful pipeline-load
-measurement.  A successful probe does NOT establish the production runtime
+measurement. A successful probe does NOT establish the production runtime
 floor, does not create Golden evidence, and never authorizes publication.
 """
 from __future__ import annotations
@@ -60,6 +60,10 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(ch in "0123456789abcdef" for ch in value.lower())
 
 
 def validate_probe_prompt(prompt: str = PROBE_PROMPT) -> str:
@@ -188,12 +192,49 @@ def verify_inference_measurement_receipt(receipt: dict[str, Any]) -> str:
         raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_CANVAS_DRIFT")
     if receipt.get("probe_steps") != PROBE_STEPS or receipt.get("probe_seed") != PROBE_SEED:
         raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_PARAMETER_DRIFT")
+    if receipt.get("probe_guidance_scale") != PROBE_GUIDANCE_SCALE:
+        raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_GUIDANCE_DRIFT")
     if receipt.get("required_offload_mode") != PROBE_OFFLOAD_MODE:
         raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_OFFLOAD_CONTRACT_DRIFT")
+    if not _is_sha256(receipt.get("load_receipt_sha256")) or not _is_sha256(receipt.get("load_receipt_file_sha256")):
+        raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_LOAD_EVIDENCE_SHA_INVALID")
+    snapshot_raw = receipt.get("exact_snapshot_path")
+    if not isinstance(snapshot_raw, str) or Path(snapshot_raw).name != QWEN_IMAGE_2512_REVISION:
+        raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_SNAPSHOT_REVISION_MISMATCH")
+
     prompt = validate_probe_prompt(str(receipt.get("probe_prompt", "")))
     expected_prompt_sha = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
     if receipt.get("probe_prompt_sha256") != expected_prompt_sha:
         raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_PROMPT_SHA_MISMATCH")
+
+    status = receipt.get("status")
+    succeeded = receipt.get("inference_succeeded") is True
+    exit_code = receipt.get("child_exit_code")
+    proven = receipt.get("single_inference_proven") is True
+    if status not in {"QWEN_IMAGE_2512_SINGLE_INFERENCE_MEASURED", "QWEN_IMAGE_2512_SINGLE_INFERENCE_FAILED"}:
+        raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_STATUS_INVALID")
+    expected_success = status == "QWEN_IMAGE_2512_SINGLE_INFERENCE_MEASURED"
+    if succeeded != expected_success or proven != expected_success or (exit_code == 0) != expected_success:
+        raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_OUTCOME_INCONSISTENT")
+
+    if expected_success:
+        if receipt.get("pipeline_class") != "QwenImagePipeline":
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_PIPELINE_CLASS_MISMATCH")
+        if receipt.get("offload_mode") != PROBE_OFFLOAD_MODE:
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_ACTUAL_OFFLOAD_MISMATCH")
+        if receipt.get("native_bf16") is not True:
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_NATIVE_BF16_UNPROVEN")
+        output_path = receipt.get("output_png_path")
+        output_size = receipt.get("output_png_size_bytes")
+        if not isinstance(output_path, str) or not output_path.lower().endswith(".png"):
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_OUTPUT_PATH_INVALID")
+        if not _is_sha256(receipt.get("output_png_sha256")):
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_OUTPUT_SHA_INVALID")
+        if not isinstance(output_size, int) or output_size <= 0:
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_OUTPUT_SIZE_INVALID")
+        if receipt.get("failure_type") is not None or receipt.get("failure_message") is not None:
+            raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_SUCCESS_FAILURE_FIELDS_PRESENT")
+
     for field in (
         "runtime_floor_proven",
         "local_runtime_qualified",
@@ -209,7 +250,7 @@ def verify_inference_measurement_receipt(receipt: dict[str, Any]) -> str:
     if receipt.get("engineering_measurement_only") is not True or receipt.get("canonical_pixels_reusable") is not False:
         raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_BOUNDARY_MISSING")
     claimed = receipt.get("receipt_sha256")
-    if not isinstance(claimed, str) or len(claimed) != 64:
+    if not _is_sha256(claimed):
         raise ValueError("QWEN_IMAGE_INFERENCE_MEASUREMENT_SHA_INVALID")
     unsigned = dict(receipt)
     unsigned.pop("receipt_sha256", None)
