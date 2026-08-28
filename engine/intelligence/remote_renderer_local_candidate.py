@@ -4,9 +4,9 @@ Remote ZeroGPU evidence may justify measuring a renderer locally, but it may not
 select or authorize a canonical model by itself. This module requires an
 explicit caller-supplied PUL7SAR ``LocalModelCandidate`` identifier and only
 accepts an exact curated model match for the research renderer. The result is a
-non-authoritative declaration: pinned model revision, measured runtime
-readiness, genuine local generation, semantic review, human review and Golden
-quality all remain downstream requirements.
+non-authoritative declaration: immutable model revision may be pinned here, but
+measured runtime readiness, genuine local generation, semantic review, human
+review and Golden quality all remain downstream requirements.
 """
 from __future__ import annotations
 
@@ -16,19 +16,27 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from engine.intelligence.approved_model_revisions import (
+    QWEN_IMAGE_2512_MODEL_ID,
+    QWEN_IMAGE_2512_REVISION,
+    assert_full_commit_sha,
+)
 from engine.intelligence.cost_policy import BillingClass
 from engine.intelligence.zero_cost_models import LocalModelCandidate, ZERO_COST_LOCAL_CANDIDATES
 
 
 DOCKET_SCHEMA = "pul7sar-phase18-remote-renderer-local-qualification-v1"
-DECLARATION_SCHEMA = "pul7sar-phase18-remote-renderer-explicit-local-candidate-v1"
+DECLARATION_SCHEMA = "pul7sar-phase18-remote-renderer-explicit-local-candidate-v2-pinned-revision"
 CANONICAL_COST_MODE = "$0-local"
 
 # Deliberately strict. A research renderer may only nominate the exact curated
 # local model profile for the same upstream model family. Similar-looking or
 # smaller variants are not silently treated as equivalent Golden candidates.
 REMOTE_RENDERER_EXACT_LOCAL_MODEL = {
-    "qwen-image-2512": "Qwen/Qwen-Image-2512",
+    "qwen-image-2512": QWEN_IMAGE_2512_MODEL_ID,
+}
+APPROVED_LOCAL_MODEL_REVISIONS = {
+    QWEN_IMAGE_2512_MODEL_ID: QWEN_IMAGE_2512_REVISION,
 }
 
 
@@ -117,6 +125,13 @@ def _assert_zero_cost_candidate(candidate: LocalModelCandidate) -> None:
         raise ValueError("REMOTE_LOCAL_CANDIDATE_PAYMENT_METHOD_FORBIDDEN")
 
 
+def _approved_revision(candidate: LocalModelCandidate) -> str:
+    revision = APPROVED_LOCAL_MODEL_REVISIONS.get(candidate.model_id)
+    if revision is None:
+        raise ValueError("REMOTE_LOCAL_CANDIDATE_PINNED_REVISION_MISSING")
+    return assert_full_commit_sha(revision, label="explicit local model candidate revision")
+
+
 @dataclass(frozen=True)
 class RemoteRendererExplicitLocalCandidateBuilder:
     repo_root: Path
@@ -137,10 +152,11 @@ class RemoteRendererExplicitLocalCandidateBuilder:
         if not isinstance(renderer, str) or not renderer:
             raise ValueError("REMOTE_LOCAL_CANDIDATE_RENDERER_INVALID")
         _assert_exact_remote_match(renderer, candidate)
+        revision = _approved_revision(candidate)
 
         payload = {
             "schema": DECLARATION_SCHEMA,
-            "status": "REMOTE_RENDERER_EXPLICIT_LOCAL_MODEL_CANDIDATE_DECLARED",
+            "status": "REMOTE_RENDERER_EXPLICIT_LOCAL_MODEL_CANDIDATE_REVISION_PINNED",
             "qualification_docket": str(docket_path),
             "qualification_docket_file_sha256": _sha256_file(docket_path),
             "qualification_docket_sha256": docket_digest,
@@ -150,6 +166,7 @@ class RemoteRendererExplicitLocalCandidateBuilder:
             "research_average_score": docket.get("research_average_score"),
             "local_model_candidate_id": candidate.provider_id,
             "local_model_id": candidate.model_id,
+            "local_model_revision": revision,
             "local_model_license": candidate.license_id,
             "local_runtime_adapter": candidate.runtime_adapter,
             "local_quality_tier": candidate.quality_tier.value,
@@ -162,7 +179,8 @@ class RemoteRendererExplicitLocalCandidateBuilder:
             "research_signal_only": True,
             "research_pixels_reusable_as_canonical_evidence": False,
             "pinned_model_revision_required": True,
-            "pinned_model_revision": None,
+            "pinned_model_revision": revision,
+            "pinned_model_revision_proven": True,
             "measured_runtime_readiness_required": True,
             "local_runtime_qualified": False,
             "local_generation_authorized": False,
