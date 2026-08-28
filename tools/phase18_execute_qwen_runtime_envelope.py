@@ -28,6 +28,7 @@ from engine.intelligence.qwen_image_inference_measurement import (
     PROBE_PROMPT,
     PROBE_SEED,
     sha256_file,
+    validate_probe_prompt,
 )
 from engine.intelligence.qwen_image_runtime_envelope_admission import verify_runtime_envelope_admission
 from engine.intelligence.qwen_image_runtime_envelope_executor import (
@@ -68,13 +69,14 @@ def _probe_by_id(probe_id: str) -> dict[str, Any]:
 
 
 def _base_child_payload(probe: dict[str, Any]) -> dict[str, Any]:
+    normalized_prompt = validate_probe_prompt(PROBE_PROMPT)
     return {
         **probe,
         "seed": PROBE_SEED,
         "guidance_scale": PROBE_GUIDANCE_SCALE,
         "dtype": DTYPE,
-        "offload_mode": OFFLOAD_MODE,
-        "prompt_sha256": hashlib.sha256(PROBE_PROMPT.encode("utf-8")).hexdigest(),
+        "offload_mode": None,
+        "prompt_sha256": hashlib.sha256(normalized_prompt.encode("utf-8")).hexdigest(),
         "child_exit_code": 2,
         "inference_succeeded": False,
         "pipeline_class": None,
@@ -145,9 +147,10 @@ def _child(snapshot: Path, result_path: Path, png_path: Path, probe_id: str) -> 
         if not callable(sequential):
             raise RuntimeError("QWEN_RUNTIME_ENVELOPE_EXECUTOR_SEQUENTIAL_OFFLOAD_UNAVAILABLE")
         sequential()
+        payload["offload_mode"] = OFFLOAD_MODE
         generator = torch.Generator(device="cpu").manual_seed(PROBE_SEED)
         result = pipe(
-            prompt=PROBE_PROMPT,
+            prompt=validate_probe_prompt(PROBE_PROMPT),
             width=probe["width"],
             height=probe["height"],
             num_inference_steps=probe["steps"],
@@ -178,7 +181,6 @@ def _child(snapshot: Path, result_path: Path, png_path: Path, probe_id: str) -> 
         payload["failure_type"] = type(exc).__name__
         payload["failure_message"] = str(exc)[:2000]
         payload["child_exit_code"] = 2
-        # Failed probes must never leave a partially written artifact as evidence.
         png_path.unlink(missing_ok=True)
     finally:
         payload["elapsed_seconds"] = round(time.monotonic() - started, 3)
@@ -274,7 +276,6 @@ def main() -> int:
         observations=observations,
         repo_root=ROOT,
     )
-    # Replay the complete receipt and actual PNG bytes before persisting it.
     verify_runtime_envelope_execution_receipt(receipt, repo_root=ROOT)
     if receipt["source_plan_sha256"] != plan_sha:
         raise RuntimeError("QWEN_RUNTIME_ENVELOPE_EXECUTOR_PLAN_BINDING_MISMATCH")
