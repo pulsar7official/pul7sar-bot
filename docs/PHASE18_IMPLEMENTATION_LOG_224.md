@@ -93,7 +93,9 @@ The new receipt itself keeps `runtime_floor_proven=false`, `local_runtime_qualif
 
 ## Testing status for this change set
 
-Files have been committed to `phase18/story-intelligence`. GitHub Actions is expected to run the discover-based Phase 18 suite automatically. At the time this log entry is created, no successful Story Intelligence result for the final Change Set 224 HEAD is claimed yet; CI must complete before this change set is called green.
+An intermediate Story Intelligence Verification Run `33134230170 / run 3600` executed against code HEAD `28c5aba451dc336d5433ed3cd4e47c0164de5b4d` and failed in `Syntax and discover validation`. That run occurred after the snapshot-completeness hardening but before the regression fixtures were updated in commit `5cef152c86dc44d151302363e84d9071a379ec07`. The GitHub API exposes the failed step but not a usable textual assertion log in this run context, so no unsupported cause is claimed beyond that ordering fact.
+
+After that intermediate run was launched, the regression suite was updated to create a complete pinned snapshot fixture and to cover incomplete-snapshot and host-memory-authority failures explicitly. Companion Phase 18 workflows observed on the corrected test head include successful runs. A successful Story Intelligence result for the final Change Set 224 HEAD is still required before this change set is called fully CI-green.
 
 ## Golden Visual status
 
