@@ -109,7 +109,7 @@ def _failure_observation(probe: dict) -> dict:
         "seed": PROBE_SEED,
         "guidance_scale": PROBE_GUIDANCE_SCALE,
         "dtype": DTYPE,
-        "offload_mode": OFFLOAD_MODE,
+        "offload_mode": None,
         "prompt_sha256": hashlib.sha256(validate_probe_prompt(PROBE_PROMPT).encode("utf-8")).hexdigest(),
         "child_exit_code": 2,
         "inference_succeeded": False,
@@ -140,11 +140,9 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             root = Path(tmp)
             observations = [_success_observation(dict(probe), root / f"{probe['probe_id']}.png") for probe in PROBES]
             receipt = build_runtime_envelope_execution_receipt(
-                _valid_plan(),
-                plan_file_sha256=SHA_D,
+                _valid_plan(), plan_file_sha256=SHA_D,
                 exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION),
-                observations=observations,
-                repo_root=root,
+                observations=observations, repo_root=root,
             )
             self.assertEqual(receipt["schema"], RUNTIME_ENVELOPE_EXECUTION_SCHEMA)
             self.assertTrue(receipt["all_planned_probes_completed"])
@@ -154,7 +152,7 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             self.assertFalse(receipt["publication_ready"])
             self.assertEqual(verify_runtime_envelope_execution_receipt(receipt, repo_root=root), receipt["execution_sha256"])
 
-    def test_first_failure_is_valid_stopped_evidence(self) -> None:
+    def test_first_failure_is_valid_stopped_evidence_without_claiming_offload(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             receipt = build_runtime_envelope_execution_receipt(
@@ -165,6 +163,7 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             self.assertEqual(receipt["status"], "QWEN_IMAGE_2512_RUNTIME_ENVELOPE_STOPPED")
             self.assertTrue(receipt["stopped_on_first_failure"])
             self.assertEqual(receipt["completed_probe_count"], 1)
+            self.assertIsNone(receipt["probe_results"][0]["offload_mode"])
 
     def test_continuing_after_failure_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -184,8 +183,18 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "INCOMPLETE_WITHOUT_FAILURE"):
                 build_runtime_envelope_execution_receipt(
                     _valid_plan(), plan_file_sha256=SHA_D,
-                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION),
-                    observations=[first], repo_root=root,
+                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION), observations=[first], repo_root=root,
+                )
+
+    def test_success_without_observed_offload_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            first = _success_observation(dict(PROBES[0]), root / "first.png")
+            first["offload_mode"] = None
+            with self.assertRaisesRegex(ValueError, "ACTUAL_OFFLOAD_UNPROVEN"):
+                build_runtime_envelope_execution_receipt(
+                    _valid_plan(), plan_file_sha256=SHA_D,
+                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION), observations=[first], repo_root=root,
                 )
 
     def test_png_byte_tamper_is_detected_on_replay(self) -> None:
@@ -194,8 +203,7 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             observations = [_success_observation(dict(probe), root / f"{probe['probe_id']}.png") for probe in PROBES]
             receipt = build_runtime_envelope_execution_receipt(
                 _valid_plan(), plan_file_sha256=SHA_D,
-                exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION),
-                observations=observations, repo_root=root,
+                exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION), observations=observations, repo_root=root,
             )
             Path(observations[1]["output_png_path"]).write_bytes(PNG_SIGNATURE + b"tampered")
             with self.assertRaisesRegex(ValueError, "PNG_(SIZE|SHA)_MISMATCH"):
@@ -208,8 +216,7 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "PROBE_PARAMETER_DRIFT"):
                 build_runtime_envelope_execution_receipt(
                     _valid_plan(), plan_file_sha256=SHA_D,
-                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION),
-                    observations=[observation], repo_root=root,
+                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION), observations=[observation], repo_root=root,
                 )
 
     def test_authority_forgery_fails_even_after_rehash(self) -> None:
@@ -217,8 +224,7 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             root = Path(tmp)
             receipt = build_runtime_envelope_execution_receipt(
                 _valid_plan(), plan_file_sha256=SHA_D,
-                exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION),
-                observations=[_failure_observation(dict(PROBES[0]))], repo_root=root,
+                exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION), observations=[_failure_observation(dict(PROBES[0]))], repo_root=root,
             )
             forged = copy.deepcopy(receipt)
             forged["canonical_generation_authorized"] = True
@@ -234,8 +240,7 @@ class QwenRuntimeEnvelopeExecutorTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "RUNTIME_CONTRACT_DRIFT"):
                 build_runtime_envelope_execution_receipt(
                     _valid_plan(), plan_file_sha256=SHA_D,
-                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION),
-                    observations=[failed], repo_root=root,
+                    exact_snapshot_path=str(root / QWEN_IMAGE_2512_REVISION), observations=[failed], repo_root=root,
                 )
 
 
