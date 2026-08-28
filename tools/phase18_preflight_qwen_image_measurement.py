@@ -94,8 +94,6 @@ def main() -> int:
         repository_gib=float(declaration.get("local_repository_size_gb") or 57.7),
     )
     receipt = admission.as_receipt(declaration_sha256=declaration_sha)
-    receipt["declaration_path"] = str(declaration_path)
-    receipt["cache_root"] = str(cache_root)
 
     receipt_path = _repo_path(args.receipt)
     receipt_path.parent.mkdir(parents=True, exist_ok=True)
