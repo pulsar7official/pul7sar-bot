@@ -74,7 +74,10 @@ def _validate_probe_observation(observation: dict[str, Any], expected: dict[str,
             raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_PROBE_PARAMETER_DRIFT")
     if observation.get("seed") != PROBE_SEED or observation.get("guidance_scale") != PROBE_GUIDANCE_SCALE:
         raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_COMPARABILITY_DRIFT")
-    if observation.get("dtype") != DTYPE or observation.get("offload_mode") != OFFLOAD_MODE:
+    if observation.get("dtype") != DTYPE:
+        raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_RUNTIME_CONTRACT_DRIFT")
+    observed_offload = observation.get("offload_mode")
+    if observed_offload is not None and observed_offload != OFFLOAD_MODE:
         raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_RUNTIME_CONTRACT_DRIFT")
     if observation.get("prompt_sha256") != hashlib.sha256(validate_probe_prompt(PROBE_PROMPT).encode("utf-8")).hexdigest():
         raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_PROMPT_DRIFT")
@@ -87,6 +90,8 @@ def _validate_probe_observation(observation: dict[str, Any], expected: dict[str,
         raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_OUTCOME_INCONSISTENT")
 
     if succeeded:
+        if observed_offload != OFFLOAD_MODE:
+            raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_ACTUAL_OFFLOAD_UNPROVEN")
         if observation.get("pipeline_class") != "QwenImagePipeline" or observation.get("native_bf16") is not True:
             raise ValueError("QWEN_RUNTIME_ENVELOPE_EXECUTION_PIPELINE_OR_BF16_UNPROVEN")
         for field in (
