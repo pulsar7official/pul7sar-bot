@@ -18,7 +18,7 @@
 
 Change Set 230 validates each locked runtime-envelope probe and its engineering PNG independently. Before a later runtime-qualification decision, the evidence also needs a cross-probe coherence boundary. Without it, individually valid observations could theoretically be stitched from different GPU/software environments and still look like one complete envelope.
 
-Change Set 231 prevents that ambiguity.
+Change Set 231 prevents that ambiguity and also locks the derived summary so a rehashed candidate cannot claim a larger measured envelope than the locked probes actually covered.
 
 ## Added files
 
@@ -36,6 +36,16 @@ Adds a CPU-only, fail-closed normalization contract that:
 - produces a SHA-bound qualification candidate;
 - leaves every production, Golden, semantic, and publication authority false.
 
+Hardening commit: `f85d056e778837182db7e5d9e63c40436edb9618`.
+
+Replay was tightened so a candidate cannot be made stronger merely by editing its summary and recomputing the digest. The verifier now requires:
+
+- the locked maximum probe extent to remain exactly 1024×1024 / 8 steps;
+- the summary field set to be exact;
+- maximum CUDA allocated memory not to exceed maximum CUDA reserved memory;
+- summarized free VRAM not to exceed the coherent runtime's total VRAM;
+- total VRAM itself to be positive.
+
 ### `tests/test_phase18_qwen_image_runtime_qualification_candidate.py`
 
 Creation commit: `c0bc1f07dbe1d2a6bf8f5463e196a27361becdfe`.
@@ -50,13 +60,21 @@ Adds canonical `unittest` regression coverage for:
 - authority forgery rejection even after candidate digest recomputation;
 - candidate digest tamper detection.
 
-The fixtures are CPU-only and simulate evidence. They do not claim real CUDA execution.
+### `tests/test_phase18_qwen_image_runtime_qualification_candidate_replay.py`
+
+Creation commit: `bca5026181cd0f246c801529a85f272c794b7aab`.
+
+Adds focused replay-hardening regressions proving that rehashing does not permit:
+
+- claiming a 2048-pixel measured extent when the locked envelope ends at 1024;
+- reporting maximum CUDA allocation above maximum CUDA reservation;
+- reporting free VRAM above the coherent runtime's total VRAM.
 
 ### `tools/phase18_build_qwen_runtime_qualification_candidate.py`
 
 Creation commit: `d32c2560538a1030c973699b029496485bcb7aae`.
 
-Adds a CPU-only CLI that reads an on-disk Change Set 230 execution receipt, SHA-binds the receipt file, replays the referenced engineering PNGs through the qualification builder, and writes a normalized candidate receipt.
+Adds a CPU-only CLI that reads an on-disk Change Set 230 execution receipt, SHA-binds the receipt file, replays referenced engineering PNGs through the qualification builder, and writes a normalized candidate receipt.
 
 It does not load a model, invoke CUDA, mutate the generation queue, or grant canonical/Golden/publication authority.
 
@@ -68,23 +86,24 @@ Documents purpose, evidence semantics, same-runtime requirement, preserved gates
 
 ### `docs/PHASE18_IMPLEMENTATION_LOG_231.md`
 
-This file records the complete implementation history and verification state for Change Set 231.
+Initial creation commit: `bc77959a029a06f526b1acd6e25edb58eb879c09`.
+
+This update records subsequent replay hardening and its regression coverage.
 
 ## Modified files
 
-None. Change Set 231 is additive.
+- `engine/intelligence/qwen_image_runtime_qualification_candidate.py` — hardened in `f85d056e778837182db7e5d9e63c40436edb9618`.
+- `docs/PHASE18_IMPLEMENTATION_LOG_231.md` — updated to record all Change Set 231 implementation and hardening work.
+
+No existing canonical-generation or semantic-publication runtime file was modified.
 
 ## Deleted files
 
 None.
 
-## Existing production/canonical runtime changes
-
-None. No existing canonical generation, semantic publication, or production runtime file was modified.
-
 ## Test scope
 
-The new tests are intentionally CPU-only. They exercise evidence validation, cross-probe coherence, digest replay, and authority boundaries without pretending that a compatible NVIDIA host was used.
+All new tests are CPU-only. They exercise evidence validation, cross-probe coherence, digest replay, summary consistency, and authority boundaries without pretending that a compatible NVIDIA host was used.
 
 No real Qwen inference result, runtime floor, Golden PNG, or visual score is asserted by these tests.
 
