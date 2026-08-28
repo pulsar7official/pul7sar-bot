@@ -1,19 +1,21 @@
 """Fail-closed readiness audit for production gate replay verifier wiring.
 
 Change Set 239 introduced the canonical production registry audit. Change Set 240
-hardens that audit so a callable cannot become "production ready" merely by carrying
-an ID/version pair. Every adapter must also attest its exact gate, production-backed
-status, and the source module/callable it delegates to. This still does not execute
-semantic replay and grants no generation authority.
+required provenance metadata for every production-backed adapter. Change Set 241
+hardens that boundary again: provenance can no longer be string-only. Every adapter
+must bind the actual source callable object it delegates to, and that callable's
+repository source file is byte-bound with SHA-256.
 
+This layer still does not execute semantic replay and grants no generation authority.
 The canonical registry remains intentionally empty until real adapters exist. Missing,
-extra, non-callable, weakly identified, source-less, test/stub-like, or incompatible
-callables keep readiness false. Test fixtures cannot become Golden or publication
-authority through this layer.
+extra, non-callable, weakly identified, source-less, test/stub-like, source-object
+mismatched, repository-external, or incompatible callables keep readiness false.
 """
 from __future__ import annotations
 
+import hashlib
 import inspect
+from pathlib import Path
 from typing import Any, Callable, Mapping
 
 from engine.intelligence.qwen_image_controlled_golden_trial_preflight import (
@@ -22,7 +24,7 @@ from engine.intelligence.qwen_image_controlled_golden_trial_preflight import (
 from engine.intelligence.qwen_image_inference_measurement import COST_MODE, sha256_json
 
 PRODUCTION_GATE_VERIFIER_READINESS_SCHEMA = (
-    "pul7sar-phase18-qwen-image-2512-production-gate-verifier-readiness-v2"
+    "pul7sar-phase18-qwen-image-2512-production-gate-verifier-readiness-v3"
 )
 CANONICAL_REGISTRY_MODULE = (
     "engine.intelligence.qwen_image_production_gate_verifier_registry"
@@ -33,9 +35,26 @@ VERIFIER_GATE_ATTRIBUTE = "PUL7SAR_VERIFIER_GATE_ID"
 VERIFIER_PRODUCTION_BACKED_ATTRIBUTE = "PUL7SAR_PRODUCTION_BACKED"
 VERIFIER_SOURCE_MODULE_ATTRIBUTE = "PUL7SAR_SOURCE_MODULE"
 VERIFIER_SOURCE_CALLABLE_ATTRIBUTE = "PUL7SAR_SOURCE_CALLABLE"
+VERIFIER_SOURCE_OBJECT_ATTRIBUTE = "PUL7SAR_SOURCE_CALLABLE_OBJECT"
 
 _FORBIDDEN_SOURCE_PREFIXES = ("tests", "test", "unittest", "__main__")
 _FORBIDDEN_SOURCE_TOKENS = ("fixture", "stub", "fake", "mock", "dummy", "placeholder")
+_FORBIDDEN_SOURCE_PATH_PARTS = {
+    "tests",
+    "test",
+    "fixtures",
+    "fixture",
+    "mocks",
+    "mock",
+    "stubs",
+    "stub",
+    "fakes",
+    "fake",
+    "dummies",
+    "dummy",
+    "placeholders",
+    "placeholder",
+}
 
 _FORBIDDEN_AUTHORITY_FIELDS = (
     "runtime_floor_proven",
@@ -80,6 +99,56 @@ def _valid_source_callable(value: Any) -> bool:
     return not any(token in normalized for token in _FORBIDDEN_SOURCE_TOKENS)
 
 
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
+def _source_file_binding(source_object: Any) -> dict[str, Any] | None:
+    """Return a byte-bound repository source file for a real source callable."""
+    if not callable(source_object) or not _signature_accepts_replay_call(source_object):
+        return None
+    source_file = inspect.getsourcefile(source_object)
+    if not isinstance(source_file, str) or not source_file:
+        return None
+
+    root = _repo_root()
+    candidate = Path(source_file).resolve()
+    try:
+        relative = candidate.relative_to(root)
+    except ValueError:
+        return None
+    if not candidate.is_file():
+        return None
+
+    normalized_parts = {part.lower() for part in relative.parts}
+    if normalized_parts & _FORBIDDEN_SOURCE_PATH_PARTS:
+        return None
+
+    source_bytes = candidate.read_bytes()
+    if not source_bytes:
+        return None
+    return {
+        "repository_relative_path": relative.as_posix(),
+        "byte_size": len(source_bytes),
+        "sha256": hashlib.sha256(source_bytes).hexdigest(),
+    }
+
+
+def _source_object_matches_declaration(
+    source_object: Any,
+    source_module: Any,
+    source_callable: Any,
+) -> bool:
+    if not callable(source_object):
+        return False
+    if not (_valid_source_module(source_module) and _valid_source_callable(source_callable)):
+        return False
+    actual_module = getattr(source_object, "__module__", None)
+    actual_qualname = getattr(source_object, "__qualname__", None)
+    actual_name = getattr(source_object, "__name__", None)
+    return actual_module == source_module and source_callable in {actual_qualname, actual_name}
+
+
 def audit_production_gate_verifier_readiness(
     registry: Mapping[str, Callable[..., Any]],
     *,
@@ -117,6 +186,13 @@ def audit_production_gate_verifier_readiness(
                     "production_backed": False,
                     "source_module": None,
                     "source_callable": None,
+                    "source_object_bound": False,
+                    "source_object_matches_declaration": False,
+                    "source_signature_compatible": False,
+                    "source_repository_relative_path": None,
+                    "source_file_byte_size": None,
+                    "source_file_sha256": None,
+                    "source_file_byte_bound": False,
                     "signature_compatible": False,
                     "provenance_complete": False,
                 }
@@ -139,15 +215,37 @@ def audit_production_gate_verifier_readiness(
         source_callable = (
             getattr(verifier, VERIFIER_SOURCE_CALLABLE_ATTRIBUTE, None) if callable_ok else None
         )
+        source_object = (
+            getattr(verifier, VERIFIER_SOURCE_OBJECT_ATTRIBUTE, None) if callable_ok else None
+        )
 
         identity_ok = _valid_identity(verifier_id) and _valid_identity(verifier_version)
         gate_binding_ok = declared_gate_id == gate_id
         source_ok = _valid_source_module(source_module) and _valid_source_callable(source_callable)
+        source_object_bound = callable(source_object)
+        source_object_matches = _source_object_matches_declaration(
+            source_object,
+            source_module,
+            source_callable,
+        )
+        source_signature_ok = source_object_bound and _signature_accepts_replay_call(source_object)
+        source_file_binding = (
+            _source_file_binding(source_object)
+            if source_object_matches and source_signature_ok
+            else None
+        )
         source_binding = (source_module, source_callable) if source_ok else None
         identity_unique = bool(identity_ok and verifier_id not in verifier_ids)
         source_unique = bool(source_binding is not None and source_binding not in source_bindings)
         provenance_complete = bool(
-            gate_binding_ok and production_backed is True and source_ok and source_unique
+            gate_binding_ok
+            and production_backed is True
+            and source_ok
+            and source_unique
+            and source_object_bound
+            and source_object_matches
+            and source_signature_ok
+            and source_file_binding is not None
         )
         valid = bool(
             callable_ok
@@ -174,6 +272,21 @@ def audit_production_gate_verifier_readiness(
                 "production_backed": production_backed is True,
                 "source_module": source_module if _valid_source_module(source_module) else None,
                 "source_callable": source_callable if _valid_source_callable(source_callable) else None,
+                "source_object_bound": source_object_bound,
+                "source_object_matches_declaration": source_object_matches,
+                "source_signature_compatible": bool(source_signature_ok),
+                "source_repository_relative_path": (
+                    source_file_binding["repository_relative_path"]
+                    if source_file_binding is not None
+                    else None
+                ),
+                "source_file_byte_size": (
+                    source_file_binding["byte_size"] if source_file_binding is not None else None
+                ),
+                "source_file_sha256": (
+                    source_file_binding["sha256"] if source_file_binding is not None else None
+                ),
+                "source_file_byte_bound": source_file_binding is not None,
                 "signature_compatible": bool(signature_ok),
                 "provenance_complete": provenance_complete,
             }
@@ -195,6 +308,8 @@ def audit_production_gate_verifier_readiness(
         "invalid_gate_ids": invalid_gate_ids,
         "all_production_verifiers_bound": all_bound,
         "all_bindings_provenance_complete": all_bound,
+        "all_source_objects_bound": all_bound,
+        "all_source_files_byte_bound": all_bound,
         "production_semantic_replay_executed": False,
         "fresh_story_gates_passed": False,
         "controlled_trial_preflight_valid": False,
@@ -213,7 +328,7 @@ def verify_production_gate_verifier_readiness(
     *,
     registry_module: str = CANONICAL_REGISTRY_MODULE,
 ) -> str:
-    """Re-audit live registry wiring and require exact receipt equivalence."""
+    """Re-audit live registry/source bytes and require exact receipt equivalence."""
     expected = audit_production_gate_verifier_readiness(
         registry,
         registry_module=registry_module,
