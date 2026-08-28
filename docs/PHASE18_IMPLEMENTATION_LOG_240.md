@@ -57,6 +57,12 @@ Changes:
 - added duplicate source-binding rejection;
 - retained existing extra-gate, incompatible-signature, missing identity, duplicate verifier identity, authority-forgery, and registry-module drift tests.
 
+### Documentation commits
+
+- `28c56f5fd83b196cd6f65d2fcde97806de87e633` — Change Set 240 design/authority documentation.
+- `3ef72f05b3bf9f092513434c7558acc23f510a05` — initial implementation log.
+- This log was subsequently updated only to record live CI status; no production code changed in that update.
+
 ## Deleted
 
 Nothing.
@@ -93,7 +99,18 @@ This change does not execute semantic replay or inference. It cannot set any of 
 
 ## Testing
 
-GitHub Actions was triggered by the branch commits. The final workflow status should be read from GitHub Actions before describing Change Set 240 as fully CI-green. No CUDA/GPU result is inferred from CPU CI.
+GitHub Actions run `33196562021` (`Phase 18 Story Intelligence Verification`, run number 3786) was triggered for HEAD `3ef72f05b3bf9f092513434c7558acc23f510a05`.
+
+Observed at the time of this log update:
+
+- setup job: success;
+- checkout: success;
+- Python setup: success;
+- CPU dependency install: success;
+- `Syntax and discover validation`: in progress;
+- downstream isolation/visual/publication checks: pending.
+
+Therefore Change Set 240 is **not yet recorded as fully CI-green**. No CUDA/GPU result is inferred from CPU CI.
 
 ## Remaining blockers
 
