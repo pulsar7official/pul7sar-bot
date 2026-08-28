@@ -114,8 +114,7 @@ None.
 - `75178e9bb770fed930b7bc129585dfdec42e40e6` — bind explicit local candidate declaration to the pinned revision
 - `9653ea0ff05e8f5c5795e91ff4aa6c073f7eabd3` — update regression coverage for revision pinning
 - `099bb21f91613b501049db83236a10519ed72d04` — Change Set 223 documentation
-
-This log is the final documentation write for the change set.
+- `e44398c3f0048210963a922f1164c044846ff6b5` — initial implementation log
 
 ## Gates preserved
 
@@ -143,6 +142,18 @@ The exact remaining Qwen-specific blocker is **measured `$0-local` runtime compa
 
 The broader environment available to this automation still does not provide an approved local GPU host for canonical generation, so no new Golden PNG is fabricated or claimed.
 
-## CI status
+## CI results
 
-Change Set 222 Story Intelligence Run `33131011178` was still in progress when Change Set 223 work began. New CI for the Change Set 223 head is pending; no green result is claimed until GitHub Actions completes.
+Change Set 222:
+
+- Story Intelligence Verification Run `33131011178`
+- head SHA: `a9fdc17cfd086fc3b848492ecafe93b5456d3671`
+- conclusion: `success`
+
+Change Set 223:
+
+- Story Intelligence Verification Run `33131139158`
+- head SHA: `e44398c3f0048210963a922f1164c044846ff6b5`
+- conclusion: `success`
+
+Both runs completed successfully. The final write after those runs is documentation-only and records the verified results above.
