@@ -22,12 +22,12 @@ class QwenProductionGateVerifierCandidateAuditTests(unittest.TestCase):
         temp, root = self._root()
         self.addCleanup(temp.cleanup)
         (root / "engine" / "editorial" / "checks.py").write_text(
-            '''def verify_story_facts(evidence, story_sha, receipt):\n'
-            '    """Verify factual claims against source evidence and result score."""\n'
-            '    return True\n\n'
-            'def assess_neutral_tone(evidence, story_sha, receipt):\n'
-            '    """Check sentiment neutrality and respectful winner loser editorial tone."""\n'
-            '    return True\n'''.replace("'", ""),
+            "def verify_story_facts(evidence, story_sha, receipt):\n"
+            "    \"\"\"Verify factual claims against source evidence and result score.\"\"\"\n"
+            "    return True\n\n"
+            "def assess_neutral_tone(evidence, story_sha, receipt):\n"
+            "    \"\"\"Check sentiment neutrality and respectful winner loser editorial tone.\"\"\"\n"
+            "    return True\n",
             encoding="utf-8",
         )
         receipt = audit_production_gate_verifier_candidates(repo_root=root)
@@ -71,7 +71,9 @@ class QwenProductionGateVerifierCandidateAuditTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         path = root / "engine" / "editorial" / "identity.py"
         path.write_text(
-            '''def verify_entity_identity(evidence, story_sha, receipt):\n    """Verify entity identity and disambiguate player club team matches."""\n    return True\n''',
+            "def verify_entity_identity(evidence, story_sha, receipt):\n"
+            "    \"\"\"Verify entity identity and disambiguate player club team matches.\"\"\"\n"
+            "    return True\n",
             encoding="utf-8",
         )
         receipt = audit_production_gate_verifier_candidates(repo_root=root)
