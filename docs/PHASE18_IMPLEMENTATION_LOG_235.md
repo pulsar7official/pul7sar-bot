@@ -45,7 +45,8 @@ Change Set 235 adds that byte-binding layer without claiming the evidence passed
 
 ## Modified
 
-No pre-existing production, canonical-generation, semantic-publication, identity, sentiment, fact, brand, typography, or visual-quality implementation file was modified.
+- `docs/PHASE18_IMPLEMENTATION_LOG_235.md` was updated after CI completion to record the verified final status.
+- No pre-existing production, canonical-generation, semantic-publication, identity, sentiment, fact, brand, typography, or visual-quality implementation file was modified.
 
 ## Deleted
 
@@ -57,7 +58,8 @@ None.
 - `14e4a6fe9912a9e0054252823a646ba40bdbfb33` — add canonical unittest regressions
 - `31d750f1c16a839550f613aa1751309cc243685d` — add CPU-only manifest CLI
 - `c306468a360e63b991c4c68641caaae5a60ab179` — add Change Set 235 documentation
-- implementation-log commit: this file's commit
+- `efe1bd203669038a74105880950e9c71ef50a789` — add initial implementation log
+- final log status update: this file's update commit
 
 ## Regression coverage added
 
@@ -93,12 +95,15 @@ Fact Lock, Entity/Identity Verification, Sentiment/Neutrality, `$0-local`, Seman
 
 ## Validation status
 
-The code/test/CLI head `31d750f1c16a839550f613aa1751309cc243685d` triggered Phase 18 workflows. At the time this log was written:
+The code/test/CLI head `31d750f1c16a839550f613aa1751309cc243685d` triggered the canonical Phase 18 workflows.
 
-- Story Intelligence Verification Run `33173122975 / 3726`: `in_progress`; setup/checkout/Python/dependency installation succeeded and `Syntax and discover validation` was running.
-- Companion workflows visible for the same code/test/CLI commit had completed successfully except those still running at the first status sample.
+- Story Intelligence Verification Run `33173122975 / 3726`: `completed/success`.
+- Job `verify-story-intelligence` (`98854901799`): `completed/success`.
+- `Syntax and discover validation`: `completed/success`, confirming the new Change Set 235 `unittest` regressions are compatible with canonical discovery.
+- All subsequent Story Intelligence Verification steps completed successfully, including production isolation, visual handoff verification, result-family publication blocking, brand ownership checks, Golden editorial v6 verification, and legacy-logo non-canonical enforcement.
+- All companion workflows returned for the same code/test/CLI commit completed successfully.
 
-No CI success is claimed until the canonical Story Intelligence Verification reaches `completed/success`.
+Change Set 235 is therefore CI-green at the code/test/CLI commit used for validation. Later commits in the change set are documentation-only.
 
 ## Genuine Golden PNG status and exact blocker
 
