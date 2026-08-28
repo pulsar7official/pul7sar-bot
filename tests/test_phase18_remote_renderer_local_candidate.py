@@ -6,6 +6,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
+from engine.intelligence.approved_model_revisions import QWEN_IMAGE_2512_REVISION
 from engine.intelligence.remote_renderer_local_candidate import (
     DECLARATION_SCHEMA,
     RemoteRendererExplicitLocalCandidateBuilder,
@@ -68,7 +69,7 @@ class RemoteRendererExplicitLocalCandidateTests(unittest.TestCase):
         docket["docket_sha256"] = _sha256_json(docket)
         path.write_text(json.dumps(docket), encoding="utf-8")
 
-    def test_explicit_qwen_candidate_is_declared_but_not_runtime_qualified(self) -> None:
+    def test_explicit_qwen_candidate_is_revision_pinned_but_not_runtime_qualified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             path, _ = self._docket(root)
@@ -79,11 +80,14 @@ class RemoteRendererExplicitLocalCandidateTests(unittest.TestCase):
             self.assertEqual(declaration["schema"], DECLARATION_SCHEMA)
             self.assertEqual(declaration["remote_renderer"], "qwen-image-2512")
             self.assertEqual(declaration["local_model_id"], "Qwen/Qwen-Image-2512")
+            self.assertEqual(declaration["local_model_revision"], QWEN_IMAGE_2512_REVISION)
             self.assertTrue(declaration["exact_remote_model_match"])
             self.assertTrue(declaration["explicit_candidate_selection"])
             self.assertFalse(declaration["runtime_floor_proven"])
             self.assertTrue(declaration["pinned_model_revision_required"])
-            self.assertIsNone(declaration["pinned_model_revision"])
+            self.assertTrue(declaration["pinned_model_revision_proven"])
+            self.assertEqual(declaration["pinned_model_revision"], QWEN_IMAGE_2512_REVISION)
+            self.assertEqual(len(declaration["pinned_model_revision"]), 40)
             self.assertTrue(declaration["measured_runtime_readiness_required"])
             self.assertFalse(declaration["local_runtime_qualified"])
             self.assertFalse(declaration["local_generation_authorized"])
