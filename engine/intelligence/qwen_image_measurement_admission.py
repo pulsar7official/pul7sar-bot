@@ -68,6 +68,12 @@ def verify_declaration(declaration: dict[str, Any]) -> str:
     return actual
 
 
+def _snapshot_complete(path: Path) -> bool:
+    if not path.is_dir() or not (path / "model_index.json").is_file():
+        return False
+    return any(path.rglob("*.safetensors"))
+
+
 @dataclass(frozen=True)
 class QwenImageMeasurementAdmission:
     measurement_ready: bool
@@ -133,8 +139,10 @@ def evaluate_measurement_admission(
         reasons.append("gpu_total_vram_unproven")
     if not isinstance(free_vram, (int, float)) or isinstance(free_vram, bool) or float(free_vram) <= 0:
         reasons.append("gpu_live_free_vram_unproven")
-    if host_memory.ready is not True:
+    if host_memory.cost_mode != COST_MODE or host_memory.ready is not True:
         reasons.append("host_memory_not_ready")
+    if any((host_memory.model_loaded, host_memory.generation_authorized, host_memory.queue_mutated, host_memory.png_created, host_memory.semantic_approved, host_memory.golden_quality_approved, host_memory.publication_ready)):
+        reasons.append("host_memory_authority_drift")
     if not diffusers_version:
         reasons.append("diffusers_version_unproven")
     if qwen_image_pipeline_available is not True:
@@ -144,9 +152,13 @@ def evaluate_measurement_admission(
     resolved_path = None
     if exact_snapshot_path:
         try:
-            assert_snapshot_revision(exact_snapshot_path, QWEN_IMAGE_2512_REVISION)
-            exact_cached = True
-            resolved_path = str(Path(exact_snapshot_path).expanduser().resolve())
+            resolved = Path(exact_snapshot_path).expanduser().resolve()
+            assert_snapshot_revision(resolved, QWEN_IMAGE_2512_REVISION)
+            if not _snapshot_complete(resolved):
+                reasons.append("qwen_image_snapshot_incomplete")
+            else:
+                exact_cached = True
+                resolved_path = str(resolved)
         except (RuntimeError, ValueError):
             reasons.append("qwen_image_snapshot_revision_mismatch")
 
