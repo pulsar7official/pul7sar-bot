@@ -55,6 +55,7 @@ This is readiness/provenance hardening only. It does not execute the semantic ga
 
 4. `docs/PHASE18_IMPLEMENTATION_LOG_241.md`
    - this implementation record.
+   - Initial commit: `34e7d2e6e4f3224bf6abea57ada41d995745041d`.
 
 ### Deleted
 
@@ -95,8 +96,10 @@ Even a structurally complete v3 readiness receipt does not execute semantic repl
 
 - Python syntax for the modified module and test suite was checked before repository writes.
 - Canonical `unittest` regression coverage was extended in the existing Phase 18 readiness test module.
-- GitHub Actions status for the Change Set 241 code/test commits will be recorded only from actual workflow results; no CI success is fabricated in this log.
-- The canonical production registry is expected to remain `NOT READY` because the six genuine production adapters do not yet exist. That is the correct fail-closed result, not a test failure to bypass.
+- Phase 18 Story Intelligence Verification Run `33201463097` / run number `3795`, on implementation-log HEAD `34e7d2e6e4f3224bf6abea57ada41d995745041d`, completed with `success`.
+- The successful run includes `Syntax and discover validation`, completion/production isolation, visual-study handoff build/verification, result-family publication blocking, project-native editorial study, adaptive/self-contained brand verification, Golden Editorial v6 build/verification, legacy-logo non-canonical enforcement, and artifact upload steps.
+- The canonical production registry remains `NOT READY` because the six genuine production adapters do not yet exist. That is the correct fail-closed result, not a test failure to bypass.
+- Repository searches in this run did not identify a safe existing six-verifier production API set that could be registered without inventing adapters; no placeholder was added.
 
 ## Genuine Golden PNG status
 
