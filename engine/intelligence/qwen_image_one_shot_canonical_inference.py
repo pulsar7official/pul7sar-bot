@@ -1,20 +1,21 @@
 """Execute exactly one canonical Qwen Image 2512 inference attempt.
 
 Change Set 262 consumes one exact Change Set 261 story-bound generation
-authorization.  It revalidates that authorization immediately before execution,
-claims it exactly once, byte-binds the prompt/runtime/model inputs, and publishes
-one candidate PNG plus an inference receipt only after a real inference callback
-returns a structurally valid PNG.
+authorization. It revalidates that authorization immediately before execution,
+claims it exactly once, byte-binds the prompt/runtime/model/inference settings,
+and publishes one candidate PNG plus a receipt only after a real inference
+callback returns a structurally valid PNG.
 
-This module grants no semantic, human-review, Golden-quality, brand, typography,
-or publication authority.  A successful PNG is a canonical *candidate*, never a
-Golden Visual by itself.
+A successful PNG is a canonical candidate, never a Golden Visual by itself.
+Semantic/Layer QA, Visual Critic, human review, Golden scoring, exact brand and
+typography work, and SemanticPublicationGate remain separate downstream gates.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import struct
@@ -39,8 +40,11 @@ ONE_SHOT_CONSUMPTION_SCHEMA = (
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 MAX_PROMPT_UTF8_BYTES = 32_768
 MAX_NEGATIVE_PROMPT_UTF8_BYTES = 16_384
-MAX_DIMENSION = 4096
-MAX_PIXELS = 16_777_216
+MAX_QUALIFIED_WIDTH = 1024
+MAX_QUALIFIED_HEIGHT = 1024
+MAX_QUALIFIED_PIXELS = 1024 * 1024
+MAX_QUALIFIED_STEPS = 8
+QUALIFIED_GUIDANCE_SCALE = 1.0
 MAX_SEED = 2**63 - 1
 
 _REQUIRED_AUTH_TRUE = (
@@ -116,26 +120,56 @@ def _file_binding(path: Path, code: str) -> dict[str, Any]:
     return {"sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
 
 
-def _text_binding(value: str, *, maximum: int, code: str, allow_empty: bool) -> dict[str, Any]:
+def _text_binding(
+    value: str, *, maximum: int, code: str, allow_empty: bool
+) -> dict[str, Any]:
     if not isinstance(value, str):
         raise ValueError(code)
     encoded = value.encode("utf-8")
     if (not allow_empty and not encoded) or len(encoded) > maximum:
         raise ValueError(code)
-    return {
-        "sha256": hashlib.sha256(encoded).hexdigest(),
-        "byte_size": len(encoded),
-    }
+    return {"sha256": hashlib.sha256(encoded).hexdigest(), "byte_size": len(encoded)}
 
 
-def _validate_dimensions_seed(width: int, height: int, seed: int) -> None:
-    for value, label in ((width, "WIDTH"), (height, "HEIGHT")):
-        if not isinstance(value, int) or isinstance(value, bool) or value <= 0 or value > MAX_DIMENSION:
-            raise ValueError(f"QWEN_CANONICAL_INFERENCE_{label}_INVALID")
-    if width * height > MAX_PIXELS:
-        raise ValueError("QWEN_CANONICAL_INFERENCE_PIXEL_BUDGET_EXCEEDED")
+def _validate_inference_settings(
+    width: int,
+    height: int,
+    seed: int,
+    num_inference_steps: int,
+    guidance_scale: float,
+) -> None:
+    if (
+        not isinstance(width, int)
+        or isinstance(width, bool)
+        or width <= 0
+        or width > MAX_QUALIFIED_WIDTH
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_WIDTH_OUTSIDE_MEASURED_ENVELOPE")
+    if (
+        not isinstance(height, int)
+        or isinstance(height, bool)
+        or height <= 0
+        or height > MAX_QUALIFIED_HEIGHT
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_HEIGHT_OUTSIDE_MEASURED_ENVELOPE")
+    if width * height > MAX_QUALIFIED_PIXELS:
+        raise ValueError("QWEN_CANONICAL_INFERENCE_PIXEL_BUDGET_OUTSIDE_MEASURED_ENVELOPE")
     if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0 or seed > MAX_SEED:
         raise ValueError("QWEN_CANONICAL_INFERENCE_SEED_INVALID")
+    if (
+        not isinstance(num_inference_steps, int)
+        or isinstance(num_inference_steps, bool)
+        or num_inference_steps <= 0
+        or num_inference_steps > MAX_QUALIFIED_STEPS
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_STEPS_OUTSIDE_MEASURED_ENVELOPE")
+    if (
+        not isinstance(guidance_scale, (int, float))
+        or isinstance(guidance_scale, bool)
+        or not math.isfinite(float(guidance_scale))
+        or float(guidance_scale) != QUALIFIED_GUIDANCE_SCALE
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_GUIDANCE_OUTSIDE_MEASURED_CONTRACT")
 
 
 def _png_dimensions(raw: bytes) -> tuple[int, int]:
@@ -198,6 +232,8 @@ def _claim_once(
     width: int,
     height: int,
     seed: int,
+    num_inference_steps: int,
+    guidance_scale: float,
 ) -> Path:
     claim_path = _claim_path(
         authorization_path, str(authorization["authorization_sha256"])
@@ -221,6 +257,8 @@ def _claim_once(
         "width": width,
         "height": height,
         "seed": seed,
+        "num_inference_steps": num_inference_steps,
+        "guidance_scale": float(guidance_scale),
         "canonical_generation_authorized": True,
         "inference_attempt_claimed": True,
         "inference_executed": False,
@@ -236,11 +274,7 @@ def _claim_once(
         "utf-8"
     )
     try:
-        fd = os.open(
-            claim_path,
-            os.O_WRONLY | os.O_CREAT | os.O_EXCL,
-            0o600,
-        )
+        fd = os.open(claim_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     except FileExistsError as exc:
         raise ValueError("QWEN_CANONICAL_INFERENCE_AUTHORIZATION_ALREADY_CONSUMED") from exc
     try:
@@ -249,10 +283,72 @@ def _claim_once(
             handle.flush()
             os.fsync(handle.fileno())
     except Exception:
-        # The file is deliberately retained if creation succeeded. A partial
-        # claim still burns the authorization rather than enabling a retry.
+        # Once the exclusive file is created, the authorization remains burned.
         raise
     return claim_path
+
+
+def _load_and_verify_claim(
+    path: Path,
+    *,
+    authorization: Mapping[str, Any],
+    authorization_file_sha256: str,
+    receipt: Mapping[str, Any],
+) -> dict[str, Any]:
+    if path.is_symlink() or not path.is_file():
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_INVALID")
+    try:
+        claim = json.loads(path.read_text(encoding="utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_INVALID") from exc
+    if not isinstance(claim, dict):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_INVALID")
+    if claim.get("schema") != ONE_SHOT_CONSUMPTION_SCHEMA or claim.get("status") != (
+        "QWEN_IMAGE_2512_CANONICAL_AUTHORIZATION_CONSUMED_BEFORE_INFERENCE"
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_SCHEMA_OR_STATUS_DRIFT")
+    claimed = claim.get("consumption_sha256")
+    unsigned = dict(claim)
+    unsigned.pop("consumption_sha256", None)
+    if not _is_sha256(claimed) or sha256_json(unsigned) != claimed:
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_DIGEST_MISMATCH")
+    expected_pairs = {
+        "authorization_sha256": authorization.get("authorization_sha256"),
+        "authorization_file_sha256": authorization_file_sha256,
+        "story_snapshot_sha256": authorization.get("story_snapshot_sha256"),
+        "model_id": QWEN_IMAGE_2512_MODEL_ID,
+        "model_revision": QWEN_IMAGE_2512_REVISION,
+        "cost_mode": COST_MODE,
+        "expected_runtime_fingerprint_sha256": authorization.get(
+            "expected_runtime_fingerprint_sha256"
+        ),
+        "prompt": receipt.get("prompt"),
+        "negative_prompt": receipt.get("negative_prompt"),
+        "width": receipt.get("width"),
+        "height": receipt.get("height"),
+        "seed": receipt.get("seed"),
+        "num_inference_steps": receipt.get("num_inference_steps"),
+        "guidance_scale": receipt.get("guidance_scale"),
+    }
+    for field, expected in expected_pairs.items():
+        if claim.get(field) != expected:
+            raise ValueError(f"QWEN_CANONICAL_INFERENCE_CONSUMPTION_BINDING_DRIFT:{field}")
+    if claim.get("canonical_generation_authorized") is not True or claim.get(
+        "inference_attempt_claimed"
+    ) is not True:
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_AUTHORITY_MISSING")
+    for field in (
+        "inference_executed",
+        "genuine_canonical_inference_executed",
+        "genuine_golden_png_created",
+        "semantic_approved",
+        "human_visual_review_approved",
+        "golden_quality_approved",
+        "publication_ready",
+    ):
+        if claim.get(field) is not False:
+            raise ValueError(f"QWEN_CANONICAL_INFERENCE_CONSUMPTION_AUTHORITY_DRIFT:{field}")
+    return claim
 
 
 def execute_one_shot_canonical_inference(
@@ -265,10 +361,12 @@ def execute_one_shot_canonical_inference(
     width: int,
     height: int,
     seed: int,
+    num_inference_steps: int,
+    guidance_scale: float,
     observed_runtime_fingerprint_sha256: str,
     inference_callable: Callable[[], CanonicalInferenceImage],
 ) -> OneShotCanonicalInferenceRun:
-    """Execute one authorized callback exactly once and byte-bind its candidate PNG."""
+    """Execute one authorized callback exactly once and bind its candidate PNG."""
     if output_dir.exists():
         raise ValueError("QWEN_CANONICAL_INFERENCE_OUTPUT_ALREADY_EXISTS")
     if not output_dir.parent.is_dir():
@@ -295,7 +393,9 @@ def execute_one_shot_canonical_inference(
         code="QWEN_CANONICAL_INFERENCE_NEGATIVE_PROMPT_INVALID",
         allow_empty=True,
     )
-    _validate_dimensions_seed(width, height, seed)
+    _validate_inference_settings(
+        width, height, seed, num_inference_steps, guidance_scale
+    )
     authorization_binding = _file_binding(
         authorization_path, "QWEN_CANONICAL_INFERENCE_AUTH_FILE_INVALID"
     )
@@ -309,6 +409,8 @@ def execute_one_shot_canonical_inference(
         width=width,
         height=height,
         seed=seed,
+        num_inference_steps=num_inference_steps,
+        guidance_scale=guidance_scale,
     )
 
     output_dir.mkdir(mode=0o700)
@@ -357,8 +459,7 @@ def execute_one_shot_canonical_inference(
                     "QWEN_CANONICAL_INFERENCE_CONSUMPTION_OUTSIDE_REPOSITORY",
                 ),
                 **_file_binding(
-                    consumption_path,
-                    "QWEN_CANONICAL_INFERENCE_CONSUMPTION_INVALID",
+                    consumption_path, "QWEN_CANONICAL_INFERENCE_CONSUMPTION_INVALID"
                 ),
             },
             "prompt": prompt_binding,
@@ -366,6 +467,8 @@ def execute_one_shot_canonical_inference(
             "width": width,
             "height": height,
             "seed": seed,
+            "num_inference_steps": num_inference_steps,
+            "guidance_scale": float(guidance_scale),
             "expected_runtime_fingerprint_sha256": expected_fingerprint,
             "observed_runtime_fingerprint_sha256": observed_runtime_fingerprint_sha256,
             "png": {
@@ -433,7 +536,7 @@ def execute_one_shot_canonical_inference(
 def verify_one_shot_canonical_inference(
     receipt_path: Path, *, repo_root: Path
 ) -> dict[str, Any]:
-    """Revalidate a successful CS262 receipt and its exact candidate PNG bytes."""
+    """Revalidate a successful CS262 receipt and exact candidate/claim bytes."""
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_CANONICAL_INFERENCE_RECEIPT_INVALID")
     raw = receipt_path.read_bytes()
@@ -469,6 +572,13 @@ def verify_one_shot_canonical_inference(
             raise ValueError(
                 f"QWEN_CANONICAL_INFERENCE_DOWNSTREAM_AUTHORITY_DRIFT:{field}"
             )
+    _validate_inference_settings(
+        receipt.get("width"),
+        receipt.get("height"),
+        receipt.get("seed"),
+        receipt.get("num_inference_steps"),
+        receipt.get("guidance_scale"),
+    )
 
     auth = receipt.get("authorization")
     if not isinstance(auth, Mapping):
@@ -506,6 +616,39 @@ def verify_one_shot_canonical_inference(
     ):
         raise ValueError("QWEN_CANONICAL_INFERENCE_RUNTIME_FINGERPRINT_DRIFT")
 
+    consumption = receipt.get("consumption")
+    if not isinstance(consumption, Mapping):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_BINDING_INVALID")
+    consumption_relative = consumption.get("repository_relative_path")
+    if (
+        not isinstance(consumption_relative, str)
+        or not consumption_relative
+        or Path(consumption_relative).is_absolute()
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_PATH_INVALID")
+    consumption_path = repo_root.resolve() / consumption_relative
+    consumption_canonical = _inside_repo(
+        repo_root,
+        consumption_path,
+        "QWEN_CANONICAL_INFERENCE_CONSUMPTION_OUTSIDE_REPOSITORY",
+    )
+    if consumption_canonical != Path(consumption_relative).as_posix():
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_PATH_DRIFT")
+    current_consumption = _file_binding(
+        consumption_path, "QWEN_CANONICAL_INFERENCE_CONSUMPTION_INVALID"
+    )
+    if (
+        consumption.get("sha256") != current_consumption["sha256"]
+        or consumption.get("byte_size") != current_consumption["byte_size"]
+    ):
+        raise ValueError("QWEN_CANONICAL_INFERENCE_CONSUMPTION_BYTE_DRIFT")
+    _load_and_verify_claim(
+        consumption_path,
+        authorization=authorization,
+        authorization_file_sha256=current_auth["sha256"],
+        receipt=receipt,
+    )
+
     png = receipt.get("png")
     if not isinstance(png, Mapping) or png.get("filename") != "canonical_candidate.png":
         raise ValueError("QWEN_CANONICAL_INFERENCE_PNG_BINDING_INVALID")
@@ -513,10 +656,9 @@ def verify_one_shot_canonical_inference(
     current_png = _file_binding(
         png_path, "QWEN_CANONICAL_INFERENCE_PUBLISHED_PNG_INVALID"
     )
-    if (
-        png.get("sha256") != current_png["sha256"]
-        or png.get("byte_size") != current_png["byte_size"]
-    ):
+    if png.get("sha256") != current_png["sha256"] or png.get(
+        "byte_size"
+    ) != current_png["byte_size"]:
         raise ValueError("QWEN_CANONICAL_INFERENCE_PNG_BYTE_DRIFT")
     actual_width, actual_height = _png_dimensions(png_path.read_bytes())
     if (
