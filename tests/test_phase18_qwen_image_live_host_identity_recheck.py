@@ -183,6 +183,34 @@ class LiveHostIdentityRecheckTests(unittest.TestCase):
                     request, observation, root / "artifacts" / "cs259", repo_root=root
                 )
 
+    def test_preflight_parent_traversal_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            workspace = Path(tmp)
+            root = workspace / "repo"
+            root.mkdir()
+            request, observation = self._inputs(root)
+            outside = workspace / "outside-preflight.json"
+            original = root / "contracts" / "preflight.json"
+            outside.write_bytes(original.read_bytes())
+
+            payload = json.loads(request.read_text(encoding="utf-8"))
+            raw = outside.read_bytes()
+            payload["source_preflight_contract"] = {
+                "repository_relative_path": "../outside-preflight.json",
+                "sha256": hashlib.sha256(raw).hexdigest(),
+                "byte_size": len(raw),
+                "preflight_contract_sha256": json.loads(raw.decode("utf-8"))[
+                    "preflight_contract_sha256"
+                ],
+            }
+            payload.pop("request_sha256")
+            payload["request_sha256"] = sha256_json(payload)
+            self._write(request, payload)
+            with self.assertRaisesRegex(ValueError, "PREFLIGHT_OUTSIDE_REPOSITORY"):
+                build_live_host_identity_recheck(
+                    request, observation, root / "artifacts" / "cs259", repo_root=root
+                )
+
     def test_symlinked_request_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
