@@ -120,13 +120,15 @@ def _binding(path: Path, code: str) -> dict[str, Any]:
 
 
 def _require_inside_repo(repo_root: Path, path: Path, code: str) -> str:
+    if path.is_symlink():
+        raise ValueError(code)
     root = repo_root.resolve()
     resolved = path.resolve()
     try:
         relative = resolved.relative_to(root).as_posix()
     except ValueError as exc:
         raise ValueError(code) from exc
-    if not resolved.is_file() or resolved.is_symlink():
+    if not resolved.is_file():
         raise ValueError(code)
     return relative
 
@@ -134,13 +136,15 @@ def _require_inside_repo(repo_root: Path, path: Path, code: str) -> str:
 def _validate_cs257_run(
     run_dir: Path, repo_root: Path
 ) -> tuple[str, dict[str, Any], dict[str, Any]]:
+    if run_dir.is_symlink():
+        raise ValueError("QWEN_STORY_BOUND_REQUEST_CS257_RUN_INVALID")
     root = repo_root.resolve()
     resolved_run = run_dir.resolve()
     try:
         resolved_run.relative_to(root)
     except ValueError as exc:
         raise ValueError("QWEN_STORY_BOUND_REQUEST_CS257_OUTSIDE_REPOSITORY") from exc
-    if not resolved_run.is_dir() or resolved_run.is_symlink():
+    if not resolved_run.is_dir():
         raise ValueError("QWEN_STORY_BOUND_REQUEST_CS257_RUN_INVALID")
 
     receipt_path = resolved_run / "atomic_fresh_story_semantic_replay.json"
