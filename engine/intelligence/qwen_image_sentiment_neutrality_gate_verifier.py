@@ -115,7 +115,7 @@ def replay_sentiment_neutrality_gate(
     story_snapshot_sha256: str,
     receipt: Mapping[str, Any],
 ) -> Mapping[str, Any]:
-    """Canonical replay adapter; delegates to the production sentiment policy."""
+    """Canonical replay adapter; delegates to the production sentiment verifier."""
     return verify_sentiment_neutrality_evidence(evidence_path, story_snapshot_sha256, receipt)
 
 
@@ -123,6 +123,6 @@ replay_sentiment_neutrality_gate.PUL7SAR_VERIFIER_ID = VERIFIER_ID
 replay_sentiment_neutrality_gate.PUL7SAR_VERIFIER_VERSION = VERIFIER_VERSION
 replay_sentiment_neutrality_gate.PUL7SAR_VERIFIER_GATE_ID = SENTIMENT_GATE_ID
 replay_sentiment_neutrality_gate.PUL7SAR_PRODUCTION_BACKED = True
-replay_sentiment_neutrality_gate.PUL7SAR_SOURCE_MODULE = "engine.intelligence.sentiment_neutrality"
-replay_sentiment_neutrality_gate.PUL7SAR_SOURCE_CALLABLE = "evaluate_sentiment_neutrality"
-replay_sentiment_neutrality_gate.PUL7SAR_SOURCE_CALLABLE_OBJECT = evaluate_sentiment_neutrality
+replay_sentiment_neutrality_gate.PUL7SAR_SOURCE_MODULE = __name__
+replay_sentiment_neutrality_gate.PUL7SAR_SOURCE_CALLABLE = "verify_sentiment_neutrality_evidence"
+replay_sentiment_neutrality_gate.PUL7SAR_SOURCE_CALLABLE_OBJECT = verify_sentiment_neutrality_evidence
