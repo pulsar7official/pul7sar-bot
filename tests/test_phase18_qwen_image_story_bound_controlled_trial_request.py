@@ -173,6 +173,32 @@ class StoryBoundControlledTrialRequestTests(unittest.TestCase):
                     cs257, preflight, root / "artifacts" / "cs258", repo_root=root
                 )
 
+    def test_symlinked_cs257_run_is_rejected_before_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            preflight = self._preflight(root)
+            cs257 = self._cs257(root)
+            alias = root / "artifacts" / "cs257-link"
+            alias.symlink_to(cs257, target_is_directory=True)
+            with self.assertRaisesRegex(ValueError, "CS257_RUN_INVALID"):
+                build_story_bound_controlled_trial_request(
+                    alias, preflight, root / "artifacts" / "cs258", repo_root=root
+                )
+            self.assertFalse((root / "artifacts" / "cs258").exists())
+
+    def test_symlinked_preflight_is_rejected_before_resolution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            preflight = self._preflight(root)
+            cs257 = self._cs257(root)
+            alias = root / "preflight-link.json"
+            alias.symlink_to(preflight)
+            with self.assertRaisesRegex(ValueError, "PREFLIGHT_OUTSIDE_REPOSITORY"):
+                build_story_bound_controlled_trial_request(
+                    cs257, alias, root / "artifacts" / "cs258", repo_root=root
+                )
+            self.assertFalse((root / "artifacts" / "cs258").exists())
+
     def test_existing_output_is_never_overwritten(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
