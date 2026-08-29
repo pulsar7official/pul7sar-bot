@@ -97,6 +97,8 @@ class OneShotCanonicalInferenceTests(unittest.TestCase):
             width=16,
             height=16,
             seed=7,
+            num_inference_steps=4,
+            guidance_scale=1.0,
             observed_runtime_fingerprint_sha256=self.RUNTIME_SHA,
             inference_callable=callback,
         )
@@ -116,6 +118,8 @@ class OneShotCanonicalInferenceTests(unittest.TestCase):
             payload = verify_one_shot_canonical_inference(
                 run.receipt_path, repo_root=root
             )
+            self.assertEqual(payload["num_inference_steps"], 4)
+            self.assertEqual(payload["guidance_scale"], 1.0)
             self.assertTrue(payload["inference_executed"])
             self.assertTrue(payload["genuine_canonical_inference_executed"])
             self.assertFalse(payload["genuine_golden_png_created"])
@@ -144,11 +148,65 @@ class OneShotCanonicalInferenceTests(unittest.TestCase):
                     width=16,
                     height=16,
                     seed=7,
+                    num_inference_steps=4,
+                    guidance_scale=1.0,
                     observed_runtime_fingerprint_sha256="e" * 64,
                     inference_callable=lambda: calls.append(1),
                 )
             self.assertEqual(calls, [])
             self.assertFalse((root / "artifacts" / "cs262").exists())
+
+    def test_measured_envelope_violation_fails_before_claim_and_callback(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            authorization = self._authorization(root)
+            calls = []
+            with self.assertRaisesRegex(ValueError, "WIDTH_OUTSIDE_MEASURED_ENVELOPE"):
+                execute_one_shot_canonical_inference(
+                    authorization,
+                    root / "artifacts" / "too-wide",
+                    repo_root=root,
+                    prompt="neutral visual",
+                    negative_prompt="",
+                    width=1025,
+                    height=512,
+                    seed=7,
+                    num_inference_steps=4,
+                    guidance_scale=1.0,
+                    observed_runtime_fingerprint_sha256=self.RUNTIME_SHA,
+                    inference_callable=lambda: calls.append(1),
+                )
+            with self.assertRaisesRegex(ValueError, "STEPS_OUTSIDE_MEASURED_ENVELOPE"):
+                execute_one_shot_canonical_inference(
+                    authorization,
+                    root / "artifacts" / "too-many-steps",
+                    repo_root=root,
+                    prompt="neutral visual",
+                    negative_prompt="",
+                    width=512,
+                    height=512,
+                    seed=7,
+                    num_inference_steps=9,
+                    guidance_scale=1.0,
+                    observed_runtime_fingerprint_sha256=self.RUNTIME_SHA,
+                    inference_callable=lambda: calls.append(1),
+                )
+            with self.assertRaisesRegex(ValueError, "GUIDANCE_OUTSIDE_MEASURED_CONTRACT"):
+                execute_one_shot_canonical_inference(
+                    authorization,
+                    root / "artifacts" / "guidance-drift",
+                    repo_root=root,
+                    prompt="neutral visual",
+                    negative_prompt="",
+                    width=512,
+                    height=512,
+                    seed=7,
+                    num_inference_steps=4,
+                    guidance_scale=2.0,
+                    observed_runtime_fingerprint_sha256=self.RUNTIME_SHA,
+                    inference_callable=lambda: calls.append(1),
+                )
+            self.assertEqual(calls, [])
 
     def test_successful_authorization_cannot_be_reused_in_another_output(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -218,6 +276,26 @@ class OneShotCanonicalInferenceTests(unittest.TestCase):
             )
             run.png_path.write_bytes(_png(17, 16))
             with self.assertRaisesRegex(ValueError, "PNG_BYTE_DRIFT"):
+                verify_one_shot_canonical_inference(run.receipt_path, repo_root=root)
+
+    def test_consumption_byte_tamper_invalidates_success_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            authorization = self._authorization(root)
+            run = self._run(
+                root,
+                authorization,
+                lambda: CanonicalInferenceImage(_png(16, 16), 16, 16),
+            )
+            claim = json.loads(run.consumption_path.read_text(encoding="utf-8"))
+            claim["num_inference_steps"] = 8
+            claim["consumption_sha256"] = sha256_json(
+                {key: value for key, value in claim.items() if key != "consumption_sha256"}
+            )
+            run.consumption_path.write_text(
+                json.dumps(claim, separators=(",", ":")) + "\n", encoding="utf-8"
+            )
+            with self.assertRaisesRegex(ValueError, "CONSUMPTION_BYTE_DRIFT"):
                 verify_one_shot_canonical_inference(run.receipt_path, repo_root=root)
 
     def test_authorization_tamper_fails_before_inference(self) -> None:
