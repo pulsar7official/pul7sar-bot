@@ -63,17 +63,27 @@ Commit: `161440e075420920bd6062cc840dbc3f7d5d4be3`
 
 Nothing.
 
-## Test / CI state
+## Test / CI result
 
-The new dedicated workflow created Phase 18 Production Gate Readiness run `33232884763 / 1` on commit `161440e075420920bd6062cc840dbc3f7d5d4be3`.
+Phase 18 Production Gate Readiness run `33232884763 / 1` on commit `161440e075420920bd6062cc840dbc3f7d5d4be3` completed successfully.
 
-At the time this log was initially written, the run was queued. No green result is claimed in this initial log state; the run must complete successfully before the receipt artifact is treated as CI-validated.
+Every workflow stage passed:
 
-The earlier Change Set 250 canonical-registry Story Intelligence Verification run `33232743843 / 3903` is already completed successfully.
+1. checkout and Python setup;
+2. existing CPU dependency installation;
+3. canonical production-readiness regression suite;
+4. readiness-receipt artifact regression suite;
+5. build and replay-verification of `output/phase18_qwen_production_gate_readiness/receipt.json`;
+6. fail-closed assertions on readiness plus all forbidden authority state;
+7. upload of the exact readiness receipt artifact.
+
+This establishes a CI-produced source-byte-bound readiness receipt for the real six-gate canonical registry. It does **not** establish story-specific semantic replay.
+
+The earlier Change Set 250 canonical-registry Story Intelligence Verification run `33232743843 / 3903` also completed successfully.
 
 ## Authority state
 
-Even a successful readiness artifact must continue to state:
+The successful readiness artifact explicitly retains:
 
 - `production_semantic_replay_executed = false`
 - `fresh_story_gates_passed = false`
