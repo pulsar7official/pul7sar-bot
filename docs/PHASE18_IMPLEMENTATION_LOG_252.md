@@ -55,11 +55,13 @@ No pre-existing production implementation was modified by Change Set 252.
 
 Nothing.
 
-## Test / CI state
+## Test / CI result
 
-Story Intelligence Verification run `33232988189 / 3922` was triggered for code/test commit `d388261231a5771295818f37a47a9c8ad10a0cd2`.
+Story Intelligence Verification run `33232988189 / 3922` for code/test commit `d388261231a5771295818f37a47a9c8ad10a0cd2` completed successfully.
 
-At the time this log was initially written, the run was queued. No final green result is claimed until the workflow completes successfully.
+All workflow stages passed, including syntax/discover validation, completion/production isolation, visual-study handoffs, result publication blocking, project-native editorial visual study, adaptive/self-contained brand verification, Golden editorial v6 verification, legacy-logo enforcement, and artifact uploads.
+
+The successful run validates the receipt executor and its regressions in the repository's normal CPU verification environment. It does not create or claim a genuine fresh-story six-receipt set.
 
 ## Authority state
 
