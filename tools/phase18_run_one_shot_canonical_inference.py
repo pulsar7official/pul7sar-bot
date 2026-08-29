@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Run one genuine, story-authorized Qwen Image 2512 canonical inference attempt.
 
-This command is intentionally single-shot. It verifies Change Set 261, rechecks
-the current CUDA/software/pipeline identity against the exact Change Set 260
-receipt, loads the pinned QwenImagePipeline in bfloat16 with sequential CPU
-offload, and delegates the *single* pipeline call to Change Set 262.
+The production entry point accepts no free-form prompt. Prompt bytes are derived
+inside this command from the exact CS257 evidence set that passed independent semantic
+replay, then cross-bound to the same CS261 generation authorization. This preserves
+Fact Lock, entity identity, sentiment neutrality, semantic ownership, and zero-cost
+boundaries at the final inference edge.
 
-There is no retry loop. A claimed authorization is burned even when inference or
-PNG validation fails. A successful result is only a canonical candidate; all
-post-generation quality and publication gates remain closed.
+There is no retry loop. A claimed authorization is burned even when inference or PNG
+validation fails. A successful result is only a canonical candidate; all downstream
+quality and publication gates remain closed.
 """
 from __future__ import annotations
 
@@ -25,9 +26,10 @@ if str(ROOT) not in sys.path:
 
 
 def _repo_file(path: Path, repo_root: Path, code: str) -> Path:
-    if path.is_symlink():
+    candidate = path if path.is_absolute() else repo_root / path
+    if candidate.is_symlink():
         raise RuntimeError(code)
-    resolved = path.resolve()
+    resolved = candidate.resolve()
     try:
         resolved.relative_to(repo_root.resolve())
     except ValueError as exc:
@@ -37,25 +39,32 @@ def _repo_file(path: Path, repo_root: Path, code: str) -> Path:
     return resolved
 
 
+def _repo_dir(path: Path, repo_root: Path, code: str) -> Path:
+    candidate = path if path.is_absolute() else repo_root / path
+    if candidate.is_symlink():
+        raise RuntimeError(code)
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except ValueError as exc:
+        raise RuntimeError(code) from exc
+    if not resolved.is_dir():
+        raise RuntimeError(code)
+    return resolved
+
+
 def _repo_output(path: Path, repo_root: Path) -> Path:
-    if path.exists():
+    candidate = path if path.is_absolute() else repo_root / path
+    if candidate.exists():
         raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_OUTPUT_ALREADY_EXISTS")
-    resolved_parent = path.parent.resolve()
+    resolved_parent = candidate.parent.resolve()
     try:
         resolved_parent.relative_to(repo_root.resolve())
     except ValueError as exc:
         raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_OUTPUT_OUTSIDE_REPOSITORY") from exc
     if not resolved_parent.is_dir():
         raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_OUTPUT_PARENT_INVALID")
-    return resolved_parent / path.name
-
-
-def _read_prompt(path: Path, repo_root: Path, code: str) -> str:
-    source = _repo_file(path, repo_root, code)
-    try:
-        return source.read_text(encoding="utf-8")
-    except UnicodeDecodeError as exc:
-        raise RuntimeError(code) from exc
+    return resolved_parent / candidate.name
 
 
 def _load_cs260_from_authorization(
@@ -84,9 +93,7 @@ def _load_cs260_from_authorization(
     return authorization, cs260
 
 
-def _collect_live_pipeline(
-    cs260: Mapping[str, Any],
-):
+def _collect_live_pipeline(cs260: Mapping[str, Any]):
     try:
         import torch
         import diffusers
@@ -155,11 +162,10 @@ def _collect_live_pipeline(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run exactly one CS261-authorized Qwen Image 2512 canonical inference attempt"
+        description="Run exactly one CS261-authorized, CS257-prompt-bound Qwen Image 2512 inference attempt"
     )
     parser.add_argument("--authorization", type=Path, required=True)
-    parser.add_argument("--prompt-file", type=Path, required=True)
-    parser.add_argument("--negative-prompt-file", type=Path)
+    parser.add_argument("--cs257-run-dir", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--width", type=int, default=1024)
@@ -178,23 +184,30 @@ def main() -> int:
         repo_root,
         "QWEN_CANONICAL_INFERENCE_CLI_AUTHORIZATION_OUTSIDE_REPOSITORY",
     )
-    prompt = _read_prompt(
-        args.prompt_file,
+    cs257_run_dir = _repo_dir(
+        args.cs257_run_dir,
         repo_root,
-        "QWEN_CANONICAL_INFERENCE_CLI_PROMPT_INVALID",
+        "QWEN_CANONICAL_INFERENCE_CLI_CS257_OUTSIDE_REPOSITORY",
     )
-    negative_prompt = ""
-    if args.negative_prompt_file is not None:
-        negative_prompt = _read_prompt(
-            args.negative_prompt_file,
-            repo_root,
-            "QWEN_CANONICAL_INFERENCE_CLI_NEGATIVE_PROMPT_INVALID",
-        )
     output_dir = _repo_output(args.output_dir, repo_root)
+
+    from engine.intelligence.qwen_image_story_bound_canonical_prompt import (
+        build_story_bound_canonical_prompt,
+    )
+
+    bound_prompt = build_story_bound_canonical_prompt(
+        cs257_run_dir,
+        authorization_path,
+        repo_root=repo_root,
+    )
+    prompt = bound_prompt.prompt
+    negative_prompt = bound_prompt.negative_prompt
 
     authorization, cs260 = _load_cs260_from_authorization(
         authorization_path, repo_root
     )
+    if authorization.get("story_snapshot_sha256") != bound_prompt.story_snapshot_sha256:
+        raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_PROMPT_CROSS_STORY")
     expected_fingerprint = authorization.get("expected_runtime_fingerprint_sha256")
     if expected_fingerprint != cs260.get("expected_runtime_fingerprint_sha256"):
         raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_RUNTIME_FINGERPRINT_DRIFT")
@@ -214,14 +227,13 @@ def main() -> int:
             generator = torch.Generator(device="cpu").manual_seed(args.seed)
             kwargs: dict[str, Any] = {
                 "prompt": prompt,
+                "negative_prompt": negative_prompt,
                 "width": args.width,
                 "height": args.height,
                 "num_inference_steps": args.steps,
                 "guidance_scale": args.guidance_scale,
                 "generator": generator,
             }
-            if negative_prompt:
-                kwargs["negative_prompt"] = negative_prompt
             result = pipeline(**kwargs)
             images = getattr(result, "images", None)
             if not images or len(images) != 1:
@@ -251,7 +263,17 @@ def main() -> int:
         verified = verify_one_shot_canonical_inference(
             run.receipt_path, repo_root=repo_root
         )
-        print(json.dumps(verified, ensure_ascii=False, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "canonical_inference": verified,
+                    "story_bound_prompt_contract": bound_prompt.contract,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     finally:
         if pipeline is not None:
