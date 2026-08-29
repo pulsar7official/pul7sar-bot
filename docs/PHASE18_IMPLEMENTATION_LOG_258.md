@@ -27,12 +27,15 @@ Close the remaining CPU-side handoff gap between CS257 fresh-story semantic repl
    - verifies the locked CS233 preflight digest and policy boundaries;
    - binds CS257 receipt, semantic replay, and CS233 preflight bytes into a deterministic request;
    - publishes atomically through a staging directory;
+   - rejects symlinked CS257 run directories and symlinked repository-bound file inputs before path resolution;
    - keeps live-host, generation, pixel, Golden, human-review, and publication authority false.
 
 2. `tests/test_phase18_qwen_image_story_bound_controlled_trial_request.py`
    - success case with story binding and closed downstream authority;
    - CS257 artifact tamper rejection;
    - preflight authority-drift rejection;
+   - symlinked CS257-run rejection before resolution;
+   - symlinked preflight rejection before resolution;
    - existing-output overwrite rejection.
 
 3. `tools/phase18_build_story_bound_controlled_trial_request.py`
@@ -46,11 +49,13 @@ Close the remaining CPU-side handoff gap between CS257 fresh-story semantic repl
 
 ## Modified
 
-The newly added CS258 module and regression fixture were corrected during implementation before final verification:
+The newly added CS258 module and regression fixture were corrected and hardened during implementation:
 
 - `0ae1762e81ce293124a27d6d7cfcef7d88909a47` corrected the request to source `production_semantic_replay_executed` from the CS257 run receipt rather than the CS238 replay artifact.
 - `03491e4fc77c7c709877aca1cba2d4cef27efd97` aligned authority checks with the exact fields guaranteed by the CS257 and CS233 parent contracts.
 - `d75becd8ecdc4c5ea55964d5554cd72f24889a7f` aligned the test preflight fixture with the exact CS233 authority fields.
+- `14fd42a41c009f850536e4ff4d0fc47b3965340e` hardened path validation so symlink inputs are rejected before `Path.resolve()` can erase symlink identity.
+- `06b1fcb2686c5bd71768509b8385f9b76a952032` added regression coverage for both symlinked CS257 run directories and symlinked preflight files.
 
 No existing Fact Lock, identity, sentiment, story-semantic, zero-cost, semantic/layer-ownership, generation-runtime, Visual Critic, Human Review, Golden-quality, branding, typography, or SemanticPublicationGate implementation was relaxed or replaced.
 
@@ -67,6 +72,9 @@ Nothing.
 - `d75becd8ecdc4c5ea55964d5554cd72f24889a7f` — exact CS233 test-fixture alignment
 - `3bc0d206316a03749282148c56c846a739f2e6fc` — CPU-only CS258 CLI
 - `1e5ccf38b34400497f26020099893baca94baf3e` — Change Set 258 documentation
+- `fd7ff00696995afeea09dfd130d6dde1235ecf33` — initial CS258 implementation log
+- `14fd42a41c009f850536e4ff4d0fc47b3965340e` — pre-resolve symlink hardening
+- `06b1fcb2686c5bd71768509b8385f9b76a952032` — symlink fail-closed tests
 
 ## Authority state after CS258
 
@@ -92,7 +100,7 @@ Must remain false:
 
 ## Testing status
 
-Regression tests were added, but GitHub Actions status for the final CS258 state must be observed after this documentation commit. Do not treat this log entry as a claim of CI success until the workflow completes successfully.
+Regression coverage now includes the success path, byte-tamper failure, authority-drift failure, output-overwrite failure, and both symlink escape variants. GitHub Actions must still complete on the final CS258 hardening SHA before this Change Set is claimed CI-green. Earlier workflow runs on intermediate CS258 commits are not treated as final evidence.
 
 ## Exact remaining blocker
 
