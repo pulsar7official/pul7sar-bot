@@ -6,7 +6,7 @@ after the pinned QwenImagePipeline has loaded successfully on that same host and
 ``enable_sequential_cpu_offload()`` has returned successfully.
 
 This is the final live runtime preflight boundary before a *separate* canonical
--generation authorization.  It never executes inference, creates pixels, mutates
+generation authorization. It never executes inference, creates pixels, mutates
 publication queues, or grants semantic/Golden/publication authority.
 """
 from __future__ import annotations
@@ -32,6 +32,7 @@ from engine.intelligence.qwen_image_live_host_identity_recheck import (
     LIVE_HOST_IDENTITY_RECHECK_SCHEMA,
     LIVE_OBSERVABLE_IDENTITY_FIELDS,
 )
+from engine.intelligence.qwen_image_runtime_envelope_plan import DTYPE, OFFLOAD_MODE
 
 LIVE_PIPELINE_LOAD_RECHECK_SCHEMA = (
     "pul7sar-phase18-qwen-image-2512-live-pipeline-load-recheck-v1"
@@ -162,11 +163,9 @@ def _load_preflight_from_host_receipt(
 def _validate_host_receipt(
     path: Path, repo_root: Path
 ) -> tuple[dict[str, Any], Path, dict[str, Any]]:
-    canonical = _inside_repo(
+    _inside_repo(
         repo_root, path, "QWEN_PIPELINE_RECHECK_HOST_RECEIPT_OUTSIDE_REPOSITORY"
     )
-    if canonical != path.resolve().relative_to(repo_root.resolve()).as_posix():
-        raise ValueError("QWEN_PIPELINE_RECHECK_HOST_RECEIPT_PATH_DRIFT")
     receipt = _read_json(path, "QWEN_PIPELINE_RECHECK_HOST_RECEIPT_INVALID")
     if receipt.get("schema") != LIVE_HOST_IDENTITY_RECHECK_SCHEMA:
         raise ValueError("QWEN_PIPELINE_RECHECK_HOST_RECEIPT_SCHEMA_DRIFT")
@@ -223,13 +222,15 @@ def _validate_pipeline_observation(
             raise ValueError(f"QWEN_PIPELINE_RECHECK_RUNTIME_IDENTITY_DRIFT:{field}")
     if observation.get("pipeline_class") != "QwenImagePipeline":
         raise ValueError("QWEN_PIPELINE_RECHECK_PIPELINE_CLASS_INVALID")
+    if observation.get("dtype") != DTYPE:
+        raise ValueError("QWEN_PIPELINE_RECHECK_DTYPE_INVALID")
     if observation.get("native_bf16") is not True:
         raise ValueError("QWEN_PIPELINE_RECHECK_NATIVE_BF16_UNPROVEN")
     if observation.get("weights_loaded") is not True:
         raise ValueError("QWEN_PIPELINE_RECHECK_WEIGHTS_UNPROVEN")
     if observation.get("sequential_cpu_offload_enabled") is not True:
         raise ValueError("QWEN_PIPELINE_RECHECK_OFFLOAD_UNPROVEN")
-    if observation.get("offload_mode") != "sequential_cpu_offload":
+    if observation.get("offload_mode") != OFFLOAD_MODE:
         raise ValueError("QWEN_PIPELINE_RECHECK_OFFLOAD_MODE_INVALID")
     return dict(observation)
 
