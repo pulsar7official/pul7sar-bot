@@ -38,7 +38,36 @@ _EXPECTED_CS257_ARTIFACTS = (
     "fresh_story_gate_semantic_replay.json",
 )
 
-_FORBIDDEN_TRUE_AUTHORITY = (
+_CS257_FORBIDDEN_TRUE_AUTHORITY = (
+    "controlled_trial_preflight_valid",
+    "canonical_generation_authorized",
+    "model_weights_loaded",
+    "inference_executed",
+    "genuine_golden_png_created",
+    "semantic_approved",
+    "human_visual_review_approved",
+    "golden_quality_approved",
+    "publication_ready",
+)
+
+_PREFLIGHT_FORBIDDEN_TRUE_AUTHORITY = (
+    "controlled_trial_preflight_valid",
+    "live_host_recheck_passed",
+    "fresh_story_gates_passed",
+    "genuine_canonical_inference_executed",
+    "genuine_golden_png_created",
+    "runtime_floor_proven",
+    "local_runtime_qualified",
+    "canonical_generation_authorized",
+    "canonical_pixels_reusable",
+    "queue_mutated",
+    "semantic_approved",
+    "human_visual_review_approved",
+    "golden_quality_approved",
+    "publication_ready",
+)
+
+_OUTPUT_FORBIDDEN_TRUE_AUTHORITY = (
     "controlled_trial_preflight_valid",
     "live_host_recheck_passed",
     "canonical_generation_authorized",
@@ -125,7 +154,7 @@ def _validate_cs257_run(
         raise ValueError("QWEN_STORY_BOUND_REQUEST_SEMANTIC_REPLAY_MISSING")
     if receipt.get("fresh_story_gates_passed") is not True:
         raise ValueError("QWEN_STORY_BOUND_REQUEST_FRESH_STORY_GATES_MISSING")
-    for field in _FORBIDDEN_TRUE_AUTHORITY:
+    for field in _CS257_FORBIDDEN_TRUE_AUTHORITY:
         if receipt.get(field) is not False:
             raise ValueError("QWEN_STORY_BOUND_REQUEST_CS257_AUTHORITY_DRIFT")
 
@@ -183,7 +212,7 @@ def _validate_preflight_contract(path: Path, repo_root: Path) -> dict[str, Any]:
         raise ValueError("QWEN_STORY_BOUND_REQUEST_POST_GATE_SET_DRIFT")
     if contract.get("golden_minimum_score") != 8.5 or contract.get("elite_quality_score") != 9.0:
         raise ValueError("QWEN_STORY_BOUND_REQUEST_QUALITY_THRESHOLD_DRIFT")
-    for field in _FORBIDDEN_TRUE_AUTHORITY:
+    for field in _PREFLIGHT_FORBIDDEN_TRUE_AUTHORITY:
         if contract.get(field) is not False:
             raise ValueError("QWEN_STORY_BOUND_REQUEST_PREFLIGHT_AUTHORITY_DRIFT")
 
@@ -263,7 +292,7 @@ def build_story_bound_controlled_trial_request(
             "golden_minimum_score": 8.5,
             "elite_quality_score": 9.0,
         }
-        for field in _FORBIDDEN_TRUE_AUTHORITY:
+        for field in _OUTPUT_FORBIDDEN_TRUE_AUTHORITY:
             if payload[field] is not False:
                 raise RuntimeError("QWEN_STORY_BOUND_REQUEST_INTERNAL_AUTHORITY_DRIFT")
         payload["request_sha256"] = sha256_json(payload)
