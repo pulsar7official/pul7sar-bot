@@ -21,16 +21,14 @@ Reduce the remaining non-GPU gap to the first genuine Golden PNG by implementing
    - rejects unsupported emotional attribution;
    - requires opponent/loser semantic context for competitive-result coverage;
    - grants no downstream authority.
-   - commit: `152504e67ccccb4f917d9d16c2429345357a5c17`
+   - initial commit: `152504e67ccccb4f917d9d16c2429345357a5c17`
 
 2. `engine/intelligence/qwen_image_sentiment_neutrality_gate_verifier.py`
-   - exact-byte JSON evidence replay;
-   - story/gate/schema/verifier identity checks;
-   - delegates to the production sentiment policy;
-   - SHA-256 + byte-size evidence binding;
+   - exact-byte JSON evidence replay adapter;
+   - story/gate/schema/verifier identity checks are delegated to the production source verifier;
    - Change Set 241 production provenance metadata.
    - initial commit: `d5ec148d9b08e07a0c4e6adb1bf6e59b41163554`
-   - provenance correction commit: `fccc3864049d2f07615d3f1d5848e2336f85da09`
+   - initial provenance correction: `fccc3864049d2f07615d3f1d5848e2336f85da09`
 
 3. `tests/test_phase18_qwen_image_sentiment_neutrality_gate_verifier.py`
    - positive and fail-closed semantic regression coverage;
@@ -44,17 +42,28 @@ Reduce the remaining non-GPU gap to the first genuine Golden PNG by implementing
 
 5. `docs/PHASE18_IMPLEMENTATION_LOG_246.md`
    - this implementation log.
+   - initial commit: `593738a2e3759f84f1695ec47191b18a0f9de38c`
 
 ### Modified
 
-1. `engine/intelligence/qwen_image_sentiment_neutrality_gate_verifier.py`
-   - corrected `PUL7SAR_SOURCE_*` metadata after checking the Change Set 241 v3 readiness contract;
-   - source provenance now binds the replay-compatible `verify_sentiment_neutrality_evidence` callable, not the keyword-only lower-level policy function.
+1. `engine/intelligence/sentiment_neutrality.py`
+   - moved the replay-compatible `verify_sentiment_neutrality_evidence(...)` production verifier into the same source file as the deterministic semantic policy;
+   - moved schema/gate/verifier constants, exact-byte evidence parsing, story binding, SHA-256/byte-size binding, and replay result construction into that production semantic source;
+   - this ensures Change Set 241 source-file SHA binding covers the actual sentiment semantics and not merely an adapter that imports them;
+   - commit: `6c0b77097a8510b9d5a770914da1aa5d0ef3bab9`.
 
-2. `engine/intelligence/qwen_image_production_gate_verifier_registry.py`
+2. `engine/intelligence/qwen_image_sentiment_neutrality_gate_verifier.py`
+   - reduced to a lean canonical adapter;
+   - `PUL7SAR_SOURCE_MODULE` now points to `engine.intelligence.sentiment_neutrality`;
+   - `PUL7SAR_SOURCE_CALLABLE` now points to replay-compatible `verify_sentiment_neutrality_evidence`;
+   - `PUL7SAR_SOURCE_CALLABLE_OBJECT` is the actual verifier object from that semantic source module;
+   - therefore Change Set 241 byte-binds the production policy/verifier source rather than only this adapter;
+   - commit: `024f675fe2a64a76eee1f456a461f2c452788215`.
+
+3. `engine/intelligence/qwen_image_production_gate_verifier_registry.py`
    - comments/status only: records that Change Sets 244-246 now provide three genuine adapters and identifies the three remaining gates;
-   - `GATE_REPLAY_VERIFIERS` remains `{}`; no partial production registration occurred.
-   - commit: `73019da8d69ea2513160020d0371f4236008cbd2`
+   - `GATE_REPLAY_VERIFIERS` remains `{}`; no partial production registration occurred;
+   - commit: `73019da8d69ea2513160020d0371f4236008cbd2`.
 
 ### Deleted
 
@@ -74,9 +83,35 @@ Still missing before atomic registry cutover:
 - `story_semantic_preflight`
 - `semantic_layer_ownership`
 
-## Tests / CI
+## Regression coverage
 
-The new regression suite is committed. GitHub Actions status is intentionally recorded as pending until a workflow run on the final Change Set 246 state completes; this log must not claim CI-green before verification.
+The committed Change Set 246 suite covers:
+
+- respectful competitive-result copy;
+- degrading English loser/opponent framing;
+- degrading Arabic framing;
+- unsupported emotional attribution;
+- explicit source-backed non-degrading emotional attribution;
+- missing opponent/loser semantic context for a competitive result;
+- cross-story evidence;
+- verifier identity drift;
+- empty publication-facing text;
+- production provenance object binding.
+
+## CI state recorded during this change set
+
+The latest code-state verification is **Phase 18 Story Intelligence Verification Run 33227600271 / run number 3858** on commit `024f675fe2a64a76eee1f456a461f2c452788215`.
+
+At the time of this log update:
+
+- setup: success;
+- checkout: success;
+- Python setup: success;
+- CPU dependency installation: success;
+- `Syntax and discover validation`: in progress;
+- downstream isolation/visual/publication checks: pending.
+
+Accordingly, Change Set 246 is **not claimed CI-green yet**. A later run may update this status, but this implementation log records only observed evidence and does not fabricate completion.
 
 ## Authority state
 
