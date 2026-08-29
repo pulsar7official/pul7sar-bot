@@ -3,18 +3,39 @@
 Only genuine production-backed replay adapters may be registered here. Test fixtures,
 lambdas, pass-through stubs, and receipt-echo functions are forbidden.
 
-Change Sets 244-248 implement genuine production adapters for ``zero_cost_policy``,
-``fact_lock``, ``sentiment_neutrality``, ``entity_identity_verification``, and
-``semantic_layer_ownership``. The canonical registry remains empty until all six
-required gates have genuine adapters so the cutover is atomic and Change Set 239/241
-continues to report the pre-cutover state as explicitly NOT READY. This avoids a
-partial registry being mistaken for an executable production replay set.
+Change Sets 244-249 implement and CI-validate genuine production adapters for all six
+required fresh-story gates. Change Set 250 performs the atomic registry cutover in the
+exact `REQUIRED_FRESH_GATE_EVIDENCE` order. Registry readiness still grants no semantic
+replay result, generation authority, Golden approval, human approval, or publication
+authority; those remain independent downstream gates.
 """
 from __future__ import annotations
 
+from engine.intelligence.qwen_image_entity_identity_gate_verifier import (
+    replay_entity_identity_gate,
+)
+from engine.intelligence.qwen_image_fact_lock_gate_verifier import replay_fact_lock_gate
 from engine.intelligence.qwen_image_fresh_story_gate_semantic_replay import GateReplayVerifier
+from engine.intelligence.qwen_image_semantic_layer_ownership_gate_verifier import (
+    replay_semantic_layer_ownership_gate,
+)
+from engine.intelligence.qwen_image_sentiment_neutrality_gate_verifier import (
+    replay_sentiment_neutrality_gate,
+)
+from engine.intelligence.qwen_image_story_semantic_preflight_gate_verifier import (
+    replay_story_semantic_preflight_gate,
+)
+from engine.intelligence.qwen_image_zero_cost_policy_gate_verifier import (
+    replay_zero_cost_policy_gate,
+)
 
-# Atomic cutover policy: populate only when every REQUIRED_FRESH_GATE_EVIDENCE gate has
-# a genuine production-backed adapter. One required gate remains after Change Set 248:
-# story_semantic_preflight.
-GATE_REPLAY_VERIFIERS: dict[str, GateReplayVerifier] = {}
+
+# Atomic six-gate cutover. Keep this order identical to REQUIRED_FRESH_GATE_EVIDENCE.
+GATE_REPLAY_VERIFIERS: dict[str, GateReplayVerifier] = {
+    "fact_lock": replay_fact_lock_gate,
+    "entity_identity_verification": replay_entity_identity_gate,
+    "sentiment_neutrality": replay_sentiment_neutrality_gate,
+    "story_semantic_preflight": replay_story_semantic_preflight_gate,
+    "zero_cost_policy": replay_zero_cost_policy_gate,
+    "semantic_layer_ownership": replay_semantic_layer_ownership_gate,
+}
