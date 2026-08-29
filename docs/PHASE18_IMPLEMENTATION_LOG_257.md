@@ -27,7 +27,8 @@
 
 ## Modified
 
-No pre-existing production gate, registry, generation runtime, Visual Critic, human-review, Golden-threshold, brand/typography, or semantic-publication implementation was modified.
+- `docs/PHASE18_IMPLEMENTATION_LOG_257.md` was updated after CI completion to record the observed successful verification run.
+- No pre-existing production gate, registry, generation runtime, Visual Critic, human-review, Golden-threshold, brand/typography, or semantic-publication implementation was modified.
 
 ## Deleted
 
@@ -39,6 +40,7 @@ Nothing.
 - `b2e32984996b7a3420349af55a7a5acdb8745400` — regression coverage
 - `e1d23ddcf0568a4f82ac5b89034439943b0d7a33` — CPU-only CLI
 - `63255b585f0636445f9ac134efd3996d9c5bfda6` — Change Set design documentation
+- `87c1d1b465697dd602a895c971755275396f42d5` — initial implementation log and CI-tested branch state
 
 ## Authority state
 
@@ -58,7 +60,10 @@ The following remain false and are not granted by CS257:
 
 ## Testing status
 
-CS256 is confirmed CI-green via run `33241824576 / 3964`. CS257 CI must be observed on the final branch HEAD before this log can claim it is green. No CUDA/model inference is performed by these tests.
+- CS256 is confirmed CI-green via Phase 18 Story Intelligence Verification run `33241824576 / 3964`.
+- CS257 code, regressions, CLI, design document, and initial implementation log are confirmed CI-green at branch SHA `87c1d1b465697dd602a895c971755275396f42d5` via Phase 18 Story Intelligence Verification run `33256327333 / 3974`.
+- Run 3974 completed successfully across syntax/discovery validation, production isolation, visual-study handoffs, publication blocking, brand ownership checks, and Golden editorial verification.
+- No CUDA/model inference is performed by CS257 or its tests.
 
 ## Remaining gap
 
