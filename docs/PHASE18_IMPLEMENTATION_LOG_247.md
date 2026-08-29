@@ -36,7 +36,9 @@ Reduce the remaining non-GPU gap to the first genuine Golden PNG by implementing
 3. `tests/test_phase18_qwen_image_entity_identity_gate_verifier.py`
    - positive source-backed bilingual alias resolution coverage;
    - alias collision, identity mismatch, missing identity source, generated exact asset, unapproved exact-asset origin, cross-story, verifier-drift, and provenance regressions;
-   - commit: `01ef76c9d8788667404959bc3dac492517495934`.
+   - initial commit: `01ef76c9d8788667404959bc3dac492517495934`;
+   - converted from an accidental pytest-style test module to repository-native `unittest` with `tempfile`, without adding a dependency or changing CI requirements;
+   - correction commit: `bc476731f522461b8cfb5bdb8b71c9419bdb3c89`.
 
 4. `docs/PHASE18_CHANGESET_247_PRODUCTION_ENTITY_IDENTITY_VERIFIER.md`
    - architecture, semantics, and authority-boundary documentation;
@@ -54,8 +56,13 @@ Reduce the remaining non-GPU gap to the first genuine Golden PNG by implementing
    - `GATE_REPLAY_VERIFIERS` remains exactly `{}` and no partial cutover occurred;
    - commit: `b1a02537b71f67e8b9071da99a777cd5c73a4f57`.
 
-2. `docs/PHASE18_IMPLEMENTATION_LOG_247.md`
-   - updated to record the registry-comment-only commit and preserve a complete change ledger.
+2. `tests/test_phase18_qwen_image_entity_identity_gate_verifier.py`
+   - replaced `pytest` import/fixtures/assertions with Python standard-library `unittest` and `tempfile` after the first CI run exposed that pytest is intentionally not installed by the CPU workflow;
+   - no production logic changed as part of this correction;
+   - commit: `bc476731f522461b8cfb5bdb8b71c9419bdb3c89`.
+
+3. `docs/PHASE18_IMPLEMENTATION_LOG_247.md`
+   - updated to preserve the registry status change and the exact first-CI failure/correction sequence.
 
 ### Deleted
 
@@ -98,18 +105,21 @@ The committed Change Set 247 suite covers:
 
 ## CI state recorded during this change set
 
-The code-state verification is **Phase 18 Story Intelligence Verification Run `33230120472` / run number `3865`** on commit `01ef76c9d8788667404959bc3dac492517495934`.
+### First code-state run — failed for test-framework mismatch
 
-At the last observation recorded before this log update:
+Phase 18 Story Intelligence Verification Run `33230120472` / run number `3865` on commit `01ef76c9d8788667404959bc3dac492517495934` completed with `failure` in `Syntax and discover validation`.
 
-- setup: success;
-- checkout: success;
-- Python setup: success;
-- CPU dependency installation: success;
-- `Syntax and discover validation`: in progress;
-- downstream isolation/visual/publication checks: pending.
+The exact new error was:
 
-Accordingly, Change Set 247 is **not claimed CI-green yet** in this log unless a later explicit log update records the completed workflow. No completion result is fabricated.
+`ModuleNotFoundError: No module named 'pytest'`
+
+The repository workflow runs `unittest discover` and its CPU requirements intentionally do not install pytest. The failure was therefore a test-harness compatibility mistake, not an Entity/Identity semantic-policy rejection. The run reported 1614 discovered tests and one import error in the new test module.
+
+### Correction
+
+Commit `bc476731f522461b8cfb5bdb8b71c9419bdb3c89` removes the pytest dependency from the new test module and rewrites the same regressions using standard-library `unittest`/`tempfile`. No new dependency was added and no production identity semantics were relaxed.
+
+A later workflow result must be observed before Change Set 247 is claimed fully CI-green. No completion is fabricated in this log.
 
 ## Authority state
 
