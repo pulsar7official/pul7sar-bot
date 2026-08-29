@@ -75,16 +75,19 @@ def _verify(receipt, registry):
 
 
 class ProductionGateVerifierReadinessTests(unittest.TestCase):
-    def test_canonical_registry_is_explicitly_not_ready_until_real_adapters_exist(self):
+    def test_canonical_registry_is_structurally_ready_but_grants_no_authority(self):
         receipt = audit_production_gate_verifier_readiness(GATE_REPLAY_VERIFIERS)
-        self.assertFalse(receipt["all_production_verifiers_bound"])
-        self.assertFalse(receipt["all_bindings_provenance_complete"])
-        self.assertFalse(receipt["all_source_objects_bound"])
-        self.assertFalse(receipt["all_source_files_byte_bound"])
-        self.assertEqual(receipt["missing_gate_ids"], list(REQUIRED_FRESH_GATE_EVIDENCE))
+        self.assertEqual(tuple(GATE_REPLAY_VERIFIERS), REQUIRED_FRESH_GATE_EVIDENCE)
+        self.assertTrue(receipt["all_production_verifiers_bound"])
+        self.assertTrue(receipt["all_bindings_provenance_complete"])
+        self.assertTrue(receipt["all_source_objects_bound"])
+        self.assertTrue(receipt["all_source_files_byte_bound"])
+        self.assertEqual(receipt["missing_gate_ids"], [])
         self.assertEqual(receipt["invalid_gate_ids"], [])
+        self.assertFalse(receipt["production_semantic_replay_executed"])
         self.assertFalse(receipt["fresh_story_gates_passed"])
         self.assertFalse(receipt["canonical_generation_authorized"])
+        self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
 
     def test_complete_compatible_registry_can_be_structurally_ready_without_authority(self):
