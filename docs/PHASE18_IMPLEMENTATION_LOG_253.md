@@ -53,6 +53,12 @@ Regression coverage includes:
 
 The `example.org` story is a test fixture only and must never be treated as genuine story evidence.
 
+### `tools/phase18_compile_source_backed_story_evidence_pack.py`
+
+Commit: `9c14ed72aee72a9a6179057a13f61b3a76d42185`
+
+Adds a CPU-only command-line entry point for compiling one source-backed story manifest into the six canonical evidence files. Its printed summary repeats the fail-closed authority state and does not execute semantic replay or CUDA inference.
+
 ### Documentation
 
 - `docs/PHASE18_CHANGESET_253_SOURCE_BACKED_STORY_EVIDENCE_PACK.md`
@@ -60,7 +66,7 @@ The `example.org` story is a test fixture only and must never be treated as genu
 
 ## Modified
 
-No pre-existing production, generation, publication, semantic gate, visual-quality or registry implementation was modified in Change Set 253.
+No pre-existing production, generation, publication, semantic gate, visual-quality or registry implementation was modified in Change Set 253. This implementation log was updated to record the CLI addition.
 
 ## Deleted
 
@@ -68,7 +74,7 @@ Nothing.
 
 ## Test / CI state
 
-Phase 18 Story Intelligence Verification run `33234819162 / 3932` was started for test commit `426cdc8fe7e5fd62c4148a7a879f3d2d8d76d17d`. At the time this log was first written it was `in_progress`; no CI-green claim is made until GitHub reports completion/success.
+Phase 18 Story Intelligence Verification run `33234819162 / 3932` was started for test commit `426cdc8fe7e5fd62c4148a7a879f3d2d8d76d17d`. At the time this log was updated it was still `in_progress`; no CI-green claim is made until GitHub reports completion/success.
 
 ## Authority state
 
