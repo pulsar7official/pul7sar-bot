@@ -25,6 +25,7 @@
    - Covers missing native BF16.
    - Covers preflight byte tampering after CS258.
    - Covers rehashed CS258 authority drift.
+   - Covers parent-traversal attempts in the bound preflight path.
    - Covers symlinked request rejection.
 
 3. `tools/phase18_run_live_host_identity_recheck.py`
@@ -41,6 +42,10 @@
 
 ## Modified
 
+After the initial implementation, `engine/intelligence/qwen_image_live_host_identity_recheck.py` was hardened so the preflight path embedded in CS258 must resolve inside the repository and must canonicalize to the exact stored repository-relative path before any bytes are trusted. This closes `..` traversal and path-alias ambiguity before preflight validation.
+
+`tests/test_phase18_qwen_image_live_host_identity_recheck.py` was extended with a dedicated parent-traversal regression.
+
 No pre-existing production gate, verifier registry, generation runtime, Visual Critic, Human Review, Golden threshold, exact brand/typography, or SemanticPublicationGate code was modified.
 
 ## Deleted
@@ -53,6 +58,9 @@ Nothing.
 - `8bba1c099ba7d7a5ac32334e1ac31077a7f5ab50` — CS259 regression tests.
 - `ffa7c6cbe4eda2712f20c4ee653634b5d118822d` — no-weight live-host CLI.
 - `70d322e5f990d1c857fa7cc16faacd79576043dc` — Change Set 259 design documentation.
+- `d08c2a18e0c87d39cdee2612e23e7597272aeba4` — initial CS259 implementation log.
+- `248ba16482c4b61cf31b9724abd544881bccb0b7` — preflight path containment hardening.
+- `a049f3cd0f5a1edf2f696f5bc54bfbad2fc8714d` — parent-traversal regression coverage.
 
 ## Authority state after CS259
 
@@ -76,7 +84,9 @@ This distinction is intentional: the currently observable CUDA/software host ide
 
 ## Testing status
 
-GitHub Actions status is recorded separately after the branch run reaches a terminal state. No CI success is claimed in advance.
+Change Set 258 baseline verification is confirmed green: the `verify-story-intelligence` check on `aeb1b1e3819a56b9da19e8ea11d5c42354731fb9` completed successfully.
+
+Change Set 259 GitHub Actions was still running while this log update was written. No CI success is claimed in advance; the terminal result must be recorded only after the run completes.
 
 ## Remaining path to first genuine Golden PNG
 
