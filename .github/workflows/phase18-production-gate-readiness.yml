@@ -1,0 +1,92 @@
+name: Phase 18 Production Gate Readiness
+
+on:
+  push:
+    branches: ['phase18/story-intelligence']
+    paths:
+      - 'engine/intelligence/qwen_image_*gate_verifier.py'
+      - 'engine/intelligence/qwen_image_production_gate_verifier_*.py'
+      - 'engine/intelligence/fact_lock.py'
+      - 'engine/intelligence/entity_identity_verification.py'
+      - 'engine/intelligence/sentiment_neutrality.py'
+      - 'engine/intelligence/story_semantic_preflight.py'
+      - 'engine/intelligence/semantic_layer_ownership.py'
+      - 'engine/intelligence/story_visual_editorial.py'
+      - 'engine/intelligence/hybrid_layer_planner.py'
+      - 'engine/intelligence/visual_layer_qa.py'
+      - 'tools/phase18_audit_qwen_production_gate_verifiers.py'
+      - 'tests/test_phase18_qwen_image_production_gate_verifier_readiness.py'
+      - 'tests/test_phase18_qwen_image_production_gate_readiness_receipt_cli.py'
+      - '.github/workflows/phase18-production-gate-readiness.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-production-gate-readiness:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Verify readiness regressions
+        run: |
+          python -m unittest -v tests.test_phase18_qwen_image_production_gate_verifier_readiness
+          python -m unittest -v tests.test_phase18_qwen_image_production_gate_readiness_receipt_cli
+
+      - name: Build replay-verified canonical readiness receipt
+        run: |
+          python tools/phase18_audit_qwen_production_gate_verifiers.py \
+            --output output/phase18_qwen_production_gate_readiness/receipt.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from engine.intelligence.qwen_image_controlled_golden_trial_preflight import REQUIRED_FRESH_GATE_EVIDENCE
+
+          path = Path('output/phase18_qwen_production_gate_readiness/receipt.json')
+          receipt = json.loads(path.read_text(encoding='utf-8'))
+          assert receipt['status'] == 'QWEN_IMAGE_2512_PRODUCTION_GATE_VERIFIERS_READY'
+          assert tuple(receipt['required_gate_order']) == REQUIRED_FRESH_GATE_EVIDENCE
+          assert receipt['all_production_verifiers_bound'] is True
+          assert receipt['all_bindings_provenance_complete'] is True
+          assert receipt['all_source_objects_bound'] is True
+          assert receipt['all_source_files_byte_bound'] is True
+          assert receipt['missing_gate_ids'] == []
+          assert receipt['invalid_gate_ids'] == []
+          assert len(receipt['bindings']) == 6
+          assert all(binding['binding_status'] == 'ready' for binding in receipt['bindings'])
+          assert all(binding['source_file_byte_bound'] is True for binding in receipt['bindings'])
+          assert receipt['production_semantic_replay_executed'] is False
+          assert receipt['fresh_story_gates_passed'] is False
+          assert receipt['controlled_trial_preflight_valid'] is False
+          assert receipt['canonical_generation_authorized'] is False
+          assert receipt['model_weights_loaded'] is False
+          assert receipt['inference_executed'] is False
+          assert receipt['genuine_golden_png_created'] is False
+          assert receipt['semantic_approved'] is False
+          assert receipt['human_visual_review_approved'] is False
+          assert receipt['golden_quality_approved'] is False
+          assert receipt['publication_ready'] is False
+          print('Production gate readiness receipt PASS')
+          PY
+
+      - name: Upload production gate readiness receipt
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-production-gate-readiness-${{ github.sha }}'
+          path: output/phase18_qwen_production_gate_readiness/receipt.json
+          if-no-files-found: error
+          retention-days: 14
