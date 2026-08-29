@@ -43,11 +43,19 @@ Reduce the remaining non-GPU gap to the first genuine Golden PNG by implementing
    - commit: `5d921826c33e03783bdf3a7e11d740fc1beb17b2`.
 
 5. `docs/PHASE18_IMPLEMENTATION_LOG_247.md`
-   - this implementation log.
+   - this implementation log;
+   - initial commit: `a3a1d8c6d718b83e2b8e65976f87e6ee5ed5e868`.
 
 ### Modified
 
-- None. Existing production/generation/registry/publication code was intentionally left unchanged.
+1. `engine/intelligence/qwen_image_production_gate_verifier_registry.py`
+   - status/comments only updated from 3/6 to 4/6 genuine adapters;
+   - records that only `story_semantic_preflight` and `semantic_layer_ownership` remain;
+   - `GATE_REPLAY_VERIFIERS` remains exactly `{}` and no partial cutover occurred;
+   - commit: `b1a02537b71f67e8b9071da99a777cd5c73a4f57`.
+
+2. `docs/PHASE18_IMPLEMENTATION_LOG_247.md`
+   - updated to record the registry-comment-only commit and preserve a complete change ledger.
 
 ### Deleted
 
@@ -92,7 +100,7 @@ The committed Change Set 247 suite covers:
 
 The code-state verification is **Phase 18 Story Intelligence Verification Run `33230120472` / run number `3865`** on commit `01ef76c9d8788667404959bc3dac492517495934`.
 
-At the time this implementation log was written:
+At the last observation recorded before this log update:
 
 - setup: success;
 - checkout: success;
@@ -101,7 +109,7 @@ At the time this implementation log was written:
 - `Syntax and discover validation`: in progress;
 - downstream isolation/visual/publication checks: pending.
 
-Accordingly, Change Set 247 is **not claimed CI-green yet** in this log. No completion result is fabricated.
+Accordingly, Change Set 247 is **not claimed CI-green yet** in this log unless a later explicit log update records the completed workflow. No completion result is fabricated.
 
 ## Authority state
 
