@@ -1,10 +1,9 @@
-"""Bind one successful CS257 fresh-story replay to the locked CS233 Golden preflight.
+"""Bind one successful CS257 replay to the locked CS233 Golden preflight.
 
-Change Set 258 is CPU-only. It creates a deterministic request artifact that proves the
-exact story admitted by Change Set 257 is the story presented to the controlled Golden
-trial boundary. The request does not perform the live same-host check, load model
-weights, authorize generation, execute inference, approve pixels, or grant publication
-authority.
+Change Set 258 is CPU-only. It proves that the exact fresh story admitted by CS257 is
+the story presented to the controlled-trial boundary. It does not perform a live-host
+recheck, load weights, authorize generation, execute inference, approve pixels, or
+grant publication authority.
 """
 from __future__ import annotations
 
@@ -62,10 +61,8 @@ class StoryBoundControlledTrialRequestRun:
 
 
 def _is_sha256(value: Any) -> bool:
-    return (
-        isinstance(value, str)
-        and len(value) == 64
-        and all(ch in "0123456789abcdef" for ch in value.lower())
+    return isinstance(value, str) and len(value) == 64 and all(
+        ch in "0123456789abcdef" for ch in value.lower()
     )
 
 
@@ -90,10 +87,7 @@ def _binding(path: Path, code: str) -> dict[str, Any]:
     raw = path.read_bytes()
     if not raw:
         raise ValueError(code)
-    return {
-        "sha256": hashlib.sha256(raw).hexdigest(),
-        "byte_size": len(raw),
-    }
+    return {"sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
 
 
 def _require_inside_repo(repo_root: Path, path: Path, code: str) -> str:
@@ -108,7 +102,9 @@ def _require_inside_repo(repo_root: Path, path: Path, code: str) -> str:
     return relative
 
 
-def _validate_cs257_run(run_dir: Path, repo_root: Path) -> tuple[str, dict[str, Any], dict[str, Any]]:
+def _validate_cs257_run(
+    run_dir: Path, repo_root: Path
+) -> tuple[str, dict[str, Any], dict[str, Any]]:
     root = repo_root.resolve()
     resolved_run = run_dir.resolve()
     try:
@@ -161,7 +157,6 @@ def _validate_cs257_run(run_dir: Path, repo_root: Path) -> tuple[str, dict[str, 
         raise ValueError("QWEN_STORY_BOUND_REQUEST_SEMANTIC_REPLAY_NOT_PASSED")
     if replay.get("all_gate_specific_verifiers_executed") is not True:
         raise ValueError("QWEN_STORY_BOUND_REQUEST_GATE_REPLAY_INCOMPLETE")
-
     return story_sha, receipt, replay
 
 
@@ -209,13 +204,13 @@ def build_story_bound_controlled_trial_request(
     *,
     repo_root: Path,
 ) -> StoryBoundControlledTrialRequestRun:
-    """Create an atomic CPU-only story-bound request for the future live-host gate."""
+    """Create an atomic CPU-only request for the future live same-host gate."""
     if output_dir.exists():
         raise ValueError("QWEN_STORY_BOUND_REQUEST_OUTPUT_ALREADY_EXISTS")
     if not output_dir.parent.is_dir():
         raise ValueError("QWEN_STORY_BOUND_REQUEST_OUTPUT_PARENT_INVALID")
 
-    story_sha, _, replay = _validate_cs257_run(cs257_run_dir, repo_root)
+    story_sha, cs257_receipt, _ = _validate_cs257_run(cs257_run_dir, repo_root)
     preflight = _validate_preflight_contract(preflight_contract_path, repo_root)
 
     staging = Path(tempfile.mkdtemp(prefix=f".{output_dir.name}.stage-", dir=str(output_dir.parent)))
@@ -247,7 +242,9 @@ def build_story_bound_controlled_trial_request(
                 **_binding(preflight_contract_path, "QWEN_STORY_BOUND_REQUEST_PREFLIGHT_INVALID"),
                 "preflight_contract_sha256": preflight["preflight_contract_sha256"],
             },
-            "production_semantic_replay_executed": replay["production_semantic_replay_executed"],
+            "production_semantic_replay_executed": cs257_receipt[
+                "production_semantic_replay_executed"
+            ],
             "fresh_story_gates_passed": True,
             "live_same_host_recheck_required": True,
             "live_host_recheck_passed": False,
