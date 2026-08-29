@@ -133,6 +133,13 @@ def _load_bound_preflight(
     if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
         raise ValueError("QWEN_LIVE_HOST_RECHECK_PREFLIGHT_PATH_INVALID")
     path = repo_root.resolve() / relative
+    canonical = _inside_repo(
+        repo_root,
+        path,
+        "QWEN_LIVE_HOST_RECHECK_PREFLIGHT_OUTSIDE_REPOSITORY",
+    )
+    if canonical != Path(relative).as_posix():
+        raise ValueError("QWEN_LIVE_HOST_RECHECK_PREFLIGHT_PATH_DRIFT")
     current = _binding(path, "QWEN_LIVE_HOST_RECHECK_PREFLIGHT_INVALID")
     if source.get("sha256") != current["sha256"] or source.get("byte_size") != current["byte_size"]:
         raise ValueError("QWEN_LIVE_HOST_RECHECK_PREFLIGHT_BYTE_DRIFT")
