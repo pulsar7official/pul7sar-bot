@@ -49,7 +49,9 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "height": 1024,
         }
 
-    def _cs264(self, *, generated_text: bool = False) -> dict[str, object]:
+    def _cs264(
+        self, *, generated_text: bool = False, unverified_identity: bool = False
+    ) -> dict[str, object]:
         return {
             "schema": CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
             "receipt_sha256": "a" * 64,
@@ -64,7 +66,7 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
                     "generated_platform_brand_detected": False,
                     "generated_exact_numbers_detected": False,
                     "generated_entity_mark_detected": False,
-                    "generated_unverified_identity_detected": False,
+                    "generated_unverified_identity_detected": unverified_identity,
                     "generated_sport_geometry_detected": False,
                     "notes": [],
                 },
@@ -187,6 +189,27 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         self.assertFalse(receipt["generated_layer_qa_approved"])
         self.assertIn(
             "generated_text_leaked_into_deterministic_typography",
+            receipt["hybrid_layer_gate"]["blockers"],
+        )
+
+    def test_upstream_unverified_identity_evidence_is_never_suppressed(self) -> None:
+        cs264 = self._cs264(unverified_identity=True)
+        cs265 = self._cs265(required=True)
+        cs267 = self._cs267()
+        p1, p2, p3 = self._patch(cs264, cs265, cs267)
+        with p1, p2, p3:
+            run = run_canonical_candidate_generated_layer_qa(
+                self.cs264_path,
+                self.cs265_path,
+                self.repo / "out",
+                repo_root=self.repo,
+                cs267_receipt_path=self.cs267_path,
+            )
+        receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        self.assertFalse(receipt["generated_layer_qa_approved"])
+        self.assertTrue(receipt["layer_leakage_evidence"]["generated_unverified_identity_detected"])
+        self.assertIn(
+            "generated_identity_leaked_into_verified_identity_layer",
             receipt["hybrid_layer_gate"]["blockers"],
         )
 
