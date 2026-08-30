@@ -70,7 +70,8 @@ Nothing.
 - `2c6e0111385d5c6d8f96f0bb548b1bd6b90aa493` — add CS264 semantic QA regressions.
 - `e946606c112293b4718751abc741206cd86281c4` — add real semantic QA CLI.
 - `543382ab6b846c1617828afe86e2df57a3008418` — document CS264 contract.
-- final documentation commit: created by this implementation-log addition.
+- `3d00e9f9081a00c84ea130fe60d8a0abafe0166b` — initial CS264 implementation log; this exact SHA was tested by Story Intelligence Verification run `33284394700` / run number `4081` and completed successfully.
+- final documentation commit: created by this green-status log update.
 
 ## Existing contracts preserved and reused
 
@@ -105,8 +106,10 @@ This separation is intentional because the current semantic inspector does not p
 ## Testing status
 
 - The exact cause of the previous CS263 Story Intelligence Verification failure was identified and fixed before CS264 was built.
-- CS264 regression tests are unittest-native and committed for the canonical workflow.
-- GitHub Actions terminal status for the final CS264 HEAD must be checked after this log commit; success is not claimed in advance.
+- CS264 regression tests are unittest-native and were discovered by the canonical workflow.
+- Phase 18 Story Intelligence Verification run `33284394700` / run number `4081` on SHA `3d00e9f9081a00c84ea130fe60d8a0abafe0166b` completed with **success**.
+- `Syntax and discover validation`, `Completion and production isolation`, visual-study handoff construction/verification, cross-platform result composition checks, self-contained brand ownership, Golden editorial v6 verification, and the legacy-logo non-canonical assertion all completed successfully.
+- The final log-only commit does not alter executable code; its own workflow state may be newer than the tested implementation SHA and must not be confused with the verified code result above.
 
 ## Genuine PNG / GPU status
 
