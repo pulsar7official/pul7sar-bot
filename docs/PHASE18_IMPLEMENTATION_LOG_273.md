@@ -5,7 +5,7 @@
 - Repository: `pulsar7official/pul7sar-bot`
 - Writable branch: `phase18/story-intelligence` only
 - Starting Phase 18 HEAD: `0c87624653ca671bd17b38b3e6ccab1f7de673cf`
-- Starting `main` SHA observed read-only: `6482f8d98fe2f0a0890679a5cc8108b5d6e48378`
+- Starting and final read-only `main` SHA observed: `6482f8d98fe2f0a0890679a5cc8108b5d6e48378`
 - `main` was not committed to, merged, rebased, force-updated, or otherwise modified.
 - `compare_commits(0c876246..., phase18/story-intelligence)` was `identical` before this Change Set, so no unreviewed branch drift preceded CS273.
 
@@ -80,13 +80,13 @@ Documents scope, upstream requirements, reused semantic contracts, identity sepa
 
 `docs/PHASE18_IMPLEMENTATION_LOG_273.md`
 
-This file records the implementation and verification state of the Change Set.
+This file records the implementation and verification state of the Change Set and was updated after CI completion to record the terminal result.
 
 ## Modified
 
 No pre-existing production gate, renderer, semantic inspector, identity policy, sentiment policy, zero-cost policy, Visual Critic, Human Review contract, Golden threshold, Brand/Typography contract, or `SemanticPublicationGate` was modified.
 
-This implementation log may receive a documentation-only follow-up update when the terminal GitHub Actions result for CS273 is known.
+The only modified file in the final status follow-up is this implementation log; that update changes documentation only and does not change executable code.
 
 ## Deleted
 
@@ -98,6 +98,7 @@ None.
 - `ad89a4c7777919160c3ee46483ccd70f3d98f79f` — add CS273 regression coverage
 - `09f177103ddcd3843cf28180254dec2f7e22f5c0` — add CS273 production CLI
 - `1b356fc4d5f8e3a7629f8cce83b04d2ef8fb5469` — add CS273 contract documentation
+- `ef6a224f090fedc2608dc709cd3047db48109c84` — add initial CS273 implementation log; executable implementation state verified by CI
 
 ## Authority preservation
 
@@ -121,7 +122,10 @@ Identity is not inferred by CS273 because the current pinned Qwen2.5-VL inspecto
 
 - The CS273 engine source was syntax-compiled locally before repository write.
 - GitHub Actions were triggered by the branch commits.
-- At the time this initial log was written, the workflow for executable SHA `09f177103ddcd3843cf28180254dec2f7e22f5c0` had been created but remained queued; no CI-green claim is made until a terminal successful run is observed.
+- `Phase 18 Story Intelligence Verification` run `33305179772`, run number `4191`, on SHA `ef6a224f090fedc2608dc709cd3047db48109c84` completed successfully.
+- Result: `completed / success`.
+- This terminal run validates the CS273 executable implementation plus tests, CLI, contract documentation, and initial implementation log.
+- A supplementary direct local `git clone` test attempt was not used as evidence because the execution container could not resolve `github.com`; this did not affect GitHub Actions verification.
 
 ## Runtime / genuine Golden state
 
@@ -144,4 +148,4 @@ The controlled path is now:
 
 `genuine story -> factual/identity/sentiment/zero-cost/semantic gates -> CS257 -> CS258–260 -> CS261 -> CS262 genuine Qwen inference -> CS263 -> CS264 -> CS265–267 when required -> CS268 -> CS269 -> CS270 -> CS271 composition -> CS272 exact composed-byte admission -> CS273 HYBRID_SURFACE semantic QA -> byte-bound Visual Critic -> Human Review -> Golden threshold -> exact Brand/Typography verification -> SemanticPublicationGate`
 
-The next safe preparatory step after a green CS273 is to inspect and bind the existing Visual Critic contract to the exact CS272/CS273 composed bytes while preserving Human Review and Golden thresholds as independent fail-closed authorities.
+The next safe preparatory step is to inspect and bind the existing Visual Critic contract to the exact CS272/CS273 composed bytes while preserving Human Review and Golden thresholds as independent fail-closed authorities.
