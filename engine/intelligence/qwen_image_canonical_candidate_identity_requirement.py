@@ -63,6 +63,51 @@ def _inside_repo(repo_root: Path, path: Path, code: str) -> str:
     return rel
 
 
+def _bound_file(repo_root: Path, path: Path, code: str) -> dict[str, Any]:
+    rel = _inside_repo(repo_root, path, code)
+    raw = path.read_bytes()
+    if not raw:
+        raise ValueError(code)
+    return {
+        "repository_relative_path": rel,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "byte_size": len(raw),
+    }
+
+
+def _reopen_binding(repo_root: Path, binding: Mapping[str, Any], code: str) -> Path:
+    rel = binding.get("repository_relative_path")
+    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
+        raise ValueError(code)
+    path = repo_root.resolve() / rel
+    canonical_rel = _inside_repo(repo_root, path, code)
+    if canonical_rel != Path(rel).as_posix():
+        raise ValueError(code)
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != binding.get("sha256") or len(raw) != binding.get("byte_size"):
+        raise ValueError(f"{code}_BYTE_DRIFT")
+    return path
+
+
+def _human_targets(evidence: Mapping[str, Any]) -> list[dict[str, Any]]:
+    targets: list[dict[str, Any]] = []
+    canonical_entities = evidence.get("canonical_entities")
+    if not isinstance(canonical_entities, list):
+        raise ValueError("QWEN_IDREQ_CANONICAL_ENTITIES_INVALID")
+    for entity in canonical_entities:
+        if not isinstance(entity, Mapping):
+            raise ValueError("QWEN_IDREQ_CANONICAL_ENTITY_INVALID")
+        kind = str(entity.get("kind") or "").strip().casefold()
+        if kind in _HUMAN_KINDS:
+            entity_id = entity.get("entity_id")
+            display_name = entity.get("display_name")
+            original_kind = entity.get("kind")
+            if not all(isinstance(v, str) and v for v in (entity_id, display_name, original_kind)):
+                raise ValueError("QWEN_IDREQ_HUMAN_TARGET_INVALID")
+            targets.append({"entity_id": entity_id, "display_name": display_name, "kind": original_kind})
+    return targets
+
+
 def _identity_binding_from_manifest(cs257_run_dir: Path, repo_root: Path, story_sha: str) -> tuple[dict[str, Any], dict[str, Any]]:
     run, _ = _read_json(cs257_run_dir / "atomic_fresh_story_semantic_replay.json", "QWEN_IDREQ_CS257_RUN_INVALID")
     if run.get("story_snapshot_sha256") != story_sha or run.get("fresh_story_gates_passed") is not True or run.get("production_semantic_replay_executed") is not True:
@@ -98,6 +143,7 @@ def _identity_binding_from_manifest(cs257_run_dir: Path, repo_root: Path, story_
 def run_identity_requirement(cs264_receipt_path: Path, cs257_run_dir: Path, output_dir: Path, *, repo_root: Path) -> IdentityRequirementRun:
     if output_dir.exists() or not output_dir.parent.is_dir():
         raise ValueError("QWEN_IDREQ_OUTPUT_INVALID")
+    source_binding = _bound_file(repo_root, cs264_receipt_path, "QWEN_IDREQ_CS264_RECEIPT_INVALID")
     source = verify_canonical_candidate_semantic_base_qa(cs264_receipt_path, repo_root=repo_root)
     if source.get("schema") != CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA or source.get("semantic_base_scene_approved") is not True:
         raise ValueError("QWEN_IDREQ_CS264_NOT_APPROVED")
@@ -105,21 +151,23 @@ def run_identity_requirement(cs264_receipt_path: Path, cs257_run_dir: Path, outp
         if source.get(field) is not False:
             raise ValueError(f"QWEN_IDREQ_PREMATURE_AUTHORITY:{field}")
     story_sha = source.get("story_snapshot_sha256")
+    if not isinstance(story_sha, str) or len(story_sha) != 64:
+        raise ValueError("QWEN_IDREQ_STORY_SHA_INVALID")
     evidence, binding = _identity_binding_from_manifest(cs257_run_dir, repo_root, story_sha)
-    human_entities = []
-    for entity in evidence["canonical_entities"]:
-        kind = str(entity.get("kind") or "").strip().casefold()
-        if kind in _HUMAN_KINDS:
-            human_entities.append({"entity_id": entity["entity_id"], "display_name": entity["display_name"], "kind": entity["kind"]})
+    human_entities = _human_targets(evidence)
     required = bool(human_entities)
     candidate = source.get("candidate_png")
     if not isinstance(candidate, Mapping):
         raise ValueError("QWEN_IDREQ_CANDIDATE_BINDING_INVALID")
+    candidate_binding = dict(candidate)
+    candidate_path = _reopen_binding(repo_root, candidate_binding, "QWEN_IDREQ_CANDIDATE_INVALID")
+    candidate_binding["repository_relative_path"] = candidate_path.resolve().relative_to(repo_root.resolve()).as_posix()
     receipt = {
         "schema": SCHEMA,
         "status": "QWEN_IMAGE_PIXEL_IDENTITY_REVIEW_REQUIRED" if required else "QWEN_IMAGE_NO_HUMAN_PIXEL_IDENTITY_REVIEW_REQUIRED",
         "story_snapshot_sha256": story_sha,
-        "candidate_png": dict(candidate),
+        "source_cs264_receipt": {**source_binding, "receipt_sha256": source.get("receipt_sha256")},
+        "candidate_png": candidate_binding,
         "identity_evidence": binding,
         "human_identity_targets": human_entities,
         "pixel_identity_review_required": required,
@@ -153,15 +201,46 @@ def verify_identity_requirement(receipt_path: Path, *, repo_root: Path) -> dict[
     for field in _FORBIDDEN_TRUE:
         if receipt.get(field) is not False:
             raise ValueError(f"QWEN_IDREQ_PREMATURE_AUTHORITY:{field}")
+
+    source_binding = receipt.get("source_cs264_receipt")
+    if not isinstance(source_binding, Mapping):
+        raise ValueError("QWEN_IDREQ_CS264_BINDING_INVALID")
+    source_path = _reopen_binding(repo_root, source_binding, "QWEN_IDREQ_CS264_RECEIPT_INVALID")
+    source = verify_canonical_candidate_semantic_base_qa(source_path, repo_root=repo_root)
+    if source.get("schema") != CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA or source.get("semantic_base_scene_approved") is not True:
+        raise ValueError("QWEN_IDREQ_CS264_NOT_APPROVED")
+    if source.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256"):
+        raise ValueError("QWEN_IDREQ_CS264_STORY_DRIFT")
+    if source_binding.get("receipt_sha256") != source.get("receipt_sha256"):
+        raise ValueError("QWEN_IDREQ_CS264_RECEIPT_DIGEST_DRIFT")
+    for field in _FORBIDDEN_TRUE:
+        if source.get(field) is not False:
+            raise ValueError(f"QWEN_IDREQ_PREMATURE_AUTHORITY:{field}")
+
+    candidate = receipt.get("candidate_png")
+    if not isinstance(candidate, Mapping) or dict(candidate) != dict(source.get("candidate_png") or {}):
+        raise ValueError("QWEN_IDREQ_CANDIDATE_BINDING_DRIFT")
+    _reopen_binding(repo_root, candidate, "QWEN_IDREQ_CANDIDATE_INVALID")
+
     binding = receipt.get("identity_evidence")
     if not isinstance(binding, Mapping):
         raise ValueError("QWEN_IDREQ_IDENTITY_BINDING_INVALID")
-    rel = binding.get("repository_relative_path")
-    if not isinstance(rel, str) or Path(rel).is_absolute() or ".." in Path(rel).parts:
-        raise ValueError("QWEN_IDREQ_IDENTITY_PATH_INVALID")
-    path = repo_root.resolve() / rel
-    _inside_repo(repo_root, path, "QWEN_IDREQ_IDENTITY_OUTSIDE_REPOSITORY")
-    raw = path.read_bytes()
-    if hashlib.sha256(raw).hexdigest() != binding.get("sha256") or len(raw) != binding.get("byte_size"):
-        raise ValueError("QWEN_IDREQ_IDENTITY_BYTE_DRIFT")
+    identity_path = _reopen_binding(repo_root, binding, "QWEN_IDREQ_IDENTITY_INVALID")
+    evidence, _ = _read_json(identity_path, "QWEN_IDREQ_IDENTITY_EVIDENCE_INVALID")
+    if evidence.get("schema") != IDENTITY_EVIDENCE_SCHEMA or evidence.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256"):
+        raise ValueError("QWEN_IDREQ_IDENTITY_EVIDENCE_DRIFT")
+    decision = evaluate_entity_identity(
+        canonical_entities=evidence.get("canonical_entities"),
+        story_entity_references=evidence.get("story_entity_references"),
+        exact_entity_assets=evidence.get("exact_entity_assets"),
+    )
+    if decision.allowed is not True:
+        raise ValueError("QWEN_IDREQ_IDENTITY_SEMANTICS_REJECTED")
+    expected_targets = _human_targets(evidence)
+    if receipt.get("human_identity_targets") != expected_targets:
+        raise ValueError("QWEN_IDREQ_HUMAN_TARGET_DRIFT")
+    if receipt.get("pixel_identity_review_required") is not bool(expected_targets):
+        raise ValueError("QWEN_IDREQ_REVIEW_REQUIREMENT_DRIFT")
+    if receipt.get("identity_requirement_classified") is not True:
+        raise ValueError("QWEN_IDREQ_CLASSIFICATION_MISSING")
     return receipt
