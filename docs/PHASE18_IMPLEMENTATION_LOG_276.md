@@ -72,7 +72,8 @@ None.
 - `d6337ec5fe9eeb16461be649d24a019c476708da` — CS276 build/verify CLI.
 - `b5e601d8fa121575a1f93d440b3c8862753a9bcd` — stage-specific authority-schema hardening.
 - `93ee6cd8988e38d8d1c500466865046e05254274` — CS276 contract documentation.
-- `d9978541af553b55b4b95d70d24e5af33589762d` — regression schema alignment.
+- `d9978541af553b55b4b95d70d24e5af33589762d` — regression schema alignment / executable CS276 state.
+- `aff878c530ccb2ff12802ba587d797b8240166ad` — initial implementation log.
 
 ## Authority after CS276
 
@@ -94,15 +95,24 @@ Thus even an Elite quality score cannot bypass independent Human Review, exact b
 
 ## Tests / CI
 
-The CS276 unittest regression suite has been added. GitHub Actions is allowed to validate the repository-wide Phase 18 test surface after this log commit. No terminal CI success is claimed in this initial log until a completed successful run is observed on the executable CS276 state.
+The CS276 unittest regression suite was added using repository-native `unittest` only. Synthetic PNG/file identities are control-plane fixtures and are never claimed as Qwen inference or Golden pixels.
 
-Synthetic PNG/file identities in unit tests are control-plane fixtures only. They are not claimed as Qwen inference or Golden pixels.
+A terminal repository-wide CI result has now been observed on executable CS276 SHA `d9978541af553b55b4b95d70d24e5af33589762d`:
+
+- Workflow: `Phase 18 Story Intelligence Verification`
+- Run ID: `33321104722`
+- Run number: `4223`
+- Result: `completed / success`
+
+The subsequent `aff878c5...` commit added only this implementation-log document; it did not change executable CS276 logic.
 
 ## Genuine GPU execution status
 
 CS276 performs no GPU inference. No genuine candidate/composed/Golden PNG is created or claimed here. A real CS262 run remains a prerequisite for real production evidence to reach CS276.
 
-The execution environment must still prove, together on one zero-cost host, NVIDIA CUDA, native BF16, sufficient live VRAM/system RAM, the exact pinned `Qwen/Qwen-Image-2512` revision, a compatible successful `QwenImagePipeline` load, and required sequential CPU offload. If those conditions are absent, genuine inference must remain blocked rather than fabricated.
+The directly checked execution context for this change set reports `torch 2.10.0+cpu`, `cuda_available=false`, `torch.version.cuda=None`, device count `0`, native BF16 unsupported, and no `nvidia-smi` executable. Therefore it cannot execute the genuine Qwen Image path.
+
+A real upstream run still requires one zero-cost host proving together: NVIDIA CUDA, native BF16, sufficient live VRAM/system RAM, the exact pinned `Qwen/Qwen-Image-2512` revision, a compatible successful `QwenImagePipeline` load, and required sequential CPU offload. These prerequisites were not fabricated.
 
 ## Remaining path
 
