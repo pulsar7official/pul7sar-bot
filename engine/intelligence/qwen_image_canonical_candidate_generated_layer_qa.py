@@ -121,9 +121,6 @@ def _canonical_candidate_plan(*, identity_required: bool) -> HybridLayerPlan:
             LayerSource.GENERATIVE,
             "lighting, depth, environment mood and non-factual texture only",
         ),
-        # CS264 already requires generated sport geometry to be absent.  Keeping
-        # this deterministic here is intentionally stricter than an optional
-        # scene-specific surface plan and cannot weaken the production contract.
         VisualLayer(
             "sport_surface_geometry",
             LayerSource.DETERMINISTIC,
@@ -182,6 +179,7 @@ def _layer_evidence_from_cs264(
         "generated_platform_brand_detected",
         "generated_exact_numbers_detected",
         "generated_entity_mark_detected",
+        "generated_unverified_identity_detected",
         "generated_sport_geometry_detected",
     )
     values: dict[str, bool] = {}
@@ -198,7 +196,10 @@ def _layer_evidence_from_cs264(
         generated_platform_brand_detected=values["generated_platform_brand_detected"],
         generated_exact_numbers_detected=values["generated_exact_numbers_detected"],
         generated_entity_mark_detected=values["generated_entity_mark_detected"],
-        generated_unverified_identity_detected=identity_required and not identity_approved,
+        generated_unverified_identity_detected=(
+            values["generated_unverified_identity_detected"]
+            or (identity_required and not identity_approved)
+        ),
         generated_sport_geometry_detected=values["generated_sport_geometry_detected"],
         notes=tuple(notes),
     )
@@ -327,6 +328,7 @@ def run_canonical_candidate_generated_layer_qa(
             "base_candidate_only_not_composed_visual": True,
             "deterministic_and_verified_layers_not_yet_claimed_present": True,
             "missing_required_identity_review_fails_closed": True,
+            "upstream_unverified_identity_evidence_is_never_suppressed": True,
         },
     }
     receipt["receipt_sha256"] = sha256_json(receipt)
@@ -451,6 +453,7 @@ def verify_canonical_candidate_generated_layer_qa(
             "base_candidate_only_not_composed_visual",
             "deterministic_and_verified_layers_not_yet_claimed_present",
             "missing_required_identity_review_fails_closed",
+            "upstream_unverified_identity_evidence_is_never_suppressed",
         )
     ):
         raise ValueError("QWEN_GENERATED_LAYER_QA_POLICY_DRIFT")
