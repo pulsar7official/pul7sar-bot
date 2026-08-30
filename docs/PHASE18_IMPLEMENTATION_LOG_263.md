@@ -41,7 +41,13 @@ Canonical Candidate Byte Admission. Branch-only work on `phase18/story-intellige
 5. `docs/PHASE18_IMPLEMENTATION_LOG_263.md`
    - This implementation record.
 
-### Modified
+### Modified after initial implementation
+
+- `tests/test_phase18_qwen_image_canonical_candidate_byte_admission.py`
+  - The first committed regression suite used `pytest` fixtures even though the canonical Phase 18 CPU workflow installs only repository requirements and discovers tests through `unittest`.
+  - Story Intelligence Verification run `33282154639` / run number `4067` therefore failed during `Syntax and discover validation` with `ModuleNotFoundError: No module named 'pytest'` after 1723 discovered tests.
+  - No production CS263 logic failed in that run; the failure was test-runner dependency drift.
+  - Commit `268aef72372518470762143651bec61c7e21ca55` rewrote the suite to standard-library `unittest`, `tempfile`, and `unittest.mock`, removing the undeclared dependency while preserving the same regression cases.
 
 No pre-existing production, verifier, generation, visual-quality, branding, or publication file was modified in this change set.
 
@@ -55,6 +61,8 @@ Nothing.
 - `c10c17f0d9e0ea6bfd44db877ab09a7a72cab315` — add CS263 regressions.
 - `78cedbebf0ab5a3f3fffc1b6148125dc25fe1f46` — add CPU-only candidate-admission CLI.
 - `522032370c9c048a99fabb13f8a6e2c22bdb5505` — document CS263 contract.
+- `29f6654859f00897ca660bccb662487ceaa4085a` — initial CS263 implementation log.
+- `268aef72372518470762143651bec61c7e21ca55` — remove undeclared pytest dependency and make CS263 regressions unittest-native.
 - final documentation commit: created by this log update.
 
 ## Preserved gates
@@ -71,7 +79,10 @@ The following remain mandatory `false`:
 
 ## Testing status
 
-The new regression suite has been committed so the repository's Phase 18 GitHub Actions can discover and execute it. CI terminal status must be checked after this log commit; success is not claimed in advance.
+- Initial Story Intelligence Verification on `29f6654859f00897ca660bccb662487ceaa4085a`: **failed** in test discovery because the new test imported undeclared `pytest`; this was not recorded as success.
+- All other visual-study workflows observed for that SHA completed successfully.
+- The regression suite has now been converted to the repository-native `unittest` contract in `268aef72372518470762143651bec61c7e21ca55`.
+- A terminal green status for the corrected HEAD is not claimed until GitHub Actions completes it.
 
 ## Genuine PNG status / exact blocker
 
