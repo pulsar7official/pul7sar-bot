@@ -3,7 +3,7 @@
 ## Scope and branch safety
 - Working branch only: `phase18/story-intelligence`.
 - Baseline branch SHA reviewed before writes: `7ea07e927b2341a8e21e51c56eb9bae91480eacf`.
-- `main` was read-only and reviewed at: `fc1fd4d450eecf1ae4febaeb29449a0ef3f2fc17`.
+- `main` was read-only. It was `fc1fd4d450eecf1ae4febaeb29449a0ef3f2fc17` at the opening review and later advanced independently to `a45dc57d050496e7ec44c0c28193c1cb93ad2099`.
 - No write, merge, rebase, force-update, or commit was directed to `main`.
 
 ## Finding that drove CS275
@@ -20,6 +20,7 @@ CS275 introduces a fail-closed evidence-admission boundary. An independently pro
 
 ## Modified
 - None of the pre-existing production gates, renderers, semantic inspectors, identity/sentiment/factual gates, Golden-quality classes, publication gates, brand/typography rules, or zero-cost policies were modified.
+- The new CS275 engine was hardened in follow-up commit `6ab07ca33e9d8cc76db7f57b89172d6916398375`: replay of a CS274 source binding now compares only its path/SHA-256/byte-size file identity, while the embedded CS274 receipt SHA is verified independently. This prevents a false verifier failure caused by the extra receipt metadata in that binding without weakening provenance.
 
 ## Deleted
 - Nothing.
@@ -52,5 +53,10 @@ The exact generation blocker remains the absence of a zero-cost host simultaneou
 ## Remaining path
 `CS274 byte-bound review request -> CS275 exact external visual-quality evidence admission -> existing GoldenVisualQualitySelector evaluation -> independent Human Review -> exact brand/typography verification -> SemanticPublicationGate`, with the actual production path still dependent on genuine CS262 Qwen-Image inference on compatible CUDA hardware.
 
+## Commits
+- `218453c13f9d0fe759cbd493a47f38849de216cb` — initial CS275 engine, regressions, CLI, contract documentation, and implementation log.
+- `6ab07ca33e9d8cc76db7f57b89172d6916398375` — provenance replay hardening; executable CS275 state validated by CI.
+- The later implementation-log update is documentation-only and does not change executable logic.
+
 ## Test/CI state
-Regression files are included in this implementation commit. Terminal GitHub Actions status must be checked after the branch ref is updated; no CI-green claim is made until a completed successful run is observed.
+`Phase 18 Story Intelligence Verification` push run `33310168514` (run number `4208`) on executable SHA `6ab07ca33e9d8cc76db7f57b89172d6916398375` finished `completed / success`. Syntax/unittest discovery, production isolation, visual-study handoffs, cross-platform composition/publication blocking, project-native editorial study, adaptive-reference brand verification, self-contained brand ownership, Golden editorial v6 build/verification, and legacy-logo non-canonical assertion all completed successfully.
