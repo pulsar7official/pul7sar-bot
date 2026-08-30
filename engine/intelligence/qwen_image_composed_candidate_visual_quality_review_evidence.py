@@ -36,7 +36,8 @@ def _reopen(root:Path,b:Mapping[str,Any],code:str)->Path:
     rel=b.get("repository_relative_path")
     if not isinstance(rel,str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts: raise ValueError(code)
     p=root.resolve()/rel; now=_bind(root,p,code)
-    if now!=dict(b): raise ValueError(code+"_BYTE_DRIFT")
+    if now.get("repository_relative_path")!=b.get("repository_relative_path") or now.get("sha256")!=b.get("sha256") or now.get("byte_size")!=b.get("byte_size"):
+        raise ValueError(code+"_BYTE_DRIFT")
     return p
 
 def _request(req:Mapping[str,Any])->None:
