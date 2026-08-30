@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from engine.intelligence.qwen_image_composed_candidate_human_visual_review_evidence import (
-    SCHEMA_VERSION as CS278_SCHEMA,
+    SCHEMA as CS278_SCHEMA,
     verify_composed_candidate_human_visual_review_evidence,
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
