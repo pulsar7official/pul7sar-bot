@@ -47,6 +47,7 @@ No compatible automatic pixel-identity verifier with a calibrated project thresh
 ## Modified
 
 - No pre-existing production verifier, quality gate, publication gate, generation gate or visual-quality implementation was modified in this Change Set.
+- This implementation log was updated after CI reached terminal success so the repository records the tested state rather than an interim status.
 
 ## Deleted
 
@@ -58,7 +59,8 @@ No compatible automatic pixel-identity verifier with a calibrated project thresh
 - `543b17c7bd1ee68692640dfdc63007087b1919e9` — CS267 regression coverage.
 - `a7acf0191a1d3d13343db97628de1206e950c35d` — CS267 CPU-only CLI.
 - `01bab6a35b454b1c5085287987f2359b4fcdb706` — CS267 contract documentation.
-- Implementation-log commit: recorded by the commit containing this file.
+- `0158f751e2820d1799f9ec11481a6d243c80ed76` — initial CS267 implementation log; this exact SHA was CI verified.
+- Final documentation-only CI-record commit: the commit containing this updated file.
 
 ## Preserved gates
 
@@ -86,15 +88,19 @@ A failed identity check produces a rejection receipt and cannot advance any down
 
 ## Test status
 
-At the time this log was created, GitHub Actions for the final CS267 code/docs commits had not yet been observed at terminal state. Do not describe CS267 as CI-green until the branch workflows complete successfully.
+`Phase 18 Story Intelligence Verification` run `33291284032` executed against commit `0158f751e2820d1799f9ec11481a6d243c80ed76` and completed with `success`.
 
-The preceding CS266 branch state was already verified green before this Change Set.
+Verified steps included syntax and `unittest` discovery, completion/production isolation, visual-study handoff build and verification, cross-platform result composition and publication blocking, project-native editorial visual study, adaptive-reference brand verification, self-contained brand ownership, Golden editorial v6 build/verification, and the remaining workflow assertions/uploads.
+
+The commit after that verified SHA only records this terminal CI result in documentation and does not change executable code or tests.
 
 ## Genuine Golden Visual status and exact blocker
 
 No genuine Qwen candidate PNG and no genuine Golden Visual PNG were created by CS267. This Change Set is CPU/control-plane only.
 
-The execution blocker remains the absence, in the available runtime, of a single proven `$0-local` host satisfying the already locked generation requirements: NVIDIA CUDA, native BF16, sufficient live VRAM/system RAM, exact pinned Qwen/Qwen-Image-2512 revision, compatible `QwenImagePipeline`, successful model load, and required sequential CPU offload.
+The available runtime was rechecked during this implementation round and reports `torch 2.10.0+cpu`, `torch.cuda.is_available() == False`, `torch.version.cuda == None`, with no `nvidia-smi` executable available.
+
+The execution blocker therefore remains the absence, in the available runtime, of a single proven `$0-local` host satisfying the already locked generation requirements: NVIDIA CUDA, native BF16, sufficient live VRAM/system RAM, exact pinned Qwen/Qwen-Image-2512 revision, compatible `QwenImagePipeline`, successful model load, and required sequential CPU offload.
 
 No model-load, inference, pixel-identity verdict, Golden score, or publication result is fabricated in this log.
 
