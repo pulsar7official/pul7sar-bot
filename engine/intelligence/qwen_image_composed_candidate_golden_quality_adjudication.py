@@ -1,14 +1,12 @@
-"""CS276: adjudicate CS275 visual-quality evidence with authentic generation context.
+"""CS276: bind authentic generation context to existing Golden quality adjudication.
 
-This boundary reuses the repository's existing GoldenVisualQualitySelector.  It
-never invents a request id or seed: the seed is recovered from a reverified CS263
-receipt (and therefore CS262), while the selector request id is deterministically
-anchored to the exact successful CS262 receipt digest.  CS272 proves that the
-CS263 canonical candidate is the same source candidate that produced the composed
-PNG reviewed by CS275.
+The seed comes only from a reverified CS263->CS262 inference lineage. The
+GoldenVisualEvaluation request_id is deterministically anchored to the exact CS262
+receipt digest. CS272 proves that this canonical candidate is the source of the
+composed PNG whose visual-quality evidence CS275 admitted.
 
-Golden-quality adjudication remains independent from Human Review, final semantic
-approval, exact brand/typography approval and SemanticPublicationGate.
+A Golden-quality pass does not imply Human Review, final semantic approval,
+Genuine Golden PNG creation, exact brand/typography approval or publication.
 """
 from __future__ import annotations
 
@@ -41,72 +39,54 @@ from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 SCHEMA = "pul7sar-phase18-qwen-image-composed-candidate-golden-quality-adjudication-v1"
 STATUS = "QWEN_IMAGE_COMPOSED_CANDIDATE_GOLDEN_QUALITY_ADJUDICATED"
-
-_REQUIRED_CS263_TRUE = (
-    "inference_executed",
-    "genuine_canonical_inference_executed",
-    "candidate_bytes_admitted_for_post_generation_qa",
-)
-_REQUIRED_CS275_TRUE = (
-    "visual_quality_review_requested",
-    "visual_quality_review_executed",
-    "visual_quality_evidence_admitted",
-    "composition_executed",
-    "composed_candidate_bytes_admitted_for_post_composition_qa",
-    "semantic_inspection_executed",
-    "hybrid_surface_semantic_qa_approved",
-)
-_FINAL_INDEPENDENT_FALSE = (
-    "composed_visual_approved",
-    "semantic_approved",
-    "human_visual_review_approved",
-    "genuine_golden_png_created",
-    "publication_ready",
-)
+_CS263_TRUE = ("inference_executed", "genuine_canonical_inference_executed", "candidate_bytes_admitted_for_post_generation_qa")
+_CS263_FALSE = ("semantic_approved", "human_visual_review_approved", "genuine_golden_png_created", "golden_quality_approved", "publication_ready")
+_CS272_TRUE = ("composition_executed", "composed_candidate_bytes_admitted_for_post_composition_qa")
+_CS272_FALSE = ("composed_visual_approved", "semantic_approved", "human_visual_review_approved", "genuine_golden_png_created", "golden_quality_approved", "publication_ready")
+_CS275_TRUE = ("visual_quality_review_requested", "visual_quality_review_executed", "visual_quality_evidence_admitted", "composition_executed", "composed_candidate_bytes_admitted_for_post_composition_qa", "semantic_inspection_executed", "hybrid_surface_semantic_qa_approved")
+_CS275_FALSE = ("visual_quality_review_approved", "composed_visual_approved", "semantic_approved", "human_visual_review_approved", "genuine_golden_png_created", "golden_quality_approved", "publication_ready")
+_FINAL_FALSE = ("composed_visual_approved", "semantic_approved", "human_visual_review_approved", "genuine_golden_png_created", "publication_ready")
 
 
 def _is_sha256(value: Any) -> bool:
-    return isinstance(value, str) and len(value) == 64 and all(
-        char in "0123456789abcdef" for char in value.lower()
-    )
+    return isinstance(value, str) and len(value) == 64 and all(c in "0123456789abcdef" for c in value.lower())
 
 
-def _bind(repo_root: Path, path: Path, code: str) -> dict[str, Any]:
+def _bind(root: Path, path: Path, code: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
         raise ValueError(code)
-    root = repo_root.resolve()
-    resolved = path.resolve()
+    rr, resolved = root.resolve(), path.resolve()
     try:
-        relative = resolved.relative_to(root).as_posix()
+        rel = resolved.relative_to(rr).as_posix()
     except ValueError as exc:
         raise ValueError(code) from exc
     raw = resolved.read_bytes()
     if not raw:
         raise ValueError(code)
-    return {
-        "repository_relative_path": relative,
-        "sha256": hashlib.sha256(raw).hexdigest(),
-        "byte_size": len(raw),
-    }
+    return {"repository_relative_path": rel, "sha256": hashlib.sha256(raw).hexdigest(), "byte_size": len(raw)}
 
 
-def _reopen(repo_root: Path, binding: Mapping[str, Any], code: str) -> Path:
-    relative = binding.get("repository_relative_path")
-    if (
-        not isinstance(relative, str)
-        or not relative
-        or Path(relative).is_absolute()
-        or ".." in Path(relative).parts
-    ):
+def _reopen(root: Path, binding: Mapping[str, Any], code: str) -> Path:
+    rel = binding.get("repository_relative_path")
+    if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
         raise ValueError(code)
-    path = repo_root.resolve() / relative
-    current = _bind(repo_root, path, code)
-    if any(current.get(key) != binding.get(key) for key in current):
-        raise ValueError(f"{code}_BYTE_DRIFT")
+    path = root.resolve() / rel
+    current = _bind(root, path, code)
+    if any(current[key] != binding.get(key) for key in current):
+        raise ValueError(code + "_BYTE_DRIFT")
     return path
 
 
-def _same_png_lineage(left: Mapping[str, Any], right: Mapping[str, Any], code: str) -> None:
+def _require(receipt: Mapping[str, Any], true_fields: tuple[str, ...], false_fields: tuple[str, ...], prefix: str) -> None:
+    for field in true_fields:
+        if receipt.get(field) is not True:
+            raise ValueError(f"{prefix}_REQUIRED_GATE_MISSING:{field}")
+    for field in false_fields:
+        if receipt.get(field) is not False:
+            raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
+
+
+def _same_png(left: Mapping[str, Any], right: Mapping[str, Any], code: str) -> None:
     for key in ("repository_relative_path", "sha256", "byte_size", "width", "height"):
         if left.get(key) != right.get(key):
             raise ValueError(f"{code}:{key}")
@@ -119,37 +99,18 @@ def _assert_inputs(cs263: Mapping[str, Any], cs272: Mapping[str, Any], cs275: Ma
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_CS272_SCHEMA_DRIFT")
     if cs275.get("schema") != CS275_SCHEMA:
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_CS275_SCHEMA_DRIFT")
-    for field in _REQUIRED_CS263_TRUE:
-        if cs263.get(field) is not True:
-            raise ValueError(f"QWEN_GOLDEN_ADJUDICATION_CS263_GATE_MISSING:{field}")
-    if cs272.get("composition_executed") is not True or cs272.get(
-        "composed_candidate_bytes_admitted_for_post_composition_qa"
-    ) is not True:
-        raise ValueError("QWEN_GOLDEN_ADJUDICATION_CS272_GATE_MISSING")
-    for field in _REQUIRED_CS275_TRUE:
-        if cs275.get(field) is not True:
-            raise ValueError(f"QWEN_GOLDEN_ADJUDICATION_CS275_GATE_MISSING:{field}")
-    for source in (cs263, cs272, cs275):
-        for field in _FINAL_INDEPENDENT_FALSE:
-            if source.get(field) is not False:
-                raise ValueError(f"QWEN_GOLDEN_ADJUDICATION_PREMATURE_AUTHORITY:{field}")
-    if cs263.get("golden_quality_approved") is not False or cs272.get(
-        "golden_quality_approved"
-    ) is not False or cs275.get("golden_quality_approved") is not False:
-        raise ValueError("QWEN_GOLDEN_ADJUDICATION_PREMATURE_GOLDEN_AUTHORITY")
+    _require(cs263, _CS263_TRUE, _CS263_FALSE, "QWEN_GOLDEN_ADJUDICATION_CS263")
+    _require(cs272, _CS272_TRUE, _CS272_FALSE, "QWEN_GOLDEN_ADJUDICATION_CS272")
+    _require(cs275, _CS275_TRUE, _CS275_FALSE, "QWEN_GOLDEN_ADJUDICATION_CS275")
     story = cs263.get("story_snapshot_sha256")
-    if not _is_sha256(story) or cs272.get("story_snapshot_sha256") != story or cs275.get(
-        "story_snapshot_sha256"
-    ) != story:
+    if not _is_sha256(story) or cs272.get("story_snapshot_sha256") != story or cs275.get("story_snapshot_sha256") != story:
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_CROSS_STORY")
-    candidate263 = cs263.get("candidate_png")
-    candidate272 = cs272.get("source_candidate_png")
-    composed272 = cs272.get("composed_candidate_png")
-    composed275 = cs275.get("composed_candidate_png")
-    if not all(isinstance(item, Mapping) for item in (candidate263, candidate272, composed272, composed275)):
+    c263, c272 = cs263.get("candidate_png"), cs272.get("source_candidate_png")
+    p272, p275 = cs272.get("composed_candidate_png"), cs275.get("composed_candidate_png")
+    if not all(isinstance(item, Mapping) for item in (c263, c272, p272, p275)):
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_PNG_BINDING_INVALID")
-    _same_png_lineage(candidate263, candidate272, "QWEN_GOLDEN_ADJUDICATION_BASE_CANDIDATE_DRIFT")
-    _same_png_lineage(composed272, composed275, "QWEN_GOLDEN_ADJUDICATION_COMPOSED_CANDIDATE_DRIFT")
+    _same_png(c263, c272, "QWEN_GOLDEN_ADJUDICATION_BASE_CANDIDATE_DRIFT")
+    _same_png(p272, p275, "QWEN_GOLDEN_ADJUDICATION_COMPOSED_CANDIDATE_DRIFT")
 
 
 def _evaluation(cs263: Mapping[str, Any], cs275: Mapping[str, Any]) -> GoldenVisualEvaluation:
@@ -159,8 +120,7 @@ def _evaluation(cs263: Mapping[str, Any], cs275: Mapping[str, Any]) -> GoldenVis
     seed = cs263.get("seed")
     if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_SEED_INVALID")
-    scores = cs275.get("scores")
-    blockers = cs275.get("blockers")
+    scores, blockers = cs275.get("scores"), cs275.get("blockers")
     if not isinstance(scores, Mapping) or not isinstance(blockers, Mapping):
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_REVIEW_EVIDENCE_INVALID")
     try:
@@ -168,15 +128,20 @@ def _evaluation(cs263: Mapping[str, Any], cs275: Mapping[str, Any]) -> GoldenVis
         blocker_obj = GoldenVisualBlockers(**dict(blockers))
     except (TypeError, ValueError) as exc:
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_REVIEW_EVIDENCE_INVALID") from exc
-    # The request id is not user input. It is a deterministic identifier for the
-    # exact successful CS262 inference receipt that generated this candidate.
-    request_id = f"qwen-cs262-{source262['receipt_sha256']}"
     return GoldenVisualEvaluation(
-        request_id=request_id,
+        request_id=f"qwen-cs262-{source262['receipt_sha256']}",
         seed=seed,
         scores=score_obj,
         blockers=blocker_obj,
     )
+
+
+def _adjudication_values(cs263: Mapping[str, Any], cs275: Mapping[str, Any]) -> tuple[GoldenVisualEvaluation, Any]:
+    evaluation = _evaluation(cs263, cs275)
+    selection = GoldenVisualQualitySelector().select((evaluation,))
+    if (selection.selected is not None) != evaluation.approved:
+        raise RuntimeError("QWEN_GOLDEN_ADJUDICATION_SELECTOR_STATE_DRIFT")
+    return evaluation, selection
 
 
 def build_composed_candidate_golden_quality_adjudication(
@@ -187,10 +152,8 @@ def build_composed_candidate_golden_quality_adjudication(
     *,
     repo_root: Path,
 ) -> Path:
-    """Run existing Golden quality adjudication on byte-proven review evidence."""
     if output_dir.exists() or not output_dir.parent.is_dir():
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_OUTPUT_INVALID")
-
     b263 = _bind(repo_root, cs263_receipt_path, "QWEN_GOLDEN_ADJUDICATION_CS263_INVALID")
     b272 = _bind(repo_root, cs272_receipt_path, "QWEN_GOLDEN_ADJUDICATION_CS272_INVALID")
     b275 = _bind(repo_root, cs275_receipt_path, "QWEN_GOLDEN_ADJUDICATION_CS275_INVALID")
@@ -198,13 +161,8 @@ def build_composed_candidate_golden_quality_adjudication(
     cs272 = verify_composed_candidate_byte_admission(cs272_receipt_path, repo_root=repo_root)
     cs275 = verify_composed_candidate_visual_quality_review_evidence(cs275_receipt_path, repo_root=repo_root)
     _assert_inputs(cs263, cs272, cs275)
-
-    evaluation = _evaluation(cs263, cs275)
-    selection = GoldenVisualQualitySelector().select((evaluation,))
-    approved = evaluation.approved
-    if (selection.selected is not None) != approved:
-        raise RuntimeError("QWEN_GOLDEN_ADJUDICATION_SELECTOR_STATE_DRIFT")
-
+    evaluation, selection = _adjudication_values(cs263, cs275)
+    source262_sha = cs263["source_cs262_receipt"]["receipt_sha256"]
     receipt: dict[str, Any] = {
         "schema": SCHEMA,
         "status": STATUS,
@@ -219,7 +177,7 @@ def build_composed_candidate_golden_quality_adjudication(
             "request_id_source": "exact_cs262_receipt_sha256",
             "seed": evaluation.seed,
             "seed_source": "reverified_cs263_to_cs262_inference_receipt",
-            "cs262_receipt_sha256": cs263["source_cs262_receipt"]["receipt_sha256"],
+            "cs262_receipt_sha256": source262_sha,
         },
         "scores": dict(asdict(evaluation.scores)),
         "blockers": dict(asdict(evaluation.blockers)),
@@ -229,7 +187,7 @@ def build_composed_candidate_golden_quality_adjudication(
         "selected_request_id": selection.selected.request_id if selection.selected else None,
         "rejected_request_ids": list(selection.rejected_request_ids),
         "golden_quality_selector_executed": True,
-        "golden_quality_approved": approved,
+        "golden_quality_approved": evaluation.approved,
         "composition_executed": True,
         "composed_candidate_bytes_admitted_for_post_composition_qa": True,
         "semantic_inspection_executed": True,
@@ -253,28 +211,21 @@ def build_composed_candidate_golden_quality_adjudication(
         },
     }
     receipt["receipt_sha256"] = sha256_json(receipt)
-
     output_dir.mkdir(mode=0o700)
-    path = output_dir / "composed_candidate_golden_quality_adjudication.json"
-    tmp = output_dir / f".{path.name}.tmp"
+    path, tmp = output_dir / "composed_candidate_golden_quality_adjudication.json", output_dir / ".composed_candidate_golden_quality_adjudication.json.tmp"
     try:
         with tmp.open("x", encoding="utf-8") as handle:
             handle.write(json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n")
-            handle.flush()
-            os.fsync(handle.fileno())
+            handle.flush(); os.fsync(handle.fileno())
         os.replace(tmp, path)
     except Exception:
-        if tmp.exists():
-            tmp.unlink()
-        if output_dir.exists() and not any(output_dir.iterdir()):
-            output_dir.rmdir()
+        if tmp.exists(): tmp.unlink()
+        if output_dir.exists() and not any(output_dir.iterdir()): output_dir.rmdir()
         raise
     return path
 
 
-def verify_composed_candidate_golden_quality_adjudication(
-    receipt_path: Path, *, repo_root: Path
-) -> dict[str, Any]:
+def verify_composed_candidate_golden_quality_adjudication(receipt_path: Path, *, repo_root: Path) -> dict[str, Any]:
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_RECEIPT_INVALID")
     try:
@@ -283,18 +234,16 @@ def verify_composed_candidate_golden_quality_adjudication(
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_RECEIPT_INVALID") from exc
     if not isinstance(receipt, dict) or receipt.get("schema") != SCHEMA or receipt.get("status") != STATUS:
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_RECEIPT_INVALID")
-    unsigned = dict(receipt)
-    claimed = unsigned.pop("receipt_sha256", None)
+    unsigned = dict(receipt); claimed = unsigned.pop("receipt_sha256", None)
     if not _is_sha256(claimed) or claimed != sha256_json(unsigned):
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_RECEIPT_DIGEST_MISMATCH")
-
-    bindings = (
+    verifiers = (
         ("source_cs263_receipt", verify_canonical_candidate_byte_admission),
         ("source_cs272_receipt", verify_composed_candidate_byte_admission),
         ("source_cs275_receipt", verify_composed_candidate_visual_quality_review_evidence),
     )
-    verified: list[dict[str, Any]] = []
-    for field, verifier in bindings:
+    verified = []
+    for field, verifier in verifiers:
         binding = receipt.get(field)
         if not isinstance(binding, Mapping):
             raise ValueError("QWEN_GOLDEN_ADJUDICATION_SOURCE_BINDING_INVALID")
@@ -304,9 +253,7 @@ def verify_composed_candidate_golden_quality_adjudication(
         verified.append(source)
     cs263, cs272, cs275 = verified
     _assert_inputs(cs263, cs272, cs275)
-    evaluation = _evaluation(cs263, cs275)
-    selection = GoldenVisualQualitySelector().select((evaluation,))
-
+    evaluation, selection = _adjudication_values(cs263, cs275)
     expected = {
         "story_snapshot_sha256": cs263["story_snapshot_sha256"],
         "source_candidate_png": dict(cs263["candidate_png"]),
@@ -332,7 +279,7 @@ def verify_composed_candidate_golden_quality_adjudication(
             raise ValueError(f"QWEN_GOLDEN_ADJUDICATION_VERDICT_DRIFT:{field}")
     if receipt.get("golden_quality_selector_executed") is not True:
         raise ValueError("QWEN_GOLDEN_ADJUDICATION_SELECTOR_NOT_EXECUTED")
-    for field in _FINAL_INDEPENDENT_FALSE:
+    for field in _FINAL_FALSE:
         if receipt.get(field) is not False:
             raise ValueError(f"QWEN_GOLDEN_ADJUDICATION_PREMATURE_AUTHORITY:{field}")
     return receipt
