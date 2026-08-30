@@ -57,12 +57,14 @@ No existing repository verifier was found that can truthfully establish the iden
 - `ad5039d61fab0ff85450f1de64840e0e6ee2e1ad` — CS266 regression coverage.
 - `d5af6cc545e2dcf4b1efb50f5ad9b4350c0d96c7` — CS266 CPU-only CLI.
 - `9dd241d807eb54cf46953f1fa7e25964aca87131` — CS266 contract documentation.
+- `05122844d315b724dcd2409d5306afb12c5f3605` — implementation-log commit used for terminal CI verification.
 
 ## Modified
 
 - `engine/intelligence/qwen_image_canonical_candidate_identity_requirement.py` — CS265 provenance hardening before CS266.
 - `tests/test_phase18_qwen_image_canonical_candidate_identity_requirement.py` — CS265 provenance regressions.
 - `docs/PHASE18_IMPLEMENTATION_LOG_265.md` — hardening record.
+- `docs/PHASE18_IMPLEMENTATION_LOG_266.md` — records implementation and terminal verification state.
 
 No pre-existing Fact Lock, identity policy, sentiment policy, zero-cost policy, semantic-layer ownership gate, generation authority, Visual Critic, Human Review, Golden threshold, exact brand/typography gate, or SemanticPublicationGate implementation was weakened or bypassed.
 
@@ -101,9 +103,23 @@ Therefore no genuine Qwen Image model load, inference, candidate PNG, identity v
 
 The live-generation blocker remains an available `$0-local` host that simultaneously proves NVIDIA CUDA, native BF16, sufficient live VRAM/RAM, the exact pinned `Qwen/Qwen-Image-2512` revision, compatible `QwenImagePipeline`, successful model load, and sequential CPU offload.
 
-## Testing state
+## Testing result
 
-The CS265 baseline at `e44ab61fe2b1ae1eb04c9b3c4f8be63ccaef538b` was confirmed green before this work. New CS265-hardening and CS266 commits must be validated by the Phase 18 Story Intelligence Verification workflow; terminal CI status is not claimed until GitHub reports it.
+Phase 18 Story Intelligence Verification run `33289091044` completed with `success` on commit `05122844d315b724dcd2409d5306afb12c5f3605`.
+
+Successful steps included:
+
+- syntax and unittest discovery validation;
+- completion and production isolation;
+- visual-study handoff build and verification;
+- cross-platform composition verification and publication blocking;
+- project-native editorial study;
+- adaptive-reference brand verification;
+- self-contained brand ownership;
+- Golden editorial v6 build/verification;
+- legacy-logo non-canonical assertion.
+
+The commit that records this terminal result is documentation-only and does not alter executable code.
 
 ## Remaining gap
 
