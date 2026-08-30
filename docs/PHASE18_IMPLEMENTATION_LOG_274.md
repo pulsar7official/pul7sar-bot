@@ -6,6 +6,7 @@
 - Working branch only: `phase18/story-intelligence`
 - Baseline branch SHA reviewed before writes: `de16794231b65b35b97699c4b541b61aa4e4b41c`
 - `main` was read-only and reviewed at: `6482f8d98fe2f0a0890679a5cc8108b5d6e48378`
+- `main` was re-read after the implementation and remained at the same SHA.
 - No commit, merge, rebase, force-update, or file write was directed to `main`.
 
 ### Finding that drove CS274
@@ -45,16 +46,17 @@ CS274 introduces a fail-closed request boundary instead: the exact composed PNG,
 
 ### Modified
 - None of the pre-existing production gates, renderers, inspectors, Golden-quality classes, publication gates, factual/identity/sentiment policies, or zero-cost policies were modified.
-- This log may receive a documentation-only follow-up update if/when terminal CI status becomes available.
+- This implementation log was updated documentation-only after terminal CI success was observed.
 
 ### Deleted
 - Nothing.
 
-### Commits created before this log
+### Commits
 - `1eeb945507cf0a86265ed5ec8bd2f650b64a6771` — add CS274 byte-bound visual-quality review request engine.
 - `35095b783cb41edbbd1bdc34dbaad886b341834e` — add CS274 regression tests.
 - `865a86961a8cad2bb2f471268d3333fbb4922152` — add CS274 build/verify CLI.
 - `bd060dede17cbdc707d7cbb034656c1b67538f79` — add CS274 contract documentation.
+- `073675ad6ef34fa82ab96285dbae0050ecc2fa10` — add initial CS274 implementation log; this is the executable implementation state verified by CI.
 
 ### Gate preservation
 CS274 does not weaken or replace:
@@ -69,13 +71,33 @@ CS274 does not weaken or replace:
 - exact brand/typography verification;
 - `SemanticPublicationGate`.
 
-### Test state at log creation
-The new regression suite is committed and awaits terminal GitHub Actions verification for the resulting branch head. No CI-green claim is made here until a terminal successful run is observed.
+### Tests and CI
+GitHub Actions run `33307456405` / Phase 18 Story Intelligence Verification / run number `4202` executed against SHA `073675ad6ef34fa82ab96285dbae0050ecc2fa10` and reached terminal `completed / success`.
+
+Successful steps included:
+- syntax and unittest discovery validation;
+- completion and production isolation;
+- visual-study handoff build and verification;
+- cross-platform result composition matrix and publication blocking;
+- project-native editorial visual study;
+- adaptive-reference brand verification;
+- self-contained brand ownership;
+- Golden editorial v6 build/verification;
+- legacy-logo non-canonical assertion.
+
+### Available execution runtime re-check
+The runtime available during this implementation was measured as:
+- `torch_version = 2.10.0+cpu`
+- `cuda_available = False`
+- `torch_cuda_version = None`
+- `bf16_supported = False`
+- `device_count = 0`
+- `nvidia-smi = unavailable`
 
 ### Genuine Golden PNG state
 No genuine Golden Visual PNG was created in this change set. No Qwen-Image model load, CUDA/BF16 inference, Visual Critic score, Human Review score, Golden score, or publication approval is fabricated.
 
-The execution blocker remains the absence in the available runtime of a compatible zero-cost NVIDIA/CUDA host capable of the pinned Qwen-Image path (CUDA, native BF16, sufficient VRAM/RAM, compatible pinned model/pipeline load, and required offload behavior).
+The execution blocker remains the absence in the available runtime of a compatible zero-cost NVIDIA/CUDA host capable of the pinned Qwen-Image path: NVIDIA CUDA, native BF16, sufficient live VRAM and system RAM, the exact pinned Qwen-Image model/revision and compatible pipeline load, plus the required offload behavior.
 
 ### Remaining path
 `CS273 exact composed semantic QA`
