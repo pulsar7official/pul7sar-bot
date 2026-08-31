@@ -144,7 +144,7 @@ class QwenImageLocalInferenceRuntimeTests(unittest.TestCase):
         self.assertTrue(QwenImagePipeline.offload_enabled)
         self.assertEqual(live, _cs260()["observed_runtime_identity"])
 
-    def test_runtime_identity_drift_fails_closed_after_local_load(self):
+    def test_host_identity_drift_fails_before_from_pretrained(self):
         fake_diffusers = SimpleNamespace(
             __version__="0.synthetic",
             QwenImagePipeline=QwenImagePipeline,
@@ -162,12 +162,64 @@ class QwenImageLocalInferenceRuntimeTests(unittest.TestCase):
             "engine.intelligence.qwen_image_local_inference_runtime.import_module",
             side_effect=fake_import,
         ):
-            with self.assertRaisesRegex(RuntimeError, "RUNTIME_IDENTITY_DRIFT:gpu_name"):
+            with self.assertRaisesRegex(RuntimeError, "PRE_MODEL_LOAD_RUNTIME_IDENTITY_DRIFT:gpu_name"):
                 load_local_inference_runtime(
                     cs260=bad,
                     snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
                     cost_mode=REQUIRED_COST_MODE,
                 )
+        self.assertIsNone(QwenImagePipeline.last_args)
+        self.assertFalse(QwenImagePipeline.offload_enabled)
+
+    def test_diffusers_version_drift_fails_before_from_pretrained(self):
+        fake_diffusers = SimpleNamespace(
+            __version__="0.drifted",
+            QwenImagePipeline=QwenImagePipeline,
+        )
+
+        def fake_import(name):
+            return _Torch if name == "torch" else fake_diffusers
+
+        with patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.inspect_qwen_image_gpu_readiness",
+            return_value=_readiness(),
+        ), patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.import_module",
+            side_effect=fake_import,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "PRE_MODEL_LOAD_RUNTIME_IDENTITY_DRIFT:diffusers_version"):
+                load_local_inference_runtime(
+                    cs260=_cs260(),
+                    snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
+                    cost_mode=REQUIRED_COST_MODE,
+                )
+        self.assertIsNone(QwenImagePipeline.last_args)
+
+    def test_expected_post_load_contract_cannot_be_weakened(self):
+        fake_diffusers = SimpleNamespace(
+            __version__="0.synthetic",
+            QwenImagePipeline=QwenImagePipeline,
+        )
+
+        def fake_import(name):
+            return _Torch if name == "torch" else fake_diffusers
+
+        bad = _cs260()
+        bad["observed_runtime_identity"]["sequential_cpu_offload_enabled"] = False
+        with patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.inspect_qwen_image_gpu_readiness",
+            return_value=_readiness(),
+        ), patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.import_module",
+            side_effect=fake_import,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "EXPECTED_OFFLOAD_AUTHORITY_INVALID"):
+                load_local_inference_runtime(
+                    cs260=bad,
+                    snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
+                    cost_mode=REQUIRED_COST_MODE,
+                )
+        self.assertIsNone(QwenImagePipeline.last_args)
 
 
 if __name__ == "__main__":
