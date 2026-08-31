@@ -41,7 +41,10 @@ def test_cpu_runtime_fails_closed(monkeypatch):
 
     result = readiness.inspect_qwen_image_gpu_readiness()
 
-    assert result.ready_for_genuine_inference is False
+    assert result.static_preflight_passed is False
+    assert result.ready_for_model_load_attempt is False
+    assert result.genuine_inference_executed is False
+    assert result.ready_for_genuine_inference_claim is False
     assert result.zero_cost_local_only is True
     assert result.network_required is False
     assert "cuda_unavailable" in result.blockers
@@ -49,7 +52,7 @@ def test_cpu_runtime_fails_closed(monkeypatch):
     assert "approved_model_snapshot_not_supplied" in result.blockers
 
 
-def test_compatible_local_runtime_can_be_ready(monkeypatch, tmp_path: Path):
+def test_compatible_local_runtime_passes_static_preflight_without_claiming_inference(monkeypatch, tmp_path: Path):
     snapshot = tmp_path / "snapshots" / readiness.QWEN_IMAGE_2512_REVISION
     snapshot.mkdir(parents=True)
     fake_torch = SimpleNamespace(
@@ -62,13 +65,16 @@ def test_compatible_local_runtime_can_be_ready(monkeypatch, tmp_path: Path):
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
-    assert result.ready_for_genuine_inference is True
+    assert result.static_preflight_passed is True
+    assert result.ready_for_model_load_attempt is True
+    assert result.genuine_inference_executed is False
+    assert result.ready_for_genuine_inference_claim is False
     assert result.blockers == ()
     assert result.snapshot_revision_verified is True
-    assert result.gpu_memory_gib == 24.0
+    assert result.gpu_memory_gib_observed == 24.0
 
 
-def test_insufficient_gpu_memory_blocks_even_with_cuda(monkeypatch, tmp_path: Path):
+def test_gpu_memory_is_observed_not_used_as_an_invented_threshold(monkeypatch, tmp_path: Path):
     snapshot = tmp_path / "snapshots" / readiness.QWEN_IMAGE_2512_REVISION
     snapshot.mkdir(parents=True)
     fake_torch = SimpleNamespace(
@@ -81,8 +87,10 @@ def test_insufficient_gpu_memory_blocks_even_with_cuda(monkeypatch, tmp_path: Pa
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
-    assert result.ready_for_genuine_inference is False
-    assert "gpu_memory_below_20gib_or_unknown" in result.blockers
+    assert result.static_preflight_passed is True
+    assert result.ready_for_model_load_attempt is True
+    assert result.ready_for_genuine_inference_claim is False
+    assert result.gpu_memory_gib_observed == 16.0
 
 
 def test_wrong_snapshot_revision_blocks(monkeypatch, tmp_path: Path):
@@ -98,5 +106,7 @@ def test_wrong_snapshot_revision_blocks(monkeypatch, tmp_path: Path):
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
-    assert result.ready_for_genuine_inference is False
+    assert result.static_preflight_passed is False
+    assert result.ready_for_model_load_attempt is False
+    assert result.ready_for_genuine_inference_claim is False
     assert "approved_model_snapshot_revision_unverified" in result.blockers
