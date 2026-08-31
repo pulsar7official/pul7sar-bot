@@ -7,8 +7,10 @@ import unittest
 from unittest.mock import patch
 
 from engine.intelligence.qwen_image_manifest_bound_execution import (
+    OFFLINE_CHILD_ENVIRONMENT,
     QwenPreloadHostNotReadyError,
     build_manifest_bound_execution_argv,
+    build_offline_subprocess_environment,
     execute_manifest_bound_inference,
     require_preload_host_ready,
 )
@@ -112,6 +114,30 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
                         manifest_path, root.parent / "outside-output", repo_root=root
                     )
 
+    def test_offline_child_environment_forces_library_offline_flags(self) -> None:
+        environment = build_offline_subprocess_environment(
+            {
+                "PUL7SAR_PHASE18_COST_MODE": "$0-local",
+                "HF_HUB_OFFLINE": "0",
+                "TRANSFORMERS_OFFLINE": "0",
+                "KEEP_ME": "yes",
+            }
+        )
+        self.assertEqual(environment["PUL7SAR_PHASE18_COST_MODE"], "$0-local")
+        self.assertEqual(environment["HF_HUB_OFFLINE"], "1")
+        self.assertEqual(environment["TRANSFORMERS_OFFLINE"], "1")
+        self.assertEqual(environment["KEEP_ME"], "yes")
+        self.assertEqual(
+            {key: environment[key] for key in OFFLINE_CHILD_ENVIRONMENT},
+            OFFLINE_CHILD_ENVIRONMENT,
+        )
+
+    def test_offline_child_environment_rejects_unlocked_cost_mode(self) -> None:
+        with self.assertRaisesRegex(ValueError, "ZERO_COST_MODE_NOT_LOCKED"):
+            build_offline_subprocess_environment(
+                {"PUL7SAR_PHASE18_COST_MODE": "paid-or-networked"}
+            )
+
     def test_preload_gate_surfaces_all_blockers_before_execution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -170,12 +196,20 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
                     )
             run.assert_not_called()
 
-    def test_executor_uses_shell_free_subprocess_and_propagates_exit_code_after_preload_passes(self) -> None:
+    def test_executor_uses_shell_free_offline_subprocess_and_propagates_exit_code_after_preload_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest_path, manifest = self._fixture(root)
             completed = type("Completed", (), {"returncode": 23})()
-            with patch.dict(os.environ, {"PUL7SAR_PHASE18_COST_MODE": "$0-local"}, clear=False), patch(
+            with patch.dict(
+                os.environ,
+                {
+                    "PUL7SAR_PHASE18_COST_MODE": "$0-local",
+                    "HF_HUB_OFFLINE": "0",
+                    "TRANSFORMERS_OFFLINE": "0",
+                },
+                clear=False,
+            ), patch(
                 "engine.intelligence.qwen_image_manifest_bound_execution.verify_gpu_host_launch_manifest",
                 return_value=manifest,
             ), patch(
@@ -193,6 +227,10 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
             self.assertEqual(code, 23)
             self.assertFalse(run.call_args.kwargs.get("shell", False))
             self.assertFalse(run.call_args.kwargs["check"])
+            child_environment = run.call_args.kwargs["env"]
+            self.assertEqual(child_environment["PUL7SAR_PHASE18_COST_MODE"], "$0-local")
+            self.assertEqual(child_environment["HF_HUB_OFFLINE"], "1")
+            self.assertEqual(child_environment["TRANSFORMERS_OFFLINE"], "1")
 
 
 if __name__ == "__main__":
