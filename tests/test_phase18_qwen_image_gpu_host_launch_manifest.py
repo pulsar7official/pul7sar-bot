@@ -11,6 +11,7 @@ from engine.intelligence.approved_model_revisions import QWEN_IMAGE_2512_REVISIO
 from engine.intelligence.qwen_image_gpu_host_launch_manifest import (
     build_gpu_host_launch_manifest,
     verify_gpu_host_launch_manifest,
+    verify_gpu_host_launch_manifest_for_execution,
 )
 
 
@@ -19,9 +20,12 @@ class QwenImageGpuHostLaunchManifestTests(unittest.TestCase):
         for relative in (
             "engine/intelligence/approved_model_revisions.py",
             "engine/intelligence/qwen_image_gpu_readiness.py",
+            "engine/intelligence/qwen_image_gpu_host_launch_manifest.py",
             "engine/intelligence/qwen_image_local_inference_runtime.py",
             "engine/intelligence/qwen_image_one_shot_canonical_inference.py",
             "engine/intelligence/qwen_image_local_inference_provenance.py",
+            "engine/intelligence/qwen_image_story_bound_canonical_prompt.py",
+            "engine/intelligence/qwen_image_story_bound_generation_authorization.py",
             "tools/phase18_run_one_shot_canonical_inference.py",
         ):
             path = root / relative
@@ -52,22 +56,30 @@ class QwenImageGpuHostLaunchManifestTests(unittest.TestCase):
         )
         return auth, cs257, snapshot, verified, prompt
 
+    def _build(self, root: Path):
+        auth, cs257, snapshot, verified, prompt = self._fixture(root)
+        output = root / "runs/launch.json"
+        patches = (
+            patch(
+                "engine.intelligence.qwen_image_gpu_host_launch_manifest.verify_story_bound_generation_authorization",
+                return_value=verified,
+            ),
+            patch(
+                "engine.intelligence.qwen_image_gpu_host_launch_manifest.build_story_bound_canonical_prompt",
+                return_value=prompt,
+            ),
+        )
+        with patches[0], patches[1]:
+            result = build_gpu_host_launch_manifest(
+                auth, cs257, snapshot, output, repo_root=root,
+                width=1024, height=1024, seed=7, num_inference_steps=8, guidance_scale=1.0,
+            )
+        return auth, cs257, snapshot, verified, prompt, output, result
+
     def test_build_binds_all_launch_inputs_without_granting_authority(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            auth, cs257, snapshot, verified, prompt = self._fixture(root)
-            output = root / "runs/launch.json"
-            with patch(
-                "engine.intelligence.qwen_image_gpu_host_launch_manifest.verify_story_bound_generation_authorization",
-                return_value=verified,
-            ), patch(
-                "engine.intelligence.qwen_image_gpu_host_launch_manifest.build_story_bound_canonical_prompt",
-                return_value=prompt,
-            ):
-                result = build_gpu_host_launch_manifest(
-                    auth, cs257, snapshot, output, repo_root=root,
-                    width=1024, height=1024, seed=7, num_inference_steps=8, guidance_scale=1.0,
-                )
+            _auth, _cs257, _snapshot, _verified, _prompt, output, result = self._build(root)
             self.assertTrue(output.is_file())
             self.assertTrue(result["launch_manifest_verified"])
             self.assertFalse(result["network_allowed"])
@@ -77,7 +89,7 @@ class QwenImageGpuHostLaunchManifestTests(unittest.TestCase):
             self.assertFalse(result["genuine_golden_png_created"])
             self.assertFalse(result["publication_ready"])
             self.assertEqual(len(result["cs257_evidence"]["files"]), 2)
-            self.assertEqual(len(result["execution_contract_sources"]), 6)
+            self.assertEqual(len(result["execution_contract_sources"]), 9)
 
     def test_build_rejects_cross_story_prompt(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -137,8 +149,17 @@ class QwenImageGpuHostLaunchManifestTests(unittest.TestCase):
     def test_verify_rejects_manifest_tampering_before_replay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            auth, cs257, snapshot, verified, prompt = self._fixture(root)
-            output = root / "runs/launch.json"
+            _auth, _cs257, _snapshot, verified, prompt, output, _result = self._build(root)
+            payload = json.loads(output.read_text(encoding="utf-8"))
+            payload["network_allowed"] = True
+            output.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "DIGEST_MISMATCH"):
+                verify_gpu_host_launch_manifest(output, repo_root=root)
+
+    def test_execution_binding_accepts_exact_attested_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            auth, cs257, snapshot, verified, prompt, output, _result = self._build(root)
             with patch(
                 "engine.intelligence.qwen_image_gpu_host_launch_manifest.verify_story_bound_generation_authorization",
                 return_value=verified,
@@ -146,15 +167,72 @@ class QwenImageGpuHostLaunchManifestTests(unittest.TestCase):
                 "engine.intelligence.qwen_image_gpu_host_launch_manifest.build_story_bound_canonical_prompt",
                 return_value=prompt,
             ):
-                build_gpu_host_launch_manifest(
-                    auth, cs257, snapshot, output, repo_root=root,
-                    width=1024, height=1024, seed=7, num_inference_steps=8, guidance_scale=1.0,
+                payload = verify_gpu_host_launch_manifest_for_execution(
+                    output,
+                    authorization_path=auth,
+                    cs257_run_dir=cs257,
+                    snapshot_path=snapshot,
+                    repo_root=root,
+                    width=1024,
+                    height=1024,
+                    seed=7,
+                    num_inference_steps=8,
+                    guidance_scale=1.0,
                 )
-            payload = json.loads(output.read_text(encoding="utf-8"))
-            payload["network_allowed"] = True
-            output.write_text(json.dumps(payload) + "\n", encoding="utf-8")
-            with self.assertRaisesRegex(ValueError, "DIGEST_MISMATCH"):
-                verify_gpu_host_launch_manifest(output, repo_root=root)
+            self.assertEqual(payload["inference_settings"]["seed"], 7)
+            self.assertFalse(payload["model_load_attempted"])
+
+    def test_execution_binding_rejects_seed_drift_before_model_load(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            auth, cs257, snapshot, verified, prompt, output, _result = self._build(root)
+            with patch(
+                "engine.intelligence.qwen_image_gpu_host_launch_manifest.verify_story_bound_generation_authorization",
+                return_value=verified,
+            ), patch(
+                "engine.intelligence.qwen_image_gpu_host_launch_manifest.build_story_bound_canonical_prompt",
+                return_value=prompt,
+            ):
+                with self.assertRaisesRegex(ValueError, "EXECUTION_SETTINGS_DRIFT"):
+                    verify_gpu_host_launch_manifest_for_execution(
+                        output,
+                        authorization_path=auth,
+                        cs257_run_dir=cs257,
+                        snapshot_path=snapshot,
+                        repo_root=root,
+                        width=1024,
+                        height=1024,
+                        seed=8,
+                        num_inference_steps=8,
+                        guidance_scale=1.0,
+                    )
+
+    def test_execution_binding_rejects_authorization_path_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            auth, cs257, snapshot, verified, prompt, output, _result = self._build(root)
+            alternate = root / "runs/alternate-auth.json"
+            alternate.write_bytes(auth.read_bytes())
+            with patch(
+                "engine.intelligence.qwen_image_gpu_host_launch_manifest.verify_story_bound_generation_authorization",
+                return_value=verified,
+            ), patch(
+                "engine.intelligence.qwen_image_gpu_host_launch_manifest.build_story_bound_canonical_prompt",
+                return_value=prompt,
+            ):
+                with self.assertRaisesRegex(ValueError, "EXECUTION_AUTHORIZATION_DRIFT"):
+                    verify_gpu_host_launch_manifest_for_execution(
+                        output,
+                        authorization_path=alternate,
+                        cs257_run_dir=cs257,
+                        snapshot_path=snapshot,
+                        repo_root=root,
+                        width=1024,
+                        height=1024,
+                        seed=7,
+                        num_inference_steps=8,
+                        guidance_scale=1.0,
+                    )
 
 
 if __name__ == "__main__":
