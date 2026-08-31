@@ -1,9 +1,10 @@
-"""Build and verify a portable, fail-closed launch manifest for genuine Qwen inference.
+"""Build, verify, and execution-bind a fail-closed launch manifest for genuine Qwen inference.
 
-Change Set 291 prepares a GPU host handoff without loading model weights or running
-inference. It replays the story-bound prompt contract, verifies the exact approved
-local snapshot revision, validates the measured inference envelope, and byte-binds
-all repository inputs that govern the CS289/CS290 canonical inference edge.
+Change Set 291 introduced the pre-inference GPU-host manifest. Change Set 292 closes
+the remaining bypass at the production inference edge: the genuine inference CLI must
+now replay this manifest and prove that its authorization, CS257 evidence directory,
+local immutable snapshot, and exact inference settings are the same values bound by
+the manifest before any model load can begin.
 
 The manifest grants no visual, semantic, Golden, or publication authority. It exists
 only to make a future zero-cost CUDA host attempt reproducible and auditable before
@@ -35,9 +36,12 @@ REQUIRED_COST_MODE = "$0-local"
 _REQUIRED_SOURCE_PATHS = (
     "engine/intelligence/approved_model_revisions.py",
     "engine/intelligence/qwen_image_gpu_readiness.py",
+    "engine/intelligence/qwen_image_gpu_host_launch_manifest.py",
     "engine/intelligence/qwen_image_local_inference_runtime.py",
     "engine/intelligence/qwen_image_one_shot_canonical_inference.py",
     "engine/intelligence/qwen_image_local_inference_provenance.py",
+    "engine/intelligence/qwen_image_story_bound_canonical_prompt.py",
+    "engine/intelligence/qwen_image_story_bound_generation_authorization.py",
     "tools/phase18_run_one_shot_canonical_inference.py",
 )
 _REQUIRED_FALSE = (
@@ -312,4 +316,64 @@ def verify_gpu_host_launch_manifest(path: Path, *, repo_root: Path) -> dict[str,
         recorded = by_path[relative]
         if recorded.get("sha256") != current["sha256"] or recorded.get("byte_size") != current["byte_size"]:
             raise ValueError(f"QWEN_GPU_HOST_MANIFEST_SOURCE_BYTE_DRIFT:{relative}")
+    return payload
+
+
+def verify_gpu_host_launch_manifest_for_execution(
+    path: Path,
+    *,
+    authorization_path: Path,
+    cs257_run_dir: Path,
+    snapshot_path: Path,
+    repo_root: Path,
+    width: int,
+    height: int,
+    seed: int,
+    num_inference_steps: int,
+    guidance_scale: float,
+) -> dict[str, Any]:
+    """Prove that a concrete inference invocation is exactly the attested launch.
+
+    This function is intended to be called by the production inference CLI before
+    prompt extraction, model import/load, authorization consumption, or inference.
+    Any argument drift fails closed.
+    """
+    root = repo_root.resolve()
+    payload = verify_gpu_host_launch_manifest(path, repo_root=root)
+
+    _, auth_relative = _repo_file(
+        authorization_path, root, "QWEN_GPU_HOST_MANIFEST_EXECUTION_AUTHORIZATION_INVALID"
+    )
+    _, cs257_relative = _repo_dir(
+        cs257_run_dir, root, "QWEN_GPU_HOST_MANIFEST_EXECUTION_CS257_INVALID"
+    )
+    snapshot = snapshot_path.expanduser().resolve()
+    revision = assert_snapshot_revision(snapshot, QWEN_IMAGE_2512_REVISION)
+    if not snapshot.is_dir():
+        raise ValueError("QWEN_GPU_HOST_MANIFEST_EXECUTION_SNAPSHOT_MISSING")
+
+    authorization = payload.get("authorization")
+    if not isinstance(authorization, Mapping) or authorization.get("repository_relative_path") != auth_relative:
+        raise ValueError("QWEN_GPU_HOST_MANIFEST_EXECUTION_AUTHORIZATION_DRIFT")
+    cs257 = payload.get("cs257_evidence")
+    if not isinstance(cs257, Mapping) or cs257.get("repository_relative_directory") != cs257_relative:
+        raise ValueError("QWEN_GPU_HOST_MANIFEST_EXECUTION_CS257_DRIFT")
+    recorded_snapshot = payload.get("snapshot")
+    if (
+        not isinstance(recorded_snapshot, Mapping)
+        or recorded_snapshot.get("resolved_path") != str(snapshot)
+        or recorded_snapshot.get("revision") != revision
+    ):
+        raise ValueError("QWEN_GPU_HOST_MANIFEST_EXECUTION_SNAPSHOT_DRIFT")
+
+    _validate_inference_settings(width, height, seed, num_inference_steps, guidance_scale)
+    expected_settings = {
+        "width": width,
+        "height": height,
+        "seed": seed,
+        "num_inference_steps": num_inference_steps,
+        "guidance_scale": float(guidance_scale),
+    }
+    if payload.get("inference_settings") != expected_settings:
+        raise ValueError("QWEN_GPU_HOST_MANIFEST_EXECUTION_SETTINGS_DRIFT")
     return payload
