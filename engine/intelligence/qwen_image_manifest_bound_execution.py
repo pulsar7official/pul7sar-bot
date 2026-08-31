@@ -5,8 +5,11 @@ canonical inference command. Operators provide only the verified manifest and a 
 repository-local output directory. Authorization, CS257 evidence, immutable snapshot,
 and all inference settings are recovered from the manifest after full replay.
 
-This module does not import or load Qwen, execute inference, create pixels, or grant any
-semantic, visual-quality, Golden, or publication authority.
+CS298 makes the CS297 aggregate preload host diagnostic mandatory at this launcher
+edge. The canonical subprocess is never started while any observable static-readiness
+or CS260 host-identity blocker remains. This is still a pre-model-load control: it does
+not load Qwen, execute inference, create pixels, or grant semantic, visual-quality,
+Golden, or publication authority.
 """
 from __future__ import annotations
 
@@ -16,9 +19,20 @@ import sys
 from typing import Any, Mapping, Sequence
 
 from .qwen_image_gpu_host_launch_manifest import verify_gpu_host_launch_manifest
+from .qwen_image_preload_host_diagnostic import inspect_preload_host
 
 REQUIRED_COST_MODE = "$0-local"
 CANONICAL_TOOL = "tools/phase18_run_one_shot_canonical_inference.py"
+
+
+class QwenPreloadHostNotReadyError(RuntimeError):
+    """Raised before the canonical subprocess when the aggregate preload check blocks."""
+
+    def __init__(self, blockers: Sequence[str]) -> None:
+        normalized = tuple(sorted(set(str(item) for item in blockers if str(item))))
+        self.blockers = normalized
+        detail = ",".join(normalized) if normalized else "unspecified"
+        super().__init__(f"QWEN_MANIFEST_EXECUTION_PRELOAD_HOST_NOT_READY:{detail}")
 
 
 def _mapping(value: Any, code: str) -> Mapping[str, Any]:
@@ -119,6 +133,34 @@ def build_manifest_bound_execution_argv(
     )
 
 
+def require_preload_host_ready(
+    launch_manifest_path: Path,
+    *,
+    repo_root: Path,
+) -> Mapping[str, Any]:
+    """Replay CS297 and fail closed before any canonical subprocess is started."""
+    report = inspect_preload_host(launch_manifest_path, repo_root=repo_root.resolve())
+    blockers = report.get("blockers")
+    if not isinstance(blockers, list) or not all(isinstance(item, str) for item in blockers):
+        raise ValueError("QWEN_MANIFEST_EXECUTION_PRELOAD_DIAGNOSTIC_INVALID")
+    ready = report.get("ready_for_model_load_attempt")
+    if ready is not True or blockers:
+        raise QwenPreloadHostNotReadyError(blockers)
+
+    forbidden_true = (
+        "model_load_attempted",
+        "inference_executed",
+        "semantic_approved",
+        "human_visual_review_approved",
+        "golden_quality_approved",
+        "genuine_golden_png_created",
+        "publication_ready",
+    )
+    if any(report.get(field) is not False for field in forbidden_true):
+        raise ValueError("QWEN_MANIFEST_EXECUTION_PRELOAD_DIAGNOSTIC_AUTHORITY_INVALID")
+    return report
+
+
 def execute_manifest_bound_inference(
     launch_manifest_path: Path,
     output_dir: Path,
@@ -126,7 +168,7 @@ def execute_manifest_bound_inference(
     repo_root: Path,
     python_executable: str | None = None,
 ) -> int:
-    """Execute the canonical CLI with a shell-free argv produced by the manifest."""
+    """Run CS297 first, then execute the canonical CLI with a shell-free manifest argv."""
     import subprocess
 
     argv: Sequence[str] = build_manifest_bound_execution_argv(
@@ -135,5 +177,6 @@ def execute_manifest_bound_inference(
         repo_root=repo_root,
         python_executable=python_executable,
     )
+    require_preload_host_ready(launch_manifest_path, repo_root=repo_root)
     completed = subprocess.run(tuple(argv), cwd=str(repo_root.resolve()), check=False)
     return int(completed.returncode)
