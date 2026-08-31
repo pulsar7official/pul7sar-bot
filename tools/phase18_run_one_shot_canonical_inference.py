@@ -5,8 +5,12 @@ The production entry point accepts no free-form prompt. Prompt bytes are derived
 inside this command from the exact CS257 evidence set that passed independent semantic
 replay, then cross-bound to the same CS261 generation authorization. The actual model
 load is locked to the exact already-local approved snapshot with no network fallback.
-This preserves Fact Lock, entity identity, sentiment neutrality, semantic ownership,
-and zero-cost boundaries at the final inference edge.
+
+Change Set 292 additionally makes the CS291 GPU-host launch manifest mandatory at the
+production edge. The manifest is fully replayed before prompt extraction or model load,
+and its authorization, CS257 directory, snapshot path/revision, seed, dimensions,
+steps, and guidance scale must exactly match this invocation. This closes the direct
+CLI bypass around pre-launch attestation while preserving every downstream gate.
 
 There is no retry loop. A claimed authorization is burned even when inference or PNG
 validation fails. A successful result is only a canonical candidate; all downstream
@@ -100,6 +104,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run exactly one CS261-authorized, CS257-prompt-bound Qwen Image 2512 inference attempt"
     )
+    parser.add_argument("--launch-manifest", type=Path, required=True)
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--cs257-run-dir", type=Path, required=True)
     parser.add_argument(
@@ -121,6 +126,11 @@ def main() -> int:
     if str(repo_root) not in sys.path:
         sys.path.insert(0, str(repo_root))
 
+    launch_manifest_path = _repo_file(
+        args.launch_manifest,
+        repo_root,
+        "QWEN_CANONICAL_INFERENCE_CLI_LAUNCH_MANIFEST_OUTSIDE_REPOSITORY",
+    )
     authorization_path = _repo_file(
         args.authorization,
         repo_root,
@@ -133,6 +143,26 @@ def main() -> int:
     )
     snapshot_path = args.snapshot_path.expanduser().resolve()
     output_dir = _repo_output(args.output_dir, repo_root)
+
+    # CS292: replay the entire pre-launch contract before prompt extraction, model
+    # import/load, authorization consumption, or inference. Any invocation drift is
+    # fatal and no fallback path exists.
+    from engine.intelligence.qwen_image_gpu_host_launch_manifest import (
+        verify_gpu_host_launch_manifest_for_execution,
+    )
+
+    launch_manifest = verify_gpu_host_launch_manifest_for_execution(
+        launch_manifest_path,
+        authorization_path=authorization_path,
+        cs257_run_dir=cs257_run_dir,
+        snapshot_path=snapshot_path,
+        repo_root=repo_root,
+        width=args.width,
+        height=args.height,
+        seed=args.seed,
+        num_inference_steps=args.steps,
+        guidance_scale=args.guidance_scale,
+    )
 
     from engine.intelligence.qwen_image_story_bound_canonical_prompt import (
         build_story_bound_canonical_prompt,
@@ -232,6 +262,7 @@ def main() -> int:
         print(
             json.dumps(
                 {
+                    "launch_manifest_sha256": launch_manifest.get("manifest_sha256"),
                     "canonical_inference": verified,
                     "local_inference_provenance": verified_provenance,
                     "story_bound_prompt_contract": bound_prompt.contract,
