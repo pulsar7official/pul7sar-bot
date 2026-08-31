@@ -16,6 +16,13 @@ used by the local-only Qwen path. The launcher still does not claim to provide a
 network sandbox; instead it fail-closes the cost mode and forces Hugging Face Hub and
 Transformers offline flags before the canonical subprocess starts, while the canonical
 runtime continues to require ``local_files_only=True`` for the actual model load.
+
+CS300 closes the successful-child trust gap. A zero subprocess return code is no longer
+sufficient for launcher success: the launcher independently requires the exact canonical
+candidate/receipt/provenance/postflight files and replays the CS293 launch-to-output
+attestation before returning zero. The replay recursively revalidates the launch manifest,
+local inference provenance, canonical inference receipt, and exact PNG bytes. No semantic,
+visual-quality, Golden, human-review, or publication authority is granted here.
 """
 from __future__ import annotations
 
@@ -33,6 +40,12 @@ OFFLINE_CHILD_ENVIRONMENT = {
     "HF_HUB_OFFLINE": "1",
     "TRANSFORMERS_OFFLINE": "1",
 }
+SUCCESS_OUTPUT_FILES = (
+    "canonical_candidate.png",
+    "canonical_inference_receipt.json",
+    "local_inference_provenance.json",
+    "launch_to_output_attestation.json",
+)
 
 
 class QwenPreloadHostNotReadyError(RuntimeError):
@@ -69,6 +82,20 @@ def _new_repo_output(path: Path, root: Path) -> Path:
     if not parent.is_dir():
         raise ValueError("QWEN_MANIFEST_EXECUTION_OUTPUT_PARENT_INVALID")
     return parent / candidate.name
+
+
+def _existing_repo_output(path: Path, root: Path) -> Path:
+    candidate = path if path.is_absolute() else root / path
+    if candidate.is_symlink():
+        raise ValueError("QWEN_MANIFEST_EXECUTION_POSTFLIGHT_OUTPUT_SYMLINK")
+    resolved = candidate.resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError as exc:
+        raise ValueError("QWEN_MANIFEST_EXECUTION_POSTFLIGHT_OUTPUT_OUTSIDE_REPOSITORY") from exc
+    if not resolved.is_dir():
+        raise ValueError("QWEN_MANIFEST_EXECUTION_POSTFLIGHT_OUTPUT_MISSING")
+    return resolved
 
 
 def build_manifest_bound_execution_argv(
@@ -190,6 +217,45 @@ def require_preload_host_ready(
     return report
 
 
+def verify_successful_canonical_output(
+    output_dir: Path,
+    *,
+    repo_root: Path,
+) -> Mapping[str, Any]:
+    """Independently replay the exact successful canonical postflight bundle.
+
+    This function is intentionally called only after a child process returns zero. It
+    converts the child return code from a claim into a locally replayed fact by checking
+    the expected files and invoking the CS293 verifier, which recursively revalidates the
+    launch manifest, provenance, canonical receipt, and exact candidate PNG bytes.
+    """
+    root = repo_root.resolve()
+    output = _existing_repo_output(output_dir, root)
+    for filename in SUCCESS_OUTPUT_FILES:
+        path = output / filename
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(f"QWEN_MANIFEST_EXECUTION_POSTFLIGHT_FILE_MISSING:{filename}")
+
+    from .qwen_image_launch_to_output_attestation import verify_launch_to_output_attestation
+
+    verified = verify_launch_to_output_attestation(
+        output / "launch_to_output_attestation.json",
+        repo_root=root,
+    )
+    forbidden_true = (
+        "semantic_approved",
+        "human_visual_review_approved",
+        "golden_quality_approved",
+        "genuine_golden_png_created",
+        "publication_ready",
+    )
+    if any(verified.get(field) is not False for field in forbidden_true):
+        raise ValueError("QWEN_MANIFEST_EXECUTION_POSTFLIGHT_AUTHORITY_INVALID")
+    if verified.get("genuine_canonical_inference_executed") is not True:
+        raise ValueError("QWEN_MANIFEST_EXECUTION_POSTFLIGHT_GENUINE_INFERENCE_MISSING")
+    return verified
+
+
 def execute_manifest_bound_inference(
     launch_manifest_path: Path,
     output_dir: Path,
@@ -197,7 +263,7 @@ def execute_manifest_bound_inference(
     repo_root: Path,
     python_executable: str | None = None,
 ) -> int:
-    """Run CS297, force the offline child envelope, then execute the canonical CLI."""
+    """Run the preload/offline controls and independently replay successful output."""
     import subprocess
 
     argv: Sequence[str] = build_manifest_bound_execution_argv(
@@ -214,4 +280,8 @@ def execute_manifest_bound_inference(
         check=False,
         env=child_environment,
     )
-    return int(completed.returncode)
+    code = int(completed.returncode)
+    if code != 0:
+        return code
+    verify_successful_canonical_output(output_dir, repo_root=repo_root)
+    return 0
