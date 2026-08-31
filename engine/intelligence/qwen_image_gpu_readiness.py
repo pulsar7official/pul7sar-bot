@@ -1,7 +1,9 @@
-"""Fail-closed, zero-cost readiness probe for genuine Qwen-Image execution.
+"""Fail-closed, zero-cost static preflight for genuine Qwen-Image execution.
 
 The probe performs local inspection only. It never downloads a model, allocates a
 Qwen pipeline, runs inference, or grants any visual/publication authority.
+Resource sufficiency is deliberately *not* inferred from an invented VRAM
+threshold: only a genuine model-load/inference attempt can prove that.
 """
 from __future__ import annotations
 
@@ -19,7 +21,6 @@ from .approved_model_revisions import (
 )
 
 SCHEMA = "pul7sar.phase18.qwen_image_gpu_readiness.v1"
-MIN_GPU_MEMORY_GIB = 20.0
 
 
 @dataclass(frozen=True)
@@ -33,7 +34,7 @@ class QwenImageGpuReadiness:
     cuda_device_count: int
     bf16_supported: bool
     gpu_name: Optional[str]
-    gpu_memory_gib: Optional[float]
+    gpu_memory_gib_observed: Optional[float]
     nvidia_smi_available: bool
     qwen_image_pipeline_importable: bool
     sequential_cpu_offload_supported: bool
@@ -41,7 +42,10 @@ class QwenImageGpuReadiness:
     snapshot_revision_verified: bool
     network_required: bool
     zero_cost_local_only: bool
-    ready_for_genuine_inference: bool
+    static_preflight_passed: bool
+    ready_for_model_load_attempt: bool
+    genuine_inference_executed: bool
+    ready_for_genuine_inference_claim: bool
     blockers: tuple[str, ...]
 
     def to_dict(self) -> dict:
@@ -95,8 +99,6 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         blockers.append("no_cuda_device")
     if not bf16_supported:
         blockers.append("native_bf16_unavailable")
-    if gpu_memory_gib is None or gpu_memory_gib < MIN_GPU_MEMORY_GIB:
-        blockers.append(f"gpu_memory_below_{MIN_GPU_MEMORY_GIB:g}gib_or_unknown")
 
     pipeline_importable = False
     sequential_offload_supported = False
@@ -131,6 +133,7 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         blockers.append("nvidia_smi_unavailable")
 
     blockers = list(dict.fromkeys(blockers))
+    static_pass = not blockers
     return QwenImageGpuReadiness(
         schema=SCHEMA,
         model_id=QWEN_IMAGE_2512_MODEL_ID,
@@ -141,7 +144,7 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         cuda_device_count=device_count,
         bf16_supported=bf16_supported,
         gpu_name=gpu_name,
-        gpu_memory_gib=gpu_memory_gib,
+        gpu_memory_gib_observed=gpu_memory_gib,
         nvidia_smi_available=smi,
         qwen_image_pipeline_importable=pipeline_importable,
         sequential_cpu_offload_supported=sequential_offload_supported,
@@ -149,6 +152,9 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         snapshot_revision_verified=snapshot_verified,
         network_required=False,
         zero_cost_local_only=True,
-        ready_for_genuine_inference=not blockers,
+        static_preflight_passed=static_pass,
+        ready_for_model_load_attempt=static_pass,
+        genuine_inference_executed=False,
+        ready_for_genuine_inference_claim=False,
         blockers=tuple(blockers),
     )
