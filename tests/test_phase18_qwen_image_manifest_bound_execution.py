@@ -9,10 +9,12 @@ from unittest.mock import patch
 from engine.intelligence.qwen_image_manifest_bound_execution import (
     OFFLINE_CHILD_ENVIRONMENT,
     QwenPreloadHostNotReadyError,
+    SUCCESS_OUTPUT_FILES,
     build_manifest_bound_execution_argv,
     build_offline_subprocess_environment,
     execute_manifest_bound_inference,
     require_preload_host_ready,
+    verify_successful_canonical_output,
 )
 
 
@@ -57,6 +59,23 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
             "genuine_golden_png_created": False,
             "publication_ready": False,
         }
+
+    @staticmethod
+    def _verified_postflight() -> dict:
+        return {
+            "genuine_canonical_inference_executed": True,
+            "semantic_approved": False,
+            "human_visual_review_approved": False,
+            "golden_quality_approved": False,
+            "genuine_golden_png_created": False,
+            "publication_ready": False,
+        }
+
+    @staticmethod
+    def _materialize_success_bundle(output: Path) -> None:
+        output.mkdir()
+        for filename in SUCCESS_OUTPUT_FILES:
+            (output / filename).write_bytes(b"test-evidence")
 
     def test_argv_is_derived_from_manifest_without_operator_settings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -173,6 +192,49 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "DIAGNOSTIC_AUTHORITY_INVALID"):
                     require_preload_host_ready(manifest_path, repo_root=root)
 
+    def test_success_postflight_requires_all_expected_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "runs/output"
+            output.mkdir(parents=True)
+            for filename in SUCCESS_OUTPUT_FILES[:-1]:
+                (output / filename).write_bytes(b"evidence")
+            with self.assertRaisesRegex(ValueError, "POSTFLIGHT_FILE_MISSING:launch_to_output_attestation.json"):
+                verify_successful_canonical_output(output, repo_root=root)
+
+    def test_success_postflight_replays_launch_to_output_attestation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "runs/output"
+            output.parent.mkdir(parents=True)
+            self._materialize_success_bundle(output)
+            verified = self._verified_postflight()
+            with patch(
+                "engine.intelligence.qwen_image_launch_to_output_attestation.verify_launch_to_output_attestation",
+                return_value=verified,
+            ) as replay:
+                result = verify_successful_canonical_output(output, repo_root=root)
+            self.assertEqual(result, verified)
+            replay.assert_called_once_with(
+                output / "launch_to_output_attestation.json",
+                repo_root=root.resolve(),
+            )
+
+    def test_success_postflight_rejects_premature_downstream_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "runs/output"
+            output.parent.mkdir(parents=True)
+            self._materialize_success_bundle(output)
+            verified = self._verified_postflight()
+            verified["golden_quality_approved"] = True
+            with patch(
+                "engine.intelligence.qwen_image_launch_to_output_attestation.verify_launch_to_output_attestation",
+                return_value=verified,
+            ):
+                with self.assertRaisesRegex(ValueError, "POSTFLIGHT_AUTHORITY_INVALID"):
+                    verify_successful_canonical_output(output, repo_root=root)
+
     def test_executor_does_not_start_subprocess_when_preload_is_blocked(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -196,11 +258,41 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
                     )
             run.assert_not_called()
 
-    def test_executor_uses_shell_free_offline_subprocess_and_propagates_exit_code_after_preload_passes(self) -> None:
+    def test_executor_propagates_nonzero_exit_without_postflight_replay(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest_path, manifest = self._fixture(root)
             completed = type("Completed", (), {"returncode": 23})()
+            with patch.dict(
+                os.environ,
+                {"PUL7SAR_PHASE18_COST_MODE": "$0-local"},
+                clear=False,
+            ), patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.verify_gpu_host_launch_manifest",
+                return_value=manifest,
+            ), patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.inspect_preload_host",
+                return_value=self._ready_preload_report(),
+            ), patch(
+                "subprocess.run", return_value=completed
+            ), patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.verify_successful_canonical_output"
+            ) as replay:
+                code = execute_manifest_bound_inference(
+                    manifest_path,
+                    root / "runs/output",
+                    repo_root=root,
+                    python_executable="python-test",
+                )
+            self.assertEqual(code, 23)
+            replay.assert_not_called()
+
+    def test_executor_uses_shell_free_offline_subprocess_and_requires_postflight_after_zero_exit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path, manifest = self._fixture(root)
+            completed = type("Completed", (), {"returncode": 0})()
+            output = root / "runs/output"
             with patch.dict(
                 os.environ,
                 {
@@ -217,20 +309,24 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
                 return_value=self._ready_preload_report(),
             ), patch(
                 "subprocess.run", return_value=completed
-            ) as run:
+            ) as run, patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.verify_successful_canonical_output",
+                return_value=self._verified_postflight(),
+            ) as replay:
                 code = execute_manifest_bound_inference(
                     manifest_path,
-                    root / "runs/output",
+                    output,
                     repo_root=root,
                     python_executable="python-test",
                 )
-            self.assertEqual(code, 23)
+            self.assertEqual(code, 0)
             self.assertFalse(run.call_args.kwargs.get("shell", False))
             self.assertFalse(run.call_args.kwargs["check"])
             child_environment = run.call_args.kwargs["env"]
             self.assertEqual(child_environment["PUL7SAR_PHASE18_COST_MODE"], "$0-local")
             self.assertEqual(child_environment["HF_HUB_OFFLINE"], "1")
             self.assertEqual(child_environment["TRANSFORMERS_OFFLINE"], "1")
+            replay.assert_called_once_with(output, repo_root=root)
 
 
 if __name__ == "__main__":
