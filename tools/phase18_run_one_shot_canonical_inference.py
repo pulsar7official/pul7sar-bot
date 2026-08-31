@@ -3,9 +3,10 @@
 
 The production entry point accepts no free-form prompt. Prompt bytes are derived
 inside this command from the exact CS257 evidence set that passed independent semantic
-replay, then cross-bound to the same CS261 generation authorization. This preserves
-Fact Lock, entity identity, sentiment neutrality, semantic ownership, and zero-cost
-boundaries at the final inference edge.
+replay, then cross-bound to the same CS261 generation authorization. The actual model
+load is locked to the exact already-local approved snapshot with no network fallback.
+This preserves Fact Lock, entity identity, sentiment neutrality, semantic ownership,
+and zero-cost boundaries at the final inference edge.
 
 There is no retry loop. A claimed authorization is burned even when inference or PNG
 validation fails. A successful result is only a canonical candidate; all downstream
@@ -93,79 +94,18 @@ def _load_cs260_from_authorization(
     return authorization, cs260
 
 
-def _collect_live_pipeline(cs260: Mapping[str, Any]):
-    try:
-        import torch
-        import diffusers
-        from diffusers import QwenImagePipeline
-    except Exception as exc:  # pragma: no cover - GPU-host dependent
-        raise RuntimeError(
-            f"QWEN_CANONICAL_INFERENCE_CLI_SOFTWARE_IMPORT_FAILED:{type(exc).__name__}"
-        ) from exc
-
-    from engine.intelligence.approved_model_revisions import (
-        QWEN_IMAGE_2512_MODEL_ID,
-        QWEN_IMAGE_2512_REVISION,
-    )
-    from engine.intelligence.qwen_image_runtime_envelope_plan import DTYPE, OFFLOAD_MODE
-
-    if not torch.cuda.is_available():
-        raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_CUDA_UNAVAILABLE")
-    if not hasattr(torch.cuda, "is_bf16_supported") or not torch.cuda.is_bf16_supported():
-        raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_NATIVE_BF16_UNAVAILABLE")
-
-    device = torch.cuda.current_device()
-    props = torch.cuda.get_device_properties(device)
-    total_gib = float(props.total_memory) / float(1024 ** 3)
-    pipeline = QwenImagePipeline.from_pretrained(
-        QWEN_IMAGE_2512_MODEL_ID,
-        revision=QWEN_IMAGE_2512_REVISION,
-        torch_dtype=torch.bfloat16,
-    )
-    if pipeline.__class__.__name__ != "QwenImagePipeline":
-        raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_PIPELINE_CLASS_INVALID")
-    pipeline.enable_sequential_cpu_offload()
-
-    live = {
-        "gpu_name": torch.cuda.get_device_name(device),
-        "gpu_total_vram_gb": total_gib,
-        "torch_version": str(torch.__version__),
-        "cuda_version": str(torch.version.cuda),
-        "diffusers_version": str(diffusers.__version__),
-        "pipeline_class": pipeline.__class__.__name__,
-        "dtype": DTYPE,
-        "offload_mode": OFFLOAD_MODE,
-        "native_bf16": True,
-        "model_id": QWEN_IMAGE_2512_MODEL_ID,
-        "model_revision": QWEN_IMAGE_2512_REVISION,
-        "weights_loaded": True,
-        "sequential_cpu_offload_enabled": True,
-    }
-    expected = cs260.get("observed_runtime_identity")
-    if not isinstance(expected, Mapping) or set(live) != set(expected):
-        raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_RUNTIME_IDENTITY_FIELDS_DRIFT")
-    for field, value in live.items():
-        wanted = expected.get(field)
-        if field == "gpu_total_vram_gb":
-            if not isinstance(wanted, (int, float)) or isinstance(wanted, bool):
-                raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_RUNTIME_VRAM_INVALID")
-            if abs(float(value) - float(wanted)) > 0.05:
-                raise RuntimeError(
-                    "QWEN_CANONICAL_INFERENCE_CLI_RUNTIME_IDENTITY_DRIFT:gpu_total_vram_gb"
-                )
-        elif value != wanted:
-            raise RuntimeError(
-                f"QWEN_CANONICAL_INFERENCE_CLI_RUNTIME_IDENTITY_DRIFT:{field}"
-            )
-    return torch, pipeline
-
-
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run exactly one CS261-authorized, CS257-prompt-bound Qwen Image 2512 inference attempt"
     )
     parser.add_argument("--authorization", type=Path, required=True)
     parser.add_argument("--cs257-run-dir", type=Path, required=True)
+    parser.add_argument(
+        "--snapshot-path",
+        type=Path,
+        required=True,
+        help="Exact already-local approved Qwen/Qwen-Image-2512 snapshots/<revision> directory",
+    )
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=ROOT)
     parser.add_argument("--width", type=int, default=1024)
@@ -189,6 +129,7 @@ def main() -> int:
         repo_root,
         "QWEN_CANONICAL_INFERENCE_CLI_CS257_OUTSIDE_REPOSITORY",
     )
+    snapshot_path = args.snapshot_path.expanduser().resolve()
     output_dir = _repo_output(args.output_dir, repo_root)
 
     from engine.intelligence.qwen_image_story_bound_canonical_prompt import (
@@ -212,10 +153,17 @@ def main() -> int:
     if expected_fingerprint != cs260.get("expected_runtime_fingerprint_sha256"):
         raise RuntimeError("QWEN_CANONICAL_INFERENCE_CLI_RUNTIME_FINGERPRINT_DRIFT")
 
+    from engine.intelligence.qwen_image_local_inference_runtime import (
+        load_local_inference_runtime,
+    )
+
     torch = None
     pipeline = None
     try:
-        torch, pipeline = _collect_live_pipeline(cs260)
+        torch, pipeline, _live_identity = load_local_inference_runtime(
+            cs260=cs260,
+            snapshot_path=snapshot_path,
+        )
 
         from engine.intelligence.qwen_image_one_shot_canonical_inference import (
             CanonicalInferenceImage,
@@ -268,6 +216,9 @@ def main() -> int:
                 {
                     "canonical_inference": verified,
                     "story_bound_prompt_contract": bound_prompt.contract,
+                    "model_snapshot": str(snapshot_path),
+                    "network_allowed": False,
+                    "local_files_only": True,
                 },
                 ensure_ascii=False,
                 indent=2,
