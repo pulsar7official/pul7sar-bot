@@ -14,9 +14,10 @@ CLI bypass around pre-launch attestation while preserving every downstream gate.
 
 There is no retry loop. A claimed authorization is burned even when inference or PNG
 validation fails. A successful result is only a canonical candidate; all downstream
-quality and publication gates remain closed. CS290 additionally emits a local-only
-provenance receipt that binds the successful candidate to the exact snapshot revision
-and execution-contract source bytes that governed this edge.
+quality and publication gates remain closed. CS290 emits local-only provenance for the
+successful candidate. CS294 additionally materializes and immediately replays CS293's
+launch-to-output attestation before the command may return success, binding the same
+pre-launch manifest to the exact produced PNG and post-inference provenance.
 """
 from __future__ import annotations
 
@@ -259,12 +260,34 @@ def main() -> int:
         verified_provenance = verify_local_inference_provenance(
             provenance_path, repo_root=repo_root
         )
+
+        # CS294: a successful production inference may not return success until the
+        # exact CS292 pre-launch manifest is joined to the verified CS290 postflight
+        # provenance and canonical PNG. The attestation itself grants no quality,
+        # semantic, Golden, or publication authority.
+        from engine.intelligence.qwen_image_launch_to_output_attestation import (
+            build_launch_to_output_attestation,
+            verify_launch_to_output_attestation,
+        )
+
+        launch_to_output_path = run.output_dir / "launch_to_output_attestation.json"
+        build_launch_to_output_attestation(
+            launch_manifest_path,
+            provenance_path,
+            launch_to_output_path,
+            repo_root=repo_root,
+        )
+        verified_launch_to_output = verify_launch_to_output_attestation(
+            launch_to_output_path, repo_root=repo_root
+        )
+
         print(
             json.dumps(
                 {
                     "launch_manifest_sha256": launch_manifest.get("manifest_sha256"),
                     "canonical_inference": verified,
                     "local_inference_provenance": verified_provenance,
+                    "launch_to_output_attestation": verified_launch_to_output,
                     "story_bound_prompt_contract": bound_prompt.contract,
                     "model_snapshot": str(snapshot_path),
                     "network_allowed": False,
