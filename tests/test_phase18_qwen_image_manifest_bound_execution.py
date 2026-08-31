@@ -7,8 +7,10 @@ import unittest
 from unittest.mock import patch
 
 from engine.intelligence.qwen_image_manifest_bound_execution import (
+    QwenPreloadHostNotReadyError,
     build_manifest_bound_execution_argv,
     execute_manifest_bound_inference,
+    require_preload_host_ready,
 )
 
 
@@ -39,6 +41,20 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
             },
         }
         return manifest_path, manifest
+
+    @staticmethod
+    def _ready_preload_report() -> dict:
+        return {
+            "blockers": [],
+            "ready_for_model_load_attempt": True,
+            "model_load_attempted": False,
+            "inference_executed": False,
+            "semantic_approved": False,
+            "human_visual_review_approved": False,
+            "golden_quality_approved": False,
+            "genuine_golden_png_created": False,
+            "publication_ready": False,
+        }
 
     def test_argv_is_derived_from_manifest_without_operator_settings(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -96,7 +112,65 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
                         manifest_path, root.parent / "outside-output", repo_root=root
                     )
 
-    def test_executor_uses_shell_free_subprocess_and_propagates_exit_code(self) -> None:
+    def test_preload_gate_surfaces_all_blockers_before_execution(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path, _ = self._fixture(root)
+            report = self._ready_preload_report()
+            report["ready_for_model_load_attempt"] = False
+            report["blockers"] = [
+                "identity_drift:torch_version",
+                "cuda_unavailable",
+                "identity_drift:torch_version",
+            ]
+            with patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.inspect_preload_host",
+                return_value=report,
+            ):
+                with self.assertRaises(QwenPreloadHostNotReadyError) as ctx:
+                    require_preload_host_ready(manifest_path, repo_root=root)
+            self.assertEqual(
+                ctx.exception.blockers,
+                ("cuda_unavailable", "identity_drift:torch_version"),
+            )
+
+    def test_preload_gate_rejects_any_premature_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path, _ = self._fixture(root)
+            report = self._ready_preload_report()
+            report["semantic_approved"] = True
+            with patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.inspect_preload_host",
+                return_value=report,
+            ):
+                with self.assertRaisesRegex(ValueError, "DIAGNOSTIC_AUTHORITY_INVALID"):
+                    require_preload_host_ready(manifest_path, repo_root=root)
+
+    def test_executor_does_not_start_subprocess_when_preload_is_blocked(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest_path, manifest = self._fixture(root)
+            blocked = self._ready_preload_report()
+            blocked["ready_for_model_load_attempt"] = False
+            blocked["blockers"] = ["cuda_unavailable", "native_bf16_unavailable"]
+            with patch.dict(os.environ, {"PUL7SAR_PHASE18_COST_MODE": "$0-local"}, clear=False), patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.verify_gpu_host_launch_manifest",
+                return_value=manifest,
+            ), patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.inspect_preload_host",
+                return_value=blocked,
+            ), patch("subprocess.run") as run:
+                with self.assertRaises(QwenPreloadHostNotReadyError):
+                    execute_manifest_bound_inference(
+                        manifest_path,
+                        root / "runs/output",
+                        repo_root=root,
+                        python_executable="python-test",
+                    )
+            run.assert_not_called()
+
+    def test_executor_uses_shell_free_subprocess_and_propagates_exit_code_after_preload_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             manifest_path, manifest = self._fixture(root)
@@ -104,6 +178,9 @@ class QwenImageManifestBoundExecutionTests(unittest.TestCase):
             with patch.dict(os.environ, {"PUL7SAR_PHASE18_COST_MODE": "$0-local"}, clear=False), patch(
                 "engine.intelligence.qwen_image_manifest_bound_execution.verify_gpu_host_launch_manifest",
                 return_value=manifest,
+            ), patch(
+                "engine.intelligence.qwen_image_manifest_bound_execution.inspect_preload_host",
+                return_value=self._ready_preload_report(),
             ), patch(
                 "subprocess.run", return_value=completed
             ) as run:
