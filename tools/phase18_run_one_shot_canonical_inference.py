@@ -10,7 +10,9 @@ and zero-cost boundaries at the final inference edge.
 
 There is no retry loop. A claimed authorization is burned even when inference or PNG
 validation fails. A successful result is only a canonical candidate; all downstream
-quality and publication gates remain closed.
+quality and publication gates remain closed. CS290 additionally emits a local-only
+provenance receipt that binds the successful candidate to the exact snapshot revision
+and execution-contract source bytes that governed this edge.
 """
 from __future__ import annotations
 
@@ -211,10 +213,27 @@ def main() -> int:
         verified = verify_one_shot_canonical_inference(
             run.receipt_path, repo_root=repo_root
         )
+
+        from engine.intelligence.qwen_image_local_inference_provenance import (
+            build_local_inference_provenance,
+            verify_local_inference_provenance,
+        )
+
+        provenance_path = run.output_dir / "local_inference_provenance.json"
+        build_local_inference_provenance(
+            run.receipt_path,
+            snapshot_path,
+            provenance_path,
+            repo_root=repo_root,
+        )
+        verified_provenance = verify_local_inference_provenance(
+            provenance_path, repo_root=repo_root
+        )
         print(
             json.dumps(
                 {
                     "canonical_inference": verified,
+                    "local_inference_provenance": verified_provenance,
                     "story_bound_prompt_contract": bound_prompt.contract,
                     "model_snapshot": str(snapshot_path),
                     "network_allowed": False,
