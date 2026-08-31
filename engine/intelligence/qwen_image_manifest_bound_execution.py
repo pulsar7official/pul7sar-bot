@@ -10,6 +10,12 @@ edge. The canonical subprocess is never started while any observable static-read
 or CS260 host-identity blocker remains. This is still a pre-model-load control: it does
 not load Qwen, execute inference, create pixels, or grant semantic, visual-quality,
 Golden, or publication authority.
+
+CS299 additionally constrains the child process to the library-level offline envelope
+used by the local-only Qwen path. The launcher still does not claim to provide an OS
+network sandbox; instead it fail-closes the cost mode and forces Hugging Face Hub and
+Transformers offline flags before the canonical subprocess starts, while the canonical
+runtime continues to require ``local_files_only=True`` for the actual model load.
 """
 from __future__ import annotations
 
@@ -23,6 +29,10 @@ from .qwen_image_preload_host_diagnostic import inspect_preload_host
 
 REQUIRED_COST_MODE = "$0-local"
 CANONICAL_TOOL = "tools/phase18_run_one_shot_canonical_inference.py"
+OFFLINE_CHILD_ENVIRONMENT = {
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1",
+}
 
 
 class QwenPreloadHostNotReadyError(RuntimeError):
@@ -133,6 +143,25 @@ def build_manifest_bound_execution_argv(
     )
 
 
+def build_offline_subprocess_environment(
+    base_environment: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return the canonical child environment with zero-cost/offline flags fail-closed.
+
+    This is intentionally a library-level offline envelope, not an operating-system
+    network sandbox. The downstream model loader remains responsible for enforcing
+    the stronger local artifact contract via ``local_files_only=True`` and the pinned
+    immutable snapshot path.
+    """
+    source = os.environ if base_environment is None else base_environment
+    environment = {str(key): str(value) for key, value in source.items()}
+    if environment.get("PUL7SAR_PHASE18_COST_MODE", "") != REQUIRED_COST_MODE:
+        raise ValueError("QWEN_MANIFEST_EXECUTION_ZERO_COST_MODE_NOT_LOCKED")
+    environment["PUL7SAR_PHASE18_COST_MODE"] = REQUIRED_COST_MODE
+    environment.update(OFFLINE_CHILD_ENVIRONMENT)
+    return environment
+
+
 def require_preload_host_ready(
     launch_manifest_path: Path,
     *,
@@ -168,7 +197,7 @@ def execute_manifest_bound_inference(
     repo_root: Path,
     python_executable: str | None = None,
 ) -> int:
-    """Run CS297 first, then execute the canonical CLI with a shell-free manifest argv."""
+    """Run CS297, force the offline child envelope, then execute the canonical CLI."""
     import subprocess
 
     argv: Sequence[str] = build_manifest_bound_execution_argv(
@@ -178,5 +207,11 @@ def execute_manifest_bound_inference(
         python_executable=python_executable,
     )
     require_preload_host_ready(launch_manifest_path, repo_root=repo_root)
-    completed = subprocess.run(tuple(argv), cwd=str(repo_root.resolve()), check=False)
+    child_environment = build_offline_subprocess_environment()
+    completed = subprocess.run(
+        tuple(argv),
+        cwd=str(repo_root.resolve()),
+        check=False,
+        env=child_environment,
+    )
     return int(completed.returncode)
