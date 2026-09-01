@@ -1,12 +1,13 @@
-"""Byte-admit one genuine CS262 canonical candidate for downstream visual QA.
+"""Byte-admit one sealed canonical candidate for downstream visual QA.
 
-Change Set 263 is deliberately non-semantic and non-generative. It revalidates
-an exact successful Change Set 262 receipt, reopens the exact candidate PNG,
-and emits a byte-bound admission receipt that downstream pixel/semantic,
-Visual Critic, human review, Golden-quality, brand/typography, and publication
-gates may consume.
+Change Set 303 upgrades the original CS263 admission edge so production
+post-generation QA can no longer start from a bare CS262 receipt.  Admission
+must start from the CS301/302 canonical-candidate handoff, replay that sealed
+lineage, and derive the exact canonical inference receipt and PNG from the
+handoff bindings.
 
-Admission never upgrades a candidate into a Golden Visual.
+Admission is still non-semantic and non-generative.  It never upgrades a
+candidate into a Golden Visual and never grants publication authority.
 """
 from __future__ import annotations
 
@@ -18,6 +19,10 @@ from pathlib import Path
 import struct
 from typing import Any, Mapping
 
+from engine.intelligence.qwen_image_canonical_candidate_handoff import (
+    SCHEMA as CANONICAL_CANDIDATE_HANDOFF_SCHEMA,
+    verify_canonical_candidate_handoff,
+)
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 from engine.intelligence.qwen_image_one_shot_canonical_inference import (
     ONE_SHOT_CANONICAL_INFERENCE_SCHEMA,
@@ -25,16 +30,12 @@ from engine.intelligence.qwen_image_one_shot_canonical_inference import (
 )
 
 CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA = (
-    "pul7sar-phase18-qwen-image-2512-canonical-candidate-byte-admission-v1"
+    "pul7sar-phase18-qwen-image-2512-canonical-candidate-byte-admission-v2"
 )
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _REQUIRED_TRUE = (
-    "production_semantic_replay_executed",
-    "fresh_story_gates_passed",
-    "controlled_trial_preflight_valid",
-    "canonical_generation_authorized",
-    "inference_executed",
     "genuine_canonical_inference_executed",
+    "handoff_sealed",
 )
 _REQUIRED_FALSE = (
     "genuine_golden_png_created",
@@ -93,107 +94,174 @@ def _png_dimensions(raw: bytes) -> tuple[int, int]:
     return width, height
 
 
-def _assert_authority(receipt: Mapping[str, Any]) -> None:
+def _assert_handoff_authority(payload: Mapping[str, Any]) -> None:
     for field in _REQUIRED_TRUE:
-        if receipt.get(field) is not True:
+        if payload.get(field) is not True:
             raise ValueError(f"QWEN_CANDIDATE_ADMISSION_REQUIRED_GATE_MISSING:{field}")
     for field in _REQUIRED_FALSE:
-        if receipt.get(field) is not False:
+        if payload.get(field) is not False:
             raise ValueError(f"QWEN_CANDIDATE_ADMISSION_PREMATURE_AUTHORITY:{field}")
+    if payload.get("cost_mode") != "$0-local":
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_COST_MODE_DRIFT")
+    if payload.get("network_allowed") is not False or payload.get("local_files_only") is not True:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_LOCAL_ONLY_DRIFT")
+
+
+def _binding_path(
+    repo_root: Path,
+    binding: Mapping[str, Any],
+    *,
+    code: str,
+) -> Path:
+    relative = binding.get("repository_relative_path")
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+    ):
+        raise ValueError(code)
+    path = repo_root.resolve() / relative
+    canonical = _inside_repo_file(repo_root, path, code)
+    if canonical != Path(relative).as_posix():
+        raise ValueError(code)
+    current = _file_binding(path, code)
+    if binding.get("sha256") != current["sha256"] or binding.get("byte_size") != current["byte_size"]:
+        raise ValueError(f"{code}_BYTE_DRIFT")
+    return path
 
 
 def admit_canonical_candidate_bytes(
-    cs262_receipt_path: Path,
+    candidate_handoff_path: Path,
     output_dir: Path,
     *,
     repo_root: Path,
 ) -> CanonicalCandidateByteAdmission:
-    """Revalidate and byte-bind one CS262 candidate without approving it."""
+    """Replay a CS301/302 handoff and byte-admit its exact candidate only."""
     if output_dir.exists():
         raise ValueError("QWEN_CANDIDATE_ADMISSION_OUTPUT_ALREADY_EXISTS")
     if not output_dir.parent.is_dir():
         raise ValueError("QWEN_CANDIDATE_ADMISSION_OUTPUT_PARENT_INVALID")
 
+    handoff_relative = _inside_repo_file(
+        repo_root,
+        candidate_handoff_path,
+        "QWEN_CANDIDATE_ADMISSION_HANDOFF_OUTSIDE_REPOSITORY",
+    )
+    handoff_binding = _file_binding(
+        candidate_handoff_path,
+        "QWEN_CANDIDATE_ADMISSION_HANDOFF_INVALID",
+    )
+    handoff = verify_canonical_candidate_handoff(
+        candidate_handoff_path,
+        repo_root=repo_root,
+    )
+    if handoff.get("schema") != CANONICAL_CANDIDATE_HANDOFF_SCHEMA:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_SCHEMA_DRIFT")
+    _assert_handoff_authority(handoff)
+
+    bindings = handoff.get("source_bindings")
+    if not isinstance(bindings, Mapping):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_BINDINGS_INVALID")
+    source_binding = bindings.get("canonical_inference_receipt.json")
+    candidate_binding = handoff.get("canonical_candidate_png")
+    if not isinstance(source_binding, Mapping) or not isinstance(candidate_binding, Mapping):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_BINDINGS_INVALID")
+
+    source_path = _binding_path(
+        repo_root,
+        source_binding,
+        code="QWEN_CANDIDATE_ADMISSION_CANONICAL_RECEIPT_INVALID",
+    )
+    candidate_path = _binding_path(
+        repo_root,
+        candidate_binding,
+        code="QWEN_CANDIDATE_ADMISSION_PNG_INVALID",
+    )
     source_relative = _inside_repo_file(
         repo_root,
-        cs262_receipt_path,
-        "QWEN_CANDIDATE_ADMISSION_CS262_RECEIPT_OUTSIDE_REPOSITORY",
+        source_path,
+        "QWEN_CANDIDATE_ADMISSION_CANONICAL_RECEIPT_OUTSIDE_REPOSITORY",
     )
-    source_binding = _file_binding(
-        cs262_receipt_path, "QWEN_CANDIDATE_ADMISSION_CS262_RECEIPT_INVALID"
+    source_file_binding = _file_binding(
+        source_path,
+        "QWEN_CANDIDATE_ADMISSION_CANONICAL_RECEIPT_INVALID",
     )
-    source = verify_one_shot_canonical_inference(
-        cs262_receipt_path, repo_root=repo_root
-    )
-    if source.get("schema") != ONE_SHOT_CANONICAL_INFERENCE_SCHEMA:
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_CS262_SCHEMA_DRIFT")
-    _assert_authority(source)
-
-    story_sha = source.get("story_snapshot_sha256")
-    if not _is_sha256(story_sha):
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_STORY_SHA_INVALID")
-    png_meta = source.get("png")
-    if not isinstance(png_meta, Mapping) or png_meta.get("filename") != "canonical_candidate.png":
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_BINDING_INVALID")
-
-    candidate_path = cs262_receipt_path.parent / "canonical_candidate.png"
     candidate_relative = _inside_repo_file(
         repo_root,
         candidate_path,
         "QWEN_CANDIDATE_ADMISSION_PNG_OUTSIDE_REPOSITORY",
     )
-    candidate_binding = _file_binding(
-        candidate_path, "QWEN_CANDIDATE_ADMISSION_PNG_INVALID"
+    candidate_file_binding = _file_binding(
+        candidate_path,
+        "QWEN_CANDIDATE_ADMISSION_PNG_INVALID",
     )
+
+    source = verify_one_shot_canonical_inference(source_path, repo_root=repo_root)
+    if source.get("schema") != ONE_SHOT_CANONICAL_INFERENCE_SCHEMA:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_CANONICAL_SCHEMA_DRIFT")
+    for field in _REQUIRED_FALSE:
+        if source.get(field) is not False:
+            raise ValueError(f"QWEN_CANDIDATE_ADMISSION_PREMATURE_AUTHORITY:{field}")
+    if source.get("genuine_canonical_inference_executed") is not True:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_GENUINE_INFERENCE_MISSING")
+
+    story_sha = handoff.get("story_snapshot_sha256")
+    if not _is_sha256(story_sha) or source.get("story_snapshot_sha256") != story_sha:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_CROSS_STORY")
+    png_meta = source.get("png")
+    if not isinstance(png_meta, Mapping) or png_meta.get("filename") != "canonical_candidate.png":
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_BINDING_INVALID")
     if (
-        png_meta.get("sha256") != candidate_binding["sha256"]
-        or png_meta.get("byte_size") != candidate_binding["byte_size"]
+        png_meta.get("sha256") != candidate_file_binding["sha256"]
+        or png_meta.get("byte_size") != candidate_file_binding["byte_size"]
+        or candidate_binding.get("sha256") != candidate_file_binding["sha256"]
+        or candidate_binding.get("byte_size") != candidate_file_binding["byte_size"]
     ):
         raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_BYTE_DRIFT")
+
     width, height = _png_dimensions(candidate_path.read_bytes())
-    if (
-        png_meta.get("width") != width
-        or png_meta.get("height") != height
-        or source.get("width") != width
-        or source.get("height") != height
+    if any(
+        value != expected
+        for value, expected in (
+            (png_meta.get("width"), width),
+            (png_meta.get("height"), height),
+            (source.get("width"), width),
+            (source.get("height"), height),
+            (candidate_binding.get("width"), width),
+            (candidate_binding.get("height"), height),
+        )
     ):
         raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_DIMENSION_DRIFT")
 
     receipt = {
         "schema": CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA,
-        "status": "QWEN_IMAGE_2512_CANONICAL_CANDIDATE_BYTES_ADMITTED_FOR_POST_GENERATION_QA",
+        "status": "QWEN_IMAGE_2512_SEALED_CANONICAL_CANDIDATE_BYTES_ADMITTED_FOR_POST_GENERATION_QA",
         "story_snapshot_sha256": story_sha,
-        "model_id": source.get("model_id"),
-        "model_revision": source.get("model_revision"),
-        "cost_mode": source.get("cost_mode"),
-        "expected_runtime_fingerprint_sha256": source.get(
-            "expected_runtime_fingerprint_sha256"
-        ),
-        "observed_runtime_fingerprint_sha256": source.get(
-            "observed_runtime_fingerprint_sha256"
-        ),
-        "source_cs262_receipt": {
+        "model_id": handoff.get("model_id"),
+        "model_revision": handoff.get("model_revision"),
+        "cost_mode": "$0-local",
+        "network_allowed": False,
+        "local_files_only": True,
+        "source_candidate_handoff": {
+            "repository_relative_path": handoff_relative,
+            **handoff_binding,
+            "handoff_sha256": handoff.get("handoff_sha256"),
+        },
+        "source_canonical_inference_receipt": {
             "repository_relative_path": source_relative,
-            **source_binding,
+            **source_file_binding,
             "receipt_sha256": source.get("receipt_sha256"),
         },
         "candidate_png": {
             "repository_relative_path": candidate_relative,
-            **candidate_binding,
+            **candidate_file_binding,
             "width": width,
             "height": height,
         },
-        "prompt": source.get("prompt"),
-        "negative_prompt": source.get("negative_prompt"),
-        "seed": source.get("seed"),
-        "num_inference_steps": source.get("num_inference_steps"),
-        "guidance_scale": source.get("guidance_scale"),
-        "production_semantic_replay_executed": True,
-        "fresh_story_gates_passed": True,
-        "controlled_trial_preflight_valid": True,
-        "canonical_generation_authorized": True,
-        "inference_executed": True,
+        "inference_settings": dict(handoff.get("inference_settings", {})),
         "genuine_canonical_inference_executed": True,
+        "handoff_sealed": True,
         "candidate_bytes_admitted_for_post_generation_qa": True,
         "genuine_golden_png_created": False,
         "semantic_approved": False,
@@ -222,14 +290,14 @@ def admit_canonical_candidate_bytes(
         output_dir=output_dir,
         receipt_path=receipt_path,
         story_snapshot_sha256=story_sha,
-        candidate_sha256=candidate_binding["sha256"],
+        candidate_sha256=candidate_file_binding["sha256"],
     )
 
 
 def verify_canonical_candidate_byte_admission(
     receipt_path: Path, *, repo_root: Path
 ) -> dict[str, Any]:
-    """Reopen an admission and prove its CS262 receipt and candidate bytes still match."""
+    """Replay an admission, its sealed handoff, canonical receipt and candidate bytes."""
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_CANDIDATE_ADMISSION_RECEIPT_INVALID")
     try:
@@ -245,40 +313,48 @@ def verify_canonical_candidate_byte_admission(
     unsigned.pop("receipt_sha256", None)
     if not _is_sha256(claimed) or sha256_json(unsigned) != claimed:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_RECEIPT_DIGEST_MISMATCH")
-    _assert_authority(receipt)
+    _assert_handoff_authority(receipt)
     if receipt.get("candidate_bytes_admitted_for_post_generation_qa") is not True:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_AUTHORITY_MISSING")
 
-    source_meta = receipt.get("source_cs262_receipt")
+    handoff_meta = receipt.get("source_candidate_handoff")
+    source_meta = receipt.get("source_canonical_inference_receipt")
     candidate_meta = receipt.get("candidate_png")
-    if not isinstance(source_meta, Mapping) or not isinstance(candidate_meta, Mapping):
+    if not all(isinstance(value, Mapping) for value in (handoff_meta, source_meta, candidate_meta)):
         raise ValueError("QWEN_CANDIDATE_ADMISSION_BINDING_INVALID")
-    source_rel = source_meta.get("repository_relative_path")
-    candidate_rel = candidate_meta.get("repository_relative_path")
-    for rel, code in ((source_rel, "CS262"), (candidate_rel, "PNG")):
-        if not isinstance(rel, str) or not rel or Path(rel).is_absolute() or ".." in Path(rel).parts:
-            raise ValueError(f"QWEN_CANDIDATE_ADMISSION_{code}_PATH_INVALID")
 
-    source_path = repo_root.resolve() / source_rel
-    candidate_path = repo_root.resolve() / candidate_rel
-    if _inside_repo_file(repo_root, source_path, "QWEN_CANDIDATE_ADMISSION_CS262_OUTSIDE_REPOSITORY") != Path(source_rel).as_posix():
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_CS262_PATH_DRIFT")
-    if _inside_repo_file(repo_root, candidate_path, "QWEN_CANDIDATE_ADMISSION_PNG_OUTSIDE_REPOSITORY") != Path(candidate_rel).as_posix():
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_PATH_DRIFT")
+    handoff_path = _binding_path(
+        repo_root,
+        handoff_meta,
+        code="QWEN_CANDIDATE_ADMISSION_HANDOFF_INVALID",
+    )
+    handoff = verify_canonical_candidate_handoff(handoff_path, repo_root=repo_root)
+    _assert_handoff_authority(handoff)
+    if handoff_meta.get("handoff_sha256") != handoff.get("handoff_sha256"):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_DIGEST_DRIFT")
 
-    current_source = _file_binding(source_path, "QWEN_CANDIDATE_ADMISSION_CS262_RECEIPT_INVALID")
-    current_candidate = _file_binding(candidate_path, "QWEN_CANDIDATE_ADMISSION_PNG_INVALID")
-    if source_meta.get("sha256") != current_source["sha256"] or source_meta.get("byte_size") != current_source["byte_size"]:
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_CS262_BYTE_DRIFT")
-    if candidate_meta.get("sha256") != current_candidate["sha256"] or candidate_meta.get("byte_size") != current_candidate["byte_size"]:
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_BYTE_DRIFT")
-
+    source_path = _binding_path(
+        repo_root,
+        source_meta,
+        code="QWEN_CANDIDATE_ADMISSION_CANONICAL_RECEIPT_INVALID",
+    )
+    candidate_path = _binding_path(
+        repo_root,
+        candidate_meta,
+        code="QWEN_CANDIDATE_ADMISSION_PNG_INVALID",
+    )
     source = verify_one_shot_canonical_inference(source_path, repo_root=repo_root)
-    _assert_authority(source)
-    if source.get("receipt_sha256") != source_meta.get("receipt_sha256"):
-        raise ValueError("QWEN_CANDIDATE_ADMISSION_CS262_DIGEST_DRIFT")
+    if source_meta.get("receipt_sha256") != source.get("receipt_sha256"):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_CANONICAL_DIGEST_DRIFT")
     if source.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256"):
         raise ValueError("QWEN_CANDIDATE_ADMISSION_CROSS_STORY")
+
+    handoff_candidate = handoff.get("canonical_candidate_png")
+    if not isinstance(handoff_candidate, Mapping):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_CANDIDATE_INVALID")
+    for field in ("repository_relative_path", "sha256", "byte_size", "width", "height"):
+        if candidate_meta.get(field) != handoff_candidate.get(field):
+            raise ValueError(f"QWEN_CANDIDATE_ADMISSION_HANDOFF_CANDIDATE_DRIFT:{field}")
     width, height = _png_dimensions(candidate_path.read_bytes())
     if candidate_meta.get("width") != width or candidate_meta.get("height") != height:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_PNG_DIMENSION_DRIFT")
