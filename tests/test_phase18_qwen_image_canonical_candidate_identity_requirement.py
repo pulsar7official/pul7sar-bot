@@ -11,6 +11,9 @@ from engine.intelligence.qwen_image_canonical_candidate_identity_requirement imp
     run_identity_requirement,
     verify_identity_requirement,
 )
+from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import (
+    CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
+)
 
 STORY_SHA = "a" * 64
 
@@ -60,7 +63,7 @@ class CS265IdentityRequirementTests(unittest.TestCase):
             }]
         })
         source = {
-            "schema": "pul7sar-phase18-qwen-image-canonical-candidate-semantic-base-qa-v1",
+            "schema": CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
             "story_snapshot_sha256": STORY_SHA,
             "semantic_base_scene_approved": True,
             "candidate_png": {
