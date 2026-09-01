@@ -1,11 +1,11 @@
-"""Byte-bound semantic base-scene QA for a CS263 canonical candidate.
+"""Sealed-admission-bound semantic base-scene QA for a canonical candidate.
 
-Change Set 264 consumes the exact candidate bytes admitted by CS263 and runs the
-existing pinned Qwen2.5-VL semantic inspector in BASE_SCENE mode.  Its verdict is
-then evaluated by the existing SemanticVisualVerdictGate and converted through
-the existing SemanticLayerEvidenceAdapter.  This module intentionally does not
-claim identity approval, Human Review, Golden quality, branding, or publication
-readiness.
+Change Set 304 consumes the exact candidate bytes admitted by CS303, which in
+turn requires the CS301/302 sealed canonical-candidate handoff.  The existing
+pinned Qwen2.5-VL semantic inspector runs in BASE_SCENE mode, and its verdict is
+evaluated by the existing SemanticVisualVerdictGate and
+SemanticLayerEvidenceAdapter.  This module cannot claim identity approval,
+Human Review, Golden quality, branding, or publication readiness.
 """
 from __future__ import annotations
 
@@ -39,16 +39,12 @@ from engine.intelligence.semantic_visual_verdict import (
 )
 
 CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA = (
-    "pul7sar-phase18-qwen-image-canonical-candidate-semantic-base-qa-v1"
+    "pul7sar-phase18-qwen-image-canonical-candidate-semantic-base-qa-v2"
 )
 MINIMUM_CONFIDENCE = 0.85
 _REQUIRED_SOURCE_TRUE = (
-    "production_semantic_replay_executed",
-    "fresh_story_gates_passed",
-    "controlled_trial_preflight_valid",
-    "canonical_generation_authorized",
-    "inference_executed",
     "genuine_canonical_inference_executed",
+    "handoff_sealed",
     "candidate_bytes_admitted_for_post_generation_qa",
 )
 _REQUIRED_FALSE = (
@@ -168,6 +164,13 @@ def _assert_source_authority(source: Mapping[str, Any]) -> None:
     for field in _REQUIRED_FALSE:
         if source.get(field) is not False:
             raise ValueError(f"QWEN_CANDIDATE_SEMANTIC_QA_PREMATURE_AUTHORITY:{field}")
+    if source.get("cost_mode") != "$0-local":
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_COST_MODE_DRIFT")
+    if source.get("network_allowed") is not False or source.get("local_files_only") is not True:
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_LOCAL_ONLY_DRIFT")
+    handoff = source.get("source_candidate_handoff")
+    if not isinstance(handoff, Mapping) or not _is_sha256(handoff.get("handoff_sha256")):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_HANDOFF_BINDING_MISSING")
 
 
 def _evaluate(verdict: SemanticVisualVerdict) -> tuple[bool, tuple[str, ...], Any]:
@@ -198,13 +201,13 @@ def _evaluate(verdict: SemanticVisualVerdict) -> tuple[bool, tuple[str, ...], An
 
 
 def run_canonical_candidate_semantic_base_qa(
-    cs263_receipt_path: Path,
+    candidate_admission_path: Path,
     output_dir: Path,
     *,
     repo_root: Path,
     inspector: Qwen25VLSemanticInspector | None = None,
 ) -> CanonicalCandidateSemanticBaseQA:
-    """Inspect the exact CS263 PNG using the existing pinned semantic QA stack."""
+    """Inspect the exact CS303-admitted PNG using the pinned semantic QA stack."""
     if output_dir.exists():
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_OUTPUT_ALREADY_EXISTS")
     if not output_dir.parent.is_dir():
@@ -212,22 +215,29 @@ def run_canonical_candidate_semantic_base_qa(
 
     source_relative = _inside_repo_file(
         repo_root,
-        cs263_receipt_path,
-        "QWEN_CANDIDATE_SEMANTIC_QA_CS263_OUTSIDE_REPOSITORY",
+        candidate_admission_path,
+        "QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_OUTSIDE_REPOSITORY",
     )
     source_binding = _binding(
-        cs263_receipt_path, "QWEN_CANDIDATE_SEMANTIC_QA_CS263_INVALID"
+        candidate_admission_path, "QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_INVALID"
     )
     source = verify_canonical_candidate_byte_admission(
-        cs263_receipt_path, repo_root=repo_root
+        candidate_admission_path, repo_root=repo_root
     )
     if source.get("schema") != CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA:
-        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CS263_SCHEMA_DRIFT")
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_SCHEMA_DRIFT")
     _assert_source_authority(source)
 
     story_sha = source.get("story_snapshot_sha256")
     if not _is_sha256(story_sha):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_STORY_SHA_INVALID")
+    handoff_meta = source.get("source_candidate_handoff")
+    if not isinstance(handoff_meta, Mapping):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_HANDOFF_BINDING_MISSING")
+    handoff_sha = handoff_meta.get("handoff_sha256")
+    if not _is_sha256(handoff_sha):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_HANDOFF_DIGEST_INVALID")
+
     candidate_meta = source.get("candidate_png")
     if not isinstance(candidate_meta, Mapping):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_BINDING_INVALID")
@@ -282,10 +292,11 @@ def run_canonical_candidate_semantic_base_qa(
             else "QWEN_IMAGE_CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_REJECTED"
         ),
         "story_snapshot_sha256": story_sha,
-        "source_cs263_receipt": {
+        "source_candidate_admission": {
             "repository_relative_path": source_relative,
             **source_binding,
             "receipt_sha256": source.get("receipt_sha256"),
+            "candidate_handoff_sha256": handoff_sha,
         },
         "candidate_png": {
             "repository_relative_path": canonical_rel,
@@ -354,7 +365,7 @@ def run_canonical_candidate_semantic_base_qa(
 def verify_canonical_candidate_semantic_base_qa(
     receipt_path: Path, *, repo_root: Path
 ) -> dict[str, Any]:
-    """Replay CS263/candidate byte bindings and recompute the semantic decision."""
+    """Replay CS303 admission/candidate bindings and recompute the semantic decision."""
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_RECEIPT_INVALID")
     try:
@@ -391,13 +402,13 @@ def verify_canonical_candidate_semantic_base_qa(
     if dict(inspector_meta) != expected_inspector:
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_INSPECTOR_DRIFT")
 
-    source_meta = receipt.get("source_cs263_receipt")
+    source_meta = receipt.get("source_candidate_admission")
     candidate_meta = receipt.get("candidate_png")
     if not isinstance(source_meta, Mapping) or not isinstance(candidate_meta, Mapping):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_BINDING_INVALID")
     source_rel = source_meta.get("repository_relative_path")
     candidate_rel = candidate_meta.get("repository_relative_path")
-    for rel, label in ((source_rel, "CS263"), (candidate_rel, "CANDIDATE")):
+    for rel, label in ((source_rel, "ADMISSION"), (candidate_rel, "CANDIDATE")):
         if (
             not isinstance(rel, str)
             or not rel
@@ -407,26 +418,37 @@ def verify_canonical_candidate_semantic_base_qa(
             raise ValueError(f"QWEN_CANDIDATE_SEMANTIC_QA_{label}_PATH_INVALID")
     source_path = repo_root.resolve() / source_rel
     candidate_path = repo_root.resolve() / candidate_rel
-    if _inside_repo_file(repo_root, source_path, "QWEN_CANDIDATE_SEMANTIC_QA_CS263_OUTSIDE_REPOSITORY") != Path(source_rel).as_posix():
-        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CS263_PATH_DRIFT")
+    if _inside_repo_file(repo_root, source_path, "QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_OUTSIDE_REPOSITORY") != Path(source_rel).as_posix():
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_PATH_DRIFT")
     if _inside_repo_file(repo_root, candidate_path, "QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_OUTSIDE_REPOSITORY") != Path(candidate_rel).as_posix():
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_PATH_DRIFT")
-    current_source = _binding(source_path, "QWEN_CANDIDATE_SEMANTIC_QA_CS263_INVALID")
+    current_source = _binding(source_path, "QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_INVALID")
     current_candidate = _binding(candidate_path, "QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_INVALID")
     if source_meta.get("sha256") != current_source["sha256"] or source_meta.get("byte_size") != current_source["byte_size"]:
-        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CS263_BYTE_DRIFT")
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_BYTE_DRIFT")
     if candidate_meta.get("sha256") != current_candidate["sha256"] or candidate_meta.get("byte_size") != current_candidate["byte_size"]:
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_BYTE_DRIFT")
 
     source = verify_canonical_candidate_byte_admission(source_path, repo_root=repo_root)
+    if source.get("schema") != CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA:
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_SCHEMA_DRIFT")
     _assert_source_authority(source)
     if source.get("receipt_sha256") != source_meta.get("receipt_sha256"):
-        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CS263_DIGEST_DRIFT")
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_DIGEST_DRIFT")
+    source_handoff = source.get("source_candidate_handoff")
+    if (
+        not isinstance(source_handoff, Mapping)
+        or source_handoff.get("handoff_sha256") != source_meta.get("candidate_handoff_sha256")
+    ):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_HANDOFF_DIGEST_DRIFT")
     if source.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256"):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CROSS_STORY")
     source_candidate = source.get("candidate_png")
-    if not isinstance(source_candidate, Mapping) or source_candidate.get("sha256") != current_candidate["sha256"]:
+    if not isinstance(source_candidate, Mapping):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_BINDING_DRIFT")
+    for field in ("repository_relative_path", "sha256", "byte_size", "width", "height"):
+        if source_candidate.get(field) != candidate_meta.get(field):
+            raise ValueError(f"QWEN_CANDIDATE_SEMANTIC_QA_CANDIDATE_BINDING_DRIFT:{field}")
 
     verdict = _verdict_from_payload(receipt.get("semantic_verdict"))
     if verdict.verifier_id != expected_verifier_id:
