@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 import hashlib
 import json
 from pathlib import Path
@@ -30,21 +31,28 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         self.candidate.write_bytes(b"\x89PNG\r\n\x1a\nphase18-candidate")
         self.cs264_path = self.repo / "cs264.json"
         self.cs265_path = self.repo / "cs265.json"
+        self.cs266_path = self.repo / "cs266.json"
         self.cs267_path = self.repo / "cs267.json"
         self.cs264_path.write_text("{}\n", encoding="utf-8")
         self.cs265_path.write_text("{}\n", encoding="utf-8")
+        self.cs266_path.write_text("{}\n", encoding="utf-8")
         self.cs267_path.write_text("{}\n", encoding="utf-8")
         self.story_sha = "1" * 64
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
 
-    def _candidate_binding(self) -> dict[str, object]:
-        raw = self.candidate.read_bytes()
+    def _file_binding(self, path: Path) -> dict[str, object]:
+        raw = path.read_bytes()
         return {
-            "repository_relative_path": "candidate.png",
+            "repository_relative_path": path.relative_to(self.repo).as_posix(),
             "sha256": hashlib.sha256(raw).hexdigest(),
             "byte_size": len(raw),
+        }
+
+    def _candidate_binding(self) -> dict[str, object]:
+        return {
+            **self._file_binding(self.candidate),
             "width": 1024,
             "height": 1024,
         }
@@ -84,6 +92,10 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "receipt_sha256": "b" * 64,
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._candidate_binding(),
+            "source_cs264_receipt": {
+                **self._file_binding(self.cs264_path),
+                "receipt_sha256": "a" * 64,
+            },
             "identity_requirement_classified": True,
             "pixel_identity_review_required": required,
             "identity_approved": False,
@@ -94,12 +106,25 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "publication_ready": False,
         }
 
+    def _cs266(self) -> dict[str, object]:
+        return {
+            "receipt_sha256": "d" * 64,
+            "source_cs265_receipt": {
+                **self._file_binding(self.cs265_path),
+                "receipt_sha256": "b" * 64,
+            },
+        }
+
     def _cs267(self) -> dict[str, object]:
         return {
             "schema": PIXEL_IDENTITY_EVIDENCE_SCHEMA,
             "receipt_sha256": "c" * 64,
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._candidate_binding(),
+            "source_cs266_request": {
+                **self._file_binding(self.cs266_path),
+                "receipt_sha256": "d" * 64,
+            },
             "pixel_identity_review_executed": True,
             "identity_approved": True,
             "semantic_approved": False,
@@ -109,8 +134,13 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "publication_ready": False,
         }
 
-    def _patch(self, cs264: dict[str, object], cs265: dict[str, object], cs267: dict[str, object] | None = None):
-        patches = [
+    def _patch(
+        self,
+        cs264: dict[str, object],
+        cs265: dict[str, object],
+        cs267: dict[str, object] | None = None,
+    ) -> list[object]:
+        patches: list[object] = [
             patch(
                 "engine.intelligence.qwen_image_canonical_candidate_generated_layer_qa.verify_canonical_candidate_semantic_base_qa",
                 return_value=cs264,
@@ -121,18 +151,28 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             ),
         ]
         if cs267 is not None:
-            patches.append(
-                patch(
-                    "engine.intelligence.qwen_image_canonical_candidate_generated_layer_qa.verify_pixel_identity_review_evidence",
-                    return_value=cs267,
+            patches.extend(
+                (
+                    patch(
+                        "engine.intelligence.qwen_image_canonical_candidate_generated_layer_qa.verify_pixel_identity_review_evidence",
+                        return_value=cs267,
+                    ),
+                    patch(
+                        "engine.intelligence.qwen_image_canonical_candidate_generated_layer_qa.verify_pixel_identity_review_request",
+                        return_value=self._cs266(),
+                    ),
                 )
             )
         return patches
 
+    def _enter_patches(self, stack: ExitStack, patches: list[object]) -> None:
+        for current in patches:
+            stack.enter_context(current)
+
     def test_human_candidate_requires_and_uses_approved_identity_evidence(self) -> None:
         cs264, cs265, cs267 = self._cs264(), self._cs265(required=True), self._cs267()
-        p1, p2, p3 = self._patch(cs264, cs265, cs267)
-        with p1, p2, p3:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265, cs267))
             run = run_canonical_candidate_generated_layer_qa(
                 self.cs264_path,
                 self.cs265_path,
@@ -150,8 +190,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
 
     def test_human_candidate_fails_closed_without_identity_evidence(self) -> None:
         cs264, cs265 = self._cs264(), self._cs265(required=True)
-        p1, p2 = self._patch(cs264, cs265)
-        with p1, p2:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
             with self.assertRaisesRegex(ValueError, "PIXEL_IDENTITY_EVIDENCE_REQUIRED"):
                 run_canonical_candidate_generated_layer_qa(
                     self.cs264_path,
@@ -162,8 +202,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
 
     def test_non_human_candidate_can_pass_without_fabricating_identity_approval(self) -> None:
         cs264, cs265 = self._cs264(), self._cs265(required=False)
-        p1, p2 = self._patch(cs264, cs265)
-        with p1, p2:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
             run = run_canonical_candidate_generated_layer_qa(
                 self.cs264_path,
                 self.cs265_path,
@@ -177,8 +217,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
 
     def test_existing_hybrid_gate_rejects_generated_text_leakage(self) -> None:
         cs264, cs265 = self._cs264(generated_text=True), self._cs265(required=False)
-        p1, p2 = self._patch(cs264, cs265)
-        with p1, p2:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
             run = run_canonical_candidate_generated_layer_qa(
                 self.cs264_path,
                 self.cs265_path,
@@ -196,8 +236,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         cs264 = self._cs264(unverified_identity=True)
         cs265 = self._cs265(required=True)
         cs267 = self._cs267()
-        p1, p2, p3 = self._patch(cs264, cs265, cs267)
-        with p1, p2, p3:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265, cs267))
             run = run_canonical_candidate_generated_layer_qa(
                 self.cs264_path,
                 self.cs265_path,
@@ -215,8 +255,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
 
     def test_candidate_byte_drift_invalidates_receipt(self) -> None:
         cs264, cs265 = self._cs264(), self._cs265(required=False)
-        p1, p2 = self._patch(cs264, cs265)
-        with p1, p2:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
             run = run_canonical_candidate_generated_layer_qa(
                 self.cs264_path,
                 self.cs265_path,
@@ -231,8 +271,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         out = self.repo / "out"
         out.mkdir()
         cs264, cs265 = self._cs264(), self._cs265(required=False)
-        p1, p2 = self._patch(cs264, cs265)
-        with p1, p2:
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
             with self.assertRaisesRegex(ValueError, "OUTPUT_INVALID"):
                 run_canonical_candidate_generated_layer_qa(
                     self.cs264_path,
