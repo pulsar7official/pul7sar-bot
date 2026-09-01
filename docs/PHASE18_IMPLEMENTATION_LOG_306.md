@@ -30,14 +30,22 @@ No factual or identity verdict was automatically fabricated by this gap, but pro
 ## Modified
 
 - `engine/intelligence/qwen_image_canonical_candidate_generated_layer_qa.py`
+- `tests/test_phase18_qwen_image_canonical_candidate_generated_layer_qa.py` (CI regression repair; no production gate weakening)
 
-Changes:
+Production changes:
 
 1. Added exact receipt-binding comparison for CS264 → CS265.
 2. Added CS266 replay from CS267's byte-bound `source_cs266_request`.
 3. Added exact receipt-binding comparison for CS265 → CS266 → CS267.
 4. Applied both lineage checks during CS268 construction and CS268 verification.
 5. Preserved the existing CS268 schema and receipt payload so downstream consumers are not granted new authority and no unrelated schema migration is forced.
+
+CI regression repair:
+
+6. Updated the pre-CS306 CS268 test fixtures so their mocked CS265 receipt now carries the exact byte/hash/size/receipt binding to the mocked CS264 receipt.
+7. Added a mocked CS266 request file and exact CS265 binding for human-identity test paths.
+8. Updated mocked CS267 evidence so it carries the exact byte-bound `source_cs266_request`, matching the production CS265 → CS266 → CS267 lineage that CS306 now requires.
+9. Kept the CS306 lineage enforcement itself unchanged; the repair changes stale tests rather than relaxing `_assert_exact_receipt_binding` or `_verify_required_identity_lineage`.
 
 ## Deleted
 
@@ -53,7 +61,15 @@ Dedicated CS306 regressions cover:
 - rejecting CS267 whose exact CS266 request points at a different CS265 receipt;
 - accepting the exact CS265 → CS266 → CS267 chain.
 
-The existing Phase 18 GitHub Actions suite is used as the repository-wide compatibility test after the branch updates. Its final status is not pre-declared here; the run must complete on the final CS306 HEAD before terminal-green can be claimed.
+The first repository-wide GitHub Actions run on CS306 HEAD `f590f05be833294a50f387f2ee0423d13e8080f6` exposed a compatibility regression in the older CS268 unit-test fixtures during `Syntax and discover validation`:
+
+- 1,940 tests were executed;
+- 1 test failed and 5 tests errored;
+- all six affected tests were in `tests/test_phase18_qwen_image_canonical_candidate_generated_layer_qa.py`;
+- the dedicated CS306 lineage-coherence tests passed;
+- the six legacy tests reached `QWEN_GENERATED_LAYER_QA_CS264_CS265_LINEAGE_DRIFT` because their mocked CS265/CS267 receipts predated the newly mandatory exact lineage fields.
+
+This was a test-fixture drift, not evidence that the production lineage check should be weakened. Commit `09ea908a4dd731c817dde61ae3d9f001a16e9000` repairs those fixtures by modeling the exact CS264 → CS265 and CS265 → CS266 → CS267 bindings. The repository-wide suite must complete on the final CS306 repair HEAD before terminal-green is claimed.
 
 ## Safety / authority preservation
 
