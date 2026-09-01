@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run byte-bound CS264 semantic base-scene QA on an admitted CS263 candidate.
+"""Run CS304 semantic base-scene QA on a CS303 sealed candidate admission.
 
 This command uses the repository's existing pinned Qwen2.5-VL semantic inspector.
 It performs no image generation and cannot grant Golden or publication authority.
@@ -18,13 +18,13 @@ from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cs263-receipt", type=Path, required=True)
+    parser.add_argument("--candidate-admission", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
 
     run = run_canonical_candidate_semantic_base_qa(
-        args.cs263_receipt,
+        args.candidate_admission,
         args.output_dir,
         repo_root=args.repo_root,
     )
