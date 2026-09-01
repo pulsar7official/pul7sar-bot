@@ -66,10 +66,35 @@ Human Visual Review and final presentation evidence remain external evidence con
 
 ## Tests
 
-Regression code was added before documentation. GitHub Actions status for the final documented HEAD must be checked after this log commit. A green outcome must not be claimed until the workflow completes successfully on the code-bearing lineage.
+The code-bearing CS308 lineage through commit `05e7d996e19cc45d3fa1b3dedb50ce5f0b09a946` completed the Phase 18 Story Intelligence Verification push run `33528721400` successfully.
+
+Successful stages include:
+
+- CPU dependency installation;
+- Syntax and discover validation;
+- Completion and production isolation;
+- visual-study handoff build and verification;
+- cross-platform composition matrix build;
+- publication-block verification;
+- project-native editorial visual study;
+- adaptive/self-contained reference brand verification;
+- Golden editorial v6 build and verification;
+- legacy-logo non-canonical assertion;
+- all configured artifact uploads.
+
+The parallel visual workflow checks observed on the same code-bearing SHA also completed successfully, while the duplicate PR Story Intelligence run was still finishing when this log was synchronized. No failing check was observed for the code-bearing SHA.
 
 ## Genuine Golden execution blocker
 
-No Genuine Golden PNG was fabricated. Compatible GPU execution is still required for the first real Qwen candidate. The execution host must provide the already-approved zero-cost/local runtime conditions, including NVIDIA CUDA, CUDA-enabled PyTorch, native BF16 support, compatible authorized QwenImagePipeline/Diffusers runtime, exact approved local model snapshot, and sufficient RAM/VRAM demonstrated by a real model load and inference.
+No Genuine Golden PNG was fabricated. Runtime re-measurement in this run showed:
+
+- `PyTorch = 2.10.0+cpu`
+- `CUDA available = false`
+- `torch.version.cuda = None`
+- `CUDA device count = 0`
+- `native BF16 = false`
+- `nvidia-smi = unavailable`
+
+Compatible GPU execution is still required for the first real Qwen candidate. The execution host must provide the already-approved zero-cost/local runtime conditions, including NVIDIA CUDA, CUDA-enabled PyTorch, native BF16 support, compatible authorized QwenImagePipeline/Diffusers runtime, exact approved local model snapshot, and sufficient RAM/VRAM demonstrated by a real model load and inference.
 
 Control-plane work in CS308 materially reduces the remaining gap by preventing cross-run semantic-review substitution immediately before final composed-visual authority.
