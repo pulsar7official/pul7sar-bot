@@ -44,6 +44,11 @@ CS304 fixes that executable contract and makes the sealed handoff lineage explic
   - regression rejects paid-mode and network-enabled drift;
   - existing semantic/tamper/verifier/output-directory coverage retained.
 
+- `tests/test_phase18_qwen_image_canonical_candidate_identity_requirement.py`
+  - stopped hardcoding the obsolete semantic-base-QA v1 schema in the CS265 fixture;
+  - imports and uses `CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA`, so CS265 regression coverage tracks the production CS304 schema without silently drifting again;
+  - no CS265 production authority or identity semantics were changed.
+
 ## Deleted
 
 None.
@@ -78,7 +83,9 @@ The CS304 receipt must continue to carry:
 
 Static syntax of the replacement semantic-QA module was checked locally with `python -m py_compile` before committing.
 
-Repository regressions are delegated to the branch's existing GitHub Actions verification workflow. The exact final CS304 SHA and terminal workflow result must be checked after this log commit; no green claim is valid until the workflow reports `completed/success` for that exact SHA.
+The first branch verification on SHA `9b5b3f423b42d7ac6354f3a3c48f4e717c0ebb3b` executed **1,933 tests** and exposed **5 failures**, all confined to `CS265IdentityRequirementTests`. The failures were caused by that test fixture hardcoding the obsolete CS264 semantic-base-QA v1 schema while the production CS265 module correctly imports the current schema constant. The fixture was corrected in commit `dad6fff6991bf92c40a4e0d254589a56b3d747fb` to consume `CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA` directly.
+
+This first CI failure was therefore retained as useful regression evidence: the new CS304 schema propagated far enough downstream to reveal stale fixture coupling instead of being silently accepted. The exact final CS304 SHA and terminal workflow result must still be checked after this implementation-log update; no green claim is valid until the workflow reports `completed/success` for that exact SHA.
 
 ## Genuine Golden execution status
 
