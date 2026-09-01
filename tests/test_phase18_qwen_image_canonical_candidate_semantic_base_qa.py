@@ -57,14 +57,23 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
         candidate = candidate_dir / "canonical_candidate.png"
         raw = b"\x89PNG\r\n\x1a\nsemantic-qa-fixture"
         candidate.write_bytes(raw)
-        cs263_dir = repo / "artifacts" / "cs263"
-        cs263_dir.mkdir()
-        cs263_receipt = cs263_dir / "canonical_candidate_byte_admission_receipt.json"
-        cs263_receipt.write_text("{}\n", encoding="utf-8")
+        admission_dir = repo / "artifacts" / "cs303"
+        admission_dir.mkdir()
+        admission_receipt = admission_dir / "canonical_candidate_byte_admission_receipt.json"
+        admission_receipt.write_text("{}\n", encoding="utf-8")
         source = {
             "schema": CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA,
             "receipt_sha256": "a" * 64,
             "story_snapshot_sha256": "b" * 64,
+            "cost_mode": "$0-local",
+            "network_allowed": False,
+            "local_files_only": True,
+            "source_candidate_handoff": {
+                "repository_relative_path": "artifacts/cs302/canonical_candidate_handoff.json",
+                "sha256": "c" * 64,
+                "byte_size": 123,
+                "handoff_sha256": "d" * 64,
+            },
             "candidate_png": {
                 "repository_relative_path": "artifacts/cs262/canonical_candidate.png",
                 "sha256": hashlib.sha256(raw).hexdigest(),
@@ -72,12 +81,8 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
                 "width": 32,
                 "height": 24,
             },
-            "production_semantic_replay_executed": True,
-            "fresh_story_gates_passed": True,
-            "controlled_trial_preflight_valid": True,
-            "canonical_generation_authorized": True,
-            "inference_executed": True,
             "genuine_canonical_inference_executed": True,
+            "handoff_sealed": True,
             "candidate_bytes_admitted_for_post_generation_qa": True,
             "genuine_golden_png_created": False,
             "semantic_approved": False,
@@ -93,14 +98,14 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
         inspector = _Inspector(verdict or _verdict())
-        return repo, cs263_receipt, candidate, source, inspector
+        return repo, admission_receipt, candidate, source, inspector
 
-    def test_passes_base_semantics_without_escalating_global_authority(self):
+    def test_passes_base_semantics_from_cs303_without_escalating_global_authority(self):
         with tempfile.TemporaryDirectory() as td:
-            repo, cs263, _candidate, _source, inspector = self._fixture(Path(td))
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
             run = qa.run_canonical_candidate_semantic_base_qa(
-                cs263,
-                repo / "artifacts" / "cs264",
+                admission,
+                repo / "artifacts" / "cs304",
                 repo_root=repo,
                 inspector=inspector,
             )
@@ -108,6 +113,10 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
             self.assertTrue(run.approved)
             self.assertTrue(result["semantic_inspection_executed"])
             self.assertTrue(result["semantic_base_scene_approved"])
+            self.assertEqual(
+                result["source_candidate_admission"]["candidate_handoff_sha256"],
+                source["source_candidate_handoff"]["handoff_sha256"],
+            )
             self.assertFalse(result["identity_approved"])
             self.assertFalse(result["semantic_approved"])
             self.assertFalse(result["human_visual_review_approved"])
@@ -117,12 +126,12 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
 
     def test_records_rejection_when_generated_text_is_detected(self):
         with tempfile.TemporaryDirectory() as td:
-            repo, cs263, _candidate, _source, inspector = self._fixture(
+            repo, admission, _candidate, _source, inspector = self._fixture(
                 Path(td), _verdict(readable=InspectionState.FAIL)
             )
             run = qa.run_canonical_candidate_semantic_base_qa(
-                cs263,
-                repo / "artifacts" / "cs264",
+                admission,
+                repo / "artifacts" / "cs304",
                 repo_root=repo,
                 inspector=inspector,
             )
@@ -134,10 +143,10 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
 
     def test_rejects_candidate_byte_tamper_after_semantic_receipt(self):
         with tempfile.TemporaryDirectory() as td:
-            repo, cs263, candidate, _source, inspector = self._fixture(Path(td))
+            repo, admission, candidate, _source, inspector = self._fixture(Path(td))
             run = qa.run_canonical_candidate_semantic_base_qa(
-                cs263,
-                repo / "artifacts" / "cs264",
+                admission,
+                repo / "artifacts" / "cs304",
                 repo_root=repo,
                 inspector=inspector,
             )
@@ -145,27 +154,83 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "CANDIDATE_BYTE_DRIFT"):
                 qa.verify_canonical_candidate_semantic_base_qa(run.receipt_path, repo_root=repo)
 
+    def test_rejects_legacy_admission_authority_shape(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source.pop("handoff_sealed")
+            source.update(
+                {
+                    "production_semantic_replay_executed": True,
+                    "fresh_story_gates_passed": True,
+                    "controlled_trial_preflight_valid": True,
+                    "canonical_generation_authorized": True,
+                    "inference_executed": True,
+                }
+            )
+            with self.assertRaisesRegex(ValueError, "REQUIRED_GATE_MISSING:handoff_sealed"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+
+    def test_rejects_missing_handoff_binding(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source.pop("source_candidate_handoff")
+            with self.assertRaisesRegex(ValueError, "HANDOFF_BINDING_MISSING"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+
+    def test_rejects_paid_or_network_enabled_admission(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source["cost_mode"] = "$paid"
+            with self.assertRaisesRegex(ValueError, "COST_MODE_DRIFT"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source["network_allowed"] = True
+            with self.assertRaisesRegex(ValueError, "LOCAL_ONLY_DRIFT"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+
     def test_rejects_semantic_verifier_identity_drift(self):
         with tempfile.TemporaryDirectory() as td:
-            repo, cs263, _candidate, _source, inspector = self._fixture(
+            repo, admission, _candidate, _source, inspector = self._fixture(
                 Path(td), _verdict(verifier_id="unapproved-verifier")
             )
             with self.assertRaisesRegex(ValueError, "VERIFIER_DRIFT"):
                 qa.run_canonical_candidate_semantic_base_qa(
-                    cs263,
-                    repo / "artifacts" / "cs264",
+                    admission,
+                    repo / "artifacts" / "cs304",
                     repo_root=repo,
                     inspector=inspector,
                 )
 
     def test_rejects_existing_output_directory(self):
         with tempfile.TemporaryDirectory() as td:
-            repo, cs263, _candidate, _source, inspector = self._fixture(Path(td))
-            out = repo / "artifacts" / "cs264"
+            repo, admission, _candidate, _source, inspector = self._fixture(Path(td))
+            out = repo / "artifacts" / "cs304"
             out.mkdir()
             with self.assertRaisesRegex(ValueError, "OUTPUT_ALREADY_EXISTS"):
                 qa.run_canonical_candidate_semantic_base_qa(
-                    cs263, out, repo_root=repo, inspector=inspector
+                    admission, out, repo_root=repo, inspector=inspector
                 )
 
 
