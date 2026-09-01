@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from engine.intelligence.qwen_image_composed_candidate_final_composed_visual_approval import (
     _assert_cs273,
     _assert_cs280,
+    _assert_exact_review_lineage,
     _assert_same_lineage,
 )
 from engine.intelligence.qwen_image_composed_candidate_hybrid_surface_semantic_qa import (
@@ -23,9 +26,17 @@ class TestPhase18QwenImageComposedCandidateFinalComposedVisualApproval(unittest.
             "byte_size": 1234,
         }
 
-    def _cs273(self):
+    def _binding(self, *, rel="runs/cs273/receipt.json", sha="d" * 64, size=500):
+        return {
+            "repository_relative_path": rel,
+            "sha256": sha,
+            "byte_size": size,
+        }
+
+    def _cs273(self, *, receipt_sha="e" * 64):
         return {
             "schema": CS273_SCHEMA,
+            "receipt_sha256": receipt_sha,
             "story_snapshot_sha256": "a" * 64,
             "composed_candidate_png": self._png(),
             "composition_executed": True,
@@ -63,6 +74,56 @@ class TestPhase18QwenImageComposedCandidateFinalComposedVisualApproval(unittest.
         _assert_cs273(cs273)
         _assert_cs280(cs280)
         _assert_same_lineage(cs273, cs280)
+
+    @patch(
+        "engine.intelligence.qwen_image_composed_candidate_final_composed_visual_approval._derive_cs273_from_cs280"
+    )
+    def test_exact_transitive_cs273_binding_is_accepted(self, derive):
+        binding = self._binding()
+        cs273 = self._cs273()
+        derive.return_value = (dict(binding), dict(cs273))
+
+        _assert_exact_review_lineage(
+            repo_root=Path("."),
+            cs273_binding=binding,
+            cs273=cs273,
+            cs280=self._cs280(),
+        )
+
+    @patch(
+        "engine.intelligence.qwen_image_composed_candidate_final_composed_visual_approval._derive_cs273_from_cs280"
+    )
+    def test_same_story_and_png_from_different_cs273_run_is_rejected(self, derive):
+        supplied_binding = self._binding(rel="runs/a/cs273.json", sha="1" * 64)
+        supplied = self._cs273(receipt_sha="2" * 64)
+        derived_binding = self._binding(rel="runs/b/cs273.json", sha="3" * 64)
+        derived = self._cs273(receipt_sha="4" * 64)
+        derive.return_value = (derived_binding, derived)
+
+        with self.assertRaisesRegex(ValueError, "CS273_CS280_LINEAGE_DRIFT"):
+            _assert_exact_review_lineage(
+                repo_root=Path("."),
+                cs273_binding=supplied_binding,
+                cs273=supplied,
+                cs280=self._cs280(),
+            )
+
+    @patch(
+        "engine.intelligence.qwen_image_composed_candidate_final_composed_visual_approval._derive_cs273_from_cs280"
+    )
+    def test_receipt_digest_drift_is_rejected_even_with_same_file_binding(self, derive):
+        binding = self._binding()
+        supplied = self._cs273(receipt_sha="5" * 64)
+        derived = self._cs273(receipt_sha="6" * 64)
+        derive.return_value = (dict(binding), derived)
+
+        with self.assertRaisesRegex(ValueError, "CS273_CS280_LINEAGE_DRIFT"):
+            _assert_exact_review_lineage(
+                repo_root=Path("."),
+                cs273_binding=binding,
+                cs273=supplied,
+                cs280=self._cs280(),
+            )
 
     def test_cs273_semantic_failure_blocks_final_composed_approval(self):
         source = self._cs273()
