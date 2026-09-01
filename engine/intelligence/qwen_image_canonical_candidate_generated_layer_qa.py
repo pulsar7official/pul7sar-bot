@@ -3,10 +3,16 @@
 Change Set 268 binds the exact CS264 semantic inspection, the exact CS265
 identity-requirement classification, and (when a human identity is required)
 the exact CS267 identity-review evidence to the existing HybridLayerQualityGate.
-It deliberately evaluates only the generated/base layer.  It does not claim
-that deterministic typography, score/data, sport geometry, verified marks or
-PUL7SAR branding have been composed yet, and it grants no Golden/publication
-authority.
+Change Set 306 strengthens that contract by requiring exact receipt lineage
+coherence: CS265 must bind the same CS264 receipt supplied to this gate, and a
+required CS267 review must trace through a CS266 request that binds the same
+CS265 receipt supplied to this gate. This prevents same-story/same-candidate
+cross-run receipt substitution.
+
+The gate deliberately evaluates only the generated/base layer. It does not
+claim that deterministic typography, score/data, sport geometry, verified
+marks or PUL7SAR branding have been composed yet, and it grants no
+Golden/publication authority.
 """
 from __future__ import annotations
 
@@ -25,6 +31,9 @@ from engine.intelligence.qwen_image_canonical_candidate_identity_requirement imp
 from engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_evidence import (
     SCHEMA as PIXEL_IDENTITY_EVIDENCE_SCHEMA,
     verify_pixel_identity_review_evidence,
+)
+from engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_request import (
+    verify_pixel_identity_review_request,
 )
 from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import (
     CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
@@ -105,6 +114,47 @@ def _reopen_binding(repo_root: Path, binding: Mapping[str, Any], code: str) -> P
     if hashlib.sha256(raw).hexdigest() != binding.get("sha256") or len(raw) != binding.get("byte_size"):
         raise ValueError(f"{code}_BYTE_DRIFT")
     return path
+
+
+def _exact_receipt_binding(binding: Mapping[str, Any], receipt: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "repository_relative_path": binding.get("repository_relative_path"),
+        "sha256": binding.get("sha256"),
+        "byte_size": binding.get("byte_size"),
+        "receipt_sha256": receipt.get("receipt_sha256"),
+    }
+
+
+def _assert_exact_receipt_binding(
+    claimed: Any,
+    actual_binding: Mapping[str, Any],
+    actual_receipt: Mapping[str, Any],
+    code: str,
+) -> None:
+    if not isinstance(claimed, Mapping) or dict(claimed) != _exact_receipt_binding(actual_binding, actual_receipt):
+        raise ValueError(code)
+
+
+def _verify_required_identity_lineage(
+    *,
+    repo_root: Path,
+    cs267: Mapping[str, Any],
+    cs265_binding: Mapping[str, Any],
+    cs265: Mapping[str, Any],
+) -> None:
+    cs266_binding = cs267.get("source_cs266_request")
+    if not isinstance(cs266_binding, Mapping):
+        raise ValueError("QWEN_GENERATED_LAYER_QA_CS267_CS266_LINEAGE_INVALID")
+    cs266_path = _reopen_binding(repo_root, cs266_binding, "QWEN_GENERATED_LAYER_QA_CS266_INVALID")
+    cs266 = verify_pixel_identity_review_request(cs266_path, repo_root=repo_root)
+    if cs266_binding.get("receipt_sha256") != cs266.get("receipt_sha256"):
+        raise ValueError("QWEN_GENERATED_LAYER_QA_CS267_CS266_RECEIPT_DRIFT")
+    _assert_exact_receipt_binding(
+        cs266.get("source_cs265_receipt"),
+        cs265_binding,
+        cs265,
+        "QWEN_GENERATED_LAYER_QA_CS265_CS267_LINEAGE_DRIFT",
+    )
 
 
 def _assert_downstream_closed(receipt: Mapping[str, Any], prefix: str) -> None:
@@ -250,6 +300,12 @@ def run_canonical_candidate_generated_layer_qa(
         raise ValueError("QWEN_GENERATED_LAYER_QA_CS265_INVALID")
     _assert_downstream_closed(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
     _assert_downstream_closed(cs265, "QWEN_GENERATED_LAYER_QA_CS265")
+    _assert_exact_receipt_binding(
+        cs265.get("source_cs264_receipt"),
+        cs264_binding,
+        cs264,
+        "QWEN_GENERATED_LAYER_QA_CS264_CS265_LINEAGE_DRIFT",
+    )
 
     story_sha = cs264.get("story_snapshot_sha256")
     candidate = cs264.get("candidate_png")
@@ -271,6 +327,12 @@ def run_canonical_candidate_generated_layer_qa(
         if cs267.get("schema") != PIXEL_IDENTITY_EVIDENCE_SCHEMA:
             raise ValueError("QWEN_GENERATED_LAYER_QA_CS267_SCHEMA_DRIFT")
         _assert_downstream_closed(cs267, "QWEN_GENERATED_LAYER_QA_CS267")
+        _verify_required_identity_lineage(
+            repo_root=repo_root,
+            cs267=cs267,
+            cs265_binding=cs265_binding,
+            cs265=cs265,
+        )
         if (
             cs267.get("story_snapshot_sha256") != story_sha
             or cs267.get("candidate_png") != candidate
@@ -384,6 +446,12 @@ def verify_canonical_candidate_generated_layer_qa(
         raise ValueError("QWEN_GENERATED_LAYER_QA_UPSTREAM_STATE_INVALID")
     _assert_downstream_closed(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
     _assert_downstream_closed(cs265, "QWEN_GENERATED_LAYER_QA_CS265")
+    _assert_exact_receipt_binding(
+        cs265.get("source_cs264_receipt"),
+        b264,
+        cs264,
+        "QWEN_GENERATED_LAYER_QA_CS264_CS265_LINEAGE_DRIFT",
+    )
     if (
         receipt.get("story_snapshot_sha256") != cs264.get("story_snapshot_sha256")
         or cs264.get("story_snapshot_sha256") != cs265.get("story_snapshot_sha256")
@@ -405,6 +473,12 @@ def verify_canonical_candidate_generated_layer_qa(
         p267 = _reopen_binding(repo_root, b267, "QWEN_GENERATED_LAYER_QA_CS267_INVALID")
         cs267 = verify_pixel_identity_review_evidence(p267, repo_root=repo_root)
         _assert_downstream_closed(cs267, "QWEN_GENERATED_LAYER_QA_CS267")
+        _verify_required_identity_lineage(
+            repo_root=repo_root,
+            cs267=cs267,
+            cs265_binding=b265,
+            cs265=cs265,
+        )
         if (
             b267.get("receipt_sha256") != cs267.get("receipt_sha256")
             or cs267.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256")
