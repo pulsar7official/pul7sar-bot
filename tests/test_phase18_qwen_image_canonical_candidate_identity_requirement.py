@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from engine.intelligence.qwen_image_canonical_candidate_identity_requirement import (
+    _identity_binding_from_manifest,
     run_identity_requirement,
     verify_identity_requirement,
 )
@@ -131,29 +132,58 @@ class CS265IdentityRequirementTests(unittest.TestCase):
         self.assertNotIn("cs257_run_dir", parameters)
         self.assertEqual(list(parameters), ["cs264_receipt_path", "output_dir", "repo_root"])
 
-    def test_identity_evidence_byte_drift_is_rejected(self):
+    def test_launch_bound_identity_evidence_byte_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            result, _, source, evidence, identity_binding, lineage, evidence_path, _, _ = self._build(root)
+            cs257_dir = root / "runs" / "cs257"
+            evidence_path = root / "artifacts" / "identity.json"
+            evidence = {
+                "schema": "pul7sar-phase18-entity-identity-evidence-v1",
+                "gate_id": "entity_identity_verification",
+                "story_snapshot_sha256": STORY_SHA,
+                "canonical_entities": [{
+                    "entity_id": "player.test",
+                    "kind": "player",
+                    "display_name": "Test Player",
+                    "aliases": ["Test Player"],
+                    "identity_source_refs": ["source:official"],
+                }],
+                "story_entity_references": [{
+                    "field": "headline",
+                    "text": "Test Player",
+                    "expected_entity_id": "player.test",
+                }],
+                "exact_entity_assets": [],
+            }
+            evidence_raw = _write(evidence_path, evidence)
+            _write(
+                cs257_dir / "atomic_fresh_story_semantic_replay.json",
+                {
+                    "story_snapshot_sha256": STORY_SHA,
+                    "fresh_story_gates_passed": True,
+                    "production_semantic_replay_executed": True,
+                },
+            )
+            _write(
+                cs257_dir / "fresh_story_evidence_manifest.json",
+                {
+                    "evidence_bindings": [{
+                        "gate_id": "entity_identity_verification",
+                        "repository_relative_path": "artifacts/identity.json",
+                        "sha256": hashlib.sha256(evidence_raw).hexdigest(),
+                        "byte_size": len(evidence_raw),
+                    }]
+                },
+            )
+            derived_evidence, binding = _identity_binding_from_manifest(
+                cs257_dir, root, STORY_SHA
+            )
+            self.assertEqual(derived_evidence["story_snapshot_sha256"], STORY_SHA)
+            self.assertEqual(binding["sha256"], hashlib.sha256(evidence_raw).hexdigest())
+
             evidence_path.write_text("{}", encoding="utf-8")
-            semantic_target = (
-                "engine.intelligence.qwen_image_canonical_candidate_identity_requirement."
-                "verify_canonical_candidate_semantic_base_qa"
-            )
-            lineage_target = (
-                "engine.intelligence.qwen_image_canonical_candidate_identity_requirement."
-                "_lineage_bound_identity"
-            )
-            with patch(semantic_target, return_value=source), patch(
-                lineage_target,
-                return_value=(evidence, identity_binding, lineage),
-            ):
-                # The receipt verifier compares the exact lineage-derived binding;
-                # byte integrity of that source is enforced by the real lineage helper.
-                self.assertEqual(
-                    verify_identity_requirement(result.receipt_path, repo_root=root)["identity_evidence"],
-                    identity_binding,
-                )
+            with self.assertRaisesRegex(ValueError, "IDENTITY_BYTE_DRIFT"):
+                _identity_binding_from_manifest(cs257_dir, root, STORY_SHA)
 
     def test_candidate_byte_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
