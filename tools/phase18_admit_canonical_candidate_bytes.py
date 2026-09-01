@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Admit exact CS262 candidate bytes for downstream post-generation QA."""
+"""Admit exact CS301/302 sealed candidate bytes for downstream post-generation QA."""
 from __future__ import annotations
 
 import argparse
@@ -14,13 +14,13 @@ from engine.intelligence.qwen_image_canonical_candidate_byte_admission import (
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--cs262-receipt", type=Path, required=True)
+    parser.add_argument("--candidate-handoff", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     args = parser.parse_args()
 
     run = admit_canonical_candidate_bytes(
-        args.cs262_receipt,
+        args.candidate_handoff,
         args.output_dir,
         repo_root=args.repo_root,
     )
@@ -32,6 +32,7 @@ def main() -> int:
         "story_snapshot_sha256": run.story_snapshot_sha256,
         "candidate_sha256": run.candidate_sha256,
         "receipt_path": str(run.receipt_path),
+        "handoff_sealed": verified["handoff_sealed"],
         "candidate_bytes_admitted_for_post_generation_qa": verified[
             "candidate_bytes_admitted_for_post_generation_qa"
         ],
