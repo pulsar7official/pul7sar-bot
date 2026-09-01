@@ -101,25 +101,27 @@ class CS266PixelIdentityReviewRequestTests(unittest.TestCase):
             root = Path(td)
             result, receipt, _, _, _, _ = self._build(root, human=True)
             self.assertTrue(result.review_required)
-            self.assertFalse(receipt["identity_approved"])
+            self.assertTrue(receipt["pixel_identity_review_request_created"])
             self.assertFalse(receipt["pixel_identity_review_executed"])
+            self.assertFalse(receipt["identity_approved"])
             self.assertFalse(receipt["publication_ready"])
-            self.assertEqual(receipt["required_checks"], [
-                "candidate_subject_matches_canonical_entity",
-                "no_identity_substitution",
-                "no_ambiguous_or_conflicting_identity",
-                "source_backed_reference_evidence_used",
-            ])
+            self.assertEqual(
+                receipt["review_targets"][0]["identity_source_refs"],
+                ["source:official-profile"],
+            )
+            self.assertTrue(
+                receipt["review_contract"]["fail_closed_without_compatible_identity_review"]
+            )
 
-    def test_nonhuman_candidate_does_not_open_review_request(self):
+    def test_nonhuman_candidate_does_not_manufacture_identity_approval(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            result, receipt, _, _, _, _ = self._build(root, human=False)
-            self.assertFalse(result.review_required)
+            _, receipt, _, _, _, _ = self._build(root, human=False)
             self.assertFalse(receipt["pixel_identity_review_required"])
+            self.assertFalse(receipt["pixel_identity_review_request_created"])
             self.assertFalse(receipt["identity_approved"])
 
-    def test_missing_source_backed_identity_refs_fail_closed(self):
+    def test_missing_source_backed_reference_rejected_for_human_target(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             cs265, source, _, _ = self._fixture(root, human=True, with_source_refs=False)
@@ -128,14 +130,14 @@ class CS266PixelIdentityReviewRequestTests(unittest.TestCase):
                 "verify_identity_requirement"
             )
             with patch(target, return_value=source):
-                with self.assertRaisesRegex(ValueError, "IDENTITY_SOURCE_REFS_MISSING"):
+                with self.assertRaisesRegex(ValueError, "SOURCE_REFS_MISSING"):
                     build_pixel_identity_review_request(cs265, root / "out", repo_root=root)
 
-    def test_candidate_byte_drift_is_rejected(self):
+    def test_candidate_byte_drift_invalidates_review_request(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            result, _, source, _, candidate, _ = self._build(root, human=True)
-            candidate.write_bytes(b"tampered")
+            result, _, source, _, candidate, _ = self._build(root)
+            candidate.write_bytes(b"tampered-candidate")
             target = (
                 "engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_request."
                 "verify_identity_requirement"
@@ -144,17 +146,17 @@ class CS266PixelIdentityReviewRequestTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "CANDIDATE_INVALID_BYTE_DRIFT"):
                     verify_pixel_identity_review_request(result.receipt_path, repo_root=root)
 
-    def test_identity_evidence_byte_drift_is_rejected(self):
+    def test_cs265_byte_drift_invalidates_review_request(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            result, _, source, _, _, identity_path = self._build(root, human=True)
-            identity_path.write_text("{}", encoding="utf-8")
+            result, _, source, cs265, _, _ = self._build(root)
+            cs265.write_text('{"tampered":true}', encoding="utf-8")
             target = (
                 "engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_request."
                 "verify_identity_requirement"
             )
             with patch(target, return_value=source):
-                with self.assertRaisesRegex(ValueError, "IDENTITY_INVALID_BYTE_DRIFT"):
+                with self.assertRaisesRegex(ValueError, "CS265_INVALID_BYTE_DRIFT"):
                     verify_pixel_identity_review_request(result.receipt_path, repo_root=root)
 
 
