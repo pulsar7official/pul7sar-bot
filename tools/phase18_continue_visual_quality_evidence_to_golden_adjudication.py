@@ -50,6 +50,13 @@ _FINAL_FALSE = (
     "genuine_golden_png_created",
     "publication_ready",
 )
+_CANDIDATE_ADMISSION_FALSE = (
+    "semantic_approved",
+    "human_visual_review_approved",
+    "golden_quality_approved",
+    "genuine_golden_png_created",
+    "publication_ready",
+)
 
 
 def _inside_repo_file(repo_root: Path, path: Path, code: str) -> Path:
@@ -103,10 +110,14 @@ def _resolve_checkpoint_receipt(
     return _inside_repo_file(repo_root, repo_root / relative, code)
 
 
-def _assert_final_authority_closed(value: Mapping[str, Any], prefix: str) -> None:
-    for field in _FINAL_FALSE:
+def _assert_fields_false(value: Mapping[str, Any], fields: tuple[str, ...], prefix: str) -> None:
+    for field in fields:
         if value.get(field) is not False:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
+
+
+def _assert_final_authority_closed(value: Mapping[str, Any], prefix: str) -> None:
+    _assert_fields_false(value, _FINAL_FALSE, prefix)
 
 
 def continue_visual_quality_evidence_to_golden_adjudication(
@@ -180,7 +191,11 @@ def continue_visual_quality_evidence_to_golden_adjudication(
         or candidate_admission.get("local_files_only") is not True
     ):
         raise ValueError("QWEN_CS323_ZERO_COST_LOCAL_ONLY_DRIFT")
-    _assert_final_authority_closed(candidate_admission, "QWEN_CS323_CANDIDATE_ADMISSION")
+    _assert_fields_false(
+        candidate_admission,
+        _CANDIDATE_ADMISSION_FALSE,
+        "QWEN_CS323_CANDIDATE_ADMISSION",
+    )
 
     story = cs322.get("story_snapshot_sha256")
     if (
