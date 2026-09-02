@@ -17,6 +17,9 @@ from engine.intelligence.qwen_image_composed_candidate_human_visual_review_evide
     SCHEMA as CS278_SCHEMA,
     verify_composed_candidate_human_visual_review_evidence,
 )
+from engine.intelligence.qwen_image_composed_candidate_human_visual_review_request import (
+    verify_composed_candidate_human_visual_review_request,
+)
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 SCHEMA = "pul7sar-phase18-qwen-image-composed-candidate-final-presentation-review-request-v1"
@@ -102,6 +105,53 @@ def _assert_cs278(receipt: Mapping[str, Any]) -> None:
         raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_PNG_BINDING_INVALID")
 
 
+def _presentation_context(
+    repo_root: Path,
+    cs278: Mapping[str, Any],
+) -> tuple[dict[str, Any], Any, Any]:
+    """Recover score/context from the exact CS277 source bound into CS278.
+
+    CS278 v1 intentionally focused on admitting the external human verdict and did
+    not copy generation_context/weighted_score/quality_tier into its own receipt.
+    CS279 must therefore replay CS277 rather than assuming those keys exist on
+    CS278. The fallback is retained only for synthetic/legacy fixtures that carry
+    the already-bound values directly; a genuine CS278 verifier always emits the
+    source_cs277_request binding.
+    """
+    source = cs278.get("source_cs277_request")
+    if isinstance(source, Mapping):
+        request_path = _reopen(
+            repo_root,
+            source,
+            "QWEN_FINAL_PRESENTATION_REQUEST_CS277_SOURCE_INVALID",
+        )
+        cs277 = verify_composed_candidate_human_visual_review_request(
+            request_path,
+            repo_root=repo_root,
+        )
+        if source.get("receipt_sha256") != cs277.get("receipt_sha256"):
+            raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_CS277_RECEIPT_DRIFT")
+        if cs277.get("story_snapshot_sha256") != cs278.get("story_snapshot_sha256"):
+            raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_CS277_STORY_DRIFT")
+        if cs277.get("composed_candidate_png") != cs278.get("composed_candidate_png"):
+            raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_CS277_PNG_DRIFT")
+        context = cs277.get("generation_context")
+        weighted_score = cs277.get("weighted_score")
+        quality_tier = cs277.get("quality_tier")
+    else:
+        context = cs278.get("generation_context")
+        weighted_score = cs278.get("weighted_score")
+        quality_tier = cs278.get("quality_tier")
+
+    if not isinstance(context, Mapping) or not context:
+        raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_GENERATION_CONTEXT_MISSING")
+    if not isinstance(weighted_score, (int, float)) or isinstance(weighted_score, bool):
+        raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_WEIGHTED_SCORE_MISSING")
+    if not isinstance(quality_tier, str) or not quality_tier:
+        raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_QUALITY_TIER_MISSING")
+    return dict(context), weighted_score, quality_tier
+
+
 def _policy_bindings(repo_root: Path) -> dict[str, dict[str, Any]]:
     bindings: dict[str, dict[str, Any]] = {}
     for rel in _POLICY_SOURCES:
@@ -121,6 +171,7 @@ def build_composed_candidate_final_presentation_review_request(
     source_binding = _bind(repo_root, cs278_receipt_path, "QWEN_FINAL_PRESENTATION_REQUEST_CS278_INVALID")
     cs278 = verify_composed_candidate_human_visual_review_evidence(cs278_receipt_path, repo_root=repo_root)
     _assert_cs278(cs278)
+    generation_context, weighted_score, quality_tier = _presentation_context(repo_root, cs278)
 
     png_path = _reopen(repo_root, cs278["composed_candidate_png"], "QWEN_FINAL_PRESENTATION_REQUEST_PNG_INVALID")
     png_binding = _bind(repo_root, png_path, "QWEN_FINAL_PRESENTATION_REQUEST_PNG_INVALID")
@@ -134,9 +185,9 @@ def build_composed_candidate_final_presentation_review_request(
         "story_snapshot_sha256": cs278["story_snapshot_sha256"],
         "source_cs278_receipt": {**source_binding, "receipt_sha256": cs278.get("receipt_sha256")},
         "composed_candidate_png": dict(cs278["composed_candidate_png"]),
-        "generation_context": dict(cs278["generation_context"]),
-        "weighted_score": cs278["weighted_score"],
-        "quality_tier": cs278["quality_tier"],
+        "generation_context": generation_context,
+        "weighted_score": weighted_score,
+        "quality_tier": quality_tier,
         "human_visual_review_approved": True,
         "presentation_policy_sources": _policy_bindings(repo_root),
         "required_presentation_checks": list(_REQUIRED_PRESENTATION_CHECKS),
@@ -156,6 +207,7 @@ def build_composed_candidate_final_presentation_review_request(
             "presentation_review_request_cannot_self_approve": True,
             "presentation_approval_does_not_replace_final_semantic_publication": True,
             "request_is_not_genuine_golden_png_creation": True,
+            "generation_context_is_recovered_from_exact_cs277_lineage": True,
         },
     }
     receipt["receipt_sha256"] = sha256_json(receipt)
@@ -205,6 +257,7 @@ def verify_composed_candidate_final_presentation_review_request(
     if source.get("receipt_sha256") != cs278.get("receipt_sha256"):
         raise ValueError("QWEN_FINAL_PRESENTATION_REQUEST_SOURCE_RECEIPT_DRIFT")
     _assert_cs278(cs278)
+    generation_context, weighted_score, quality_tier = _presentation_context(repo_root, cs278)
 
     _reopen(repo_root, receipt.get("composed_candidate_png", {}), "QWEN_FINAL_PRESENTATION_REQUEST_PNG_INVALID")
 
@@ -220,9 +273,9 @@ def verify_composed_candidate_final_presentation_review_request(
     expected = {
         "story_snapshot_sha256": cs278["story_snapshot_sha256"],
         "composed_candidate_png": dict(cs278["composed_candidate_png"]),
-        "generation_context": dict(cs278["generation_context"]),
-        "weighted_score": cs278["weighted_score"],
-        "quality_tier": cs278["quality_tier"],
+        "generation_context": generation_context,
+        "weighted_score": weighted_score,
+        "quality_tier": quality_tier,
         "human_visual_review_approved": True,
         "required_presentation_checks": list(_REQUIRED_PRESENTATION_CHECKS),
         "final_presentation_review_requested": True,
