@@ -65,6 +65,14 @@ def _assert_authorities_closed(receipt: dict[str, Any], prefix: str) -> None:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
 
 
+def _force_local_semantic_runtime() -> None:
+    """Prevent the pinned semantic verifier from falling back to network I/O."""
+    os.environ["HF_HUB_OFFLINE"] = "1"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+    os.environ["HF_DATASETS_OFFLINE"] = "1"
+    os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
+
 def run_checkpoint(candidate_admission: Path, output_root: Path, *, repo_root: Path) -> tuple[Path, bool]:
     root = _inside_repo_dir(repo_root, output_root)
     if root.exists():
@@ -73,6 +81,7 @@ def run_checkpoint(candidate_admission: Path, output_root: Path, *, repo_root: P
         raise ValueError("QWEN_SEMANTIC_CHECKPOINT_OUTPUT_PARENT_INVALID")
     root.mkdir(mode=0o700)
 
+    _force_local_semantic_runtime()
     semantic_dir = root / "cs304-semantic-base-qa"
     semantic_run = run_canonical_candidate_semantic_base_qa(
         candidate_admission,
