@@ -56,7 +56,7 @@ class Phase18QwenImageCanonicalInferenceWorkflowTests(unittest.TestCase):
         self.assertIn('result.get("genuine_golden_png_created") is not False', self.workflow)
         self.assertIn('result.get("publication_ready") is not False', self.workflow)
 
-    def test_workflow_continues_admitted_bytes_through_cs304_and_cs305_only(self):
+    def test_workflow_continues_admitted_bytes_through_cs304_and_cs305(self):
         self.assertIn("tools/phase18_run_admitted_candidate_semantic_checkpoint.py", self.workflow)
         self.assertIn('admission_receipt="$(python -c', self.workflow)
         self.assertIn("admitted-candidate-semantic-checkpoint-${GITHUB_RUN_ID}", self.workflow)
@@ -66,7 +66,35 @@ class Phase18QwenImageCanonicalInferenceWorkflowTests(unittest.TestCase):
         self.assertIn('isinstance(result.get("pixel_identity_review_required"), bool)', self.workflow)
         self.assertIn('test "$checkpoint_rc" -eq 0', self.workflow)
 
-    def test_semantic_checkpoint_keeps_identity_and_all_later_authorities_closed(self):
+    def test_workflow_routes_cs304_cs305_through_cs317_exactly_once(self):
+        self.assertIn("tools/phase18_route_semantic_checkpoint_after_identity_requirement.py", self.workflow)
+        self.assertIn("post-semantic-identity-route-${GITHUB_RUN_ID}", self.workflow)
+        self.assertIn("post-semantic-identity-route-result.json", self.workflow)
+        self.assertIn("--cs304-receipt \"$CS304_RECEIPT\"", self.workflow)
+        self.assertIn("--cs305-receipt \"$CS305_RECEIPT\"", self.workflow)
+        self.assertIn("missing exact semantic checkpoint lineage: {key}", self.workflow)
+        self.assertEqual(
+            self.workflow.count("python tools/phase18_route_semantic_checkpoint_after_identity_requirement.py"),
+            1,
+        )
+
+    def test_required_identity_route_stops_at_cs266_before_generated_layer_qa(self):
+        self.assertIn('result.get("route") != "CS266_PIXEL_IDENTITY_REVIEW_REQUIRED"', self.workflow)
+        self.assertIn('result.get("pixel_identity_review_request_created") is not True', self.workflow)
+        self.assertIn('result.get("generated_layer_qa_executed") is not False', self.workflow)
+        self.assertIn("CS268 must not run before required human identity review", self.workflow)
+
+    def test_no_review_route_requires_cs268_generated_layer_approval(self):
+        self.assertIn(
+            'result.get("route") != "CS268_GENERATED_LAYER_QA_NO_PIXEL_IDENTITY_REVIEW_REQUIRED"',
+            self.workflow,
+        )
+        self.assertIn('result.get("generated_layer_qa_executed") is not True', self.workflow)
+        self.assertIn('result.get("generated_layer_qa_approved") is not True', self.workflow)
+        self.assertIn("candidate rejected at CS268 Generated-Layer QA", self.workflow)
+        self.assertIn('test "$route_rc" -eq 0', self.workflow)
+
+    def test_identity_aware_route_keeps_all_later_authorities_closed(self):
         for field in (
             "identity_approved",
             "semantic_approved",
@@ -76,7 +104,7 @@ class Phase18QwenImageCanonicalInferenceWorkflowTests(unittest.TestCase):
             "publication_ready",
         ):
             self.assertIn(f'"{field}",', self.workflow)
-        self.assertIn('semantic checkpoint created premature authority: {field}', self.workflow)
+        self.assertIn("identity-aware routing created premature authority: {field}", self.workflow)
 
     def test_workflow_keeps_all_downstream_authorities_closed(self):
         self.assertIn('if verified.get("genuine_canonical_inference_executed") is not True:', self.workflow)
