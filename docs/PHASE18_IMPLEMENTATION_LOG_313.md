@@ -76,7 +76,7 @@ This file records the complete implementation/audit history for CS313.
 
 ## Modified
 
-None at the time of the initial CS313 implementation. The change set is additive so the older FLUX/Golden-v6 paths remain intact for their historical/review use cases while the current Qwen canonical route gains its own isolated entry point.
+No executable or test file was modified after its initial CS313 addition. This implementation log was updated after CI completed to record the terminal verification result. The older FLUX/Golden-v6 paths remain intact for historical/review use cases while the current Qwen canonical route has its own isolated entry point.
 
 ## Deleted
 
@@ -110,13 +110,31 @@ A canonical Qwen candidate produced by this workflow remains non-semantic-approv
 
 CS312 verification was confirmed completed/success on starting HEAD `04fd70fa62b1d9dc0777e4ec98403fc4a7fd58c7` before CS313 writes.
 
-### CS313 regression
+### CS313 terminal verification
 
-`tests/test_phase18_qwen_image_canonical_inference_workflow.py` was added for repository CI discovery. GitHub Actions status for the final CS313 HEAD must be recorded after the current workflow run completes; no terminal-green claim is made in this log until that result is observed.
+The code-bearing/documented CS313 HEAD `8d4551512ab0b14f9adec0f04e283121b27c7ca9` ran `Phase 18 Story Intelligence Verification` run `33606002222` to completion with conclusion `success`.
+
+The following major verification steps all completed successfully:
+
+- Syntax and discover validation;
+- Completion and production isolation;
+- visual-study handoff build and verification;
+- result composition matrix build;
+- publication-block verification;
+- project-native editorial visual study;
+- adaptive reference brand verification;
+- self-contained brand ownership verification;
+- Golden editorial v6 build/verification;
+- legacy-logo non-canonical assertion;
+- all configured artifact uploads.
+
+This establishes CS313 as terminal-green for the repository CPU verification suite. The later documentation-only commit recording this outcome does not change executable code or tests.
 
 ### GPU execution
 
-No genuine Qwen inference was claimed during implementation. The available execution environment was not treated as a substitute for a compatible self-hosted GPU. A real canonical candidate requires the workflow runner to prove CUDA-enabled PyTorch, at least one CUDA device, native BF16 support, the current compatible Qwen runtime, and the exact already-local pinned Qwen snapshot.
+No genuine Qwen inference was claimed during implementation. The available execution environment was directly probed and reported `torch=2.10.0+cpu`, `cuda_available=false`, `torch.version.cuda=null`, `device_count=0`, native BF16 unavailable, and no `nvidia-smi`. It was therefore not used as a substitute for a compatible self-hosted GPU.
+
+A real canonical candidate requires the workflow runner to prove CUDA-enabled PyTorch, at least one CUDA device, native BF16 support, the current compatible Qwen runtime, and the exact already-local pinned Qwen snapshot.
 
 ## Remaining gap after CS313
 
