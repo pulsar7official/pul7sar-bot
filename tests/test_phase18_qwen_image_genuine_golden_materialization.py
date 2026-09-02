@@ -5,8 +5,10 @@ import unittest
 import zlib
 
 from engine.intelligence.qwen_image_genuine_golden_materialization import (
+    MATERIALIZATION_POLICY,
     PNG_SIGNATURE,
     _require_cs284_authority,
+    _require_materialization_receipt_matches_cs284,
     _validate_png_bytes,
 )
 
@@ -26,6 +28,19 @@ def _valid_png(width: int = 2, height: int = 3) -> bytes:
 class TestPhase18QwenImageGenuineGoldenMaterialization(unittest.TestCase):
     def _allowed_cs284(self):
         return {
+            "story_snapshot_sha256": "story-sha",
+            "composed_candidate_png": {
+                "repository_relative_path": "artifacts/composed.png",
+                "sha256": "png-sha",
+                "byte_size": 123,
+            },
+            "generation_context": {
+                "cost_mode": "$0-local",
+                "network_allowed": False,
+                "local_files_only": True,
+            },
+            "weighted_score": 0.97,
+            "quality_tier": "golden",
             "composed_visual_approved": True,
             "semantic_approved": True,
             "semantic_publication_execution_requested": True,
@@ -34,6 +49,17 @@ class TestPhase18QwenImageGenuineGoldenMaterialization(unittest.TestCase):
             "semantic_publication_failures": [],
             "genuine_golden_png_created": False,
             "publication_ready": False,
+        }
+
+    def _matching_cs285_receipt(self):
+        cs284 = self._allowed_cs284()
+        return {
+            "story_snapshot_sha256": cs284["story_snapshot_sha256"],
+            "source_composed_candidate_png": dict(cs284["composed_candidate_png"]),
+            "generation_context": dict(cs284["generation_context"]),
+            "weighted_score": cs284["weighted_score"],
+            "quality_tier": cs284["quality_tier"],
+            "policy": dict(MATERIALIZATION_POLICY),
         }
 
     def test_valid_png_container_returns_dimensions(self):
@@ -71,6 +97,36 @@ class TestPhase18QwenImageGenuineGoldenMaterialization(unittest.TestCase):
         state["publication_ready"] = True
         with self.assertRaisesRegex(ValueError, "PREMATURE_PUBLICATION_STATE"):
             _require_cs284_authority(state)
+
+    def test_exact_cs284_metadata_lineage_is_accepted(self):
+        _require_materialization_receipt_matches_cs284(
+            self._matching_cs285_receipt(),
+            self._allowed_cs284(),
+        )
+
+    def test_generation_context_drift_is_rejected(self):
+        receipt = self._matching_cs285_receipt()
+        receipt["generation_context"]["network_allowed"] = True
+        with self.assertRaisesRegex(ValueError, "generation_context"):
+            _require_materialization_receipt_matches_cs284(receipt, self._allowed_cs284())
+
+    def test_weighted_score_drift_is_rejected(self):
+        receipt = self._matching_cs285_receipt()
+        receipt["weighted_score"] = 0.01
+        with self.assertRaisesRegex(ValueError, "weighted_score"):
+            _require_materialization_receipt_matches_cs284(receipt, self._allowed_cs284())
+
+    def test_quality_tier_drift_is_rejected(self):
+        receipt = self._matching_cs285_receipt()
+        receipt["quality_tier"] = "unreviewed"
+        with self.assertRaisesRegex(ValueError, "quality_tier"):
+            _require_materialization_receipt_matches_cs284(receipt, self._allowed_cs284())
+
+    def test_materialization_policy_drift_is_rejected(self):
+        receipt = self._matching_cs285_receipt()
+        receipt["policy"]["pixel_mutation_forbidden"] = False
+        with self.assertRaisesRegex(ValueError, "POLICY_DRIFT"):
+            _require_materialization_receipt_matches_cs284(receipt, self._allowed_cs284())
 
 
 if __name__ == "__main__":
