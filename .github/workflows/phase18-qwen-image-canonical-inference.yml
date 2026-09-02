@@ -85,6 +85,7 @@ jobs:
           test -f tools/phase18_qwen_image_canonical_candidate_handoff.py
           test -f tools/phase18_admit_canonical_candidate_bytes.py
           test -f tools/phase18_run_admitted_candidate_semantic_checkpoint.py
+          test -f tools/phase18_route_semantic_checkpoint_after_identity_requirement.py
 
       - name: Prove CUDA BF16 host without replacing PyTorch
         shell: bash
@@ -317,6 +318,65 @@ jobs:
                   raise SystemExit(f"semantic checkpoint created premature authority: {field}")
           PY
           test "$checkpoint_rc" -eq 0
+
+      - name: Route exact semantic checkpoint without bypassing identity review
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(python - <<'PY'
+          import json, shlex
+          p = json.load(open('output/phase18_qwen_image/semantic-checkpoint-result.json'))
+          for key in ('cs304_receipt', 'cs305_receipt'):
+              value = p.get(key)
+              if not isinstance(value, str) or not value:
+                  raise SystemExit(f'missing exact semantic checkpoint lineage: {key}')
+              print(f"{key.upper()}={shlex.quote(value)}")
+          PY
+          )"
+          route_dir="output/phase18_qwen_image/post-semantic-identity-route-${GITHUB_RUN_ID}"
+          test ! -e "$route_dir"
+          set +e
+          python tools/phase18_route_semantic_checkpoint_after_identity_requirement.py \
+            --cs304-receipt "$CS304_RECEIPT" \
+            --cs305-receipt "$CS305_RECEIPT" \
+            --output-root "$route_dir" \
+            > output/phase18_qwen_image/post-semantic-identity-route-result.json
+          route_rc=$?
+          set -e
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("output/phase18_qwen_image/post-semantic-identity-route-result.json").read_text(encoding="utf-8"))
+          required = result.get("pixel_identity_review_required")
+          if not isinstance(required, bool):
+              raise SystemExit("identity router did not preserve an explicit review requirement")
+          if required:
+              if result.get("route") != "CS266_PIXEL_IDENTITY_REVIEW_REQUIRED":
+                  raise SystemExit("human identity route did not stop at CS266")
+              if result.get("pixel_identity_review_request_created") is not True:
+                  raise SystemExit("CS266 pixel-identity review request was not created")
+              if result.get("generated_layer_qa_executed") is not False:
+                  raise SystemExit("CS268 must not run before required human identity review")
+          else:
+              if result.get("route") != "CS268_GENERATED_LAYER_QA_NO_PIXEL_IDENTITY_REVIEW_REQUIRED":
+                  raise SystemExit("no-review route did not continue to CS268")
+              if result.get("generated_layer_qa_executed") is not True:
+                  raise SystemExit("CS268 Generated-Layer QA was not executed")
+              if result.get("generated_layer_qa_approved") is not True:
+                  raise SystemExit("candidate rejected at CS268 Generated-Layer QA")
+          for field in (
+              "identity_approved",
+              "semantic_approved",
+              "human_visual_review_approved",
+              "golden_quality_approved",
+              "genuine_golden_png_created",
+              "publication_ready",
+          ):
+              if result.get(field) is not False:
+                  raise SystemExit(f"identity-aware routing created premature authority: {field}")
+          PY
+          test "$route_rc" -eq 0
 
       - name: Upload canonical candidate and exact evidence
         if: always()
