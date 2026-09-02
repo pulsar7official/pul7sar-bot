@@ -5,7 +5,10 @@ import unittest
 from pathlib import Path
 
 from engine.intelligence.qwen_image_genuine_golden_publication_readiness import (
+    PUBLICATION_POLICY,
+    PUBLICATION_RECEIPT_FIELDS,
     _require_cs285_authority,
+    _require_exact_publication_envelope,
     _require_output_inside_repo,
 )
 
@@ -26,6 +29,11 @@ class TestPhase18QwenImageGenuineGoldenPublicationReadiness(unittest.TestCase):
                 "genuine_golden_creation_does_not_set_publication_ready": True,
             },
         }
+
+    def _valid_final_envelope(self):
+        values = {field: None for field in PUBLICATION_RECEIPT_FIELDS}
+        values["policy"] = dict(PUBLICATION_POLICY)
+        return values
 
     def test_verified_cs285_authority_is_eligible(self):
         _require_cs285_authority(self._valid_cs285())
@@ -59,6 +67,32 @@ class TestPhase18QwenImageGenuineGoldenPublicationReadiness(unittest.TestCase):
         state["policy"]["pixel_mutation_forbidden"] = False
         with self.assertRaisesRegex(ValueError, "pixel_mutation_forbidden"):
             _require_cs285_authority(state)
+
+    def test_final_publication_envelope_is_closed_world(self):
+        envelope = self._valid_final_envelope()
+        _require_exact_publication_envelope(envelope)
+
+        envelope["publish_side_effect_authorized"] = True
+        with self.assertRaisesRegex(ValueError, "ENVELOPE_FIELDS_INVALID"):
+            _require_exact_publication_envelope(envelope)
+
+    def test_final_publication_envelope_rejects_missing_canonical_field(self):
+        envelope = self._valid_final_envelope()
+        envelope.pop("generation_context")
+        with self.assertRaisesRegex(ValueError, "ENVELOPE_FIELDS_INVALID"):
+            _require_exact_publication_envelope(envelope)
+
+    def test_final_publication_policy_rejects_unknown_authority_key(self):
+        envelope = self._valid_final_envelope()
+        envelope["policy"]["network_publish_allowed"] = True
+        with self.assertRaisesRegex(ValueError, "POLICY_INVALID"):
+            _require_exact_publication_envelope(envelope)
+
+    def test_final_publication_policy_rejects_weakened_canonical_value(self):
+        envelope = self._valid_final_envelope()
+        envelope["policy"]["pixel_mutation_forbidden"] = False
+        with self.assertRaisesRegex(ValueError, "POLICY_INVALID"):
+            _require_exact_publication_envelope(envelope)
 
     def test_output_must_remain_inside_repository(self):
         with tempfile.TemporaryDirectory() as repo_tmp, tempfile.TemporaryDirectory() as outside_tmp:
