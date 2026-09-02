@@ -21,11 +21,15 @@ class Phase18SemanticGpuPreflightSchemaAlignmentTests(unittest.TestCase):
         workflow = Path(".github/workflows/phase18-gpu-smoke.yml").read_text(encoding="utf-8")
 
         self.assertIn("PUL7SAR_PHASE18_COST_MODE: $0-local", workflow)
-        self.assertIn('payload.get("publication_ready") is not False', workflow)
-        self.assertIn('payload.get("generation_authorized")', workflow)
-        self.assertIn('payload.get("queue_mutated")', workflow)
-        self.assertIn('payload.get("png_created")', workflow)
-        self.assertIn("runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]", workflow)
+        self.assertIn(
+            'for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):',
+            workflow,
+        )
+        self.assertIn("if payload.get(field) is not False:", workflow)
+        self.assertIn(
+            "runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]",
+            workflow,
+        )
 
 
 if __name__ == "__main__":
