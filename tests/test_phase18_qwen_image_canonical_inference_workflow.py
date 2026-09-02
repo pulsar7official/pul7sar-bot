@@ -17,6 +17,8 @@ class Phase18QwenImageCanonicalInferenceWorkflowTests(unittest.TestCase):
         self.assertIn("PUL7SAR_PHASE18_COST_MODE: $0-local", self.workflow)
         self.assertIn('HF_HUB_OFFLINE: "1"', self.workflow)
         self.assertIn('TRANSFORMERS_OFFLINE: "1"', self.workflow)
+        self.assertIn('HF_DATASETS_OFFLINE: "1"', self.workflow)
+        self.assertIn('HF_HUB_DISABLE_TELEMETRY: "1"', self.workflow)
         self.assertIn(
             "runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]",
             self.workflow,
@@ -53,6 +55,28 @@ class Phase18QwenImageCanonicalInferenceWorkflowTests(unittest.TestCase):
         )
         self.assertIn('result.get("genuine_golden_png_created") is not False', self.workflow)
         self.assertIn('result.get("publication_ready") is not False', self.workflow)
+
+    def test_workflow_continues_admitted_bytes_through_cs304_and_cs305_only(self):
+        self.assertIn("tools/phase18_run_admitted_candidate_semantic_checkpoint.py", self.workflow)
+        self.assertIn('admission_receipt="$(python -c', self.workflow)
+        self.assertIn("admitted-candidate-semantic-checkpoint-${GITHUB_RUN_ID}", self.workflow)
+        self.assertIn('result.get("semantic_inspection_executed") is not True', self.workflow)
+        self.assertIn('result.get("semantic_base_scene_approved") is not True', self.workflow)
+        self.assertIn('result.get("identity_requirement_classified") is not True', self.workflow)
+        self.assertIn('isinstance(result.get("pixel_identity_review_required"), bool)', self.workflow)
+        self.assertIn('test "$checkpoint_rc" -eq 0', self.workflow)
+
+    def test_semantic_checkpoint_keeps_identity_and_all_later_authorities_closed(self):
+        for field in (
+            "identity_approved",
+            "semantic_approved",
+            "human_visual_review_approved",
+            "golden_quality_approved",
+            "genuine_golden_png_created",
+            "publication_ready",
+        ):
+            self.assertIn(f'"{field}",', self.workflow)
+        self.assertIn('semantic checkpoint created premature authority: {field}', self.workflow)
 
     def test_workflow_keeps_all_downstream_authorities_closed(self):
         self.assertIn('if verified.get("genuine_canonical_inference_executed") is not True:', self.workflow)
