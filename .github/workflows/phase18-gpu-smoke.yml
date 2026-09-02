@@ -172,7 +172,7 @@ jobs:
           import json
           from pathlib import Path
           payload = json.loads(Path("output/phase18_gpu_smoke/semantic-preflight.json").read_text(encoding="utf-8"))
-          if payload.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v1":
+          if payload.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
               raise SystemExit("unexpected semantic GPU preflight schema")
           if payload.get("branch") != "phase18/story-intelligence":
               raise SystemExit("semantic preflight escaped the protected Phase 18 branch")
