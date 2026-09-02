@@ -43,6 +43,17 @@ class Phase18AdmittedCandidateSemanticCheckpointTests(unittest.TestCase):
         self.assertIn("QWEN_SEMANTIC_CHECKPOINT_CANDIDATE_LINEAGE_DRIFT", self.source)
         self.assertIn('identity.get("candidate_png") != semantic.get("candidate_png")', self.source)
 
+    def test_checkpoint_forces_huggingface_semantic_runtime_offline(self):
+        self.assertIn('os.environ["HF_HUB_OFFLINE"] = "1"', self.source)
+        self.assertIn('os.environ["TRANSFORMERS_OFFLINE"] = "1"', self.source)
+        self.assertIn('os.environ["HF_DATASETS_OFFLINE"] = "1"', self.source)
+        self.assertIn('os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"', self.source)
+        self.assertIn("_force_local_semantic_runtime()", self.source)
+        self.assertLess(
+            self.source.index("_force_local_semantic_runtime()", self.source.index("def run_checkpoint")),
+            self.source.index("run_canonical_candidate_semantic_base_qa(", self.source.index("def run_checkpoint")),
+        )
+
     def test_checkpoint_does_not_generate_or_publish(self):
         self.assertNotIn("QwenImagePipeline", self.source)
         self.assertNotIn("Flux2KleinPipeline", self.source)
