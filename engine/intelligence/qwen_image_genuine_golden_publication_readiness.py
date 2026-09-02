@@ -22,6 +22,37 @@ from engine.intelligence.qwen_image_inference_measurement import sha256_json
 SCHEMA = "pul7sar-phase18-qwen-image-genuine-golden-publication-readiness-v1"
 STATUS = "QWEN_IMAGE_GENUINE_GOLDEN_PUBLICATION_READY"
 
+PUBLICATION_POLICY = {
+    "final_authority_consumes_verified_cs285_only": True,
+    "pixel_mutation_forbidden": True,
+    "publication_readiness_has_no_publish_side_effect": True,
+    "publication_ready_requires_exact_genuine_golden_bytes": True,
+}
+
+PUBLICATION_RECEIPT_FIELDS = frozenset(
+    {
+        "schema",
+        "status",
+        "story_snapshot_sha256",
+        "source_cs285_genuine_golden_materialization",
+        "source_composed_candidate_png",
+        "genuine_golden_visual_png",
+        "png_dimensions",
+        "generation_context",
+        "weighted_score",
+        "quality_tier",
+        "composed_visual_approved",
+        "semantic_approved",
+        "semantic_publication_gate_executed",
+        "semantic_publication_allowed",
+        "byte_identity_preserved",
+        "genuine_golden_png_created",
+        "publication_ready",
+        "policy",
+        "receipt_sha256",
+    }
+)
+
 
 def _json(path: Path, code: str) -> dict[str, Any]:
     if path.is_symlink() or not path.is_file():
@@ -95,6 +126,13 @@ def _require_cs285_authority(cs285: Mapping[str, Any]) -> None:
     for field in required_policy_true:
         if policy.get(field) is not True:
             raise ValueError(f"QWEN_GENUINE_GOLDEN_PUBLICATION_CS285_POLICY_MISSING:{field}")
+
+
+def _require_exact_publication_envelope(receipt: Mapping[str, Any]) -> None:
+    if set(receipt) != PUBLICATION_RECEIPT_FIELDS:
+        raise ValueError("QWEN_GENUINE_GOLDEN_PUBLICATION_ENVELOPE_FIELDS_INVALID")
+    if receipt.get("policy") != PUBLICATION_POLICY:
+        raise ValueError("QWEN_GENUINE_GOLDEN_PUBLICATION_POLICY_INVALID")
 
 
 def _require_output_inside_repo(repo_root: Path, output_dir: Path) -> None:
@@ -171,12 +209,7 @@ def finalize_genuine_golden_publication_readiness(
             "byte_identity_preserved": True,
             "genuine_golden_png_created": True,
             "publication_ready": True,
-            "policy": {
-                "final_authority_consumes_verified_cs285_only": True,
-                "pixel_mutation_forbidden": True,
-                "publication_readiness_has_no_publish_side_effect": True,
-                "publication_ready_requires_exact_genuine_golden_bytes": True,
-            },
+            "policy": dict(PUBLICATION_POLICY),
         }
         receipt["receipt_sha256"] = sha256_json(receipt)
         tmp = output_dir / ".genuine_golden_publication_readiness.json.tmp"
@@ -208,6 +241,7 @@ def verify_genuine_golden_publication_readiness(
     claimed = unsigned.pop("receipt_sha256", None)
     if receipt.get("schema") != SCHEMA or receipt.get("status") != STATUS or claimed != sha256_json(unsigned):
         raise ValueError("QWEN_GENUINE_GOLDEN_PUBLICATION_RECEIPT_INVALID")
+    _require_exact_publication_envelope(receipt)
 
     source = receipt.get("source_cs285_genuine_golden_materialization")
     if not isinstance(source, Mapping):
@@ -251,16 +285,4 @@ def verify_genuine_golden_publication_readiness(
     for field, value in expected.items():
         if receipt.get(field) != value:
             raise ValueError(f"QWEN_GENUINE_GOLDEN_PUBLICATION_STATE_DRIFT:{field}")
-
-    policy = receipt.get("policy")
-    if not isinstance(policy, Mapping):
-        raise ValueError("QWEN_GENUINE_GOLDEN_PUBLICATION_POLICY_INVALID")
-    for field in (
-        "final_authority_consumes_verified_cs285_only",
-        "pixel_mutation_forbidden",
-        "publication_readiness_has_no_publish_side_effect",
-        "publication_ready_requires_exact_genuine_golden_bytes",
-    ):
-        if policy.get(field) is not True:
-            raise ValueError(f"QWEN_GENUINE_GOLDEN_PUBLICATION_POLICY_MISSING:{field}")
     return receipt
