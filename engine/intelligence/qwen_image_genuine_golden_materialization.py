@@ -24,6 +24,11 @@ from engine.intelligence.qwen_image_inference_measurement import sha256_json
 SCHEMA = "pul7sar-phase18-qwen-image-genuine-golden-materialization-v1"
 STATUS = "QWEN_IMAGE_GENUINE_GOLDEN_VISUAL_MATERIALIZED"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+MATERIALIZATION_POLICY = {
+    "pixel_mutation_forbidden": True,
+    "source_must_be_cs284_allowed_exact_png": True,
+    "genuine_golden_creation_does_not_set_publication_ready": True,
+}
 
 
 def _json(path: Path, code: str) -> dict[str, Any]:
@@ -137,6 +142,32 @@ def _require_cs284_authority(cs284: Mapping[str, Any]) -> None:
         raise ValueError("QWEN_GENUINE_GOLDEN_CS284_FAILURE_STATE_INVALID")
 
 
+def _require_materialization_receipt_matches_cs284(
+    receipt: Mapping[str, Any],
+    cs284: Mapping[str, Any],
+) -> None:
+    """Bind all CS285 metadata consumed downstream to the exact verified CS284 state."""
+    generation_context = cs284.get("generation_context")
+    source_png = cs284.get("composed_candidate_png")
+    if not isinstance(generation_context, Mapping) or not isinstance(source_png, Mapping):
+        raise ValueError("QWEN_GENUINE_GOLDEN_CS284_LINEAGE_INVALID")
+
+    expected = {
+        "story_snapshot_sha256": cs284.get("story_snapshot_sha256"),
+        "source_composed_candidate_png": dict(source_png),
+        "generation_context": dict(generation_context),
+        "weighted_score": cs284.get("weighted_score"),
+        "quality_tier": cs284.get("quality_tier"),
+    }
+    for field, value in expected.items():
+        if receipt.get(field) != value:
+            raise ValueError(f"QWEN_GENUINE_GOLDEN_CS284_LINEAGE_DRIFT:{field}")
+
+    policy = receipt.get("policy")
+    if not isinstance(policy, Mapping) or dict(policy) != MATERIALIZATION_POLICY:
+        raise ValueError("QWEN_GENUINE_GOLDEN_POLICY_DRIFT")
+
+
 def materialize_genuine_golden_visual(
     cs284_receipt_path: Path,
     output_dir: Path,
@@ -192,11 +223,7 @@ def materialize_genuine_golden_visual(
             "byte_identity_preserved": True,
             "genuine_golden_png_created": True,
             "publication_ready": False,
-            "policy": {
-                "pixel_mutation_forbidden": True,
-                "source_must_be_cs284_allowed_exact_png": True,
-                "genuine_golden_creation_does_not_set_publication_ready": True,
-            },
+            "policy": dict(MATERIALIZATION_POLICY),
         }
         receipt["receipt_sha256"] = sha256_json(receipt)
         tmp = output_dir / ".genuine_golden_materialization.json.tmp"
@@ -231,9 +258,12 @@ def verify_genuine_golden_materialization(receipt_path: Path, *, repo_root: Path
         raise ValueError("QWEN_GENUINE_GOLDEN_CS284_BINDING_INVALID")
     cs284_path = _reopen(repo_root, source, "QWEN_GENUINE_GOLDEN_CS284_INVALID")
     cs284 = verify_semantic_publication_execution(cs284_path, repo_root=repo_root)
+    if cs284.get("schema") != CS284_SCHEMA:
+        raise ValueError("QWEN_GENUINE_GOLDEN_CS284_SCHEMA_INVALID")
     _require_cs284_authority(cs284)
     if source.get("receipt_sha256") != cs284.get("receipt_sha256"):
         raise ValueError("QWEN_GENUINE_GOLDEN_CS284_RECEIPT_DRIFT")
+    _require_materialization_receipt_matches_cs284(receipt, cs284)
 
     source_png = receipt.get("source_composed_candidate_png")
     golden_png = receipt.get("genuine_golden_visual_png")
@@ -249,6 +279,9 @@ def verify_genuine_golden_materialization(receipt_path: Path, *, repo_root: Path
         "story_snapshot_sha256": cs284["story_snapshot_sha256"],
         "source_composed_candidate_png": dict(cs284["composed_candidate_png"]),
         "png_dimensions": {"width": width, "height": height},
+        "generation_context": dict(cs284["generation_context"]),
+        "weighted_score": cs284["weighted_score"],
+        "quality_tier": cs284["quality_tier"],
         "composed_visual_approved": True,
         "semantic_approved": True,
         "semantic_publication_gate_executed": True,
