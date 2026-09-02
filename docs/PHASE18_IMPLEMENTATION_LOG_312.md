@@ -27,6 +27,9 @@ Because the workflow is intentionally fail-closed, a qualified CUDA/BF16 host co
 
 - `.github/workflows/phase18-gpu-smoke.yml`
   - Changed only the semantic GPU preflight schema assertion from v1 to the authoritative v2 value.
+- `tests/test_phase18_semantic_gpu_preflight_schema_alignment.py`
+  - Repaired the regression after the first CS312 CI run showed that the workflow expresses the four fail-closed authority checks through a loop rather than four unrolled string expressions.
+  - The repaired regression now asserts the exact four-field gate tuple plus the generic `is not False` predicate; no workflow behavior was weakened.
 
 ## Deleted
 
@@ -50,7 +53,17 @@ CS312 does not generate pixels and grants no publication authority. It only remo
 
 ## Testing status
 
-The repository commits produced by this change are intended to be validated by the existing Phase 18 GitHub Actions verification suite plus the new static contract regression. Final CI status should be recorded only after GitHub reports a completed result for the code-bearing CS312 HEAD.
+### First CS312 CI attempt
+
+`Phase 18 Story Intelligence Verification` run `33600927350` reached the full Phase 18 discovery suite and ran **1,961 tests**. All pre-existing GPU-smoke workflow tests passed, and the new producer/orchestrator/workflow v2-alignment regression passed. The only failure was the second newly-added CS312 regression, which searched for an unrolled literal `payload.get("publication_ready") is not False` even though the workflow correctly enforces the same rule with:
+
+`for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready")`
+
+followed by the generic fail-closed predicate.
+
+This was a test-expression defect, not a production/workflow defect. The regression was repaired to assert the actual canonical loop contract. No production or workflow semantics changed as part of that repair.
+
+Final CI status for the repaired code-bearing HEAD must only be recorded after GitHub reports a completed result.
 
 ## Remaining blocker to a genuine Golden PNG
 
