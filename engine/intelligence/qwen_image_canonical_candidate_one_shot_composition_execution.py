@@ -1,16 +1,20 @@
 """One-shot, byte-bound deterministic composition execution boundary.
 
 Change Set 271 consumes a READY CS270 execution preflight before invoking one
-composition runner.  The runner source is repository-byte-bound, the attempt is
-consumed before rendering starts, and any produced PNG is rebound by bytes.
+composition runner.  The runner source is repository-byte-bound, the exact
+compose callable is required to originate from that same source file, the
+attempt is consumed before rendering starts, and any produced PNG is rebound
+by bytes.
 
 This boundary deliberately does NOT approve semantic quality, human review,
 Golden status, brand quality, or publication readiness.
 """
 from __future__ import annotations
 
+import ast
 from dataclasses import dataclass
 import hashlib
+import inspect
 import json
 import os
 from pathlib import Path
@@ -117,6 +121,71 @@ def _candidate_dimensions(candidate: Mapping[str, Any]) -> tuple[int, int] | Non
     return None
 
 
+def _top_level_runner_entrypoints(runner_source_path: Path) -> set[str]:
+    if runner_source_path.suffix != ".py":
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_NOT_PYTHON")
+    try:
+        source = runner_source_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(runner_source_path))
+    except (UnicodeDecodeError, SyntaxError) as exc:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_INVALID_PYTHON") from exc
+    return {
+        node.name
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+    }
+
+
+def _bind_compose_callable(
+    repo_root: Path,
+    runner_source_path: Path,
+    compose_fn: Callable[[Mapping[str, Any], Path, Path], None],
+) -> str:
+    if not callable(compose_fn) or inspect.iscoroutinefunction(compose_fn):
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_CALLABLE_INVALID")
+    try:
+        callable_source = inspect.getsourcefile(compose_fn) or inspect.getfile(compose_fn)
+    except (TypeError, OSError) as exc:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_CALLABLE_SOURCE_UNAVAILABLE") from exc
+    if not callable_source:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_CALLABLE_SOURCE_UNAVAILABLE")
+
+    runner_relative = _inside_repo_file(
+        repo_root,
+        runner_source_path,
+        "QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_INVALID",
+    )
+    callable_path = Path(callable_source).resolve()
+    try:
+        callable_relative = callable_path.relative_to(repo_root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_CALLABLE_OUTSIDE_REPOSITORY") from exc
+    if callable_relative != runner_relative:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_CALLABLE_SOURCE_MISMATCH")
+
+    entrypoint = getattr(compose_fn, "__name__", None)
+    qualname = getattr(compose_fn, "__qualname__", None)
+    if (
+        not isinstance(entrypoint, str)
+        or not entrypoint
+        or entrypoint == "<lambda>"
+        or not isinstance(qualname, str)
+        or qualname != entrypoint
+    ):
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_ENTRYPOINT_NOT_TOP_LEVEL")
+    if entrypoint not in _top_level_runner_entrypoints(runner_source_path):
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_COMPOSE_ENTRYPOINT_NOT_IN_RUNNER_SOURCE")
+    return entrypoint
+
+
+def _verify_runner_entrypoint(runner_source_path: Path, entrypoint: Any) -> str:
+    if not isinstance(entrypoint, str) or not entrypoint or entrypoint == "<lambda>":
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_RUNNER_ENTRYPOINT_INVALID")
+    if entrypoint not in _top_level_runner_entrypoints(runner_source_path):
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_RUNNER_ENTRYPOINT_SOURCE_DRIFT")
+    return entrypoint
+
+
 def execute_one_shot_composition(
     cs270_receipt_path: Path,
     output_dir: Path,
@@ -133,6 +202,7 @@ def execute_one_shot_composition(
 
     preflight_binding = _bind_file(repo_root, cs270_receipt_path, "QWEN_COMPOSITION_EXECUTION_CS270_INVALID")
     runner_binding = _bind_file(repo_root, runner_source_path, "QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_INVALID")
+    runner_entrypoint = _bind_compose_callable(repo_root, runner_source_path, compose_fn)
     preflight = verify_composition_execution_preflight(cs270_receipt_path, repo_root=repo_root)
     if preflight.get("schema") != CS270_SCHEMA or preflight.get("composition_execution_ready") is not True:
         raise ValueError("QWEN_COMPOSITION_EXECUTION_CS270_NOT_READY")
@@ -154,6 +224,7 @@ def execute_one_shot_composition(
         "source_cs270_receipt": preflight_binding,
         "runner_id": runner_id.strip(),
         "runner_source": runner_binding,
+        "runner_entrypoint": runner_entrypoint,
         "attempt_consumed_before_render": True,
     }
     consumption["receipt_sha256"] = sha256_json(consumption)
@@ -187,6 +258,7 @@ def execute_one_shot_composition(
         "composition_attempt_consumption": _bind_file(repo_root, consumption_path, "QWEN_COMPOSITION_EXECUTION_CONSUMPTION_INVALID"),
         "runner_id": runner_id.strip(),
         "runner_source": runner_binding,
+        "runner_entrypoint": runner_entrypoint,
         "candidate_png": dict(candidate),
         "composed_candidate_png": composed_binding,
         "composition_executed": True,
@@ -200,6 +272,8 @@ def execute_one_shot_composition(
             "cs270_preflight_must_be_ready": True,
             "attempt_is_consumed_before_render": True,
             "runner_source_is_repository_byte_bound": True,
+            "compose_callable_source_must_equal_runner_source": True,
+            "runner_entrypoint_must_be_top_level_function": True,
             "candidate_bytes_are_reopened": True,
             "composed_png_bytes_are_bound": True,
             "composition_execution_is_not_visual_approval": True,
@@ -245,7 +319,8 @@ def verify_one_shot_composition_execution(receipt_path: Path, *, repo_root: Path
         raise ValueError("QWEN_COMPOSITION_EXECUTION_UPSTREAM_BINDING_DRIFT")
 
     _reopen_binding(repo_root, candidate, "QWEN_COMPOSITION_EXECUTION_CANDIDATE_INVALID")
-    _reopen_binding(repo_root, runner_binding, "QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_INVALID")
+    runner_path = _reopen_binding(repo_root, runner_binding, "QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_INVALID")
+    runner_entrypoint = _verify_runner_entrypoint(runner_path, receipt.get("runner_entrypoint"))
     consumption_path = _reopen_binding(repo_root, consumption_binding, "QWEN_COMPOSITION_EXECUTION_CONSUMPTION_INVALID")
     consumption, _ = _read_json(consumption_path, "QWEN_COMPOSITION_EXECUTION_CONSUMPTION_INVALID")
     if consumption.get("schema") != CONSUMPTION_SCHEMA or consumption.get("attempt_consumed_before_render") is not True:
@@ -255,7 +330,12 @@ def verify_one_shot_composition_execution(receipt_path: Path, *, repo_root: Path
     consumption_unsigned.pop("receipt_sha256", None)
     if consumption_claimed != sha256_json(consumption_unsigned):
         raise ValueError("QWEN_COMPOSITION_EXECUTION_CONSUMPTION_DIGEST_MISMATCH")
-    if consumption.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256") or consumption.get("runner_id") != receipt.get("runner_id") or consumption.get("runner_source") != runner_binding:
+    if (
+        consumption.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256")
+        or consumption.get("runner_id") != receipt.get("runner_id")
+        or consumption.get("runner_source") != runner_binding
+        or consumption.get("runner_entrypoint") != runner_entrypoint
+    ):
         raise ValueError("QWEN_COMPOSITION_EXECUTION_CONSUMPTION_BINDING_DRIFT")
 
     composed_path = _reopen_binding(repo_root, composed, "QWEN_COMPOSITION_EXECUTION_OUTPUT_INVALID")
