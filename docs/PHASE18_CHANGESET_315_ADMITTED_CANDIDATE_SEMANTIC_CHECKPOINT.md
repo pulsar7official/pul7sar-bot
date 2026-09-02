@@ -46,23 +46,23 @@ CS315 additionally rejects any story SHA or candidate binding drift between its 
 
 ## Zero-cost and local semantics
 
-The semantic inspection remains the repository's pinned local Qwen2.5-VL-3B-Instruct inspector at the immutable approved revision. Network-enabled or remote semantic verification is not introduced. Existing offline execution policy remains authoritative.
+The semantic inspection remains the repository's pinned local Qwen2.5-VL-3B-Instruct inspector at the immutable approved revision. CS315 forces `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`, `HF_DATASETS_OFFLINE=1`, and `HF_HUB_DISABLE_TELEMETRY=1` before CS304 execution. Therefore a missing local semantic-model cache must fail closed rather than silently initiating a Hugging Face/Transformers network fetch. Remote semantic verification is not introduced.
 
 ## Files
 
-Added:
+Net additions relative to CS314:
 
 - `tools/phase18_run_admitted_candidate_semantic_checkpoint.py`
 - `tests/test_phase18_admitted_candidate_semantic_checkpoint.py`
 - `docs/PHASE18_CHANGESET_315_ADMITTED_CANDIDATE_SEMANTIC_CHECKPOINT.md`
 - `docs/PHASE18_IMPLEMENTATION_LOG_315.md`
 
-Modified: none.
+Net modified existing CS314 files: none.
 
 Deleted: none.
 
 ## Remaining gap
 
-A real first candidate still requires a compatible zero-cost CUDA/BF16 execution host with the exact already-local pinned Qwen-Image snapshot. CS304 additionally requires the pinned Qwen2.5-VL semantic model to be available locally/offline when the checkpoint is executed.
+A real first candidate still requires a compatible zero-cost CUDA/BF16 execution host with the exact already-local pinned Qwen-Image snapshot. CS304 additionally requires the pinned Qwen2.5-VL semantic model to be available locally/offline when the checkpoint is executed; CS315 now enforces that absence as a fail-closed execution error rather than permitting a network fallback.
 
 After CS315, any passing candidate still must traverse identity review when required, Generated-Layer QA, deterministic composition/post-composition QA, Golden quality adjudication, Human Visual Review, exact brand/typography verification, final composed approval, final semantic approval, `SemanticPublicationGate`, exact-byte Genuine Golden materialization, and final publication readiness.
