@@ -40,6 +40,8 @@ jobs:
       PUL7SAR_PHASE18_COST_MODE: $0-local
       HF_HUB_OFFLINE: "1"
       TRANSFORMERS_OFFLINE: "1"
+      HF_DATASETS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
 
     steps:
       - name: Require explicit branch-bound dispatch
@@ -82,6 +84,7 @@ jobs:
           test -f tools/phase18_qwen_image_launch_to_output_attestation.py
           test -f tools/phase18_qwen_image_canonical_candidate_handoff.py
           test -f tools/phase18_admit_canonical_candidate_bytes.py
+          test -f tools/phase18_run_admitted_candidate_semantic_checkpoint.py
 
       - name: Prove CUDA BF16 host without replacing PyTorch
         shell: bash
@@ -274,6 +277,46 @@ jobs:
           if result.get("publication_ready") is not False:
               raise SystemExit("candidate admission must not create publication authority")
           PY
+
+      - name: Continue exact admitted candidate through fail-closed semantic checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          admission_receipt="$(python -c 'import json; print(json.load(open("output/phase18_qwen_image/candidate-admission-result.json"))["receipt_path"])')"
+          checkpoint_dir="output/phase18_qwen_image/admitted-candidate-semantic-checkpoint-${GITHUB_RUN_ID}"
+          test ! -e "$checkpoint_dir"
+          set +e
+          python tools/phase18_run_admitted_candidate_semantic_checkpoint.py \
+            --candidate-admission "$admission_receipt" \
+            --output-root "$checkpoint_dir" \
+            > output/phase18_qwen_image/semantic-checkpoint-result.json
+          checkpoint_rc=$?
+          set -e
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("output/phase18_qwen_image/semantic-checkpoint-result.json").read_text(encoding="utf-8"))
+          if result.get("semantic_inspection_executed") is not True:
+              raise SystemExit("CS304 semantic inspection was not proven")
+          if result.get("semantic_base_scene_approved") is not True:
+              raise SystemExit("candidate rejected at CS304 semantic Base QA")
+          if result.get("identity_requirement_classified") is not True:
+              raise SystemExit("CS305 identity requirement was not classified")
+          if not isinstance(result.get("pixel_identity_review_required"), bool):
+              raise SystemExit("CS305 pixel-identity-review requirement must be an explicit boolean")
+          for field in (
+              "identity_approved",
+              "semantic_approved",
+              "human_visual_review_approved",
+              "golden_quality_approved",
+              "genuine_golden_png_created",
+              "publication_ready",
+          ):
+              if result.get(field) is not False:
+                  raise SystemExit(f"semantic checkpoint created premature authority: {field}")
+          PY
+          test "$checkpoint_rc" -eq 0
 
       - name: Upload canonical candidate and exact evidence
         if: always()
