@@ -34,6 +34,26 @@ class Phase18QwenImageCanonicalInferenceWorkflowTests(unittest.TestCase):
         self.assertIn("canonical_candidate.png", self.workflow)
         self.assertIn("launch_to_output_attestation.json", self.workflow)
 
+    def test_workflow_seals_and_byte_admits_exact_attested_candidate(self):
+        self.assertIn(
+            "tools/phase18_qwen_image_canonical_candidate_handoff.py build",
+            self.workflow,
+        )
+        self.assertIn(
+            "tools/phase18_qwen_image_canonical_candidate_handoff.py verify",
+            self.workflow,
+        )
+        self.assertIn("tools/phase18_admit_canonical_candidate_bytes.py", self.workflow)
+        self.assertIn("canonical-candidate-handoff-${GITHUB_RUN_ID}.json", self.workflow)
+        self.assertIn("canonical-candidate-admission-${GITHUB_RUN_ID}", self.workflow)
+        self.assertIn('result.get("handoff_sealed") is not True', self.workflow)
+        self.assertIn(
+            'result.get("candidate_bytes_admitted_for_post_generation_qa") is not True',
+            self.workflow,
+        )
+        self.assertIn('result.get("genuine_golden_png_created") is not False', self.workflow)
+        self.assertIn('result.get("publication_ready") is not False', self.workflow)
+
     def test_workflow_keeps_all_downstream_authorities_closed(self):
         self.assertIn('if verified.get("genuine_canonical_inference_executed") is not True:', self.workflow)
         for field in (
