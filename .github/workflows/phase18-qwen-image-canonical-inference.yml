@@ -80,6 +80,8 @@ jobs:
           test -f tools/phase18_qwen_image_gpu_host_launch_manifest.py
           test -f tools/phase18_run_manifest_bound_canonical_inference.py
           test -f tools/phase18_qwen_image_launch_to_output_attestation.py
+          test -f tools/phase18_qwen_image_canonical_candidate_handoff.py
+          test -f tools/phase18_admit_canonical_candidate_bytes.py
 
       - name: Prove CUDA BF16 host without replacing PyTorch
         shell: bash
@@ -139,7 +141,10 @@ jobs:
               "snapshot_path": str(snapshot),
               "seed": seed,
           }
-          (out / "workflow-inputs.json").write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          (out / "workflow-inputs.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
           PY
 
       - name: Require current local-only Qwen static readiness
@@ -227,6 +232,47 @@ jobs:
               "genuine_golden_png_created": False,
               "publication_ready": False,
           }, indent=2, sort_keys=True))
+          PY
+
+      - name: Seal exact canonical candidate handoff and replay it
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_dir="output/phase18_qwen_image/canonical-inference-${GITHUB_RUN_ID}"
+          handoff="output/phase18_qwen_image/canonical-candidate-handoff-${GITHUB_RUN_ID}.json"
+          test ! -e "$handoff"
+          python tools/phase18_qwen_image_canonical_candidate_handoff.py build \
+            --output-dir "$output_dir" \
+            --handoff "$handoff" \
+            > output/phase18_qwen_image/candidate-handoff-build-result.json
+          python tools/phase18_qwen_image_canonical_candidate_handoff.py verify \
+            --handoff "$handoff" \
+            > output/phase18_qwen_image/candidate-handoff-verify-result.json
+
+      - name: Admit exact sealed candidate bytes for downstream QA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="output/phase18_qwen_image/canonical-candidate-handoff-${GITHUB_RUN_ID}.json"
+          admission_dir="output/phase18_qwen_image/canonical-candidate-admission-${GITHUB_RUN_ID}"
+          test ! -e "$admission_dir"
+          python tools/phase18_admit_canonical_candidate_bytes.py \
+            --candidate-handoff "$handoff" \
+            --output-dir "$admission_dir" \
+            > output/phase18_qwen_image/candidate-admission-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("output/phase18_qwen_image/candidate-admission-result.json").read_text(encoding="utf-8"))
+          if result.get("handoff_sealed") is not True:
+              raise SystemExit("sealed canonical candidate handoff was not proven")
+          if result.get("candidate_bytes_admitted_for_post_generation_qa") is not True:
+              raise SystemExit("exact candidate bytes were not admitted for downstream QA")
+          if result.get("genuine_golden_png_created") is not False:
+              raise SystemExit("candidate admission must not create Genuine Golden authority")
+          if result.get("publication_ready") is not False:
+              raise SystemExit("candidate admission must not create publication authority")
           PY
 
       - name: Upload canonical candidate and exact evidence
