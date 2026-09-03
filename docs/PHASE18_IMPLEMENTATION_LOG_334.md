@@ -73,15 +73,31 @@ Commit:
 
 `8d5ebfe0e644c5b8d8335aa4c54797066bd723fe`
 
+### Operator CLI
+
+`tools/phase18_build_materialized_overlay_composition_manifest_bundle.py`
+
+Commit:
+
+`fe2e9e7bcfd1d906fb20681db9c2f410d6c89e45`
+
+The CLI is a thin CPU/control-plane entrypoint over the CS334 builder. It accepts exact CS268, CS332, CS333 manifest/receipt paths, writes the bundle, prints the resulting receipt, and performs no rendering, inference, network access, or authority upgrade.
+
 ### Implementation log
 
 `docs/PHASE18_IMPLEMENTATION_LOG_334.md`
 
-This file.
+Initial log commit:
+
+`199416ddce78220a6b4a9916cd65d0da18e758b5`
+
+This final log-only update records the CLI and terminal CI result.
 
 ## Modified
 
 The newly added CS334 production file was modified once before regression coverage was committed, solely to strengthen CS333 evidence replay by checking brand tile digest/size, explicit placement, canvas dimensions, ownership fields and output mode against the CS333 manifest.
+
+This implementation log was modified once after verification to record the CLI and terminal-green code/test result.
 
 No pre-existing Phase 18 production gate, renderer, semantic gate, identity gate, sentiment policy, zero-cost policy, Visual Critic, Human Review gate, Brand/Typography gate, CS269, CS270, CS271, CS285 or CS286 was modified.
 
@@ -97,7 +113,14 @@ The emitted manifests remain non-authoritative until the original CS269 and CS27
 
 ## Testing state
 
-The new test module uses standard-library `unittest`/`unittest.mock`, consistent with the existing Phase 18 verification workflow. GitHub Actions verification is pending at the time this initial implementation log is written; no terminal-green result is claimed until the code-bearing HEAD completes.
+The new test module uses standard-library `unittest`/`unittest.mock`, consistent with the existing Phase 18 verification workflow.
+
+The code-and-test commit `675369ddd3f13bbb77c83788acec1a49129b027f` is terminal-green:
+
+- `Phase 18 Story Intelligence Verification` #4781, run `33799648495`: `completed/success`.
+- All nine other visible Phase 18 workflows on the same commit also completed with `success`, including Composition Matrix, Event Hybrid Context, Data Monument, Premium Hybrid Result, Tactical Intelligence, Event Editorial, Result Statement, Adaptive Brand Pixel, and Verified Match Result.
+
+The later CLI commit is a thin entrypoint over the already terminal-green production primitive and does not change its gate semantics. It must still be treated as a distinct HEAD for any workflows GitHub chooses to trigger on that path.
 
 ## CUDA/GPU execution blocker re-measured in this run
 
