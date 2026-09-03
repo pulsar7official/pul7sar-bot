@@ -86,11 +86,17 @@ The contract records the supported full-canvas overlay semantics, authority boun
 
 `docs/PHASE18_IMPLEMENTATION_LOG_330.md`
 
+Initial log commit:
+
+`9087eaff7c8226d9b6d8b7f469f9844e695a9be6`
+
 This log records every CS330 repository change and the refined diagnosis that led to it.
 
 ## Modified files
 
 No pre-existing production gate or source file was modified.
+
+After the code-bearing HEAD completed CI, this implementation log was modified once to record the terminal CI result. No production code, gate, test, or Change Set contract was changed by that documentation-only follow-up.
 
 ## Deleted files
 
@@ -124,19 +130,27 @@ No authority flag is granted by the runner.
 
 ## Testing state
 
-The new tests use Python standard-library `unittest` plus Pillow, matching the repository's existing Phase 18 verification style and dependency set. GitHub Actions is the authoritative full-repository test environment because this runtime cannot clone the private repository directly.
+The new tests use Python standard-library `unittest` plus Pillow, matching the repository's existing Phase 18 verification style and dependency set.
 
-CI must be checked on the final CS330 HEAD before declaring the change set terminal-green. Any failure will be reported rather than hidden or treated as success.
+The code-bearing CS330 HEAD `9087eaff7c8226d9b6d8b7f469f9844e695a9be6` completed GitHub Actions successfully:
+
+- `Phase 18 Story Intelligence Verification` run #4739 (`33764042779`): `completed/success`.
+- All other visible Phase 18 visual workflows associated with the same commit also completed with `success`, including Result Statement, Adaptive Brand Pixel, Data Monument, Event Editorial, Tactical Intelligence, Verified Match Result, Composition Matrix, Premium Hybrid Result, and Event Hybrid Context.
+
+Within Story Intelligence Verification, syntax/discovery validation, production isolation, all visual-study build/verification steps, and artifact upload steps completed successfully.
+
+The final documentation-only HEAD must be treated separately from the code-bearing HEAD until its own triggered workflows complete; the production code and tests themselves are terminal-green on `9087eaff7c8226d9b6d8b7f469f9844e695a9be6`.
 
 ## Genuine Golden execution blocker
 
-No genuine Golden PNG was fabricated in CS330. The available execution environment remains unsuitable for approved Qwen-Image production inference when it has:
+No genuine Golden PNG was fabricated in CS330. The available execution environment was re-measured during this change set and reported:
 
-- CPU-only PyTorch;
-- no CUDA device;
-- no CUDA-enabled PyTorch build;
-- no native BF16 CUDA execution;
-- no `nvidia-smi`/NVIDIA device.
+- PyTorch `2.10.0+cpu`;
+- `torch.cuda.is_available() == False`;
+- `torch.version.cuda is None`;
+- CUDA device count `0`;
+- native CUDA BF16 unavailable;
+- `nvidia-smi` unavailable.
 
 A genuine canonical candidate still requires a zero-cost compatible host containing the approved CUDA/BF16 stack, compatible Qwen-Image/Diffusers runtime, exact approved already-local pinned model snapshot, local verifier assets, and sufficient RAM/VRAM, with no paid/network fallback.
 
