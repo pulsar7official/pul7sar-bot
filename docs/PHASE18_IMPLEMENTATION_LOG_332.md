@@ -78,6 +78,8 @@ This file.
 
 No pre-existing production gate was modified.
 
+The implementation log was updated after CI completed to record the terminal result; that documentation-only update does not change executable behavior.
+
 ## Deleted
 
 Nothing.
@@ -86,9 +88,10 @@ Nothing.
 
 - `fd0e46bab3fd88ee723f6cbfa8beafb134c114bc` — explicit deterministic overlay materializer.
 - `4cf7ba6bc344c88e556ccbbef5508562cd60a2d1` — CS332 regression suite.
-- `123cd9db1b9701deb1d55fab4e940113eecd815f` — operator materialization tool.
+- `123cd9db1b9701deb1d55fab4e940113eecd815f` — operator materialization tool; terminal-green code-bearing commit.
 - `1fc017984b12ef90afa60334b54c7c427d7c027e` — CS332 contract documentation.
-- final implementation-log commit: recorded by the repository history containing this file.
+- `df32d39fa66a5091db8d9db5b9904e5916f332ff` — initial CS332 implementation log.
+- final documentation-only CI-status commit: recorded by repository history containing this revision.
 
 ## Gate preservation
 
@@ -116,9 +119,22 @@ Still false:
 
 The baseline CS331 HEAD was terminal-green before implementation.
 
-GitHub Actions were triggered for the CS332 code-bearing commits. On the operator-tool commit `123cd9db1b9701deb1d55fab4e940113eecd815f`, several Phase 18 visual workflows had already completed successfully while `Phase 18 Story Intelligence Verification` was still queued at the first observation. The final terminal CI result must be recorded only after GitHub reports `completed/success`; no green result is fabricated here.
+The CS332 code-bearing commit `123cd9db1b9701deb1d55fab4e940113eecd815f` is terminal-green. GitHub Actions reported `completed/success` for all ten visible Phase 18 workflows on that commit, including:
 
-A direct local clone was also attempted solely to enable additional local test execution, but the container could not resolve `github.com`; therefore GitHub Actions is the authoritative executable test path for this run.
+- `Phase 18 Story Intelligence Verification` run `33781827727`, run number `4759`;
+- Result Statement Visual Study;
+- Adaptive Brand Pixel Verification;
+- Tactical Intelligence Visual Study;
+- Event Hybrid Context Study;
+- Data Monument Visual Study;
+- Verified Match Result Visual Study;
+- Composition Matrix Verification;
+- Premium Hybrid Result Visual Study;
+- Event Editorial Visual Study.
+
+Inside Story Intelligence Verification, syntax/discovery and production-isolation steps completed successfully before the remaining visual-study verification/build steps reached the final successful conclusion.
+
+A direct local clone was also attempted solely to enable additional local test execution, but the container could not resolve `github.com`; therefore GitHub Actions was the authoritative executable test path for this run.
 
 ## Execution blocker for the first genuine Qwen candidate
 
