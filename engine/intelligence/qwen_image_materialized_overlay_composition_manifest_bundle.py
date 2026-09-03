@@ -116,10 +116,11 @@ def build_materialized_overlay_composition_manifest_bundle(
         raise ValueError("CS334_BRAND_MANIFEST_INVALID")
     brand_candidate = brand_manifest.get("candidate")
     brand_tile = brand_manifest.get("brand_tile")
-    if not isinstance(brand_candidate, Mapping) or not isinstance(brand_tile, Mapping):
+    placement = brand_manifest.get("placement")
+    if not isinstance(brand_candidate, Mapping) or not isinstance(brand_tile, Mapping) or not isinstance(placement, Mapping):
         raise ValueError("CS334_BRAND_MANIFEST_INVALID")
     candidate_binding = _bound(repo_root, brand_candidate, "path", "size_bytes")
-    _bound(repo_root, brand_tile, "path", "size_bytes")
+    tile_binding = _bound(repo_root, brand_tile, "path", "size_bytes")
     if candidate_binding["sha256"] != candidate.get("sha256") or candidate_binding["byte_size"] != candidate.get("byte_size"):
         raise ValueError("CS334_BRAND_CANDIDATE_DRIFT")
 
@@ -133,9 +134,19 @@ def build_materialized_overlay_composition_manifest_bundle(
     if brand_receipt.get("overlay_materialized") is not True or brand_receipt.get("owner_brand_approval_required") is not True:
         raise ValueError("CS334_BRAND_RECEIPT_INVALID")
     if (
-        brand_receipt.get("story_sha256") != story_sha
+        brand_receipt.get("contract") != BRAND_CONTRACT
+        or brand_receipt.get("layer_name") != "pul7sar_brand"
+        or brand_receipt.get("layer_source") != "verified_asset"
+        or brand_receipt.get("story_sha256") != story_sha
         or brand_receipt.get("candidate_sha256") != candidate.get("sha256")
         or brand_receipt.get("candidate_size_bytes") != candidate.get("byte_size")
+        or brand_receipt.get("brand_tile_sha256") != tile_binding["sha256"]
+        or brand_receipt.get("brand_tile_size_bytes") != tile_binding["byte_size"]
+        or brand_receipt.get("placement_x") != placement.get("x")
+        or brand_receipt.get("placement_y") != placement.get("y")
+        or brand_receipt.get("canvas_width") != brand_candidate.get("width")
+        or brand_receipt.get("canvas_height") != brand_candidate.get("height")
+        or brand_receipt.get("output_mode") != "RGBA"
         or brand_receipt.get("renderer_contract") != OUTPUT_RENDERER_CONTRACT
     ):
         raise ValueError("CS334_BRAND_RECEIPT_DRIFT")
@@ -210,6 +221,7 @@ def build_materialized_overlay_composition_manifest_bundle(
         "policy": {
             "cs269_must_verify_composition_manifest": True,
             "cs270_must_verify_payload_manifest": True,
+            "brand_manifest_receipt_output_replayed": True,
             "brand_owner_approval_remains_pending": True,
             "no_rendering_or_generation": True,
         },
