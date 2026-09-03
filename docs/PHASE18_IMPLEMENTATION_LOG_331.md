@@ -56,7 +56,7 @@ CS331 moves those deterministic compatibility checks ahead of the irreversible o
 
 ## Modified
 
-No pre-existing production gate, renderer, Fact/Freshness policy, identity verifier, sentiment/loser-respect policy, zero-cost policy, semantic-publication gate, Visual Critic, Human Review policy, Golden threshold, Brand/Typography gate, CS269, CS270, CS271, CS285 or CS286 was modified.
+No pre-existing production gate, renderer, Fact/Freshness policy, identity verifier, sentiment/loser-respect policy, zero-cost policy, semantic-publication gate, Visual Critic, Human Review policy, Golden threshold, Brand/Typography gate, CS269, CS270, CS271, CS285 or CS286 was modified. This implementation log was updated only to record the observed CI result.
 
 ## Deleted
 
@@ -65,10 +65,11 @@ None.
 ## Commits
 
 - `fe441782f0620368a82836b4aecdf7c2a87751a1` — CS331 production overlay execution readiness gate.
-- `64453f2972d6d245bfacbcbe96041ce8372459da` — CS331 regression coverage.
+- `64453f2972d6d245bfacbcbe96041ce8372459da` — CS331 regression coverage / code-bearing verification SHA.
 - `bbd84028e97d0244ea867bdb22e83c292791d4d3` — CS331 CPU/control-plane CLI.
 - `44fa4755bed079b8a9b21782223d34ffdf88608a` — CS331 contract documentation.
-- implementation-log commit — this file.
+- `45e03c34f73983742baf2d5841a1c9f6cd1b8488` — initial implementation log.
+- final log-only commit — records CI evidence; no executable-code change.
 
 ## Authority state
 
@@ -100,7 +101,11 @@ The last verified execution environment remains CPU-only (`PyTorch 2.10.0+cpu`, 
 
 ## Testing status
 
-The regression suite uses standard-library `unittest`, matching the repository Phase 18 workflow. CI status on the final CS331 HEAD must be checked before calling the change set terminal-green.
+The regression suite uses standard-library `unittest`, matching the repository Phase 18 workflow.
+
+`Phase 18 Story Intelligence Verification` run `33769904261` on code-bearing commit `64453f2972d6d245bfacbcbe96041ce8372459da` reached terminal `completed / success`. In that run, syntax/unittest discovery, production isolation, visual-study handoffs, composition-matrix checks, publication blocking, project-native editorial study, adaptive/self-contained brand verification, Golden editorial v6 verification, legacy-logo non-canonical assertion, and artifact upload steps all completed successfully.
+
+The final implementation-log update changes documentation only; it does not alter executable code.
 
 ## Remaining gap
 
