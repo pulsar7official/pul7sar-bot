@@ -21,7 +21,7 @@ The existing CS276 implementation is `engine/intelligence/qwen_image_composed_ca
 
 ## Modified
 
-None of the pre-existing production gates, renderers, semantic verifiers, quality selectors, or tests were modified.
+None of the pre-existing production gates, renderers, semantic verifiers, quality selectors, or tests were modified. This implementation-log file was later updated only to record the final CI result.
 
 ## Deleted
 
@@ -39,13 +39,14 @@ The CS340 receipt mirrors `golden_quality_approved` only from the independently 
 - Regression coverage: `b0de4dd66b0439f9d3928e05a94653ae15b9c473`
 - Operator CLI: `f4484ace4e8fac6781bc5507006414233765ef14`
 - Contract documentation: `86358b87adffc87873f59ad4b2b399b1eeb3d2f9`
-- Implementation-log commit: this file's commit.
+- Initial implementation log: `804e8fea2d868177e80e8c49ee57b006dfd03881`
+- CI-result log update: this file's commit.
 
 ## Tests / CI
 
 Regression coverage includes the exact CS339 -> CS276 continuation with a passing narrow Golden-quality verdict while Human Review/Genuine Golden/publication remain false, rejection of premature Golden authority in CS339, and static guards against Qwen generation/model loading, local score/blocker fabrication, network fallback, Human Review shortcuts, and publish/upload shortcuts.
 
-GitHub Actions result must be treated as pending until a workflow run for the code/test-bearing state explicitly completes successfully; no terminal-green claim is made in this log at creation time.
+The code/test-bearing commit `b0de4dd66b0439f9d3928e05a94653ae15b9c473` reached terminal green. `Phase 18 Story Intelligence Verification` push run `33913709025` (run number 4849) completed with `success`. The other visible Phase 18 study/verification workflows for the same code/test-bearing commit also completed successfully.
 
 ## GPU / genuine-generation blocker
 
