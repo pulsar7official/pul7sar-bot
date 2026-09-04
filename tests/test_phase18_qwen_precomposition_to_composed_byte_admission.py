@@ -90,10 +90,17 @@ class Phase18PrecompositionToComposedByteAdmissionTests(unittest.TestCase):
                 "composition_executed": True,
                 **downstream_false(),
             }
+            cs271_receipt_bytes = b"271\n"
             cs272_value = {
                 "schema": cs336.CS272_SCHEMA,
                 "story_snapshot_sha256": STORY_SHA,
                 "source_candidate_png": CANDIDATE,
+                "source_cs271_receipt": {
+                    "repository_relative_path": "out/cs271/one_shot_composition_execution.json",
+                    "sha256": hashlib.sha256(cs271_receipt_bytes).hexdigest(),
+                    "byte_size": len(cs271_receipt_bytes),
+                    "receipt_sha256": cs271_value["receipt_sha256"],
+                },
                 "composed_candidate_png": composed_binding,
                 "composition_executed": True,
                 "composed_candidate_bytes_admitted_for_post_composition_qa": True,
@@ -104,7 +111,7 @@ class Phase18PrecompositionToComposedByteAdmissionTests(unittest.TestCase):
                 out = args[1]
                 out.mkdir()
                 receipt = out / "one_shot_composition_execution.json"
-                receipt.write_text("271\n", encoding="utf-8")
+                receipt.write_bytes(cs271_receipt_bytes)
                 composed = out / "composed_candidate.png"
                 composed.write_bytes(b"png")
                 return type("Run", (), {"receipt_path": receipt, "composed_png_path": composed})()
