@@ -61,7 +61,8 @@ adjudication. CS337 therefore does not jump to those gates.
    - no production authority or production gate was weakened.
 
 2. `docs/PHASE18_IMPLEMENTATION_LOG_337.md`
-   - records the CI failure, exact regression-fixture cause and corrective change.
+   - records the initial CI failure, exact regression-fixture cause, corrective
+     change and terminal-green code/test CI result.
 
 Existing production gates: none modified.
 
@@ -91,14 +92,22 @@ failure: the fixture's mocked CS272 receipt omitted `source_cs271_receipt`, whil
 CS336 production code correctly requires that field to match the exact CS271
 receipt byte digest and the CS271 signed `receipt_sha256`.
 
-The regression fixture was corrected on commit
+The regression fixture was corrected on code/test commit
 `1e4ca46a30558e5d5ddfad97926b8a126dac72b1` by binding the exact fake
 `one_shot_composition_execution.json` bytes (`271\n`), byte size and the mocked
 CS271 `receipt_sha256`. Production CS336 code was not changed.
 
-A new GitHub Actions execution for the corrected branch state was not yet visible
-when this log update was written. Terminal-green status is therefore not claimed
-here.
+GitHub Actions re-ran that corrected code/test commit. `Phase 18 Story
+Intelligence Verification` run `33856660753` completed successfully, including
+syntax/discovery, production isolation, visual-study handoffs, composition
+matrix, publication-blocking verification, project-native editorial study,
+brand ownership checks, Golden editorial v6 verification and legacy-logo
+non-canonical assertion. The nine other visible Phase 18 workflows on the same
+commit also completed successfully.
+
+The current HEAD after this entry is documentation-only relative to that
+terminal-green code/test commit; no executable production/test change follows the
+green result in this log update.
 
 ## Genuine Golden execution blocker
 
