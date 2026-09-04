@@ -53,10 +53,17 @@ adjudication. CS337 therefore does not jump to those gates.
 
 ## Modified
 
-Existing production gates: none.
+1. `tests/test_phase18_qwen_precomposition_to_composed_byte_admission.py`
+   - regression fixture only;
+   - aligned the mocked CS272 evidence with the already-enforced CS336 production
+     requirement that `source_cs271_receipt` bind the exact fake CS271 receipt
+     bytes, size and `receipt_sha256`;
+   - no production authority or production gate was weakened.
 
-This implementation log may receive a documentation-only follow-up containing
-terminal CI status after the code-bearing commit is exercised by GitHub Actions.
+2. `docs/PHASE18_IMPLEMENTATION_LOG_337.md`
+   - records the CI failure, exact regression-fixture cause and corrective change.
+
+Existing production gates: none modified.
 
 ## Deleted
 
@@ -75,22 +82,42 @@ authority.
 
 ## Testing
 
-Local pre-write syntax compilation was performed for the new production module,
-test module and operator CLI.
+The first CS337 branch CI on commit
+`4225e0e37b616cc3d9838394ab50a53efcf0a197` reached GitHub Actions run
+`33856312286` and failed during `Syntax and discover validation`.
 
-GitHub Actions status: pending code-bearing branch execution at the time this
-initial log entry is created.
+The failure exposed a stale CS336 test fixture rather than a production-gate
+failure: the fixture's mocked CS272 receipt omitted `source_cs271_receipt`, while
+CS336 production code correctly requires that field to match the exact CS271
+receipt byte digest and the CS271 signed `receipt_sha256`.
+
+The regression fixture was corrected on commit
+`1e4ca46a30558e5d5ddfad97926b8a126dac72b1` by binding the exact fake
+`one_shot_composition_execution.json` bytes (`271\n`), byte size and the mocked
+CS271 `receipt_sha256`. Production CS336 code was not changed.
+
+A new GitHub Actions execution for the corrected branch state was not yet visible
+when this log update was written. Terminal-green status is therefore not claimed
+here.
 
 ## Genuine Golden execution blocker
 
 No genuine Golden PNG is claimed by CS337.
 
-The current execution environment must be requalified before genuine Qwen-Image
-inference. A genuine canonical candidate requires a zero-cost host with
-compatible NVIDIA CUDA, CUDA-enabled PyTorch, native BF16 support, sufficient
-RAM/VRAM, the approved Qwen-Image/Diffusers runtime, the exact approved
-already-local pinned Qwen model snapshot, and local verifier assets. Paid or
-network fallback is not permitted.
+The execution environment requalification in this change set reported:
+
+- PyTorch `2.10.0+cpu`;
+- CUDA available: `false`;
+- `torch.version.cuda`: `None`;
+- CUDA device count: `0`;
+- native CUDA BF16: unavailable;
+- `nvidia-smi`: unavailable.
+
+A genuine canonical candidate requires a zero-cost host with compatible NVIDIA
+CUDA, CUDA-enabled PyTorch, native BF16 support, sufficient RAM/VRAM, the
+approved Qwen-Image/Diffusers runtime, the exact approved already-local pinned
+Qwen model snapshot, and local verifier assets. Paid or network fallback is not
+permitted.
 
 ## What remains
 
