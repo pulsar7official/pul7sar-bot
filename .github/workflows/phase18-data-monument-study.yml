@@ -1,0 +1,81 @@
+name: Phase 18 Data Monument Visual Study
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/data_monument_composition.py'
+      - 'engine/intelligence/data_monument_study_renderer.py'
+      - 'engine/intelligence/premium_editorial_surface.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_data_monument_study.py'
+      - 'tests/test_phase18_data_monument_study_renderer.py'
+      - '.github/workflows/phase18-data-monument-study.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/data_monument_composition.py'
+      - 'engine/intelligence/data_monument_study_renderer.py'
+      - 'engine/intelligence/premium_editorial_surface.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_data_monument_study.py'
+      - 'tests/test_phase18_data_monument_study_renderer.py'
+      - '.github/workflows/phase18-data-monument-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-data-monument-study:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run data monument regressions
+        run: python -m unittest -v tests.test_phase18_data_monument_study_renderer
+      - name: Build premium data monument PNG
+        run: python tools/phase18_build_data_monument_study.py --output-dir output/phase18_data_monument_study
+      - name: Verify data monument manifest and PNG
+        run: |
+          python - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          root=Path('output/phase18_data_monument_study')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          png=root/m['png']
+          assert m['manifest_version']=='pul7sar-data-monument-study-v1-premium'
+          assert m['renderer_contract']=='pul7sar-data-monument-study-renderer-v1-premium'
+          assert m['composition_contract']=='pul7sar-data-monument-composition-v1'
+          assert m['atmosphere_contract']=='pul7sar-premium-editorial-surface-v1'
+          assert m['family']=='data_monument' and m['platform']=='instagram_feed'
+          assert m['row_count']==4 and m['dominant_value']=='76 PTS'
+          assert m['exact_values_code_owned'] is True and m['generated_exact_values_allowed'] is False
+          assert m['spreadsheet_grid_used'] is False and m['stadium_used'] is False
+          assert m['unnecessary_stadium_allowed'] is False and m['dense_paragraph_allowed'] is False
+          assert m['brand_max_width_ratio'] <= 0.22 and m['brand_max_height_ratio'] <= 0.08
+          assert m['generator_used'] is False and m['network_used'] is False
+          assert m['study_only'] is True and m['publication_ready'] is False
+          assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
+          print('Premium Data Monument study PASS')
+          PY
+      - name: Upload data monument study
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-data-monument-study-${{ github.sha }}'
+          path: output/phase18_data_monument_study/
+          if-no-files-found: error
+          retention-days: 14

@@ -1,0 +1,296 @@
+name: Phase 18 First Genuine Golden Editorial v6
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_PHASE18_FIRST_GENUINE_GOLDEN_V6 to execute Candidate 1 on the immutable Phase 18 source"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-first-genuine-golden-v6
+  cancel-in-progress: false
+
+jobs:
+  candidate-1-genuine-golden-v6:
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+
+    steps:
+      - name: Require explicit confirmation and immutable Phase 18 dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "RUN_PHASE18_FIRST_GENUINE_GOLDEN_V6"
+          test "$DISPATCH_REF" = "refs/heads/phase18/story-intelligence"
+          printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout immutable Phase 18 commit with complete ancestry
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Reattach exact Phase 18 branch and prove main isolation
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          test -f tools/phase18_colab_first_genuine_resources_locked.py
+          test -f tools/phase18_colab_first_genuine_golden.py
+          test -f tools/phase18_preflight_first_golden_cache_budget.py
+          test -f tools/phase18_preflight_semantic_gpu.py
+          test -f tools/phase18_prefetch_flux2.py
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          test -n "$base"
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 6
+          fi
+
+      - name: Prove CUDA-enabled PyTorch exists without replacing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
+          PY
+
+      - name: Run model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_colab_first_genuine_resources_locked.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json
+
+      - name: Replay exact model-cache semantic resource runtime and staging evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          from engine.intelligence.approved_model_revisions import (
+              FLUX2_KLEIN_4B_MODEL_ID,
+              FLUX2_KLEIN_4B_REVISION,
+              QWEN25_VL_3B_MODEL_ID,
+              QWEN25_VL_3B_REVISION,
+              assert_snapshot_revision,
+          )
+          from engine.intelligence.generation_runtime_fingerprint import verify_matching_runtime_fingerprints
+
+          root = Path.cwd().resolve()
+          final_path = root / "output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json"
+          if not final_path.is_file():
+              raise SystemExit("first genuine Golden v6 model-cache/resource/runtime/semantic-lock receipt missing")
+          final = json.loads(final_path.read_text(encoding="utf-8"))
+          if final.get("schema") != "pul7sar-first-genuine-golden-v6-resource-lock-v4":
+              raise SystemExit("unexpected first genuine Golden v6 resource lock schema")
+          if final.get("status") != "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED":
+              raise SystemExit("first genuine Golden v6 model-cache/resource/runtime/semantic lock not verified")
+          if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
+              raise SystemExit("first genuine Golden v6 identity drift")
+          if final.get("cost_mode") != "$0-local" or final.get("native_bf16_proven") is not True:
+              raise SystemExit("first genuine Golden v6 zero-cost/BF16 contract drift")
+          if final.get("gpu_eligible") is not True or final.get("host_memory_ready") is not True:
+              raise SystemExit("first genuine Golden v6 resources not proven")
+          if final.get("cache_budget_bound") is not True or final.get("semantic_preflight_bound") is not True:
+              raise SystemExit("first genuine Golden v6 preflight evidence not bound")
+          if final.get("qwen_model_cache_bound") is not True or final.get("flux_model_cache_bound") is not True:
+              raise SystemExit("first genuine Golden v6 model-cache evidence not bound")
+          if final.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID or final.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("first genuine Golden v6 semantic identity drift")
+          if final.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or final.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("first genuine Golden v6 FLUX identity drift")
+          if final.get("runtime_stable_across_generation") is not True:
+              raise SystemExit("first genuine Golden v6 runtime stability not proven")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if final.get(field) is not False:
+                  raise SystemExit(f"illegal authority drift: {field}")
+
+          def inside(value: str) -> Path:
+              path = Path(value)
+              if not path.is_absolute():
+                  path = root / path
+              path = path.resolve()
+              if path != root and root not in path.parents:
+                  raise SystemExit(f"evidence path escaped repository: {path}")
+              return path
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          evidence = final.get("evidence")
+          expected = {
+              "gpu_host_qualification",
+              "host_memory_preflight",
+              "cache_budget",
+              "semantic_preflight",
+              "qwen_model_cache",
+              "flux_model_cache",
+              "runtime_fingerprint_pre",
+              "runtime_fingerprint_post",
+              "strict_golden_staging",
+          }
+          if not isinstance(evidence, dict) or set(evidence) != expected:
+              raise SystemExit("first genuine Golden v6 evidence set incomplete")
+          for label, record in evidence.items():
+              if not isinstance(record, dict):
+                  raise SystemExit(f"invalid evidence record: {label}")
+              path = inside(str(record.get("path", "")))
+              if not path.is_file():
+                  raise SystemExit(f"evidence missing: {label}")
+              if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
+                  raise SystemExit(f"evidence replay mismatch: {label}")
+
+          cache_budget = json.loads(inside(str(evidence["cache_budget"]["path"])).read_text(encoding="utf-8"))
+          if cache_budget.get("schema") != "pul7sar-first-golden-cache-budget-v1" or cache_budget.get("ready") is not True:
+              raise SystemExit("combined model cache-budget contract drift")
+          if cache_budget.get("branch") != "phase18/story-intelligence" or cache_budget.get("cost_mode") != "$0-local":
+              raise SystemExit("combined model cache-budget policy drift")
+          if cache_budget.get("revisions_pinned") is not True:
+              raise SystemExit("combined model cache-budget revisions not pinned")
+          if cache_budget.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or cache_budget.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("combined model cache-budget Qwen identity drift")
+          if cache_budget.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or cache_budget.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("combined model cache-budget FLUX identity drift")
+          for field in ("downloads_performed", "generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+              if cache_budget.get(field) is not False:
+                  raise SystemExit(f"combined model cache-budget authority drift: {field}")
+
+          semantic = json.loads(inside(str(evidence["semantic_preflight"]["path"])).read_text(encoding="utf-8"))
+          qwen_cache = json.loads(inside(str(evidence["qwen_model_cache"]["path"])).read_text(encoding="utf-8"))
+          if semantic.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2":
+              raise SystemExit("semantic preflight schema drift during replay")
+          if semantic.get("branch") != "phase18/story-intelligence":
+              raise SystemExit("semantic preflight branch drift during replay")
+          if semantic.get("model_id") != QWEN25_VL_3B_MODEL_ID or semantic.get("model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("semantic model identity drift during replay")
+          if semantic.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or semantic.get("revision_pinned") is not True:
+              raise SystemExit("semantic snapshot revision drift during replay")
+          if semantic.get("semantic_runtime_ready") is not True or semantic.get("semantic_model_ready") is not True or semantic.get("cuda_available") is not True:
+              raise SystemExit("semantic preflight readiness drift during replay")
+          if semantic.get("cost_mode") != "$0-local":
+              raise SystemExit("semantic preflight zero-cost drift during replay")
+          for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
+              if semantic.get(field) is not False:
+                  raise SystemExit(f"semantic preflight authority drift during replay: {field}")
+
+          if qwen_cache.get("schema") != "pul7sar-phase18-qwen-model-cache-v2" or qwen_cache.get("ready") is not True:
+              raise SystemExit("Qwen cache contract drift during replay")
+          if qwen_cache.get("model_id") != QWEN25_VL_3B_MODEL_ID or qwen_cache.get("model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("Qwen cache model identity drift during replay")
+          if qwen_cache.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or qwen_cache.get("revision_pinned") is not True:
+              raise SystemExit("Qwen cache revision drift during replay")
+          if qwen_cache.get("cost_mode") != "$0-local":
+              raise SystemExit("Qwen cache zero-cost drift during replay")
+          qwen_snapshot = qwen_cache.get("snapshot_path")
+          if not isinstance(qwen_snapshot, str) or not qwen_snapshot.strip():
+              raise SystemExit("Qwen cache snapshot path missing during replay")
+          try:
+              assert_snapshot_revision(qwen_snapshot, QWEN25_VL_3B_REVISION)
+          except (RuntimeError, ValueError) as exc:
+              raise SystemExit("Qwen cache snapshot path revision drift during replay") from exc
+          semantic_cache_receipt = semantic.get("model_prefetch_receipt")
+          if not isinstance(semantic_cache_receipt, str) or inside(semantic_cache_receipt) != inside(str(evidence["qwen_model_cache"]["path"])):
+              raise SystemExit("semantic preflight cache receipt binding drift")
+          if semantic.get("model_snapshot_path") != qwen_snapshot:
+              raise SystemExit("semantic preflight cache snapshot binding drift")
+
+          flux_cache = json.loads(inside(str(evidence["flux_model_cache"]["path"])).read_text(encoding="utf-8"))
+          if flux_cache.get("schema") != "pul7sar-phase18-model-cache-v2" or flux_cache.get("ready") is not True:
+              raise SystemExit("FLUX cache contract drift during replay")
+          if flux_cache.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or flux_cache.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("FLUX cache model identity drift during replay")
+          if flux_cache.get("resolved_snapshot_revision") != FLUX2_KLEIN_4B_REVISION or flux_cache.get("revision_pinned") is not True:
+              raise SystemExit("FLUX cache revision drift during replay")
+          if flux_cache.get("cost_mode") != "$0-local":
+              raise SystemExit("FLUX cache zero-cost drift during replay")
+          flux_snapshot = flux_cache.get("snapshot_path")
+          if not isinstance(flux_snapshot, str) or not flux_snapshot.strip():
+              raise SystemExit("FLUX cache snapshot path missing during replay")
+          try:
+              assert_snapshot_revision(flux_snapshot, FLUX2_KLEIN_4B_REVISION)
+          except (RuntimeError, ValueError) as exc:
+              raise SystemExit("FLUX cache snapshot path revision drift during replay") from exc
+
+          runtime_pre = json.loads(inside(str(evidence["runtime_fingerprint_pre"]["path"])).read_text(encoding="utf-8"))
+          runtime_post = json.loads(inside(str(evidence["runtime_fingerprint_post"]["path"])).read_text(encoding="utf-8"))
+          runtime_sha = verify_matching_runtime_fingerprints(runtime_pre, runtime_post)
+          if runtime_sha != final.get("runtime_fingerprint_sha256"):
+              raise SystemExit("first genuine Golden v6 runtime fingerprint binding drift")
+
+          staging = json.loads(inside(str(evidence["strict_golden_staging"]["path"])).read_text(encoding="utf-8"))
+          if staging.get("schema") != "pul7sar-first-genuine-golden-staging-v3":
+              raise SystemExit("strict staging schema drift")
+          if staging.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or staging.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("strict staging FLUX identity drift")
+          if staging.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID or staging.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("strict staging semantic identity drift")
+          if staging.get("semantic_approved") is not True or staging.get("layer_ownership_approved") is not True:
+              raise SystemExit("strict staging semantic/layer gate not approved")
+          if staging.get("resolved_dtype") != "bfloat16" or staging.get("precision_quality_tier") != "golden_reference":
+              raise SystemExit("strict staging precision drift")
+          if staging.get("cost_mode") != "$0-local":
+              raise SystemExit("strict staging zero-cost drift")
+          for field in ("golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if staging.get(field) is not False:
+                  raise SystemExit(f"strict staging authority drift: {field}")
+
+          png = inside(str(final.get("png", "")))
+          if not png.is_file() or png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("Golden v6 PNG missing or invalid")
+          if sha256(png) != final.get("png_sha256") or final.get("png_sha256") != staging.get("png_sha256"):
+              raise SystemExit("Golden v6 PNG SHA binding drift")
+
+          print(json.dumps({
+              "status": "FIRST_GENUINE_GOLDEN_V6_WORKFLOW_EVIDENCE_REPLAY_VERIFIED",
+              "candidate": 1,
+              "flux_model_revision": flux_cache.get("model_revision"),
+              "semantic_model_revision": semantic.get("model_revision"),
+              "runtime_fingerprint_sha256": runtime_sha,
+              "png": str(png),
+              "publication_ready": False,
+              "seeds_2_to_4_authorized": False,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload genuine Golden v6 Candidate 1 evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-genuine-golden-v6-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/**
+            output/phase18_gpu_host/**
+            output/phase18_colab/**
+            output/phase18_visual_proof/**
+            output/phase18_generated/**
+            output/phase18_handoffs/golden-batch/**
