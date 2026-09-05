@@ -36,10 +36,12 @@ Starting branch HEAD verified before writes: `bd95c9ebd04e1b9106caea0742548af15d
    - Documents lineage, fail-closed semantics, authority boundary, and downstream CS285 relationship.
 
 5. `docs/PHASE18_IMPLEMENTATION_LOG_348.md`
-   - This implementation log.
+   - Initial implementation log at commit `f2b09aa8619646fe7984b61bf2ae54dfc2068ba2`.
+   - Updated after observing terminal GitHub Actions results.
 
 ## Modified
-No existing production gate, existing test, existing workflow, or existing policy file was modified.
+- `docs/PHASE18_IMPLEMENTATION_LOG_348.md` only, to replace the previously pending CI statement with observed terminal results.
+- No existing production gate, existing test, existing workflow, or existing policy file was modified.
 
 ## Deleted
 Nothing.
@@ -61,7 +63,13 @@ A rejected CS284 remains fail-closed and is not eligible for CS285.
 No factual, freshness, entity/identity, sentiment-neutrality/loser-respect, zero-cost/offline, semantic QA, visual-quality, Golden-quality, Human Review, Presentation/Brand/Typography, Final Composed, or Final Semantic gate was weakened or bypassed. CS284 additionally reasserts lineage-bound generation context and zero-cost/offline verifier eligibility before the repository publication decision is computed.
 
 ## Testing status
-The code-and-test-bearing commit is `0d4db2ffbb351646f7fc6b0f299664a3419249e2`. GitHub Actions terminal status is not claimed in this initial log entry until a completed result is observed.
+The code-and-test-bearing commit is `0d4db2ffbb351646f7fc6b0f299664a3419249e2`.
+
+Observed terminal GitHub Actions results on that SHA:
+- `Phase 18 Story Intelligence Verification` run #4936 (`33997090653`) — `completed / success`.
+- The nine visible Phase 18 companion workflows on the same SHA also completed successfully: Composition Matrix, Verified Match Result, Event Editorial, Adaptive Brand Pixel, Data Monument, Tactical Intelligence, Result Statement, Premium Hybrid Result, and Event Hybrid Context.
+
+No terminal-green claim was made before these completed results were observed.
 
 ## Genuine Golden execution blocker
 No genuine Qwen inference, canonical candidate, CS284-allowed real candidate, or Genuine Golden PNG is fabricated by this change set. The already established runtime blocker remains the absence, in the available execution environment, of a compatible zero-cost CUDA path containing the required NVIDIA CUDA device, CUDA-enabled PyTorch/native BF16 capability, sufficient RAM/VRAM, approved Qwen-Image/Diffusers runtime, and exact approved local pinned model/verifier assets. CS348 therefore performs safe preparatory gate wiring only.
@@ -69,4 +77,4 @@ No genuine Qwen inference, canonical candidate, CS284-allowed real candidate, or
 ## Remaining path
 `CS348 / CS284 real SemanticPublicationGate result -> allowed result only -> CS285 exact-byte Genuine Golden materialization -> downstream Golden publication readiness`.
 
-CS285 has now been re-inspected: it performs no pixel generation or mutation; it validates PNG integrity and copies the exact allowed composed PNG bytes into `genuine_golden_visual.png`, preserving publication readiness as a separate downstream authority.
+CS285 has been re-inspected: it performs no pixel generation or mutation; it validates PNG integrity and copies the exact allowed composed PNG bytes into `genuine_golden_visual.png`, preserving publication readiness as a separate downstream authority.
