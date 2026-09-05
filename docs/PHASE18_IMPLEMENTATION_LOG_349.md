@@ -44,10 +44,12 @@ Starting branch HEAD verified before writes: `f2b09aa8619646fe7984b61bf2ae54dfc2
    - Documents lineage, admission rules, CS285 reuse, authority boundary, preserved gates, and the genuine-image runtime caveat.
 
 5. `docs/PHASE18_IMPLEMENTATION_LOG_349.md`
-   - This implementation log.
+   - Initial implementation log commit `b3d268c97ad258b448dc3e7ff912faddfa64addf`.
+   - Updated to record measured runtime capabilities and the observed CI state.
 
 ## Modified
 - `docs/PHASE18_IMPLEMENTATION_LOG_348.md` only, for terminal CI evidence as described above.
+- `docs/PHASE18_IMPLEMENTATION_LOG_349.md` only for implementation evidence/status bookkeeping after its initial creation.
 - No existing production gate, existing test, workflow, or policy file was modified.
 
 ## Deleted
@@ -69,10 +71,21 @@ No factual, freshness, entity/identity, sentiment-neutrality/loser-respect, zero
 ## Testing status
 The CS349 code-and-test-bearing commit is `cc9340d07634ec034cd3fc352720c7e9a15a94f9`.
 
-Terminal GitHub Actions status is not claimed in this initial entry until completed results are observed. The implementation log should be updated when that terminal result is available.
+Observed GitHub Actions state after the commit:
+- The nine visible Phase 18 companion workflows completed with `success`.
+- `Phase 18 Story Intelligence Verification` run #4948 (`33999897826`) was still `in_progress` at the last observation, in its `Syntax and discover validation` step. Therefore terminal-green Story Intelligence status is intentionally not claimed yet.
 
 ## Genuine Golden execution blocker
-CS349 makes the software path capable of exact-byte CS285 materialization after an allowed real CS284 receipt, but no production Golden Visual is fabricated in this work. The current execution environment must still be measured for the genuine Qwen runtime; a production candidate requires the approved zero-cost CUDA path (compatible NVIDIA CUDA device, CUDA-enabled PyTorch/native BF16, sufficient RAM/VRAM, approved Qwen-Image/Diffusers runtime, and exact approved local pinned model/verifier assets).
+The execution environment was re-measured during CS349 work:
+
+- `torch=2.10.0+cpu`
+- `cuda_available=False`
+- `torch.version.cuda=None`
+- `cuda_device_count=0`
+- `native_cuda_bf16=False`
+- `nvidia-smi=unavailable`
+
+Therefore no genuine Qwen inference, production `canonical_candidate.png`, CS284-allowed real candidate, or production Genuine Golden PNG was created or claimed. The exact remaining runtime requirement is a compatible zero-cost host containing an NVIDIA CUDA device, CUDA-enabled PyTorch with native BF16 capability, sufficient RAM/VRAM, the approved Qwen-Image/Diffusers runtime, and the exact approved already-local pinned model/verifier assets, without paid or network fallback.
 
 ## Remaining path
 For a genuine production candidate: genuine Qwen generation -> complete upstream factual/identity/sentiment/quality/human/presentation/final-semantic chain -> CS348/CS284 allowed result -> CS349/CS285 exact-byte Genuine Golden materialization -> downstream publication-readiness authority.
