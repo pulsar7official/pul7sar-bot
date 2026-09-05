@@ -27,7 +27,9 @@ CS283 is request-only. CS284 is the repository SemanticPublicationGate execution
 - `docs/PHASE18_IMPLEMENTATION_LOG_347.md`
 
 ## Modified
-None of the existing production gates, existing tests, model/runtime code, semantic policies, visual-quality policies, publication policies, or `main` files were modified.
+- `docs/PHASE18_IMPLEMENTATION_LOG_347.md` was updated after terminal GitHub Actions results became available, solely to record verified CI evidence.
+
+No existing production gate, existing test, model/runtime code, semantic policy, visual-quality policy, publication policy, or `main` file was modified.
 
 ## Deleted
 Nothing.
@@ -37,7 +39,8 @@ Nothing.
 - `7765c0bcc7992416570577b5980deddf25afb246` — regression coverage
 - `01c0f74a08435da91ffec6fd8e2653b20a25bea0` — operator CLI
 - `29e68ff5d272b6030554753b59b1802dc24b577c` — contract documentation
-- this commit — implementation log
+- `f575ecf164b621e301e9877589652cc196d432cc` — implementation log
+- terminal-CI integration commit — this update
 
 ## Safety / authority preservation
 CS347:
@@ -66,11 +69,18 @@ Regression coverage includes:
 - exact CS282 receipt-hash drift rejected;
 - static guards against SemanticPublicationGate execution, model loading, network fallback, upload/publish shortcuts, Genuine-Golden creation, or premature authority.
 
-## CI status at log creation
-The code-and-test-bearing SHA is `7765c0bcc7992416570577b5980deddf25afb246`. GitHub Actions terminal status must be read from GitHub before it is described as green; this log does not fabricate a CI conclusion.
+## Verified CI
+The code-and-test-bearing SHA is `7765c0bcc7992416570577b5980deddf25afb246`.
+
+Terminal GitHub Actions evidence:
+- Phase 18 Story Intelligence Verification push run `33994487384`, run #4923 — `completed / success`.
+- Phase 18 Story Intelligence Verification pull-request run `33994488935`, run #4924 — `completed / success`.
+- The visible Phase 18 companion workflows on the same SHA also completed successfully.
+
+This log records only terminal results returned by GitHub; no CI conclusion was inferred or fabricated.
 
 ## Genuine Golden blocker
 No genuine Qwen inference or Genuine Golden PNG is claimed by CS347. A fresh runtime capability check is required separately. Genuine generation remains impossible on a CPU-only host and requires an approved zero-cost compatible execution environment with the pinned local runtime/model/verifier assets.
 
 ## Next safe step
-After CI validation, inspect and bridge exact CS347/CS283 into CS284 only if real lineage-bound SemanticPublicationGate evidence is available. A synthetic `semantic_publication_allowed=true` is forbidden. Genuine-Golden materialization remains downstream of an actual allowed CS284 gate result.
+Inspect and bridge exact CS347/CS283 into CS284 only if real lineage-bound SemanticPublicationGate evidence is available. A synthetic `semantic_publication_allowed=true` is forbidden. Genuine-Golden materialization remains downstream of an actual allowed CS284 gate result.
