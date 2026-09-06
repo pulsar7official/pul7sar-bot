@@ -1,11 +1,23 @@
-"""Aggregate, non-inference host diagnostic for the Phase 18 Qwen Image path."""
+"""Aggregate, non-inference host diagnostic for the Phase 18 Qwen Image path.
+
+CS355 upgrades the mandatory preload diagnostic to replay the CS354
+inventory-bound launch manifest. The exact already-local Qwen snapshot bytes are
+therefore revalidated inside the same diagnostic that checks static readiness and
+the live CS260 host identity, before the launcher may start the canonical child.
+
+This module remains pre-model-load and non-authoritative: it does not download or
+load Qwen, execute inference, create pixels, approve semantics/visual quality, or
+grant Golden/publication authority.
+"""
 from __future__ import annotations
 
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Mapping
 
-from .qwen_image_gpu_host_launch_manifest import verify_gpu_host_launch_manifest
+from .qwen_image_inventory_bound_launch_manifest import (
+    verify_inventory_bound_gpu_host_launch_manifest as verify_gpu_host_launch_manifest,
+)
 from .qwen_image_gpu_readiness import inspect_qwen_image_gpu_readiness
 from .qwen_image_local_inference_runtime import _expected_identity, _pre_model_load_identity
 from .qwen_image_story_bound_generation_authorization import (
@@ -79,6 +91,7 @@ def inspect_preload_host(launch_manifest_path: Path, *, repo_root: Path) -> dict
         "story_snapshot_sha256": manifest.get("story_snapshot_sha256"),
         "launch_manifest_sha256": manifest.get("manifest_sha256"),
         "snapshot_path": snapshot_path,
+        "snapshot_inventory_bound": True,
         "static_preflight_passed": bool(readiness.static_preflight_passed),
         "observed_preload_identity": observed,
         "blockers": sorted(set(blockers)),
