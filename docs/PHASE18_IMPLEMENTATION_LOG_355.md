@@ -58,7 +58,7 @@ It does not add model downloads, network fallback, paid fallback, upload, public
 
 Code-and-test-bearing SHA: `5f534422c86e9c5533f6ba473f43a3fe7f8b28f5`.
 
-CI status must be treated as unconfirmed until a real terminal GitHub Actions conclusion is observed for this SHA; no terminal-green claim is made in this initial log.
+Terminal CI was rechecked on 2026-09-06. `Phase 18 Story Intelligence Verification` run `34020168216` (#5026) completed with conclusion `success`; all companion Phase 18 workflow runs returned for the same SHA were also `completed / success`.
 
 ## Runtime blocker
 
