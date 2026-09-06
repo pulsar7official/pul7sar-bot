@@ -2,8 +2,8 @@
 
 CS289 closes the network/mutable-model gap at the actual inference edge. The
 loader accepts only the exact already-local approved snapshot, requires the
-$0-local execution lock, re-runs CS287 static preflight, loads in native BF16
-with ``local_files_only=True``, enables sequential CPU offload, and replays the
+$0-local execution lock, re-runs static preflight, loads in native BF16 with
+``local_files_only=True``, enables sequential CPU offload, and replays the
 runtime identity expected by the CS260/CS261 authorization chain.
 
 CS296 adds an exact pre-model-load host-identity replay. GPU identity, VRAM,
@@ -12,6 +12,11 @@ offload contract, BF16 requirement, and pinned model identity must already match
 CS260 before ``from_pretrained`` is allowed to run. Resource sufficiency itself
 is still proven only by a genuine model-load/inference attempt; no VRAM floor is
 invented here.
+
+CS352 additionally takes a deterministic byte inventory of the approved local
+snapshot after static preflight and repeats it immediately before
+``from_pretrained``. Any file-set/content drift fails closed before weights are
+loaded. The inventory is local-only and grants no additional authority.
 
 It does not call the pipeline and grants no factual, semantic, quality, Golden,
 or publication authority.
@@ -26,6 +31,10 @@ from typing import Any, Mapping
 from .approved_model_revisions import QWEN_IMAGE_2512_MODEL_ID, QWEN_IMAGE_2512_REVISION
 from .qwen_image_gpu_readiness import inspect_qwen_image_gpu_readiness
 from .qwen_image_runtime_envelope_plan import DTYPE, OFFLOAD_MODE
+from .qwen_image_snapshot_inventory import (
+    assert_snapshot_inventory_unchanged,
+    build_qwen_image_snapshot_inventory,
+)
 
 REQUIRED_COST_MODE = "$0-local"
 
@@ -72,6 +81,15 @@ def _assert_identity_fields(
             raise RuntimeError(f"{prefix}_IDENTITY_DRIFT:{field}")
 
 
+def _snapshot_inventory(snapshot_path: str):
+    try:
+        return build_qwen_image_snapshot_inventory(snapshot_path)
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(
+            f"QWEN_LOCAL_INFERENCE_SNAPSHOT_INVENTORY_INVALID:{type(exc).__name__}"
+        ) from exc
+
+
 def load_local_inference_runtime(
     *,
     cs260: Mapping[str, Any],
@@ -81,7 +99,8 @@ def load_local_inference_runtime(
     """Return ``(torch, pipeline, live_identity)`` for one authorized attempt.
 
     No network fallback is permitted. Any mismatch fails before inference, and
-    all host-observable identity drift fails before model weights are loaded.
+    all host-observable identity or local snapshot-byte drift fails before model
+    weights are loaded.
     """
     effective_cost_mode = cost_mode if cost_mode is not None else os.environ.get("PUL7SAR_PHASE18_COST_MODE", "")
     if effective_cost_mode != REQUIRED_COST_MODE:
@@ -93,6 +112,10 @@ def load_local_inference_runtime(
         raise RuntimeError("QWEN_LOCAL_INFERENCE_STATIC_PREFLIGHT_FAILED:" + ",".join(readiness.blockers))
     if not readiness.snapshot_revision_verified:
         raise RuntimeError("QWEN_LOCAL_INFERENCE_SNAPSHOT_REVISION_UNVERIFIED")
+    if getattr(readiness, "snapshot_structure_verified", False) is not True:
+        raise RuntimeError("QWEN_LOCAL_INFERENCE_SNAPSHOT_STRUCTURE_UNVERIFIED")
+
+    pre_import_inventory = _snapshot_inventory(normalized_snapshot)
 
     try:
         torch = import_module("torch")
@@ -132,6 +155,9 @@ def load_local_inference_runtime(
         expected,
         prefix="QWEN_LOCAL_INFERENCE_PRE_MODEL_LOAD_RUNTIME",
     )
+
+    pre_load_inventory = _snapshot_inventory(normalized_snapshot)
+    assert_snapshot_inventory_unchanged(pre_import_inventory, pre_load_inventory)
 
     pipeline = pipeline_cls.from_pretrained(
         normalized_snapshot,
