@@ -7,7 +7,7 @@ Branch: `phase18/story-intelligence` only.
 
 Starting branch HEAD verified before writes: `455e6b9b7b9a0b5237223f1e3349d9fa8548598d` (`PHASE18 CS349: record runtime blocker and observed CI state`).
 
-`main` was inspected read-only at `dfe1eef1d283ae2c5687128e96f99a75d13d67ed` before CS350 writes. No write, merge, rebase, reset, force-update, or ref movement was performed on `main`.
+`main` was inspected read-only at `dfe1eef1d283ae2c5687128e96f99a75d13d67ed` before CS350 writes. No write, merge, rebase, reset, force-update, or ref movement was performed on `main`. During this work `main` advanced independently to `48564e9e86086165660d3ed958dbf30ff56fe805` via `chore: update posted history (2026-09-06 02:55 UTC)`; that movement was not caused by CS350 and no CS350 write targeted `main`.
 
 ## Pre-change verification
 - Corrected the earlier tree/commit ambiguity: `455e6b9b...` was the actual branch commit HEAD; `9245ba...` was its tree SHA, not a commit.
@@ -47,11 +47,13 @@ Starting branch HEAD verified before writes: `455e6b9b7b9a0b5237223f1e3349d9fa85
    - Documents exact CS349 → CS285 → CS286 lineage, admission rules, authority boundary, preserved gates, regression coverage, and runtime caveat.
 
 5. `docs/PHASE18_IMPLEMENTATION_LOG_350.md`
-   - This file records the implementation and verification evidence for CS350.
+   - initial log commit `5bb48dc1d0dd555b20dc0e43db24e6a40adcd8ec`.
+   - updated after terminal CI to record the verified final test status and the independently advanced `main` observation.
 
 ## Modified
 - `docs/PHASE18_IMPLEMENTATION_LOG_349.md` only for terminal CI bookkeeping.
 - `tests/test_phase18_qwen_genuine_golden_materialization_to_publication_readiness.py` once after creation to narrow a static upload guard from a generic word match to an upload-call match; production behavior was not changed by that refinement.
+- `docs/PHASE18_IMPLEMENTATION_LOG_350.md` for terminal CI and branch-observation bookkeeping only.
 - No existing production gate, existing workflow, generic publication gate, or policy file was modified.
 
 ## Deleted
@@ -74,12 +76,12 @@ No factual/freshness, entity/identity, sentiment-neutrality/loser-respect, zero-
 ## Testing status
 The latest CS350 code-and-test-bearing commit is `13769785fab7ac46580c7f0238609a499ddc87c7`.
 
-Observed GitHub Actions state at implementation-log creation time:
-- nine visible Phase 18 companion workflows on the SHA had completed with `success`;
-- `Phase 18 Story Intelligence Verification` push run #4963 (`34007705703`) was still `in_progress`;
-- `Phase 18 Story Intelligence Verification` pull-request run #4964 (`34007707241`) was still `in_progress`.
+Terminal GitHub Actions evidence on that SHA:
+- the nine visible Phase 18 companion workflows completed with `success`;
+- `Phase 18 Story Intelligence Verification` push run #4963 (`34007705703`) completed with `success`;
+- `Phase 18 Story Intelligence Verification` pull-request run #4964 (`34007707241`) completed with `success`.
 
-Therefore terminal-green Story Intelligence status is intentionally not claimed yet in this log revision.
+CS350 is therefore terminal-green at the recorded code-and-test-bearing commit.
 
 ## Genuine Golden execution blocker
 The execution environment was re-measured during CS350 work:
