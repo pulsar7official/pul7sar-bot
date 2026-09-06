@@ -3,7 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
-from engine.intelligence.qwen_image_launch_to_output_attestation import _assert_join
+from engine.intelligence.qwen_image_launch_to_output_attestation import (
+    _assert_join,
+    _snapshot_inventory_evidence,
+)
 
 
 def _records():
@@ -18,6 +21,13 @@ def _records():
             "resolved_path": "/tmp/snapshots/2ce1",
             "revision": "2ce1c28560fbc62c9f5531e076b237d3575330a9",
             "revision_verified": True,
+        },
+        "snapshot_byte_inventory": {
+            "schema": "pul7sar.phase18.qwen_image_snapshot_inventory.v1",
+            "model_revision": "2ce1c28560fbc62c9f5531e076b237d3575330a9",
+            "snapshot_inventory_sha256": "c" * 64,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 123456,
         },
         "inference_settings": {
             "width": 1024,
@@ -66,6 +76,26 @@ class LaunchToOutputAttestationTests(unittest.TestCase):
         launch, provenance, canonical = _records()
         _assert_join(launch, provenance, canonical)
 
+    def test_inventory_evidence_accepts_exact_bound_snapshot(self) -> None:
+        launch, _, _ = _records()
+        evidence = _snapshot_inventory_evidence(launch)
+        self.assertEqual(evidence["snapshot_inventory_sha256"], "c" * 64)
+        self.assertEqual(evidence["snapshot_file_count"], 17)
+        self.assertEqual(evidence["snapshot_total_bytes"], 123456)
+        self.assertEqual(evidence["model_revision"], launch["model_revision"])
+
+    def test_inventory_evidence_rejects_missing_inventory(self) -> None:
+        launch, _, _ = _records()
+        launch.pop("snapshot_byte_inventory")
+        with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_MISSING"):
+            _snapshot_inventory_evidence(launch)
+
+    def test_inventory_evidence_rejects_revision_drift(self) -> None:
+        launch, _, _ = _records()
+        launch["snapshot_byte_inventory"]["model_revision"] = "d" * 40
+        with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_REVISION_DRIFT"):
+            _snapshot_inventory_evidence(launch)
+
     def test_launch_output_join_rejects_seed_drift(self) -> None:
         launch, provenance, canonical = _records()
         canonical["seed"] = 8
@@ -95,6 +125,19 @@ class LaunchToOutputAttestationTests(unittest.TestCase):
         provenance["genuine_golden_png_created"] = True
         with self.assertRaisesRegex(ValueError, "PREMATURE_AUTHORITY:genuine_golden_png_created"):
             _assert_join(launch, provenance, canonical)
+
+    def test_attestation_module_requires_inventory_bound_manifest_replay(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        source = (
+            root / "engine/intelligence/qwen_image_launch_to_output_attestation.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("verify_inventory_bound_gpu_host_launch_manifest", source)
+        self.assertNotIn(
+            "from .qwen_image_gpu_host_launch_manifest import verify_gpu_host_launch_manifest",
+            source,
+        )
+        self.assertIn('"snapshot_byte_inventory_verified": True', source)
+        self.assertIn("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_RECEIPT_DRIFT", source)
 
     def test_production_cli_materializes_and_replays_postflight_attestation(self) -> None:
         root = Path(__file__).resolve().parents[1]
