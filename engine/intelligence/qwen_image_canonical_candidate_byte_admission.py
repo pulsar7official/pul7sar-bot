@@ -1,12 +1,17 @@
 """Byte-admit one sealed canonical candidate for downstream visual QA.
 
 Change Set 303 upgrades the original CS263 admission edge so production
-post-generation QA can no longer start from a bare CS262 receipt.  Admission
+post-generation QA can no longer start from a bare CS262 receipt. Admission
 must start from the CS301/302 canonical-candidate handoff, replay that sealed
 lineage, and derive the exact canonical inference receipt and PNG from the
 handoff bindings.
 
-Admission is still non-semantic and non-generative.  It never upgrades a
+Change Set 359 extends that same admission contract without adding a new gate:
+the CS358 exact local Qwen snapshot-byte inventory lineage is sealed into the
+byte-admission receipt and replay-compared against a fresh canonical-candidate
+handoff verification before downstream post-generation QA can consume it.
+
+Admission is still non-semantic and non-generative. It never upgrades a
 candidate into a Golden Visual and never grants publication authority.
 """
 from __future__ import annotations
@@ -30,7 +35,7 @@ from engine.intelligence.qwen_image_one_shot_canonical_inference import (
 )
 
 CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA = (
-    "pul7sar-phase18-qwen-image-2512-canonical-candidate-byte-admission-v2"
+    "pul7sar-phase18-qwen-image-2512-canonical-candidate-byte-admission-v3"
 )
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _REQUIRED_TRUE = (
@@ -107,6 +112,33 @@ def _assert_handoff_authority(payload: Mapping[str, Any]) -> None:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_LOCAL_ONLY_DRIFT")
 
 
+def _snapshot_inventory_evidence(handoff: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract only replay-verified CS358 snapshot-byte lineage."""
+    if handoff.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_AUTHORITY_MISSING")
+    inventory = handoff.get("snapshot_byte_inventory")
+    if not isinstance(inventory, Mapping):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_MISSING")
+    digest = inventory.get("snapshot_inventory_sha256")
+    count = inventory.get("snapshot_file_count")
+    total = inventory.get("snapshot_total_bytes")
+    revision = inventory.get("model_revision")
+    if not _is_sha256(digest):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_DIGEST_INVALID")
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_FILE_COUNT_INVALID")
+    if not isinstance(total, int) or isinstance(total, bool) or total < 1:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_BYTE_COUNT_INVALID")
+    if revision != handoff.get("model_revision"):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_REVISION_DRIFT")
+    return {
+        "snapshot_inventory_sha256": digest,
+        "snapshot_file_count": count,
+        "snapshot_total_bytes": total,
+        "model_revision": revision,
+    }
+
+
 def _binding_path(
     repo_root: Path,
     binding: Mapping[str, Any],
@@ -137,7 +169,7 @@ def admit_canonical_candidate_bytes(
     *,
     repo_root: Path,
 ) -> CanonicalCandidateByteAdmission:
-    """Replay a CS301/302 handoff and byte-admit its exact candidate only."""
+    """Replay a CS358 handoff and byte-admit its exact candidate only."""
     if output_dir.exists():
         raise ValueError("QWEN_CANDIDATE_ADMISSION_OUTPUT_ALREADY_EXISTS")
     if not output_dir.parent.is_dir():
@@ -159,6 +191,7 @@ def admit_canonical_candidate_bytes(
     if handoff.get("schema") != CANONICAL_CANDIDATE_HANDOFF_SCHEMA:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_SCHEMA_DRIFT")
     _assert_handoff_authority(handoff)
+    inventory_evidence = _snapshot_inventory_evidence(handoff)
 
     bindings = handoff.get("source_bindings")
     if not isinstance(bindings, Mapping):
@@ -260,6 +293,8 @@ def admit_canonical_candidate_bytes(
             "height": height,
         },
         "inference_settings": dict(handoff.get("inference_settings", {})),
+        "snapshot_byte_inventory": inventory_evidence,
+        "snapshot_byte_inventory_verified": True,
         "genuine_canonical_inference_executed": True,
         "handoff_sealed": True,
         "candidate_bytes_admitted_for_post_generation_qa": True,
@@ -297,7 +332,7 @@ def admit_canonical_candidate_bytes(
 def verify_canonical_candidate_byte_admission(
     receipt_path: Path, *, repo_root: Path
 ) -> dict[str, Any]:
-    """Replay an admission, its sealed handoff, canonical receipt and candidate bytes."""
+    """Replay admission, sealed CS358 handoff, exact candidate and snapshot lineage."""
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_CANDIDATE_ADMISSION_RECEIPT_INVALID")
     try:
@@ -316,6 +351,8 @@ def verify_canonical_candidate_byte_admission(
     _assert_handoff_authority(receipt)
     if receipt.get("candidate_bytes_admitted_for_post_generation_qa") is not True:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_AUTHORITY_MISSING")
+    if receipt.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_AUTHORITY_MISSING")
 
     handoff_meta = receipt.get("source_candidate_handoff")
     source_meta = receipt.get("source_canonical_inference_receipt")
@@ -332,6 +369,11 @@ def verify_canonical_candidate_byte_admission(
     _assert_handoff_authority(handoff)
     if handoff_meta.get("handoff_sha256") != handoff.get("handoff_sha256"):
         raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_DIGEST_DRIFT")
+    inventory_evidence = _snapshot_inventory_evidence(handoff)
+    if receipt.get("snapshot_byte_inventory") != inventory_evidence:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_RECEIPT_DRIFT")
+    if receipt.get("model_revision") != inventory_evidence["model_revision"]:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_MODEL_REVISION_DRIFT")
 
     source_path = _binding_path(
         repo_root,
