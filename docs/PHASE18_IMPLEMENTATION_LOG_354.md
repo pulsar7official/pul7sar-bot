@@ -65,7 +65,7 @@ The production ordering is now:
 
 Code-and-test-bearing SHA: `4405a5eabbb4cf5e30132469225e692f6acec0a6`.
 
-At the time this log was first written, GitHub Actions had started the Phase 18 workflow set on that SHA. `Phase 18 Story Intelligence Verification` run `34017688235` (#5018) was `in_progress`, so terminal success is not claimed yet. This log must be updated only after a real terminal conclusion is observed.
+Terminal CI was subsequently observed: `Phase 18 Story Intelligence Verification` run `34017688235` (#5018) completed with conclusion `success`. The companion Phase 18 workflows visible for the same SHA also completed successfully.
 
 ## Runtime blocker
 
