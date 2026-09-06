@@ -53,6 +53,7 @@ None.
 - `608f0bc15bcc1c765e5d148770801643db4a5ee9` — add handoff inventory-lineage regressions; this is the code-and-test-bearing SHA.
 - `ec59e45da996f1b74c16e652254ba99f0aa8acca` — document the CS358 contract.
 - `b3c27dd299e623e83d1691a50fe68527e1d77d9f` — record CS357 terminal-green CI.
+- `b7a45b7a3212dda033241f68ab4c56b9576aed28` — add the initial CS358 implementation log.
 
 ## Gate preservation
 
@@ -72,7 +73,7 @@ Regression coverage now verifies:
 - exact source-byte binding remains enforced;
 - downstream semantic/Human/Golden/publication authorities remain false.
 
-GitHub checks started automatically for the code-and-test-bearing SHA. At the first observation during this change set, some companion workflows were already terminal `success` while others were still `in_progress`; no terminal-green claim for CS358 is made until the Story Intelligence verification reaches a terminal conclusion.
+GitHub checks started automatically for the code-and-test-bearing SHA. At the latest observation, multiple companion checks were terminal `success`. Two `verify-story-intelligence` checks were still `in_progress`: run `34031418700` (push-side check) and run `34031421038` (PR-side check). Therefore no terminal-green claim for CS358 is made yet.
 
 ## Runtime blocker
 
