@@ -8,7 +8,7 @@ Branch: `phase18/story-intelligence` only.
 
 Starting branch HEAD reviewed before changes: `3f410b43bf0881d0542155f69d854e025b2aae02`.
 
-`main` was separately reviewed at `bc30857f0998b175cb766b92aafc031de8b49ca4` before CS360 writes. No write, merge, rebase, reset, force-update, or ref movement was performed on `main` by CS360.
+`main` was separately reviewed at `bc30857f0998b175cb766b92aafc031de8b49ca4` before CS360 writes and was re-read at the same SHA after the production/test/documentation writes. No write, merge, rebase, reset, force-update, or ref movement was performed on `main` by CS360.
 
 ## Pre-change verification
 
@@ -54,6 +54,8 @@ CS360 closes the discontinuity inside the existing CS304 contract rather than cr
   - rejects inventory tampering after a correctly recomputed outer receipt digest;
   - retains generated-text, candidate-byte, legacy-authority, handoff, cost/network, verifier-drift, immutable-output, and no-authority-escalation coverage;
   - uses Python standard-library `unittest` only.
+- `docs/PHASE18_IMPLEMENTATION_LOG_360.md`
+  - records the authoritative terminal-green CS360 verification and final runtime/main observations.
 
 ## Deleted
 
@@ -64,7 +66,8 @@ None.
 - `19ba813dcfb7dd566707eec9653a0a5ebadc49cd` — bind CS359 snapshot lineage into the existing CS304 production semantic-base QA contract.
 - `b0f4c2ae29cd897d2bb8eda0b7038f258c76a9c9` — add CS360 regression coverage; this is the code-and-test-bearing SHA.
 - `eed003be51ee2e26cb64b59dabe295900fde971c` — document the CS360 contract.
-- current commit — add this implementation log.
+- `7c01aae28f406ab493dbcb7cbac3c52eed3f72d6` — add the initial CS360 implementation log.
+- final documentation commit — record terminal-green verification and final observations.
 
 ## Gate preservation
 
@@ -78,9 +81,18 @@ No model download, network model fallback, paid execution fallback, synthetic in
 
 Code-and-test-bearing SHA: `b0f4c2ae29cd897d2bb8eda0b7038f258c76a9c9`.
 
-CI status is intentionally recorded as pending until the authoritative `Phase 18 Story Intelligence Verification` workflow for that exact SHA reaches a terminal state. No terminal-green claim is made in this log unless independently observed.
+`Phase 18 Story Intelligence Verification` run `34056461391` (#5084) completed successfully for that exact SHA. Job `verify-story-intelligence` (`101549155253`) is terminal `completed / success`; `Syntax and discover validation`, production-isolation checks, all visual-study/Golden editorial verification steps, and the remaining workflow steps completed successfully. CS360 is therefore terminal-green on the authoritative Phase 18 CPU verification workflow.
 
 ## Runtime blocker
+
+The current execution environment was re-measured after CS360:
+
+- PyTorch: `2.10.0+cpu`;
+- CUDA available: `false`;
+- `torch.version.cuda`: `None`;
+- CUDA device count: `0`;
+- native CUDA BF16: `false`;
+- `nvidia-smi`: unavailable.
 
 A genuine production Qwen candidate still requires a zero-cost execution host that simultaneously provides NVIDIA CUDA, CUDA-enabled PyTorch, native BF16, sufficient real RAM/VRAM demonstrated by genuine model load/inference, the approved Qwen-Image/Diffusers runtime, and the exact approved already-local pinned model/verifier assets with no paid or network model fallback.
 
