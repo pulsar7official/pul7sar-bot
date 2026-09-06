@@ -7,7 +7,9 @@ Change Set 306 strengthens that contract by requiring exact receipt lineage
 coherence: CS265 must bind the same CS264 receipt supplied to this gate, and a
 required CS267 review must trace through a CS266 request that binds the same
 CS265 receipt supplied to this gate. This prevents same-story/same-candidate
-cross-run receipt substitution.
+cross-run receipt substitution. Change Set 361 preserves and fresh-replays the
+exact Qwen-Image generator snapshot byte lineage proven by CS360 across this
+generated-layer QA boundary.
 
 The gate deliberately evaluates only the generated/base layer. It does not
 claim that deterministic typography, score/data, sport geometry, verified
@@ -42,13 +44,20 @@ from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import 
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 from engine.intelligence.visual_layer_qa import HybridLayerQualityGate, LayerLeakageEvidence
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-generated-layer-qa-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-generated-layer-qa-v2"
 _DOWNSTREAM_FALSE = (
     "semantic_approved",
     "human_visual_review_approved",
     "genuine_golden_png_created",
     "golden_quality_approved",
     "publication_ready",
+)
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -69,6 +78,36 @@ def _read_json(path: Path, code: str) -> tuple[dict[str, Any], bytes]:
     if not isinstance(value, dict):
         raise ValueError(code)
     return value, raw
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        ch in "0123456789abcdef" for ch in value.lower()
+    )
+
+
+def _snapshot_lineage(source: Mapping[str, Any]) -> dict[str, Any]:
+    if source.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError("QWEN_GENERATED_LAYER_QA_SNAPSHOT_INVENTORY_UNVERIFIED")
+    inventory_sha = source.get("snapshot_inventory_sha256")
+    if not _is_sha256(inventory_sha):
+        raise ValueError("QWEN_GENERATED_LAYER_QA_SNAPSHOT_INVENTORY_SHA_INVALID")
+    file_count = source.get("snapshot_file_count")
+    if isinstance(file_count, bool) or not isinstance(file_count, int) or file_count <= 0:
+        raise ValueError("QWEN_GENERATED_LAYER_QA_SNAPSHOT_FILE_COUNT_INVALID")
+    total_bytes = source.get("snapshot_total_bytes")
+    if isinstance(total_bytes, bool) or not isinstance(total_bytes, int) or total_bytes <= 0:
+        raise ValueError("QWEN_GENERATED_LAYER_QA_SNAPSHOT_TOTAL_BYTES_INVALID")
+    model_revision = source.get("model_revision")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError("QWEN_GENERATED_LAYER_QA_MODEL_REVISION_INVALID")
+    return {
+        "snapshot_byte_inventory_verified": True,
+        "snapshot_inventory_sha256": inventory_sha,
+        "snapshot_file_count": file_count,
+        "snapshot_total_bytes": total_bytes,
+        "model_revision": model_revision,
+    }
 
 
 def _inside_repo_file(repo_root: Path, path: Path, code: str) -> str:
@@ -300,6 +339,7 @@ def run_canonical_candidate_generated_layer_qa(
         raise ValueError("QWEN_GENERATED_LAYER_QA_CS265_INVALID")
     _assert_downstream_closed(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
     _assert_downstream_closed(cs265, "QWEN_GENERATED_LAYER_QA_CS265")
+    snapshot_lineage = _snapshot_lineage(cs264)
     _assert_exact_receipt_binding(
         cs265.get("source_cs264_receipt"),
         cs264_binding,
@@ -368,6 +408,7 @@ def run_canonical_candidate_generated_layer_qa(
             else None
         ),
         "candidate_png": dict(candidate),
+        **snapshot_lineage,
         "pixel_identity_review_required": identity_required,
         "identity_approved": identity_approved if identity_required else False,
         "hybrid_layer_plan": _plan_payload(plan),
@@ -391,6 +432,7 @@ def run_canonical_candidate_generated_layer_qa(
             "deterministic_and_verified_layers_not_yet_claimed_present": True,
             "missing_required_identity_review_fails_closed": True,
             "upstream_unverified_identity_evidence_is_never_suppressed": True,
+            "generator_snapshot_lineage_preserved": True,
         },
     }
     receipt["receipt_sha256"] = sha256_json(receipt)
@@ -446,6 +488,10 @@ def verify_canonical_candidate_generated_layer_qa(
         raise ValueError("QWEN_GENERATED_LAYER_QA_UPSTREAM_STATE_INVALID")
     _assert_downstream_closed(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
     _assert_downstream_closed(cs265, "QWEN_GENERATED_LAYER_QA_CS265")
+    snapshot_lineage = _snapshot_lineage(cs264)
+    for field in _SNAPSHOT_LINEAGE_FIELDS:
+        if receipt.get(field) != snapshot_lineage[field]:
+            raise ValueError(f"QWEN_GENERATED_LAYER_QA_SNAPSHOT_LINEAGE_DRIFT:{field}")
     _assert_exact_receipt_binding(
         cs265.get("source_cs264_receipt"),
         b264,
@@ -528,6 +574,7 @@ def verify_canonical_candidate_generated_layer_qa(
             "deterministic_and_verified_layers_not_yet_claimed_present",
             "missing_required_identity_review_fails_closed",
             "upstream_unverified_identity_evidence_is_never_suppressed",
+            "generator_snapshot_lineage_preserved",
         )
     ):
         raise ValueError("QWEN_GENERATED_LAYER_QA_POLICY_DRIFT")
