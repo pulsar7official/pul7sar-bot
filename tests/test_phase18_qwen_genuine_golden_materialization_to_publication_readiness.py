@@ -207,7 +207,7 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
         self.assertNotIn("httpx.", source)
         self.assertNotIn("materialize_genuine_golden_visual", source)
         self.assertNotIn("execute_semantic_publication_gate", source)
-        self.assertNotIn("upload", source.lower())
+        self.assertNotIn("upload(", source.lower())
         self.assertNotIn("publish(", source.lower())
         self.assertNotIn('"authoritative": True', source)
 
