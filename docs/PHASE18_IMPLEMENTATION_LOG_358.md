@@ -54,6 +54,7 @@ None.
 - `ec59e45da996f1b74c16e652254ba99f0aa8acca` — document the CS358 contract.
 - `b3c27dd299e623e83d1691a50fe68527e1d77d9f` — record CS357 terminal-green CI.
 - `b7a45b7a3212dda033241f68ab4c56b9576aed28` — add the initial CS358 implementation log.
+- `64a231c26c6b8beb5d9dcf1221d292156018ac73` — record exact pending CI runs.
 
 ## Gate preservation
 
@@ -65,7 +66,7 @@ It adds no model download, network model fallback, paid execution fallback, synt
 
 Code-and-test-bearing SHA: `608f0bc15bcc1c765e5d148770801643db4a5ee9`.
 
-Regression coverage now verifies:
+Regression coverage verifies:
 
 - exact CS357 snapshot inventory evidence is propagated into the sealed handoff;
 - missing snapshot-inventory verification fails closed;
@@ -73,7 +74,7 @@ Regression coverage now verifies:
 - exact source-byte binding remains enforced;
 - downstream semantic/Human/Golden/publication authorities remain false.
 
-GitHub checks started automatically for the code-and-test-bearing SHA. At the latest observation, multiple companion checks were terminal `success`. Two `verify-story-intelligence` checks were still `in_progress`: run `34031418700` (push-side check) and run `34031421038` (PR-side check). Therefore no terminal-green claim for CS358 is made yet.
+The previously pending `Phase 18 Story Intelligence Verification` checks on the code-and-test-bearing SHA reached terminal `completed / success`, including run `34031418700`. CS358 is therefore terminal-green.
 
 ## Runtime blocker
 
