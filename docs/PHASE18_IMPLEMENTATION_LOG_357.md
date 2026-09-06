@@ -54,6 +54,7 @@ None.
 - `7f44682f8b0b368fbc8b57ae3b921936100224b8` — add postflight inventory-binding regressions; this is the code-and-test-bearing SHA.
 - `acb3d468ab6200595502434b79468884e89419d2` — record CS356 terminal-green CI.
 - `20a02e44860e9b5ec9eb79903d35f1a53b5c0f96` — document CS357 contract.
+- `0b0febb7bc435708c70abefea8782e3a90a535d4` — add this implementation log.
 
 ## Gate preservation
 
@@ -65,7 +66,7 @@ It adds no model download, network fallback, paid fallback, retry loop, syntheti
 
 Code-and-test-bearing SHA: `7f44682f8b0b368fbc8b57ae3b921936100224b8`.
 
-Regression coverage now verifies:
+Regression coverage verifies:
 
 - a valid CS354 inventory yields compact postflight evidence;
 - absent inventory fails closed;
@@ -75,7 +76,7 @@ Regression coverage now verifies:
 - downstream semantic/Human/Golden/publication authorities remain false through the existing join contract;
 - the canonical child still materializes and immediately replays `launch_to_output_attestation.json`.
 
-At the latest check during this change set, GitHub check runs for `7f44682f...` had started. Several companion checks were already terminal `success`, while `verify-story-intelligence` was still `in_progress`; no terminal-green claim for CS357 is made here until GitHub reports a terminal conclusion.
+Terminal CI was rechecked during CS358. `Phase 18 Story Intelligence Verification` run `34025785758` (#5048), head SHA `7f44682f8b0b368fbc8b57ae3b921936100224b8`, is `completed / success`. CS357 is therefore terminal-green on its code-and-test-bearing SHA.
 
 ## Runtime blocker
 
