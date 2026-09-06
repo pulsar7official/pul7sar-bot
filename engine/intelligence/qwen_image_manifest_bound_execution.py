@@ -37,7 +37,7 @@ import sys
 from typing import Any, Mapping, Sequence
 
 from .qwen_image_inventory_bound_launch_manifest import (
-    verify_inventory_bound_gpu_host_launch_manifest,
+    verify_inventory_bound_gpu_host_launch_manifest as verify_gpu_host_launch_manifest,
 )
 from .qwen_image_preload_host_diagnostic import inspect_preload_host
 
@@ -114,9 +114,7 @@ def build_manifest_bound_execution_argv(
 ) -> tuple[str, ...]:
     """Return a shell-free argv derived entirely from a replayed launch manifest."""
     root = repo_root.resolve()
-    manifest = verify_inventory_bound_gpu_host_launch_manifest(
-        launch_manifest_path, repo_root=root
-    )
+    manifest = verify_gpu_host_launch_manifest(launch_manifest_path, repo_root=root)
     if os.environ.get("PUL7SAR_PHASE18_COST_MODE", "") != REQUIRED_COST_MODE:
         raise ValueError("QWEN_MANIFEST_EXECUTION_ZERO_COST_MODE_NOT_LOCKED")
 
