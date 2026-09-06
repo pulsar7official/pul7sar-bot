@@ -11,6 +11,7 @@ from engine.intelligence.qwen_image_canonical_candidate_handoff import (
     build_canonical_candidate_handoff,
     verify_canonical_candidate_handoff,
 )
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 
 class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
@@ -20,10 +21,11 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
         raw = candidate.read_bytes()
         import hashlib
 
+        revision = "b" * 40
         return {
             "story_snapshot_sha256": "a" * 64,
             "model_id": "Qwen/Qwen-Image-2512",
-            "model_revision": "b" * 40,
+            "model_revision": revision,
             "inference_settings": {
                 "width": 1024,
                 "height": 1024,
@@ -31,6 +33,13 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
                 "num_inference_steps": 8,
                 "guidance_scale": 1.0,
             },
+            "snapshot_byte_inventory": {
+                "snapshot_inventory_sha256": "c" * 64,
+                "snapshot_file_count": 17,
+                "snapshot_total_bytes": 123456789,
+                "model_revision": revision,
+            },
+            "snapshot_byte_inventory_verified": True,
             "canonical_candidate_png": {
                 "repository_relative_path": candidate.as_posix(),
                 "sha256": hashlib.sha256(raw).hexdigest(),
@@ -71,6 +80,8 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
                 payload = build_canonical_candidate_handoff(output, handoff, repo_root=root)
             self.assertTrue(payload["handoff_sealed"])
             self.assertTrue(payload["genuine_canonical_inference_executed"])
+            self.assertTrue(payload["snapshot_byte_inventory_verified"])
+            self.assertEqual(payload["snapshot_byte_inventory"], attestation["snapshot_byte_inventory"])
             self.assertFalse(payload["semantic_approved"])
             self.assertFalse(payload["golden_quality_approved"])
             self.assertFalse(payload["genuine_golden_png_created"])
@@ -98,6 +109,26 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
                         repo_root=root,
                     )
 
+    def test_build_rejects_missing_snapshot_inventory_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = self._materialize(root)
+            attestation = self._attestation(output)
+            attestation["canonical_candidate_png"]["repository_relative_path"] = (
+                output / "canonical_candidate.png"
+            ).relative_to(root).as_posix()
+            attestation["snapshot_byte_inventory_verified"] = False
+            with patch(
+                "engine.intelligence.qwen_image_canonical_candidate_handoff.verify_launch_to_output_attestation",
+                return_value=attestation,
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_AUTHORITY_MISSING"):
+                    build_canonical_candidate_handoff(
+                        output,
+                        output / "canonical_candidate_handoff.json",
+                        repo_root=root,
+                    )
+
     def test_verify_detects_source_byte_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -115,6 +146,28 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
             (output / "canonical_inference_receipt.json").write_text('{"drift":true}\n', encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "BYTE_DRIFT:canonical_inference_receipt.json"):
                 verify_canonical_candidate_handoff(handoff, repo_root=root)
+
+    def test_verify_rejects_inventory_receipt_drift_even_with_valid_handoff_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = self._materialize(root)
+            attestation = self._attestation(output)
+            attestation["canonical_candidate_png"]["repository_relative_path"] = (
+                output / "canonical_candidate.png"
+            ).relative_to(root).as_posix()
+            handoff = output / "canonical_candidate_handoff.json"
+            with patch(
+                "engine.intelligence.qwen_image_canonical_candidate_handoff.verify_launch_to_output_attestation",
+                return_value=attestation,
+            ):
+                build_canonical_candidate_handoff(output, handoff, repo_root=root)
+                payload = json.loads(handoff.read_text(encoding="utf-8"))
+                payload["snapshot_byte_inventory"]["snapshot_total_bytes"] += 1
+                payload.pop("handoff_sha256")
+                payload["handoff_sha256"] = sha256_json(payload)
+                handoff.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_RECEIPT_DRIFT"):
+                    verify_canonical_candidate_handoff(handoff, repo_root=root)
 
     def test_verify_rejects_handoff_authority_tampering(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
