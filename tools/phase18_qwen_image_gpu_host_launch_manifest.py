@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or verify the CS291 pre-inference GPU-host launch manifest."""
+"""Build or verify the CS354 inventory-bound pre-inference GPU-host manifest."""
 from __future__ import annotations
 
 import argparse
@@ -11,14 +11,14 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from engine.intelligence.qwen_image_gpu_host_launch_manifest import (
-    build_gpu_host_launch_manifest,
-    verify_gpu_host_launch_manifest,
+from engine.intelligence.qwen_image_inventory_bound_launch_manifest import (
+    build_inventory_bound_gpu_host_launch_manifest,
+    verify_inventory_bound_gpu_host_launch_manifest,
 )
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build/verify a zero-cost local Qwen GPU-host launch manifest")
+    parser = argparse.ArgumentParser(description="Build/verify a byte-bound zero-cost local Qwen GPU-host launch manifest")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build")
@@ -40,13 +40,13 @@ def main() -> int:
     args = parser.parse_args()
     root = args.repo_root.resolve()
     if args.command == "build":
-        payload = build_gpu_host_launch_manifest(
+        payload = build_inventory_bound_gpu_host_launch_manifest(
             args.authorization, args.cs257_run_dir, args.snapshot_path, args.output,
             repo_root=root, width=args.width, height=args.height, seed=args.seed,
             num_inference_steps=args.steps, guidance_scale=args.guidance_scale,
         )
     else:
-        payload = verify_gpu_host_launch_manifest(args.manifest, repo_root=root)
+        payload = verify_inventory_bound_gpu_host_launch_manifest(args.manifest, repo_root=root)
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
 
