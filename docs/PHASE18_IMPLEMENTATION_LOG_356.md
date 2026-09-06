@@ -51,6 +51,7 @@ None.
 - `9c2ae2041edb5afbdef18e9b6ea1977501557321` — add canonical child byte-binding regressions.
 - `c6a85b774ba4fed1c3aea980c048fdecb5fdc40c` — record CS355 terminal-green CI.
 - `0871b0cae5ea49eda4bfd153706bf2e78d8b1ec7` — document CS356 contract.
+- `099327811640b1c293980fb32ada35a70deb20e2` — add CS356 implementation log.
 
 ## Gate preservation
 
@@ -70,7 +71,7 @@ Regression coverage verifies:
 - the canonical child imports the inventory-bound execution verifier rather than directly importing the historical CS292 execution verifier;
 - local-only/no-network declarations remain present at the child edge.
 
-At the time this implementation log was created, `Phase 18 Story Intelligence Verification` run `34022957125` (#5038) for the code-and-test-bearing SHA was `in_progress`; no terminal-green claim is made until GitHub reports a terminal conclusion.
+`Phase 18 Story Intelligence Verification` run `34022957125` (#5038) for the code-and-test-bearing SHA was rechecked on 2026-09-06 and is terminal `completed / success`.
 
 ## Runtime blocker
 
