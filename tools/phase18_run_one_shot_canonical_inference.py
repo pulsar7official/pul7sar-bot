@@ -12,6 +12,11 @@ and its authorization, CS257 directory, snapshot path/revision, seed, dimensions
 steps, and guidance scale must exactly match this invocation. This closes the direct
 CLI bypass around pre-launch attestation while preserving every downstream gate.
 
+CS356 upgrades that same production edge to the CS354 inventory-bound execution
+verifier. Direct invocation of this canonical child can no longer satisfy only the
+historical path/revision manifest: the exact authorized local snapshot byte inventory
+must replay successfully before prompt extraction or model import/load.
+
 There is no retry loop. A claimed authorization is burned even when inference or PNG
 validation fails. A successful result is only a canonical candidate; all downstream
 quality and publication gates remain closed. CS290 emits local-only provenance for the
@@ -145,14 +150,15 @@ def main() -> int:
     snapshot_path = args.snapshot_path.expanduser().resolve()
     output_dir = _repo_output(args.output_dir, repo_root)
 
-    # CS292: replay the entire pre-launch contract before prompt extraction, model
-    # import/load, authorization consumption, or inference. Any invocation drift is
+    # CS356: replay the CS354 exact-byte manifest plus the CS292 concrete
+    # invocation binding before prompt extraction, model import/load,
+    # authorization consumption, or inference. Any byte or invocation drift is
     # fatal and no fallback path exists.
-    from engine.intelligence.qwen_image_gpu_host_launch_manifest import (
-        verify_gpu_host_launch_manifest_for_execution,
+    from engine.intelligence.qwen_image_inventory_bound_launch_manifest import (
+        verify_inventory_bound_gpu_host_launch_manifest_for_execution,
     )
 
-    launch_manifest = verify_gpu_host_launch_manifest_for_execution(
+    launch_manifest = verify_inventory_bound_gpu_host_launch_manifest_for_execution(
         launch_manifest_path,
         authorization_path=authorization_path,
         cs257_run_dir=cs257_run_dir,
