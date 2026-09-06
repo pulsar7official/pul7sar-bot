@@ -7,6 +7,12 @@ a deterministic CS352 byte inventory to the launch manifest itself so the exact
 model/config/tokenizer bytes are fixed at manifest construction and replayed again
 before the manifest-bound canonical subprocess can start.
 
+CS356 closes the direct canonical-child bypass around that byte binding. The
+execution verifier in this module now composes the CS354 byte replay with the
+historical CS292 concrete-invocation replay, so the production child itself requires
+both the exact authorized invocation and the exact authorized snapshot bytes before
+prompt extraction, model import/load, authorization consumption, or inference.
+
 The implementation deliberately composes the existing CS291/292 manifest instead
 of weakening or replacing it. It performs no download, model load, inference,
 pixel creation, semantic approval, Golden approval, or publication action.
@@ -21,6 +27,7 @@ from typing import Any, Mapping
 from .qwen_image_gpu_host_launch_manifest import (
     build_gpu_host_launch_manifest,
     verify_gpu_host_launch_manifest,
+    verify_gpu_host_launch_manifest_for_execution,
 )
 from .qwen_image_inference_measurement import sha256_json
 from .qwen_image_snapshot_inventory import build_qwen_image_snapshot_inventory
@@ -129,3 +136,45 @@ def verify_inventory_bound_gpu_host_launch_manifest(
     if dict(recorded) != current:
         raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_SNAPSHOT_BYTE_DRIFT")
     return payload
+
+
+def verify_inventory_bound_gpu_host_launch_manifest_for_execution(
+    path: Path,
+    *,
+    authorization_path: Path,
+    cs257_run_dir: Path,
+    snapshot_path: Path,
+    repo_root: Path,
+    width: int,
+    height: int,
+    seed: int,
+    num_inference_steps: int,
+    guidance_scale: float,
+) -> dict[str, Any]:
+    """Require exact snapshot bytes and the exact CS292 invocation at child edge.
+
+    The byte-bound replay intentionally runs first. A missing inventory or any local
+    snapshot byte drift therefore fails before the historical execution-binding
+    verifier is allowed to validate the concrete CLI arguments. The historical
+    verifier remains authoritative for authorization/CS257/snapshot-path/settings
+    equality; this wrapper adds no new downstream authority.
+    """
+    root = repo_root.resolve()
+    byte_bound = verify_inventory_bound_gpu_host_launch_manifest(path, repo_root=root)
+    execution_bound = verify_gpu_host_launch_manifest_for_execution(
+        path,
+        authorization_path=authorization_path,
+        cs257_run_dir=cs257_run_dir,
+        snapshot_path=snapshot_path,
+        repo_root=root,
+        width=width,
+        height=height,
+        seed=seed,
+        num_inference_steps=num_inference_steps,
+        guidance_scale=guidance_scale,
+    )
+    if execution_bound.get("manifest_sha256") != byte_bound.get("manifest_sha256"):
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_EXECUTION_REPLAY_DRIFT")
+    if execution_bound.get(INVENTORY_FIELD) != byte_bound.get(INVENTORY_FIELD):
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_EXECUTION_INVENTORY_DRIFT")
+    return execution_bound
