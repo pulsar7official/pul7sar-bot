@@ -64,10 +64,10 @@ No paid fallback, model download, Hugging Face Hub lookup, network fallback, upl
 ## Testing status
 The CS351 code-and-test-bearing commit is `d4b9593efbc47ce56f71e6f746977b1302ece275`.
 
-GitHub Actions `Phase 18 Story Intelligence Verification` push run #4975 (`34010026664`) was observed queued after the code/test commit. This log does not claim terminal-green until GitHub reports a terminal successful conclusion.
+GitHub Actions `Phase 18 Story Intelligence Verification` push run #4975 (`34010026664`) was re-checked on the next continuation run and is terminal `completed / success`. CS351 is therefore terminal-green for that verification workflow.
 
 ## Genuine Golden execution blocker re-measured
-The current execution environment was measured during CS351 work:
+The execution environment measured during CS351 work was:
 - `torch=2.10.0+cpu`
 - `cuda_available=False`
 - `torch.version.cuda=None`
