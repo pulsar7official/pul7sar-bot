@@ -23,6 +23,11 @@ candidate/receipt/provenance/postflight files and replays the CS293 launch-to-ou
 attestation before returning zero. The replay recursively revalidates the launch manifest,
 local inference provenance, canonical inference receipt, and exact PNG bytes. No semantic,
 visual-quality, Golden, human-review, or publication authority is granted here.
+
+CS354 upgrades the launcher edge to require the inventory-bound launch verifier. The
+exact already-local Qwen snapshot bytes are therefore replayed before the canonical
+subprocess can start, while CS352/353 continue to recheck the same snapshot around
+``from_pretrained`` itself.
 """
 from __future__ import annotations
 
@@ -31,7 +36,9 @@ from pathlib import Path
 import sys
 from typing import Any, Mapping, Sequence
 
-from .qwen_image_gpu_host_launch_manifest import verify_gpu_host_launch_manifest
+from .qwen_image_inventory_bound_launch_manifest import (
+    verify_inventory_bound_gpu_host_launch_manifest,
+)
 from .qwen_image_preload_host_diagnostic import inspect_preload_host
 
 REQUIRED_COST_MODE = "$0-local"
@@ -107,7 +114,9 @@ def build_manifest_bound_execution_argv(
 ) -> tuple[str, ...]:
     """Return a shell-free argv derived entirely from a replayed launch manifest."""
     root = repo_root.resolve()
-    manifest = verify_gpu_host_launch_manifest(launch_manifest_path, repo_root=root)
+    manifest = verify_inventory_bound_gpu_host_launch_manifest(
+        launch_manifest_path, repo_root=root
+    )
     if os.environ.get("PUL7SAR_PHASE18_COST_MODE", "") != REQUIRED_COST_MODE:
         raise ValueError("QWEN_MANIFEST_EXECUTION_ZERO_COST_MODE_NOT_LOCKED")
 
