@@ -55,7 +55,18 @@ def _readiness(*, passed=True, blockers=()):
     return SimpleNamespace(
         static_preflight_passed=passed,
         snapshot_revision_verified=passed,
+        snapshot_structure_verified=passed,
         blockers=tuple(blockers),
+    )
+
+
+def _inventory(digest="a" * 64):
+    return SimpleNamespace(
+        schema="pul7sar.phase18.qwen_image_snapshot_inventory.v1",
+        model_revision="2ce1c28560fbc62c9f5531e076b237d3575330a9",
+        snapshot_inventory_sha256=digest,
+        snapshot_file_count=4,
+        snapshot_total_bytes=100,
     )
 
 
@@ -83,6 +94,12 @@ class QwenImageLocalInferenceRuntimeTests(unittest.TestCase):
     def setUp(self):
         QwenImagePipeline.last_args = None
         QwenImagePipeline.offload_enabled = False
+        inventory_patcher = patch(
+            "engine.intelligence.qwen_image_local_inference_runtime._snapshot_inventory",
+            return_value=_inventory(),
+        )
+        inventory_patcher.start()
+        self.addCleanup(inventory_patcher.stop)
 
     def test_zero_cost_lock_blocks_before_preflight(self):
         with patch(
@@ -102,6 +119,21 @@ class QwenImageLocalInferenceRuntimeTests(unittest.TestCase):
             return_value=_readiness(passed=False, blockers=("cuda_unavailable",)),
         ), patch("engine.intelligence.qwen_image_local_inference_runtime.import_module") as importer:
             with self.assertRaisesRegex(RuntimeError, "STATIC_PREFLIGHT_FAILED"):
+                load_local_inference_runtime(
+                    cs260=_cs260(),
+                    snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
+                    cost_mode=REQUIRED_COST_MODE,
+                )
+        importer.assert_not_called()
+
+    def test_snapshot_structure_must_be_verified_before_inventory_or_load(self):
+        bad = _readiness()
+        bad.snapshot_structure_verified = False
+        with patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.inspect_qwen_image_gpu_readiness",
+            return_value=bad,
+        ), patch("engine.intelligence.qwen_image_local_inference_runtime.import_module") as importer:
+            with self.assertRaisesRegex(RuntimeError, "SNAPSHOT_STRUCTURE_UNVERIFIED"):
                 load_local_inference_runtime(
                     cs260=_cs260(),
                     snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
@@ -143,6 +175,30 @@ class QwenImageLocalInferenceRuntimeTests(unittest.TestCase):
         self.assertIs(QwenImagePipeline.last_args["torch_dtype"], _Torch.bfloat16)
         self.assertTrue(QwenImagePipeline.offload_enabled)
         self.assertEqual(live, _cs260()["observed_runtime_identity"])
+
+    def test_snapshot_byte_drift_fails_before_from_pretrained(self):
+        fake_diffusers = SimpleNamespace(
+            __version__="0.synthetic",
+            QwenImagePipeline=QwenImagePipeline,
+        )
+        with patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.inspect_qwen_image_gpu_readiness",
+            return_value=_readiness(),
+        ), patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.import_module",
+            side_effect=lambda name: _Torch if name == "torch" else fake_diffusers,
+        ), patch(
+            "engine.intelligence.qwen_image_local_inference_runtime._snapshot_inventory",
+            side_effect=[_inventory("a" * 64), _inventory("b" * 64)],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "SNAPSHOT_BYTE_INVENTORY_DRIFT"):
+                load_local_inference_runtime(
+                    cs260=_cs260(),
+                    snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
+                    cost_mode=REQUIRED_COST_MODE,
+                )
+        self.assertIsNone(QwenImagePipeline.last_args)
+        self.assertFalse(QwenImagePipeline.offload_enabled)
 
     def test_host_identity_drift_fails_before_from_pretrained(self):
         fake_diffusers = SimpleNamespace(
