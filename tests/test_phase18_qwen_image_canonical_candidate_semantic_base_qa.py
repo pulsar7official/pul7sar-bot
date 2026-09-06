@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -68,6 +69,11 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
             "cost_mode": "$0-local",
             "network_allowed": False,
             "local_files_only": True,
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": "e" * 64,
+            "snapshot_file_count": 37,
+            "snapshot_total_bytes": 987654321,
+            "model_revision": "0123456789abcdef0123456789abcdef01234567",
             "source_candidate_handoff": {
                 "repository_relative_path": "artifacts/cs302/canonical_candidate_handoff.json",
                 "sha256": "c" * 64,
@@ -100,7 +106,7 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
         inspector = _Inspector(verdict or _verdict())
         return repo, admission_receipt, candidate, source, inspector
 
-    def test_passes_base_semantics_from_cs303_without_escalating_global_authority(self):
+    def test_passes_base_semantics_and_preserves_snapshot_lineage_without_escalation(self):
         with tempfile.TemporaryDirectory() as td:
             repo, admission, _candidate, source, inspector = self._fixture(Path(td))
             run = qa.run_canonical_candidate_semantic_base_qa(
@@ -117,12 +123,58 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
                 result["source_candidate_admission"]["candidate_handoff_sha256"],
                 source["source_candidate_handoff"]["handoff_sha256"],
             )
+            for field in qa._SNAPSHOT_LINEAGE_FIELDS:
+                self.assertEqual(result[field], source[field])
             self.assertFalse(result["identity_approved"])
             self.assertFalse(result["semantic_approved"])
             self.assertFalse(result["human_visual_review_approved"])
             self.assertFalse(result["golden_quality_approved"])
             self.assertFalse(result["publication_ready"])
             self.assertEqual(inspector.calls[0][1], SemanticInspectionStage.BASE_SCENE)
+
+    def test_rejects_missing_verified_snapshot_inventory_at_admission_edge(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source.pop("snapshot_byte_inventory_verified")
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_UNVERIFIED"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+
+    def test_rejects_invalid_snapshot_model_revision_at_admission_edge(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source["model_revision"] = ""
+            with self.assertRaisesRegex(ValueError, "MODEL_REVISION_INVALID"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+
+    def test_rejects_snapshot_lineage_tamper_even_with_recomputed_receipt_digest(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, _source, inspector = self._fixture(Path(td))
+            run = qa.run_canonical_candidate_semantic_base_qa(
+                admission,
+                repo / "artifacts" / "cs304",
+                repo_root=repo,
+                inspector=inspector,
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["snapshot_inventory_sha256"] = "f" * 64
+            receipt.pop("receipt_sha256")
+            receipt["receipt_sha256"] = qa.sha256_json(receipt)
+            run.receipt_path.write_text(
+                json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                qa.verify_canonical_candidate_semantic_base_qa(run.receipt_path, repo_root=repo)
 
     def test_records_rejection_when_generated_text_is_detected(self):
         with tempfile.TemporaryDirectory() as td:
