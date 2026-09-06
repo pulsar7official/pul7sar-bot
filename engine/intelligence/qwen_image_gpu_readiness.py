@@ -4,11 +4,19 @@ The probe performs local inspection only. It never downloads a model, allocates 
 Qwen pipeline, runs inference, or grants any visual/publication authority.
 Resource sufficiency is deliberately *not* inferred from an invented VRAM
 threshold: only a genuine model-load/inference attempt can prove that.
+
+CS351 additionally verifies that the approved local Hugging Face snapshot is not
+merely a correctly named ``snapshots/<revision>`` directory. The snapshot must expose
+a readable Diffusers ``model_index.json`` for ``QwenImagePipeline`` and every declared
+pipeline component must have a non-empty local component directory. This still does
+not claim that all weight bytes can be loaded; it closes the avoidable empty/partial
+snapshot false-positive before an authorized GPU model-load attempt.
 """
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from importlib import import_module
+import json
 from pathlib import Path
 import shutil
 import subprocess
@@ -20,7 +28,8 @@ from .approved_model_revisions import (
     assert_snapshot_revision,
 )
 
-SCHEMA = "pul7sar.phase18.qwen_image_gpu_readiness.v1"
+SCHEMA = "pul7sar.phase18.qwen_image_gpu_readiness.v2"
+PIPELINE_CLASS = "QwenImagePipeline"
 
 
 @dataclass(frozen=True)
@@ -40,6 +49,8 @@ class QwenImageGpuReadiness:
     sequential_cpu_offload_supported: bool
     snapshot_path: Optional[str]
     snapshot_revision_verified: bool
+    snapshot_structure_verified: bool
+    snapshot_component_count: int
     network_required: bool
     zero_cost_local_only: bool
     static_preflight_passed: bool
@@ -69,6 +80,59 @@ def _nvidia_smi_available() -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return completed.returncode == 0
+
+
+def _component_has_local_file(component_dir: Path) -> bool:
+    """Return True when a declared Diffusers component has at least one local file.
+
+    Hugging Face snapshot files are commonly symlinks into the cache blob store, so
+    symlinks are allowed only when they resolve to an existing file. Broken links and
+    empty directories remain fail-closed.
+    """
+    if not component_dir.is_dir():
+        return False
+    try:
+        for item in component_dir.rglob("*"):
+            if item.is_file():
+                return True
+    except OSError:
+        return False
+    return False
+
+
+def _inspect_snapshot_structure(snapshot_path: Path) -> tuple[bool, int, tuple[str, ...]]:
+    """Validate the minimum already-local Diffusers snapshot shape without loading weights."""
+    blockers: list[str] = []
+    if not snapshot_path.is_dir():
+        return False, 0, ("approved_model_snapshot_directory_missing",)
+
+    model_index = snapshot_path / "model_index.json"
+    if not model_index.is_file():
+        return False, 0, ("approved_model_snapshot_model_index_missing",)
+    try:
+        payload = json.loads(model_index.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return False, 0, ("approved_model_snapshot_model_index_invalid",)
+    if not isinstance(payload, dict):
+        return False, 0, ("approved_model_snapshot_model_index_invalid",)
+    if payload.get("_class_name") != PIPELINE_CLASS:
+        blockers.append("approved_model_snapshot_pipeline_class_mismatch")
+
+    declared_components: list[str] = []
+    for key, value in payload.items():
+        if not isinstance(key, str) or key.startswith("_"):
+            continue
+        if isinstance(value, (list, tuple)) and len(value) == 2:
+            declared_components.append(key)
+
+    if not declared_components:
+        blockers.append("approved_model_snapshot_components_undeclared")
+    for component in sorted(set(declared_components)):
+        if not _component_has_local_file(snapshot_path / component):
+            blockers.append(f"approved_model_snapshot_component_missing:{component}")
+
+    normalized = tuple(dict.fromkeys(blockers))
+    return not normalized, len(set(declared_components)), normalized
 
 
 def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None) -> QwenImageGpuReadiness:
@@ -104,7 +168,7 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
     sequential_offload_supported = False
     try:
         diffusers = import_module("diffusers")
-        pipeline_cls = getattr(diffusers, "QwenImagePipeline", None)
+        pipeline_cls = getattr(diffusers, PIPELINE_CLASS, None)
         pipeline_importable = pipeline_cls is not None
         sequential_offload_supported = bool(
             pipeline_cls and hasattr(pipeline_cls, "enable_sequential_cpu_offload")
@@ -117,16 +181,22 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         blockers.append("sequential_cpu_offload_unsupported")
 
     snapshot_verified = False
+    snapshot_structure_verified = False
+    snapshot_component_count = 0
     normalized_snapshot: Optional[str] = None
     if snapshot_path is None:
         blockers.append("approved_model_snapshot_not_supplied")
     else:
-        normalized_snapshot = str(Path(snapshot_path).expanduser().resolve())
+        snapshot = Path(snapshot_path).expanduser().resolve()
+        normalized_snapshot = str(snapshot)
         try:
-            assert_snapshot_revision(normalized_snapshot, QWEN_IMAGE_2512_REVISION)
+            assert_snapshot_revision(snapshot, QWEN_IMAGE_2512_REVISION)
             snapshot_verified = True
         except (RuntimeError, ValueError):
             blockers.append("approved_model_snapshot_revision_unverified")
+        structure_ok, snapshot_component_count, structure_blockers = _inspect_snapshot_structure(snapshot)
+        snapshot_structure_verified = structure_ok
+        blockers.extend(structure_blockers)
 
     smi = _nvidia_smi_available()
     if not smi:
@@ -150,6 +220,8 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         sequential_cpu_offload_supported=sequential_offload_supported,
         snapshot_path=normalized_snapshot,
         snapshot_revision_verified=snapshot_verified,
+        snapshot_structure_verified=snapshot_structure_verified,
+        snapshot_component_count=snapshot_component_count,
         network_required=False,
         zero_cost_local_only=True,
         static_preflight_passed=static_pass,
