@@ -1,0 +1,94 @@
+name: Phase 18 Result Statement Visual Study
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/result_statement_composition.py'
+      - 'engine/intelligence/result_statement_study_renderer.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_result_statement_study.py'
+      - 'tests/test_phase18_result_statement_study_renderer.py'
+      - '.github/workflows/phase18-result-study.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/result_statement_composition.py'
+      - 'engine/intelligence/result_statement_study_renderer.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'tools/phase18_build_result_statement_study.py'
+      - 'tests/test_phase18_result_statement_study_renderer.py'
+      - '.github/workflows/phase18-result-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-result-study:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run result renderer regressions
+        run: python -m unittest -v tests.test_phase18_result_statement_study_renderer
+      - name: Build independent score monument PNG
+        run: python tools/phase18_build_result_statement_study.py --output-dir output/phase18_result_statement_study
+      - name: Verify result study manifest and PNG
+        run: |
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root=Path('output/phase18_result_statement_study')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          png=root/m['png']
+          assert m['manifest_version']=='pul7sar-result-statement-study-v2-score-monument'
+          assert m['renderer_contract']=='pul7sar-result-statement-study-renderer-v2-score-monument'
+          assert m['composition_contract']=='pul7sar-result-statement-composition-v1'
+          assert m['brand_overlay_contract']=='pul7sar-adaptive-brand-overlay-v1'
+          assert m['family']=='result_statement' and m['visual_grammar']=='score_monument'
+          assert m['platform']=='instagram_feed'
+          assert m['score_text']=='3  –  1' and m['score_is_deterministic'] is True and m['score_is_primary'] is True
+          assert m['home_identity_placeholder_used'] is True and m['away_identity_placeholder_used'] is True
+          assert m['identity_placeholders_are_crest_evidence'] is False
+          assert m['identity_initial_letters_used'] is False
+          assert m['club_identity_scale_equal'] is True
+          assert m['winner_emphasis_mode']=='accent_and_hierarchy_only'
+          assert m['loser_treatment']=='neutral_respectful_no_degradation'
+          assert m['loser_identity_reduced_or_degraded'] is False
+          assert m['inherits_transfer_renderer'] is False and m['inherits_transfer_layout'] is False
+          assert m['full_pitch_required'] is False and m['full_pitch_used'] is False
+          assert m['giant_color_panels_used'] is False
+          assert m['club_color_role']=='restrained_side_light_and_micro_accents'
+          assert m['brand_max_width_ratio'] <= 0.25 and m['brand_max_height_ratio'] <= 0.09
+          assert m['brand_width'] <= round(m['width'] * m['brand_max_width_ratio'])
+          assert m['brand_height'] <= round(m['height'] * m['brand_max_height_ratio'])
+          assert m['historic_fixed_brand_width_removed'] is True and m['brand_width'] != 870
+          assert m['generator_used'] is False and m['network_used'] is False
+          assert m['study_only'] is True and m['publication_ready'] is False
+          assert m['real_club_assets_required_for_publication'] is True
+          assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
+          print('Independent result score monument study PASS')
+          PY
+      - name: Upload result statement study
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-result-statement-study-${{ github.sha }}'
+          path: output/phase18_result_statement_study/
+          if-no-files-found: error
+          retention-days: 14

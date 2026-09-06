@@ -1,0 +1,186 @@
+name: Phase 18 Story Intelligence Verification
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'assets/brand/**', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/**', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
+  pull_request:
+    paths: ['engine/intelligence/**', 'tools/phase18_*.py', 'tests/test_phase18_*.py', 'tests/test_story_intelligence_models.py', 'assets/brand/**', 'notebooks/PUL7SAR_Phase18_Golden_Visual_Colab.ipynb', 'docs/**', 'requirements-phase18-gpu.txt', '.github/workflows/phase18-intelligence.yml', '.github/workflows/phase18-gpu-smoke.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-story-intelligence:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Syntax and discover validation
+        run: |
+          python -m py_compile engine/intelligence/*.py tools/phase18_*.py tests/test_phase18_*.py tests/test_story_intelligence_models.py
+          python tools/phase18_cpu_validate.py
+          python -m unittest -v tests.test_story_intelligence_models
+          python -m unittest -v tests.test_phase18_adaptive_reference_brand_renderer
+      - name: Completion and production isolation
+        env: {PHASE18_CPU_VALIDATED: '1'}
+        run: |
+          python tools/phase18_completion_audit.py
+          python - <<'PY'
+          from pathlib import Path
+          for p in Path('engine/intelligence').glob('*.py'):
+              t=p.read_text(encoding='utf-8')
+              assert 'import main' not in t and 'from main import' not in t, p
+          print('Phase 18 production-isolation check PASS')
+          PY
+      - name: Build visual study handoffs
+        run: python tools/phase18_build_visual_study_handoffs.py --output-dir output/phase18_visual_study_handoffs
+      - name: Verify visual study handoffs
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('output/phase18_visual_study_handoffs'); m=json.loads((r/'manifest.json').read_text())
+          assert m['manifest_version']=='pul7sar-visual-study-handoff-batch-v1' and m['handoff_count']==3
+          assert m['candidate_image_count']==0 and m['publication_ready'] is False and m['exact_brand_geometry_ready'] is False
+          assert not list(r.glob('*.png'))
+          for e in m['handoffs']:
+              p=json.loads((r/e['path']).read_text())
+              assert p['human_review_allowed'] is True and p['publication_ready'] is False
+              assert p['metadata']['legacy_repo_logo_allowed'] is False
+          PY
+      - name: Build cross-platform result composition matrix
+        run: python tools/phase18_build_result_composition_matrix.py --output output/phase18_result_composition_matrix/manifest.json
+      - name: Verify result family is independent and publication blocked
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('output/phase18_result_composition_matrix/manifest.json'); m=json.loads(p.read_text())
+          assert m['manifest_version']=='pul7sar-result-composition-matrix-v1'
+          assert m['benchmark_id']=='result-statement-v1' and m['family']=='result_statement'
+          assert m['platform_count']==7 and len(m['platforms'])==7
+          assert m['zero_cost'] is True and m['network_used'] is False
+          assert m['image_generator_used'] is False and m['image_created'] is False
+          assert m['inherits_transfer_layout'] is False and m['publication_ready'] is False
+          for e in m['platforms']:
+              assert e['score_is_primary'] is True and e['club_identity_scale_equal'] is True
+              assert e['winner_emphasis_mode']=='accent_and_hierarchy_only'
+              assert e['loser_treatment']=='neutral_respectful_no_degradation'
+              assert e['generated_score_allowed'] is False and e['generated_crest_allowed'] is False
+              assert e['brand']['contract']=='pul7sar-adaptive-brand-placement-v1'
+              assert e['brand']['max_width_ratio'] <= 0.25
+          PY
+      - name: Build project-native editorial visual study
+        run: python tools/phase18_build_editorial_scene_study.py --output-dir output/phase18_editorial_scene_study
+      - name: Verify v6 adaptive reference brand study
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('output/phase18_editorial_scene_study'); m=json.loads((r/'manifest.json').read_text())
+          assert m['manifest_version']=='pul7sar-editorial-scene-study-v6-adaptive-reference-brand'
+          assert m['renderer_contract']=='pul7sar-editorial-reference-scene-study-renderer-v6-adaptive-brand'
+          assert m['benchmark_id']=='transfer-signature-v1'
+          assert m['platform']=='instagram_feed'
+          assert m['generator_used_for_scene'] is False and m['verified_player_asset_used'] is False
+          assert m['subject_placeholder_used'] is True and m['subject_placeholder_is_identity_evidence'] is False
+          assert m['arabic_raqm_used'] is True and m['study_only'] is True and m['publication_ready'] is False
+          assert m['brand_geometry_mode']=='embedded-reference-derived-layered-master-v1'
+          assert m['brand_source_mode']=='embedded-reference-master'
+          assert len(m['embedded_bundle_sha256'])==64 and m['approximate_brand_zone_removed'] is True
+          assert m['identity_shelf_used'] is False and m['exact_reference_shape_used'] is True
+          assert m['transparent_reference_layers_used'] is True
+          assert m['final_brand_font_recreation_used'] is False
+          assert m['final_brand_generic_ecg_recreation_used'] is False
+          assert m['final_brand_generator_used'] is False and m['final_brand_network_used'] is False
+          assert m['adaptive_brand_placement_used'] is True
+          assert m['brand_zone']=='lower_center'
+          assert m['brand_max_width_ratio'] <= 0.30 and m['brand_max_height_ratio'] <= 0.105
+          assert m['brand_width'] <= round(m['width'] * m['brand_max_width_ratio'])
+          assert m['brand_height'] <= round(m['height'] * m['brand_max_height_ratio'])
+          assert m['historic_fixed_brand_width_px']==870 and m['historic_fixed_brand_width_removed'] is True
+          assert m['brand_width'] < m['historic_fixed_brand_width_px']
+          assert m['metallic_wordmark_fixed'] is True and m['seven_and_pulse_tintable'] is True and m['football_fixed'] is True
+          assert m['exact_publication_master_still_requires_owner_approval'] is True
+          assert m['verified_subject_asset_still_required_for_real_transfer_publication'] is True
+          assert (r/m['png']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          PY
+      - name: Build self-contained reference-derived brand study
+        run: python tools/phase18_build_reference_brand_study.py --output-dir output/phase18_reference_brand_study
+      - name: Verify self-contained brand ownership
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          r=Path('output/phase18_reference_brand_study'); m=json.loads((r/'manifest.json').read_text())
+          assert m['manifest_version']=='pul7sar-reference-brand-study-v2-self-contained'
+          assert m['renderer_contract']=='pul7sar-brand-reference-renderer-v3-embedded-layered'
+          assert m['zero_cost'] is True and m['network_used'] is False and m['image_generator_used'] is False
+          assert m['external_source_board_required'] is False and m['embedded_master_is_default'] is True
+          assert m['reference_shape_is_source_of_truth'] is True
+          assert m['metallic_wordmark_fixed'] is True and m['seven_and_pulse_tintable'] is True and m['football_fixed'] is True
+          assert m['font_recreation_for_brand'] is False and m['generic_ecg_recreation'] is False and m['publication_ready'] is False
+          assert len(m['variants'])==4
+          assert len({e['embedded_bundle_sha256'] for e in m['variants']})==1
+          for e in m['variants']:
+              assert e['brand_source_mode']=='embedded-reference-master'
+              assert e['exact_reference_shape_used'] is True and e['transparent_reference_layers_used'] is True
+              assert e['background_board_pixels_composited'] is False and e['font_recreation_used'] is False
+              assert e['generic_ecg_recreation_used'] is False and e['generator_used'] is False and e['network_used'] is False
+              assert e['publication_ready'] is False and (r/e['png']).read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          PY
+      - name: Build and verify Golden editorial v6
+        run: |
+          python tools/phase18_build_golden_handoff.py --output output/phase18_handoffs/golden-season-opener-editorial-v6.json --seed 7007001 --request-id golden-season-opener-editorial-v6-001
+          python tools/phase18_build_golden_batch.py --output-dir output/phase18_handoffs/golden-batch --seeds 7007001 7007002 7007003 7007004
+          python tools/phase18_verify_golden_batch.py --manifest output/phase18_handoffs/golden-batch/manifest.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          m=json.loads(Path('output/phase18_handoffs/golden-batch/manifest.json').read_text())
+          expected={
+              'manifest_version':'pul7sar-golden-batch-v6',
+              'composition_grammar':'single_continuous_scene',
+              'visual_grammar_surface_visibility':'context_only',
+              'sport_geometry':'contextual_optional_not_required',
+              'generated_sport_geometry_allowed':False,
+              'hybrid_surface_replacement_required':False,
+              'football_camera_preset':'editorial_environmental_oblique',
+              'generated_branding_allowed':False,
+              'brand_composition_policy':'dynamic_deterministic_after_generation',
+              'visual_priority':'story_focal_hierarchy_before_sport_surface',
+          }
+          assert all(m.get(k)==v for k,v in expected.items()), m
+          PY
+      - name: Assert legacy logo remains non-canonical
+        run: |
+          python - <<'PY'
+          from engine.intelligence.brand_master_contract import APPROVED_PUL7SAR_BRAND_MASTER as b
+          b.assert_safe(); assert b.legacy_repo_logo_is_canonical is False
+          PY
+      - name: Upload visual study handoffs
+        uses: actions/upload-artifact@v7
+        with: {name: 'PUL7SAR-visual-study-handoffs-${{ github.sha }}', path: output/phase18_visual_study_handoffs/, if-no-files-found: error, retention-days: 14}
+      - name: Upload result composition matrix
+        uses: actions/upload-artifact@v7
+        with: {name: 'PUL7SAR-result-composition-matrix-${{ github.sha }}', path: output/phase18_result_composition_matrix/manifest.json, if-no-files-found: error, retention-days: 14}
+      - name: Upload project-native editorial visual study
+        uses: actions/upload-artifact@v7
+        with: {name: 'PUL7SAR-editorial-visual-study-${{ github.sha }}', path: output/phase18_editorial_scene_study/, if-no-files-found: error, retention-days: 14}
+      - name: Upload self-contained reference brand study
+        uses: actions/upload-artifact@v7
+        with: {name: 'PUL7SAR-reference-brand-study-${{ github.sha }}', path: output/phase18_reference_brand_study/, if-no-files-found: error, retention-days: 14}
+      - name: Upload Golden editorial v6 GPU handoff
+        uses: actions/upload-artifact@v7
+        with: {name: golden-season-opener-editorial-v6.json, path: output/phase18_handoffs/golden-season-opener-editorial-v6.json, archive: false, if-no-files-found: error, retention-days: 14}
+      - name: Upload Golden editorial v6 candidate batch
+        uses: actions/upload-artifact@v7
+        with: {name: 'PUL7SAR-golden-editorial-v6-candidate-batch-${{ github.sha }}', path: output/phase18_handoffs/golden-batch/, if-no-files-found: error, retention-days: 14}
