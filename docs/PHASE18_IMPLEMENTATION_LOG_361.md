@@ -51,8 +51,7 @@ None.
 - `a550dde4dc83ea984fe8704e608caeb8fdd0d419` — production generated-layer snapshot-lineage preservation.
 - `6befc906115e2497f7c39bb8c1e9599cd3660543` — regression coverage; code-and-test-bearing SHA.
 - `25de9506e39f50feaf9402e44a4a7d9b18166b91` — CS361 contract documentation.
-
-This implementation-log commit follows those changes; subsequent CI/result observations, if available in this run, must be appended rather than fabricated.
+- `a353be512f219d76b69de992fc4054208c7a66df` — initial CS361 implementation log.
 
 ## Authority preservation
 
@@ -81,4 +80,4 @@ The remaining execution blocker is a zero-cost host that simultaneously provides
 
 Code-and-test-bearing SHA: `6befc906115e2497f7c39bb8c1e9599cd3660543`.
 
-GitHub CI status is intentionally not claimed here until a matching workflow run is observed to complete.
+Matching `Phase 18 Story Intelligence Verification` run `34068215042` / run number `5094` was observed on that exact SHA. At the latest observation in this log update it remained `in_progress` in `Syntax and discover validation`; therefore terminal-green is not claimed. Companion Phase 18 workflows already observed on the same SHA completed successfully.
