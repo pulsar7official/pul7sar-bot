@@ -21,6 +21,7 @@ from engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_ev
 from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import (
     CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
 )
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 
 class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
@@ -38,6 +39,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         self.cs266_path.write_text("{}\n", encoding="utf-8")
         self.cs267_path.write_text("{}\n", encoding="utf-8")
         self.story_sha = "1" * 64
+        self.inventory_sha = "9" * 64
+        self.model_revision = "f" * 40
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -57,6 +60,15 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "height": 1024,
         }
 
+    def _snapshot_lineage(self) -> dict[str, object]:
+        return {
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.inventory_sha,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 123456789,
+            "model_revision": self.model_revision,
+        }
+
     def _cs264(
         self, *, generated_text: bool = False, unverified_identity: bool = False
     ) -> dict[str, object]:
@@ -65,6 +77,7 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "receipt_sha256": "a" * 64,
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._candidate_binding(),
+            **self._snapshot_lineage(),
             "semantic_base_scene_approved": True,
             "semantic_layer_evidence": {
                 "complete": True,
@@ -187,6 +200,56 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         self.assertFalse(receipt["semantic_approved"])
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
+
+    def test_snapshot_lineage_is_preserved_from_fresh_cs264_replay(self) -> None:
+        cs264, cs265 = self._cs264(), self._cs265(required=False)
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
+            run = run_canonical_candidate_generated_layer_qa(
+                self.cs264_path,
+                self.cs265_path,
+                self.repo / "out",
+                repo_root=self.repo,
+            )
+            receipt = verify_canonical_candidate_generated_layer_qa(run.receipt_path, repo_root=self.repo)
+        for field, expected in self._snapshot_lineage().items():
+            self.assertEqual(receipt[field], expected)
+        self.assertTrue(receipt["policy"]["generator_snapshot_lineage_preserved"])
+
+    def test_missing_snapshot_inventory_proof_fails_closed(self) -> None:
+        cs264, cs265 = self._cs264(), self._cs265(required=False)
+        cs264["snapshot_byte_inventory_verified"] = False
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_UNVERIFIED"):
+                run_canonical_candidate_generated_layer_qa(
+                    self.cs264_path,
+                    self.cs265_path,
+                    self.repo / "out",
+                    repo_root=self.repo,
+                )
+
+    def test_snapshot_lineage_tamper_fails_even_with_recomputed_outer_digest(self) -> None:
+        cs264, cs265 = self._cs264(), self._cs265(required=False)
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
+            run = run_canonical_candidate_generated_layer_qa(
+                self.cs264_path,
+                self.cs265_path,
+                self.repo / "out",
+                repo_root=self.repo,
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["snapshot_inventory_sha256"] = "8" * 64
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = sha256_json(unsigned)
+            run.receipt_path.write_text(
+                json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_canonical_candidate_generated_layer_qa(run.receipt_path, repo_root=self.repo)
 
     def test_human_candidate_fails_closed_without_identity_evidence(self) -> None:
         cs264, cs265 = self._cs264(), self._cs265(required=True)
