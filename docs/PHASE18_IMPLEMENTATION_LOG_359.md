@@ -58,6 +58,7 @@ None.
 - `8cbd9d8960f8d79ed75e6da51bb3bd522510bc56` — add CS359 byte-admission inventory-lineage regressions; this is the code-and-test-bearing SHA.
 - `bfce92e889204510ac8774388a30e62973e544dd` — document the CS359 contract.
 - `57439cb1ffdb87f1d59e91c46c8e4a893dbd40f0` — record terminal-green CI for CS358.
+- `6b2c88f65c1322093562424c1e91e8461134d935` — add the initial CS359 implementation log.
 
 ## Gate preservation
 
@@ -69,7 +70,7 @@ No model download, network model fallback, paid execution fallback, synthetic in
 
 Code-and-test-bearing SHA: `8cbd9d8960f8d79ed75e6da51bb3bd522510bc56`.
 
-GitHub automatically started `Phase 18 Story Intelligence Verification` run `34043877122` (#5069) for that exact SHA. At the first observation it was `queued`; no terminal-green claim is made unless a later recheck reaches `completed / success`.
+`Phase 18 Story Intelligence Verification` run `34043877122` (#5069) completed successfully for that exact SHA. Job `verify-story-intelligence` (`101515343344`) is terminal `completed / success`; its syntax/discovery validation and all subsequent workflow steps completed successfully. CS359 is therefore terminal-green on the authoritative Phase 18 CPU verification workflow.
 
 ## Runtime blocker
 
