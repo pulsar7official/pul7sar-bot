@@ -63,7 +63,9 @@ Nothing.
 ## Test / CI status
 The CS352 code-and-test-bearing commit is `311d5013b85ed9d86c890ee1ce0833e16b461205`.
 
-At the time this implementation log was written, GitHub Actions `Phase 18 Story Intelligence Verification` #4988 / run `34012753738` was `in_progress`. No terminal-green claim is made until GitHub reports a terminal successful conclusion.
+Terminal CI was re-checked on 2026-09-06. `Phase 18 Story Intelligence Verification` #4988 / run `34012753738` finished `completed / failure`; its single `verify-story-intelligence` job failed in the `Syntax and discover validation` step. The earlier implementation log entry that described this run as still `in_progress` is therefore superseded. No terminal-green claim is made for CS352.
+
+The companion Phase 18 checks visible on the same SHA were successful, but that does not override the failed Story Intelligence verification.
 
 ## Gate preservation
 CS352 changes only pre-model-load local-asset integrity. It grants no factual, freshness, entity/identity, sentiment/loser-respect, semantic, visual-quality, Golden-quality, Human Review, Brand/Typography/Presentation, Final Composed, Final Semantic, SemanticPublicationGate, Genuine Golden, publication-readiness, or external-publication authority.
