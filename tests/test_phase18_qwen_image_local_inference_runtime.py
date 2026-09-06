@@ -200,6 +200,30 @@ class QwenImageLocalInferenceRuntimeTests(unittest.TestCase):
         self.assertIsNone(QwenImagePipeline.last_args)
         self.assertFalse(QwenImagePipeline.offload_enabled)
 
+    def test_snapshot_byte_drift_during_model_load_fails_before_offload_or_inference(self):
+        fake_diffusers = SimpleNamespace(
+            __version__="0.synthetic",
+            QwenImagePipeline=QwenImagePipeline,
+        )
+        with patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.inspect_qwen_image_gpu_readiness",
+            return_value=_readiness(),
+        ), patch(
+            "engine.intelligence.qwen_image_local_inference_runtime.import_module",
+            side_effect=lambda name: _Torch if name == "torch" else fake_diffusers,
+        ), patch(
+            "engine.intelligence.qwen_image_local_inference_runtime._snapshot_inventory",
+            side_effect=[_inventory("a" * 64), _inventory("a" * 64), _inventory("b" * 64)],
+        ):
+            with self.assertRaisesRegex(RuntimeError, "SNAPSHOT_BYTE_INVENTORY_DRIFT"):
+                load_local_inference_runtime(
+                    cs260=_cs260(),
+                    snapshot_path="/tmp/snapshots/2ce1c28560fbc62c9f5531e076b237d3575330a9",
+                    cost_mode=REQUIRED_COST_MODE,
+                )
+        self.assertIsNotNone(QwenImagePipeline.last_args)
+        self.assertFalse(QwenImagePipeline.offload_enabled)
+
     def test_host_identity_drift_fails_before_from_pretrained(self):
         fake_diffusers = SimpleNamespace(
             __version__="0.synthetic",
