@@ -45,7 +45,7 @@ Starting branch HEAD verified before writes: `f2b09aa8619646fe7984b61bf2ae54dfc2
 
 5. `docs/PHASE18_IMPLEMENTATION_LOG_349.md`
    - Initial implementation log commit `b3d268c97ad258b448dc3e7ff912faddfa64addf`.
-   - Updated to record measured runtime capabilities and the observed CI state.
+   - Updated to record measured runtime capabilities and CI evidence.
 
 ## Modified
 - `docs/PHASE18_IMPLEMENTATION_LOG_348.md` only, for terminal CI evidence as described above.
@@ -71,9 +71,11 @@ No factual, freshness, entity/identity, sentiment-neutrality/loser-respect, zero
 ## Testing status
 The CS349 code-and-test-bearing commit is `cc9340d07634ec034cd3fc352720c7e9a15a94f9`.
 
-Observed GitHub Actions state after the commit:
+Terminal GitHub Actions evidence:
 - The nine visible Phase 18 companion workflows completed with `success`.
-- `Phase 18 Story Intelligence Verification` run #4948 (`33999897826`) was still `in_progress` at the last observation, in its `Syntax and discover validation` step. Therefore terminal-green Story Intelligence status is intentionally not claimed yet.
+- `Phase 18 Story Intelligence Verification` run #4948 (`33999897826`) completed with `conclusion=success` on the same code-and-test-bearing SHA.
+
+CS349 is therefore terminal-green at the recorded code-and-test-bearing commit.
 
 ## Genuine Golden execution blocker
 The execution environment was re-measured during CS349 work:
