@@ -55,7 +55,9 @@ The first CS353 Story Intelligence run examined in detail was PR run `3401507922
 
 That run failed only because `tests/test_phase18_qwen_image_snapshot_inventory.py` imported `pytest`, while the official workflow intentionally invokes `python -m unittest discover` and does not install pytest. The exact exception was `ModuleNotFoundError: No module named 'pytest'` during unittest discovery.
 
-Commit `5301e53a099432005339633450622aca71f9bfc3` removes that undeclared dependency without adding packages or changing production code. Phase 18 workflows for this corrected code-and-test-bearing SHA have started; `Phase 18 Story Intelligence Verification` run `34015174571` was `in_progress` when this log was first written, so no terminal-green claim is made here until GitHub reports a terminal success.
+Commit `5301e53a099432005339633450622aca71f9bfc3` removes that undeclared dependency without adding packages or changing production code.
+
+Terminal re-check: `Phase 18 Story Intelligence Verification` run #5004 / `34015174571` for corrected code-and-test-bearing SHA `5301e53a099432005339633450622aca71f9bfc3` finished `completed / success`. CS353 is therefore terminal-green at the code-and-test-bearing commit.
 
 ## Gate preservation
 CS353 modifies only local model-byte integrity at the genuine Qwen model-load edge. It does not execute inference and does not grant factual/freshness, entity/identity, sentiment/loser-respect, semantic, visual-quality, Golden-quality, Human Review, Brand/Typography/Presentation, Final Composed, Final Semantic, SemanticPublicationGate, Genuine Golden, publication-readiness, or external-publication authority.
