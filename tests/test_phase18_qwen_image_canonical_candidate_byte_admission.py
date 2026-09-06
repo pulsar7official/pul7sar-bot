@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import struct
 import tempfile
@@ -95,6 +96,13 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
                 "num_inference_steps": 8,
                 "guidance_scale": 1.0,
             },
+            "snapshot_byte_inventory": {
+                "snapshot_inventory_sha256": "e" * 64,
+                "snapshot_file_count": 17,
+                "snapshot_total_bytes": 123456,
+                "model_revision": "c" * 40,
+            },
+            "snapshot_byte_inventory_verified": True,
             "genuine_canonical_inference_executed": True,
             "handoff_sealed": True,
             "genuine_golden_png_created": False,
@@ -130,6 +138,11 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
             result = admission.verify_canonical_candidate_byte_admission(run.receipt_path, repo_root=repo)
             self.assertTrue(result["handoff_sealed"])
             self.assertTrue(result["candidate_bytes_admitted_for_post_generation_qa"])
+            self.assertTrue(result["snapshot_byte_inventory_verified"])
+            self.assertEqual(result["snapshot_byte_inventory"]["snapshot_inventory_sha256"], "e" * 64)
+            self.assertEqual(result["snapshot_byte_inventory"]["snapshot_file_count"], 17)
+            self.assertEqual(result["snapshot_byte_inventory"]["snapshot_total_bytes"], 123456)
+            self.assertEqual(result["snapshot_byte_inventory"]["model_revision"], "c" * 40)
             self.assertEqual(result["cost_mode"], "$0-local")
             self.assertFalse(result["network_allowed"])
             self.assertTrue(result["local_files_only"])
@@ -166,6 +179,42 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 ValueError, "PREMATURE_AUTHORITY:semantic_approved"
             ):
+                admission.admit_canonical_candidate_bytes(
+                    handoff_path, repo / "artifacts" / "cs303", repo_root=repo
+                )
+
+    def test_rejects_missing_snapshot_inventory_authority(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, handoff_path, _source_path, _candidate, _source, handoff = self._fixture(Path(td))
+            handoff["snapshot_byte_inventory_verified"] = False
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_AUTHORITY_MISSING"):
+                admission.admit_canonical_candidate_bytes(
+                    handoff_path, repo / "artifacts" / "cs303", repo_root=repo
+                )
+
+    def test_rejects_snapshot_inventory_tamper_even_with_recomputed_receipt_digest(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, handoff_path, _source_path, _candidate, _source, _handoff = self._fixture(Path(td))
+            run = admission.admit_canonical_candidate_bytes(
+                handoff_path, repo / "artifacts" / "cs303", repo_root=repo
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["snapshot_byte_inventory"]["snapshot_inventory_sha256"] = "f" * 64
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = admission.sha256_json(unsigned)
+            run.receipt_path.write_text(
+                json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_RECEIPT_DRIFT"):
+                admission.verify_canonical_candidate_byte_admission(run.receipt_path, repo_root=repo)
+
+    def test_rejects_snapshot_inventory_revision_drift(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, handoff_path, _source_path, _candidate, _source, handoff = self._fixture(Path(td))
+            handoff["snapshot_byte_inventory"]["model_revision"] = "f" * 40
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_REVISION_DRIFT"):
                 admission.admit_canonical_candidate_bytes(
                     handoff_path, repo / "artifacts" / "cs303", repo_root=repo
                 )
