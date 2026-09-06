@@ -8,7 +8,7 @@ Branch: `phase18/story-intelligence` only.
 
 Starting branch HEAD reviewed before changes: `64a231c26c6b8beb5d9dcf1221d292156018ac73`.
 
-`main` was separately reviewed at `2adba3630e79ae687718d4b5507b8576c8a8366b`. No write, merge, rebase, reset, force-update, or ref movement was performed on `main`.
+`main` was separately reviewed at `2adba3630e79ae687718d4b5507b8576c8a8366b` before the CS359 writes. A final read observed `main` at `f161dd4a7efeee95a2f4c2565e8d5ffc251d98ba`, moved by the repository's independent posted-history automation. No write, merge, rebase, reset, force-update, or ref movement was performed on `main` by CS359.
 
 ## Pre-change verification
 
@@ -59,6 +59,7 @@ None.
 - `bfce92e889204510ac8774388a30e62973e544dd` — document the CS359 contract.
 - `57439cb1ffdb87f1d59e91c46c8e4a893dbd40f0` — record terminal-green CI for CS358.
 - `6b2c88f65c1322093562424c1e91e8461134d935` — add the initial CS359 implementation log.
+- `a84daf376758c7c42f744e5e923d3b5ed638241e` — record terminal-green CS359 verification in the implementation log.
 
 ## Gate preservation
 
@@ -74,6 +75,15 @@ Code-and-test-bearing SHA: `8cbd9d8960f8d79ed75e6da51bb3bd522510bc56`.
 
 ## Runtime blocker
 
+The current execution environment was re-measured after CS359:
+
+- PyTorch: `2.10.0+cpu`;
+- CUDA available: `false`;
+- `torch.version.cuda`: `None`;
+- CUDA device count: `0`;
+- native CUDA BF16: `false`;
+- `nvidia-smi`: unavailable.
+
 A genuine production Qwen candidate still requires a zero-cost execution host that simultaneously provides NVIDIA CUDA, CUDA-enabled PyTorch, native BF16, sufficient real RAM/VRAM demonstrated by genuine model load/inference, the approved Qwen-Image/Diffusers runtime, and the exact approved already-local pinned model/verifier assets with no paid or network model fallback.
 
-CS359 performs no inference and does not fabricate `canonical_candidate.png` or `genuine_golden_visual.png`.
+CS359 performs no inference and does not fabricate production `canonical_candidate.png`, a real CS284-approved candidate, or `genuine_golden_visual.png`.
