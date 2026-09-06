@@ -18,6 +18,12 @@ snapshot after static preflight and repeats it immediately before
 ``from_pretrained``. Any file-set/content drift fails closed before weights are
 loaded. The inventory is local-only and grants no additional authority.
 
+CS353 repeats the same deterministic inventory immediately after
+``from_pretrained`` returns and before sequential CPU offload or any inference
+can be exposed to the caller. This detects snapshot mutation during the model
+load itself and fails closed before generation if the loader could have observed
+a mixed or changed local snapshot.
+
 It does not call the pipeline and grants no factual, semantic, quality, Golden,
 or publication authority.
 """
@@ -98,9 +104,10 @@ def load_local_inference_runtime(
 ):
     """Return ``(torch, pipeline, live_identity)`` for one authorized attempt.
 
-    No network fallback is permitted. Any mismatch fails before inference, and
-    all host-observable identity or local snapshot-byte drift fails before model
-    weights are loaded.
+    No network fallback is permitted. Any mismatch fails before inference. Host
+    identity and local snapshot bytes are checked before model load; the snapshot
+    inventory is also replayed after model load so mutation during weight reads
+    cannot proceed to inference.
     """
     effective_cost_mode = cost_mode if cost_mode is not None else os.environ.get("PUL7SAR_PHASE18_COST_MODE", "")
     if effective_cost_mode != REQUIRED_COST_MODE:
@@ -166,6 +173,10 @@ def load_local_inference_runtime(
     )
     if pipeline.__class__.__name__ != "QwenImagePipeline":
         raise RuntimeError("QWEN_LOCAL_INFERENCE_PIPELINE_CLASS_INVALID")
+
+    post_load_inventory = _snapshot_inventory(normalized_snapshot)
+    assert_snapshot_inventory_unchanged(pre_load_inventory, post_load_inventory)
+
     pipeline.enable_sequential_cpu_offload()
 
     live = dict(pre_load_live)
