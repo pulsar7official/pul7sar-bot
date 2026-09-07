@@ -3,11 +3,15 @@
 Change Set 336 consumes one exact, independently reverified CS335 precomposition
 checkpoint, executes the existing CS271 one-shot boundary with the repository-
 bound CS330 production overlay runner, then independently byte-admits the exact
-composed PNG through CS272.  It deliberately stops before every semantic,
+composed PNG through CS272. It deliberately stops before every semantic,
 visual-review, Golden-quality, brand-publication, and publication authority.
 
-A failed CS271 render is never retried here.  Its consumption evidence remains
-forensic evidence exactly as required by the CS271 one-shot contract.
+Change Set 366 hardens this existing continuation by preserving the exact
+Qwen-Image generator snapshot-byte lineage sealed by CS365/CS272 and by
+rechecking it against fresh CS271 and CS272 verification during downstream
+verification. A failed CS271 render is never retried here; its consumption
+evidence remains forensic evidence exactly as required by the CS271 one-shot
+contract.
 """
 from __future__ import annotations
 
@@ -39,7 +43,7 @@ from engine.intelligence.qwen_image_production_overlay_composition_runner import
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-precomposition-to-composed-byte-admission-v1"
+SCHEMA = "pul7sar-phase18-precomposition-to-composed-byte-admission-v2"
 _DOWNSTREAM_FALSE = (
     "composed_visual_approved",
     "semantic_approved",
@@ -47,6 +51,13 @@ _DOWNSTREAM_FALSE = (
     "golden_quality_approved",
     "genuine_golden_png_created",
     "publication_ready",
+)
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -57,6 +68,12 @@ class PrecompositionToComposedByteAdmissionRun:
     cs272_receipt_path: Path
     composed_png_path: Path
     composed_candidate_bytes_admitted_for_post_composition_qa: bool
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        ch in "0123456789abcdef" for ch in value.lower()
+    )
 
 
 def _read_json(path: Path, code: str) -> dict[str, Any]:
@@ -124,6 +141,32 @@ def _assert_downstream_closed(value: Mapping[str, Any], prefix: str) -> None:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
 
 
+def _snapshot_lineage(value: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_NOT_VERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if not _is_sha256(inventory_sha):
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA_INVALID")
+    if isinstance(file_count, bool) or not isinstance(file_count, int) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if isinstance(total_bytes, bool) or not isinstance(total_bytes, int) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    return {field: value[field] for field in _SNAPSHOT_LINEAGE_FIELDS}
+
+
+def _assert_snapshot_lineage_matches(
+    sealed: Mapping[str, Any], verified: Mapping[str, Any], prefix: str
+) -> None:
+    for field in _SNAPSHOT_LINEAGE_FIELDS:
+        if sealed.get(field) != verified.get(field):
+            raise ValueError(f"{prefix}_SNAPSHOT_LINEAGE_DRIFT:{field}")
+
+
 def _assert_same_lineage(value: Mapping[str, Any], cs335: Mapping[str, Any], prefix: str) -> None:
     if (
         value.get("story_snapshot_sha256") != cs335.get("story_snapshot_sha256")
@@ -171,8 +214,6 @@ def continue_precomposition_to_composed_byte_admission(
     cs270_path = _reopen_binding(repo_root, cs335.get("cs270_receipt"), "CS336_CS270_RECEIPT_INVALID")
     runner_source_path = _runner_source_path(repo_root)
 
-    # Create only the parent container here. CS271 and CS272 retain ownership of
-    # their own output directories and their native fail-closed semantics.
     output_dir.mkdir(mode=0o700)
     cs271_dir = output_dir / "cs271"
     cs272_dir = output_dir / "cs272"
@@ -190,6 +231,7 @@ def continue_precomposition_to_composed_byte_admission(
     if cs271.get("schema") != CS271_SCHEMA or cs271.get("composition_executed") is not True:
         raise ValueError("CS336_CS271_NOT_EXECUTED")
     _assert_same_lineage(cs271, cs335, "CS336_CS271")
+    cs271_snapshot_lineage = _snapshot_lineage(cs271, "CS336_CS271")
     source270 = cs271.get("source_cs270_receipt")
     if not isinstance(source270, Mapping) or source270.get("sha256") != cs335["cs270_receipt"].get("sha256"):
         raise ValueError("CS336_CS271_CS270_BINDING_DRIFT")
@@ -215,6 +257,12 @@ def continue_precomposition_to_composed_byte_admission(
     ):
         raise ValueError("CS336_CS272_LINEAGE_DRIFT")
     _assert_downstream_closed(cs272, "CS336_CS272")
+    cs272_snapshot_lineage = _snapshot_lineage(cs272, "CS336_CS272")
+    _assert_snapshot_lineage_matches(
+        cs271_snapshot_lineage,
+        cs272_snapshot_lineage,
+        "CS336_CS271_CS272",
+    )
     source271 = cs272.get("source_cs271_receipt")
     cs271_binding = _bind_file(repo_root, cs271_run.receipt_path, "CS336_CS271_RECEIPT_INVALID")
     if (
@@ -228,6 +276,7 @@ def continue_precomposition_to_composed_byte_admission(
         "schema": SCHEMA,
         "status": "PRECOMPOSITION_ONE_SHOT_COMPOSED_BYTES_ADMITTED",
         "story_snapshot_sha256": cs335["story_snapshot_sha256"],
+        **cs272_snapshot_lineage,
         "candidate_png": dict(cs335["candidate_png"]),
         "source_cs335_receipt": source_cs335_binding,
         "source_cs270_receipt": dict(cs335["cs270_receipt"]),
@@ -255,6 +304,8 @@ def continue_precomposition_to_composed_byte_admission(
             "cs271_must_independently_reverify": True,
             "cs272_must_independently_reverify": True,
             "exact_composed_bytes_must_bind_across_cs271_cs272": True,
+            "exact_generator_snapshot_lineage_must_survive_cs336": True,
+            "fresh_cs271_cs272_snapshot_lineage_must_match_sealed_receipt": True,
             "byte_admission_is_not_semantic_or_visual_approval": True,
             "stop_before_post_composition_semantic_or_visual_authority": True,
         },
@@ -299,6 +350,7 @@ def verify_precomposition_to_composed_byte_admission(
     ):
         raise ValueError("CS336_STATE_DRIFT")
     _assert_downstream_closed(receipt, "CS336")
+    sealed_snapshot_lineage = _snapshot_lineage(receipt, "CS336")
 
     cs335_path = _reopen_binding(repo_root, receipt.get("source_cs335_receipt"), "CS336_CS335_RECEIPT_INVALID")
     cs335 = verify_materialized_overlay_precomposition_readiness(cs335_path, repo_root=repo_root)
@@ -319,6 +371,12 @@ def verify_precomposition_to_composed_byte_admission(
     if cs271.get("schema") != CS271_SCHEMA or cs271.get("composition_executed") is not True:
         raise ValueError("CS336_CS271_NOT_EXECUTED")
     _assert_same_lineage(cs271, cs335, "CS336_CS271")
+    verified_cs271_snapshot_lineage = _snapshot_lineage(cs271, "CS336_CS271")
+    _assert_snapshot_lineage_matches(
+        sealed_snapshot_lineage,
+        verified_cs271_snapshot_lineage,
+        "CS336_CS271",
+    )
     if cs271.get("runner_id") != RUNNER_ID:
         raise ValueError("CS336_CS271_RUNNER_DRIFT")
     source270 = cs271.get("source_cs270_receipt")
@@ -334,6 +392,17 @@ def verify_precomposition_to_composed_byte_admission(
     ):
         raise ValueError("CS336_CS272_NOT_ADMITTED")
     _assert_downstream_closed(cs272, "CS336_CS272")
+    verified_cs272_snapshot_lineage = _snapshot_lineage(cs272, "CS336_CS272")
+    _assert_snapshot_lineage_matches(
+        sealed_snapshot_lineage,
+        verified_cs272_snapshot_lineage,
+        "CS336_CS272",
+    )
+    _assert_snapshot_lineage_matches(
+        verified_cs271_snapshot_lineage,
+        verified_cs272_snapshot_lineage,
+        "CS336_CS271_CS272",
+    )
     source271 = cs272.get("source_cs271_receipt")
     if (
         not isinstance(source271, Mapping)
