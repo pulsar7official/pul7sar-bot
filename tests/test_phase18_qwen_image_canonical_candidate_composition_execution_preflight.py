@@ -13,6 +13,7 @@ from engine.intelligence.qwen_image_canonical_candidate_composition_execution_pr
     verify_composition_execution_preflight,
 )
 from engine.intelligence.qwen_image_canonical_candidate_deterministic_composition_request import SCHEMA as CS269_SCHEMA
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 
 class CompositionExecutionPreflightTests(unittest.TestCase):
@@ -28,6 +29,7 @@ class CompositionExecutionPreflightTests(unittest.TestCase):
         self.manifest_path = self.repo / "payload_manifest.json"
         self.story_sha = "1" * 64
         self.payload_sha = hashlib.sha256(self.payload.read_bytes()).hexdigest()
+        self.snapshot_sha = "2" * 64
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -50,6 +52,11 @@ class CompositionExecutionPreflightTests(unittest.TestCase):
             "receipt_sha256": "a" * 64,
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._candidate_binding(),
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.snapshot_sha,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 123456789,
+            "model_revision": "qwen-image-approved-revision",
             "composition_layers": [
                 {"name": "atmosphere_base", "source": "generative", "candidate_owned": True},
                 {
@@ -92,13 +99,13 @@ class CompositionExecutionPreflightTests(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def _patch_cs269(self):
+    def _patch_cs269(self, value: dict[str, object] | None = None):
         return patch(
             "engine.intelligence.qwen_image_canonical_candidate_composition_execution_preflight.verify_deterministic_composition_request",
-            return_value=self._cs269(),
+            return_value=self._cs269() if value is None else value,
         )
 
-    def test_ready_preflight_materializes_payload_without_upgrading_authority(self) -> None:
+    def test_ready_preflight_materializes_payload_and_snapshot_lineage_without_upgrading_authority(self) -> None:
         self._write_manifest()
         with self._patch_cs269():
             run = build_composition_execution_preflight(
@@ -106,11 +113,58 @@ class CompositionExecutionPreflightTests(unittest.TestCase):
             )
             receipt = verify_composition_execution_preflight(run.receipt_path, repo_root=self.repo)
         self.assertTrue(receipt["composition_execution_ready"])
+        self.assertTrue(receipt["snapshot_byte_inventory_verified"])
+        self.assertEqual(receipt["snapshot_inventory_sha256"], self.snapshot_sha)
+        self.assertEqual(receipt["snapshot_file_count"], 17)
+        self.assertEqual(receipt["snapshot_total_bytes"], 123456789)
+        self.assertEqual(receipt["model_revision"], "qwen-image-approved-revision")
         self.assertFalse(receipt["composition_executed"])
         self.assertFalse(receipt["composed_visual_approved"])
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
         self.assertEqual(receipt["deterministic_payloads"][0]["payload_sha256"], self.payload_sha)
+
+    def test_unverified_upstream_snapshot_inventory_is_rejected(self) -> None:
+        self._write_manifest()
+        upstream = self._cs269()
+        upstream["snapshot_byte_inventory_verified"] = False
+        with self._patch_cs269(upstream):
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_NOT_VERIFIED"):
+                build_composition_execution_preflight(
+                    self.cs269_path, self.manifest_path, self.repo / "out", repo_root=self.repo
+                )
+
+    def test_snapshot_lineage_tamper_with_recomputed_outer_digest_is_rejected(self) -> None:
+        self._write_manifest()
+        with self._patch_cs269():
+            run = build_composition_execution_preflight(
+                self.cs269_path, self.manifest_path, self.repo / "out", repo_root=self.repo
+            )
+        receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        receipt["snapshot_inventory_sha256"] = "3" * 64
+        unsigned = dict(receipt)
+        unsigned.pop("receipt_sha256", None)
+        receipt["receipt_sha256"] = sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+        with self._patch_cs269():
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_composition_execution_preflight(run.receipt_path, repo_root=self.repo)
+
+    def test_generator_revision_tamper_with_recomputed_outer_digest_is_rejected(self) -> None:
+        self._write_manifest()
+        with self._patch_cs269():
+            run = build_composition_execution_preflight(
+                self.cs269_path, self.manifest_path, self.repo / "out", repo_root=self.repo
+            )
+        receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        receipt["model_revision"] = "tampered-revision"
+        unsigned = dict(receipt)
+        unsigned.pop("receipt_sha256", None)
+        receipt["receipt_sha256"] = sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+        with self._patch_cs269():
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_composition_execution_preflight(run.receipt_path, repo_root=self.repo)
 
     def test_missing_payload_blocks_preflight(self) -> None:
         self._write_manifest(include_payload=False)
