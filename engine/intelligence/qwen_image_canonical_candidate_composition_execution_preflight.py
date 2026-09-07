@@ -2,8 +2,13 @@
 
 Change Set 270 consumes a READY CS269 composition request and materializes the
 previously digest-only deterministic payloads as exact repository byte
-bindings.  This closes the gap between composition authorization and an actual
+bindings. This closes the gap between composition authorization and an actual
 renderer invocation without rendering pixels itself.
+
+CS363 additionally preserves the exact Qwen-Image generator snapshot-byte
+lineage proven by the deterministic composition request. Verification
+fresh-replays that upstream contract and rejects lineage drift even if this
+preflight receipt is tampered and its outer digest is recomputed.
 
 No semantic, visual-quality, Golden, human-review, or publication authority is
 upgraded here.
@@ -23,7 +28,7 @@ from engine.intelligence.qwen_image_canonical_candidate_deterministic_compositio
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-composition-execution-preflight-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-composition-execution-preflight-v2"
 PAYLOAD_MANIFEST_SCHEMA = "pul7sar-phase18-deterministic-composition-payload-manifest-v1"
 _DOWNSTREAM_FALSE = (
     "composition_executed",
@@ -33,6 +38,13 @@ _DOWNSTREAM_FALSE = (
     "genuine_golden_png_created",
     "golden_quality_approved",
     "publication_ready",
+)
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -104,6 +116,34 @@ def _assert_downstream_closed(value: Mapping[str, Any], prefix: str) -> None:
     for field in _DOWNSTREAM_FALSE:
         if value.get(field) is not False:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
+
+
+def _extract_snapshot_lineage(value: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_NOT_VERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if (
+        not isinstance(inventory_sha, str)
+        or len(inventory_sha) != 64
+        or any(ch not in "0123456789abcdef" for ch in inventory_sha.lower())
+    ):
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA_INVALID")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    return {
+        "snapshot_byte_inventory_verified": True,
+        "snapshot_inventory_sha256": inventory_sha.lower(),
+        "snapshot_file_count": file_count,
+        "snapshot_total_bytes": total_bytes,
+        "model_revision": model_revision.strip(),
+    }
 
 
 def _expected_deterministic_layers(cs269: Mapping[str, Any]) -> dict[str, dict[str, str]]:
@@ -200,6 +240,7 @@ def build_composition_execution_preflight(
     if cs269.get("schema") != CS269_SCHEMA or cs269.get("composition_request_ready") is not True:
         raise ValueError("QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269_NOT_READY")
     _assert_downstream_closed(cs269, "QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269")
+    snapshot_lineage = _extract_snapshot_lineage(cs269, "QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269")
 
     story_sha = cs269.get("story_snapshot_sha256")
     candidate = cs269.get("candidate_png")
@@ -228,6 +269,7 @@ def build_composition_execution_preflight(
         "source_cs269_receipt": {**cs269_binding, "receipt_sha256": cs269.get("receipt_sha256")},
         "source_payload_manifest": manifest_binding,
         "candidate_png": dict(candidate),
+        **snapshot_lineage,
         "deterministic_payloads": payloads,
         "blockers": blockers,
         "composition_execution_ready": ready,
@@ -241,6 +283,7 @@ def build_composition_execution_preflight(
         "policy": {
             "cs269_request_must_be_ready": True,
             "candidate_bytes_reopened": True,
+            "generator_snapshot_lineage_must_match_fresh_cs269_replay": True,
             "deterministic_payloads_must_be_repository_byte_bound": True,
             "deterministic_payload_digest_must_match_cs269": True,
             "renderer_contract_must_match_cs269": True,
@@ -277,6 +320,7 @@ def verify_composition_execution_preflight(receipt_path: Path, *, repo_root: Pat
     if claimed != sha256_json(unsigned):
         raise ValueError("QWEN_COMPOSITION_EXECUTION_PREFLIGHT_RECEIPT_DIGEST_MISMATCH")
     _assert_downstream_closed(receipt, "QWEN_COMPOSITION_EXECUTION_PREFLIGHT")
+    sealed_lineage = _extract_snapshot_lineage(receipt, "QWEN_COMPOSITION_EXECUTION_PREFLIGHT")
 
     source = receipt.get("source_cs269_receipt")
     manifest_source = receipt.get("source_payload_manifest")
@@ -288,6 +332,9 @@ def verify_composition_execution_preflight(receipt_path: Path, *, repo_root: Pat
     if cs269.get("schema") != CS269_SCHEMA or cs269.get("composition_request_ready") is not True:
         raise ValueError("QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269_NOT_READY")
     _assert_downstream_closed(cs269, "QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269")
+    fresh_lineage = _extract_snapshot_lineage(cs269, "QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269")
+    if any(sealed_lineage[field] != fresh_lineage[field] for field in _SNAPSHOT_LINEAGE_FIELDS):
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_PREFLIGHT_SNAPSHOT_LINEAGE_DRIFT")
     if source.get("receipt_sha256") != cs269.get("receipt_sha256"):
         raise ValueError("QWEN_COMPOSITION_EXECUTION_PREFLIGHT_CS269_RECEIPT_DRIFT")
 
