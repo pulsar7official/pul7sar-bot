@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import json
 from pathlib import Path
 import struct
 import sys
@@ -14,6 +15,7 @@ from engine.intelligence.qwen_image_canonical_candidate_one_shot_composition_exe
     execute_one_shot_composition,
     verify_one_shot_composition_execution,
 )
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 
 def _png(width: int, height: int, tail: bytes = b"") -> bytes:
@@ -29,6 +31,8 @@ class OneShotCompositionExecutionTests(unittest.TestCase):
         self.candidate = self.repo / "candidate.png"
         self.candidate.write_bytes(_png(1024, 1024, b"candidate"))
         self.story_sha = "1" * 64
+        self.snapshot_sha = "2" * 64
+        self.model_revision = "qwen-image-test-revision"
         self._loaded_modules: list[str] = []
         self.runner_source, self.runner = self._make_runner(
             "runner",
@@ -96,6 +100,11 @@ class OneShotCompositionExecutionTests(unittest.TestCase):
             "receipt_sha256": "a" * 64,
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._binding(self.candidate, width=1024, height=1024),
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.snapshot_sha,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 123456,
+            "model_revision": self.model_revision,
             "composition_execution_ready": True,
             "composition_executed": False,
             "composed_visual_approved": False,
@@ -106,22 +115,32 @@ class OneShotCompositionExecutionTests(unittest.TestCase):
             "publication_ready": False,
         }
 
-    def _patch_preflight(self):
+    def _patch_preflight(self, value: dict[str, object] | None = None):
         return patch(
             "engine.intelligence.qwen_image_canonical_candidate_one_shot_composition_execution.verify_composition_execution_preflight",
-            return_value=self._preflight(),
+            return_value=self._preflight() if value is None else value,
         )
+
+    def _execute(self):
+        return execute_one_shot_composition(
+            self.preflight_path,
+            self.repo / "out",
+            repo_root=self.repo,
+            runner_source_path=self.runner_source,
+            runner_id="test-project-native-runner-v1",
+            compose_fn=self.runner,
+        )
+
+    def _rewrite_receipt(self, path: Path, mutate) -> None:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        mutate(receipt)
+        receipt.pop("receipt_sha256", None)
+        receipt["receipt_sha256"] = sha256_json(receipt)
+        path.write_text(json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
 
     def test_executes_once_and_keeps_quality_authorities_closed(self) -> None:
         with self._patch_preflight():
-            run = execute_one_shot_composition(
-                self.preflight_path,
-                self.repo / "out",
-                repo_root=self.repo,
-                runner_source_path=self.runner_source,
-                runner_id="test-project-native-runner-v1",
-                compose_fn=self.runner,
-            )
+            run = self._execute()
             receipt = verify_one_shot_composition_execution(run.receipt_path, repo_root=self.repo)
         self.assertTrue(receipt["composition_executed"])
         self.assertFalse(receipt["composed_visual_approved"])
@@ -131,7 +150,42 @@ class OneShotCompositionExecutionTests(unittest.TestCase):
         self.assertEqual(receipt["runner_entrypoint"], "compose")
         self.assertEqual(receipt["composed_candidate_png"]["width"], 1024)
 
-    def test_failed_runner_still_consumes_attempt(self) -> None:
+    def test_snapshot_lineage_is_preserved_in_consumption_and_receipt(self) -> None:
+        with self._patch_preflight():
+            run = self._execute()
+            receipt = verify_one_shot_composition_execution(run.receipt_path, repo_root=self.repo)
+        consumption_path = self.repo / receipt["composition_attempt_consumption"]["repository_relative_path"]
+        consumption = json.loads(consumption_path.read_text(encoding="utf-8"))
+        for sealed in (receipt, consumption):
+            self.assertIs(sealed["snapshot_byte_inventory_verified"], True)
+            self.assertEqual(sealed["snapshot_inventory_sha256"], self.snapshot_sha)
+            self.assertEqual(sealed["snapshot_file_count"], 17)
+            self.assertEqual(sealed["snapshot_total_bytes"], 123456)
+            self.assertEqual(sealed["model_revision"], self.model_revision)
+
+    def test_unverified_upstream_snapshot_inventory_is_rejected_before_consumption(self) -> None:
+        preflight = self._preflight()
+        preflight["snapshot_byte_inventory_verified"] = False
+        with self._patch_preflight(preflight):
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_BYTE_INVENTORY_UNVERIFIED"):
+                self._execute()
+        self.assertFalse((self.repo / "out").exists())
+
+    def test_snapshot_inventory_tampering_with_recomputed_outer_digest_is_rejected(self) -> None:
+        with self._patch_preflight():
+            run = self._execute()
+            self._rewrite_receipt(run.receipt_path, lambda receipt: receipt.__setitem__("snapshot_inventory_sha256", "3" * 64))
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_one_shot_composition_execution(run.receipt_path, repo_root=self.repo)
+
+    def test_generator_revision_tampering_with_recomputed_outer_digest_is_rejected(self) -> None:
+        with self._patch_preflight():
+            run = self._execute()
+            self._rewrite_receipt(run.receipt_path, lambda receipt: receipt.__setitem__("model_revision", "tampered-generator-revision"))
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_one_shot_composition_execution(run.receipt_path, repo_root=self.repo)
+
+    def test_failed_runner_still_consumes_attempt_with_snapshot_lineage(self) -> None:
         runner_source, fail_runner = self._make_runner("fail_runner", "compose", None, raises=True)
         out = self.repo / "out"
         with self._patch_preflight():
@@ -144,7 +198,11 @@ class OneShotCompositionExecutionTests(unittest.TestCase):
                     runner_id="test-project-native-runner-v1",
                     compose_fn=fail_runner,
                 )
-        self.assertTrue((out / "composition_attempt_consumption.json").is_file())
+        consumption_path = out / "composition_attempt_consumption.json"
+        self.assertTrue(consumption_path.is_file())
+        consumption = json.loads(consumption_path.read_text(encoding="utf-8"))
+        self.assertEqual(consumption["snapshot_inventory_sha256"], self.snapshot_sha)
+        self.assertEqual(consumption["model_revision"], self.model_revision)
         self.assertFalse((out / "one_shot_composition_execution.json").exists())
 
     def test_output_dimension_drift_is_rejected_after_consumption(self) -> None:
@@ -204,28 +262,14 @@ class OneShotCompositionExecutionTests(unittest.TestCase):
 
     def test_composed_png_byte_drift_invalidates_receipt(self) -> None:
         with self._patch_preflight():
-            run = execute_one_shot_composition(
-                self.preflight_path,
-                self.repo / "out",
-                repo_root=self.repo,
-                runner_source_path=self.runner_source,
-                runner_id="test-project-native-runner-v1",
-                compose_fn=self.runner,
-            )
+            run = self._execute()
             run.composed_png_path.write_bytes(run.composed_png_path.read_bytes() + b"tamper")
             with self.assertRaisesRegex(ValueError, "BYTE_DRIFT"):
                 verify_one_shot_composition_execution(run.receipt_path, repo_root=self.repo)
 
     def test_runner_source_byte_drift_invalidates_receipt(self) -> None:
         with self._patch_preflight():
-            run = execute_one_shot_composition(
-                self.preflight_path,
-                self.repo / "out",
-                repo_root=self.repo,
-                runner_source_path=self.runner_source,
-                runner_id="test-project-native-runner-v1",
-                compose_fn=self.runner,
-            )
+            run = self._execute()
             self.runner_source.write_text("# changed runner\n", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "BYTE_DRIFT"):
                 verify_one_shot_composition_execution(run.receipt_path, repo_root=self.repo)
