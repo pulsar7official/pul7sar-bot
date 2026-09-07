@@ -31,6 +31,7 @@ class ComposedCandidateByteAdmissionTests(unittest.TestCase):
         self.composed = self.repo / "composed.png"
         self.composed.write_bytes(_png(1024, 1024, b"composed"))
         self.story_sha = "2" * 64
+        self.snapshot_sha = "3" * 64
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -49,6 +50,11 @@ class ComposedCandidateByteAdmissionTests(unittest.TestCase):
             "schema": CS271_SCHEMA,
             "receipt_sha256": "a" * 64,
             "story_snapshot_sha256": self.story_sha,
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.snapshot_sha,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 123456789,
+            "model_revision": "qwen-image-approved-revision-test",
             "runner_id": "test-project-native-runner-v1",
             "candidate_png": self._binding(self.candidate, width=1024, height=1024),
             "composed_candidate_png": self._binding(self.composed, width=1024, height=1024),
@@ -67,6 +73,16 @@ class ComposedCandidateByteAdmissionTests(unittest.TestCase):
             return_value=self._source(),
         )
 
+    def _rewrite_receipt(self, path: Path, **updates: object) -> None:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+        receipt.update(updates)
+        receipt.pop("receipt_sha256", None)
+        receipt["receipt_sha256"] = sha256_json(receipt)
+        path.write_text(
+            json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+
     def test_admits_exact_composed_bytes_without_quality_authority(self) -> None:
         with self._patch_source():
             run = admit_composed_candidate_bytes(
@@ -81,6 +97,54 @@ class ComposedCandidateByteAdmissionTests(unittest.TestCase):
         self.assertFalse(receipt["semantic_approved"])
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
+
+    def test_preserves_exact_generator_snapshot_lineage(self) -> None:
+        with self._patch_source():
+            run = admit_composed_candidate_bytes(
+                self.cs271, self.repo / "out", repo_root=self.repo
+            )
+            receipt = verify_composed_candidate_byte_admission(
+                run.receipt_path, repo_root=self.repo
+            )
+        self.assertIs(receipt["snapshot_byte_inventory_verified"], True)
+        self.assertEqual(receipt["snapshot_inventory_sha256"], self.snapshot_sha)
+        self.assertEqual(receipt["snapshot_file_count"], 17)
+        self.assertEqual(receipt["snapshot_total_bytes"], 123456789)
+        self.assertEqual(receipt["model_revision"], "qwen-image-approved-revision-test")
+
+    def test_unverified_generator_inventory_is_rejected(self) -> None:
+        source = self._source()
+        source["snapshot_byte_inventory_verified"] = False
+        with patch(
+            "engine.intelligence.qwen_image_composed_candidate_byte_admission.verify_one_shot_composition_execution",
+            return_value=source,
+        ):
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_NOT_VERIFIED"):
+                admit_composed_candidate_bytes(
+                    self.cs271, self.repo / "out", repo_root=self.repo
+                )
+
+    def test_snapshot_inventory_tamper_with_recomputed_digest_is_rejected(self) -> None:
+        with self._patch_source():
+            run = admit_composed_candidate_bytes(
+                self.cs271, self.repo / "out", repo_root=self.repo
+            )
+            self._rewrite_receipt(run.receipt_path, snapshot_inventory_sha256="4" * 64)
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                verify_composed_candidate_byte_admission(
+                    run.receipt_path, repo_root=self.repo
+                )
+
+    def test_model_revision_tamper_with_recomputed_digest_is_rejected(self) -> None:
+        with self._patch_source():
+            run = admit_composed_candidate_bytes(
+                self.cs271, self.repo / "out", repo_root=self.repo
+            )
+            self._rewrite_receipt(run.receipt_path, model_revision="tampered-revision")
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:model_revision"):
+                verify_composed_candidate_byte_admission(
+                    run.receipt_path, repo_root=self.repo
+                )
 
     def test_composed_byte_drift_invalidates_admission(self) -> None:
         with self._patch_source():
