@@ -94,7 +94,17 @@ The exact code-and-test-bearing SHA is:
 
 `e989af133be9022d013bc73572c4a47013cc875b`
 
-GitHub Actions status must be observed on this exact SHA. Until terminal `completed / success` is independently confirmed, CS365 is not to be described as terminal-green.
+Terminal GitHub Actions observations:
+
+- `Phase 18 Story Intelligence Verification` push run `34168132743` / `#5133`: `completed / success`;
+- `Phase 18 Story Intelligence Verification` pull-request run `34168134751` / `#5134`: `completed / success`;
+- the companion Phase 18 workflows observed on the same exact SHA completed successfully.
+
+This terminal-green observation confirms the CS365 code-and-test boundary passed repository verification. It does not grant runtime inference, semantic, visual, Human Visual Review, Golden-quality, Genuine Golden materialization, publication-readiness, or external-publication authority.
+
+### Documentation-only follow-up
+
+After terminal status was independently confirmed, this implementation log alone was updated to record the final CI result. No production code, test code, dependency, gate, authority, or runtime behavior changed in this follow-up.
 
 ## Genuine Golden Visual execution blocker
 
