@@ -36,7 +36,8 @@ CS366 closes that specific branch-local gap inside CS336 itself rather than addi
   - rejects snapshot-inventory digest drift;
   - rejects model-revision drift;
   - verifies recomputing the outer CS336 receipt digest does not hide snapshot-lineage tampering;
-  - retains one-shot/no-retry, premature-authority, and static network/generation/publication isolation coverage.
+  - retains one-shot/no-retry, premature-authority, and static network/generation/publication isolation coverage;
+  - after full-suite discovery exposed independent mocked lineage drift, the CS272 success fixture was corrected to inherit its five generator-lineage fields directly from the exact mocked CS271 value and an explicit pre-call equality assertion was added.
 
 ## Added
 
@@ -50,10 +51,12 @@ Nothing.
 ## Commits
 
 - `0de901337bcfa2c140f27f1971c2b04ea59e579b` — production CS336 lineage preservation
-- `21d74532ea078d99017167dfd8e214cf9a1429a0` — regression coverage; code-and-test-bearing SHA
+- `21d74532ea078d99017167dfd8e214cf9a1429a0` — initial regression coverage / initial code-and-test SHA
 - `eacc6bd4f03fbaec2457f76fb8cf9790385b5789` — Change Set contract documentation
+- `d60be795e3565f7a0248f2cb2d4ea09748ed1379` — initial implementation log
+- `532a42427aea4b6c15a881e8cead9072bae6e96b` — success-fixture lineage correction after full-suite CI discovery
 
-The commit adding this implementation log follows the commits above.
+The commit updating this log follows the commits above.
 
 ## Preserved snapshot lineage
 
@@ -98,11 +101,21 @@ No dependency was added. No model download, network-model fallback, paid inferen
 
 ## Testing state
 
-The exact code-and-test-bearing SHA is:
+Initial code-and-test-bearing SHA:
 
 `21d74532ea078d99017167dfd8e214cf9a1429a0`
 
-GitHub Actions verification state must be observed on that exact SHA before any terminal-green claim is made. This log deliberately makes no terminal-green claim until the relevant workflow reports `completed/success`.
+The push **Phase 18 Story Intelligence Verification** run `34171371439` / #5143 reached full `unittest` discovery and failed one new CS366 success-fixture test. The production contract correctly detected a mismatch between the mocked CS271 and CS272 `snapshot_inventory_sha256` values and failed closed with:
+
+`CS336_CS271_CS272_SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256`
+
+The failure was not suppressed. The success fixture was corrected so mocked CS272 inherits its generator snapshot lineage from the exact mocked CS271 value, matching the production relationship being modeled. An explicit equality assertion now verifies that fixture invariant before CS336 execution.
+
+Current code-and-test-bearing SHA after that correction:
+
+`532a42427aea4b6c15a881e8cead9072bae6e96b`
+
+GitHub Actions verification must be observed on that exact SHA before any terminal-green claim is made. This log deliberately makes no terminal-green claim until the relevant workflow reports `completed/success`.
 
 ## Genuine Golden PNG status
 
@@ -120,4 +133,4 @@ The external generation blocker remains a zero-cost compatible host that provide
 
 ## Remaining path
 
-The exact generator snapshot-byte provenance now survives the existing CS336 wrapper boundary and accompanies the exact composed PNG into the post-composition side of the pipeline. The next safe engineering action is to identify the first existing post-composition consumer of CS336/CS272 on this branch and harden it only if it demonstrably drops this lineage. Genuine image generation remains blocked by the CUDA/BF16 host requirement above.
+The exact generator snapshot-byte provenance now survives the existing CS336 wrapper boundary and accompanies the exact composed PNG into the post-composition side of the pipeline. First, the corrected exact code-and-test SHA must reach terminal-green CI. After that, the next safe engineering action is to identify the first existing post-composition consumer of CS336/CS272 on this branch and harden it only if it demonstrably drops this lineage. Genuine image generation remains blocked by the CUDA/BF16 host requirement above.
