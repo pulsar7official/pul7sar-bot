@@ -88,8 +88,15 @@ class Phase18PrecompositionToComposedByteAdmissionTests(unittest.TestCase):
             "runner_id": cs336.RUNNER_ID,
             "receipt_sha256": "2" * 64,
             "composition_executed": True,
-            **SNAPSHOT_LINEAGE,
+            **dict(SNAPSHOT_LINEAGE),
             **downstream_false(),
+        }
+        # CS272 is downstream of this exact CS271 receipt. Derive its mocked
+        # generator lineage from CS271 itself so the success fixture represents
+        # one immutable upstream snapshot rather than two independently seeded
+        # dictionaries that can drift under full-suite discovery.
+        inherited_snapshot_lineage = {
+            field: cs271_value[field] for field in cs336._SNAPSHOT_LINEAGE_FIELDS
         }
         cs272_value = {
             "schema": cs336.CS272_SCHEMA,
@@ -102,7 +109,7 @@ class Phase18PrecompositionToComposedByteAdmissionTests(unittest.TestCase):
             "composed_candidate_png": composed_binding,
             "composition_executed": True,
             "composed_candidate_bytes_admitted_for_post_composition_qa": True,
-            **SNAPSHOT_LINEAGE,
+            **inherited_snapshot_lineage,
             **downstream_false(),
         }
         return cs271_value, cs272_value
@@ -129,6 +136,10 @@ class Phase18PrecompositionToComposedByteAdmissionTests(unittest.TestCase):
             cs271_receipt_path.write_bytes(cs271_receipt_bytes)
             cs271_value, cs272_value = self._upstream_values(
                 root, cs270_path, cs271_receipt_path, composed_binding
+            )
+            self.assertEqual(
+                cs336._snapshot_lineage(cs271_value, "TEST_CS271"),
+                cs336._snapshot_lineage(cs272_value, "TEST_CS272"),
             )
             cs271_receipt_path.unlink()
             cs271_receipt_path.parent.rmdir()
