@@ -6,6 +6,8 @@ exact composed PNG, and emits a byte-bound admission receipt that downstream
 post-composition semantic/layer QA, Visual Critic, human review, Golden-quality,
 brand/typography, and publication gates may consume.
 
+Change Set 365 hardens this existing boundary by preserving and independently
+rechecking the exact Qwen-Image generator snapshot-byte lineage sealed by CS271.
 Admission never upgrades a composed candidate into an approved or Golden visual.
 """
 from __future__ import annotations
@@ -24,7 +26,7 @@ from engine.intelligence.qwen_image_canonical_candidate_one_shot_composition_exe
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-composed-candidate-byte-admission-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-composed-candidate-byte-admission-v2"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _DOWNSTREAM_FALSE = (
     "composed_visual_approved",
@@ -33,6 +35,13 @@ _DOWNSTREAM_FALSE = (
     "genuine_golden_png_created",
     "golden_quality_approved",
     "publication_ready",
+)
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -116,6 +125,32 @@ def _assert_authority(value: Mapping[str, Any], prefix: str) -> None:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
 
 
+def _snapshot_lineage(value: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_NOT_VERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if not _is_sha256(inventory_sha):
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA_INVALID")
+    if isinstance(file_count, bool) or not isinstance(file_count, int) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if isinstance(total_bytes, bool) or not isinstance(total_bytes, int) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    return {field: value[field] for field in _SNAPSHOT_LINEAGE_FIELDS}
+
+
+def _assert_snapshot_lineage_matches(
+    sealed: Mapping[str, Any], verified: Mapping[str, Any], prefix: str
+) -> None:
+    for field in _SNAPSHOT_LINEAGE_FIELDS:
+        if sealed.get(field) != verified.get(field):
+            raise ValueError(f"{prefix}_SNAPSHOT_LINEAGE_DRIFT:{field}")
+
+
 def admit_composed_candidate_bytes(
     cs271_receipt_path: Path,
     output_dir: Path,
@@ -137,6 +172,7 @@ def admit_composed_candidate_bytes(
     if source.get("schema") != CS271_SCHEMA:
         raise ValueError("QWEN_COMPOSED_ADMISSION_CS271_SCHEMA_DRIFT")
     _assert_authority(source, "QWEN_COMPOSED_ADMISSION_CS271")
+    snapshot_lineage = _snapshot_lineage(source, "QWEN_COMPOSED_ADMISSION_CS271")
 
     story_sha = source.get("story_snapshot_sha256")
     composed = source.get("composed_candidate_png")
@@ -157,6 +193,7 @@ def admit_composed_candidate_bytes(
         "schema": SCHEMA,
         "status": "QWEN_IMAGE_COMPOSED_CANDIDATE_BYTES_ADMITTED_FOR_POST_COMPOSITION_QA",
         "story_snapshot_sha256": story_sha,
+        **snapshot_lineage,
         "source_cs271_receipt": {
             **source_binding,
             "receipt_sha256": source.get("receipt_sha256"),
@@ -176,6 +213,8 @@ def admit_composed_candidate_bytes(
             "cs271_must_reverify": True,
             "exact_composed_png_bytes_must_reopen": True,
             "canvas_dimensions_must_match_source_candidate": True,
+            "exact_generator_snapshot_lineage_must_survive_byte_admission": True,
+            "fresh_cs271_snapshot_lineage_must_match_sealed_receipt": True,
             "byte_admission_is_not_visual_approval": True,
             "post_composition_qa_must_consume_this_exact_png": True,
         },
@@ -226,6 +265,9 @@ def verify_composed_candidate_byte_admission(
     _assert_authority(receipt, "QWEN_COMPOSED_ADMISSION")
     if receipt.get("composed_candidate_bytes_admitted_for_post_composition_qa") is not True:
         raise ValueError("QWEN_COMPOSED_ADMISSION_AUTHORITY_MISSING")
+    sealed_snapshot_lineage = _snapshot_lineage(
+        receipt, "QWEN_COMPOSED_ADMISSION"
+    )
 
     source_binding = receipt.get("source_cs271_receipt")
     source_candidate = receipt.get("source_candidate_png")
@@ -240,6 +282,14 @@ def verify_composed_candidate_byte_admission(
     _assert_authority(source, "QWEN_COMPOSED_ADMISSION_CS271")
     if source.get("schema") != CS271_SCHEMA:
         raise ValueError("QWEN_COMPOSED_ADMISSION_CS271_SCHEMA_DRIFT")
+    verified_snapshot_lineage = _snapshot_lineage(
+        source, "QWEN_COMPOSED_ADMISSION_CS271"
+    )
+    _assert_snapshot_lineage_matches(
+        sealed_snapshot_lineage,
+        verified_snapshot_lineage,
+        "QWEN_COMPOSED_ADMISSION",
+    )
     if source.get("receipt_sha256") != source_binding.get("receipt_sha256"):
         raise ValueError("QWEN_COMPOSED_ADMISSION_CS271_RECEIPT_DRIFT")
     if source.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256"):
