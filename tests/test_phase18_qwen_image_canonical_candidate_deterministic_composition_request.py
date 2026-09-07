@@ -13,6 +13,7 @@ from engine.intelligence.qwen_image_canonical_candidate_deterministic_compositio
     verify_deterministic_composition_request,
 )
 from engine.intelligence.qwen_image_canonical_candidate_generated_layer_qa import SCHEMA as CS268_SCHEMA
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 
 class DeterministicCompositionRequestTests(unittest.TestCase):
@@ -27,6 +28,10 @@ class DeterministicCompositionRequestTests(unittest.TestCase):
         self.cs268_path.write_text("{}\n", encoding="utf-8")
         self.manifest_path = self.repo / "composition_manifest.json"
         self.story_sha = "1" * 64
+        self.snapshot_inventory_sha = "3" * 64
+        self.snapshot_file_count = 417
+        self.snapshot_total_bytes = 23_456_789
+        self.model_revision = "approved-qwen-image-revision"
 
     def tearDown(self) -> None:
         self.tmp.cleanup()
@@ -89,6 +94,11 @@ class DeterministicCompositionRequestTests(unittest.TestCase):
             "receipt_sha256": "a" * 64,
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._candidate_binding(),
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.snapshot_inventory_sha,
+            "snapshot_file_count": self.snapshot_file_count,
+            "snapshot_total_bytes": self.snapshot_total_bytes,
+            "model_revision": self.model_revision,
             "hybrid_layer_plan": self._plan(),
             "generated_layer_qa_approved": True,
             "composition_executed": False,
@@ -126,13 +136,13 @@ class DeterministicCompositionRequestTests(unittest.TestCase):
         }
         self.manifest_path.write_text(json.dumps(manifest) + "\n", encoding="utf-8")
 
-    def _patch_cs268(self):
+    def _patch_cs268(self, value: dict[str, object] | None = None):
         return patch(
             "engine.intelligence.qwen_image_canonical_candidate_deterministic_composition_request.verify_canonical_candidate_generated_layer_qa",
-            return_value=self._cs268(),
+            return_value=self._cs268() if value is None else value,
         )
 
-    def test_ready_request_binds_candidate_verified_asset_and_deterministic_contract(self) -> None:
+    def test_ready_request_binds_candidate_verified_asset_deterministic_contract_and_snapshot_lineage(self) -> None:
         self._write_manifest()
         with self._patch_cs268():
             run = build_deterministic_composition_request(
@@ -140,10 +150,53 @@ class DeterministicCompositionRequestTests(unittest.TestCase):
             )
             receipt = verify_deterministic_composition_request(run.receipt_path, repo_root=self.repo)
         self.assertTrue(receipt["composition_request_ready"])
+        self.assertTrue(receipt["snapshot_byte_inventory_verified"])
+        self.assertEqual(receipt["snapshot_inventory_sha256"], self.snapshot_inventory_sha)
+        self.assertEqual(receipt["snapshot_file_count"], self.snapshot_file_count)
+        self.assertEqual(receipt["snapshot_total_bytes"], self.snapshot_total_bytes)
+        self.assertEqual(receipt["model_revision"], self.model_revision)
         self.assertFalse(receipt["composition_executed"])
         self.assertFalse(receipt["composed_visual_approved"])
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
+
+    def test_missing_snapshot_inventory_proof_is_rejected(self) -> None:
+        self._write_manifest()
+        upstream = self._cs268()
+        upstream["snapshot_byte_inventory_verified"] = False
+        with self._patch_cs268(upstream):
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_NOT_VERIFIED"):
+                build_deterministic_composition_request(
+                    self.cs268_path, self.manifest_path, self.repo / "out", repo_root=self.repo
+                )
+
+    def test_snapshot_lineage_tamper_with_recomputed_outer_digest_is_rejected(self) -> None:
+        self._write_manifest()
+        with self._patch_cs268():
+            run = build_deterministic_composition_request(
+                self.cs268_path, self.manifest_path, self.repo / "out", repo_root=self.repo
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["snapshot_inventory_sha256"] = "4" * 64
+            receipt.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = sha256_json(receipt)
+            run.receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_deterministic_composition_request(run.receipt_path, repo_root=self.repo)
+
+    def test_generator_model_revision_tamper_with_recomputed_outer_digest_is_rejected(self) -> None:
+        self._write_manifest()
+        with self._patch_cs268():
+            run = build_deterministic_composition_request(
+                self.cs268_path, self.manifest_path, self.repo / "out", repo_root=self.repo
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["model_revision"] = "tampered-revision"
+            receipt.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = sha256_json(receipt)
+            run.receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT"):
+                verify_deterministic_composition_request(run.receipt_path, repo_root=self.repo)
 
     def test_missing_required_verified_brand_blocks_request(self) -> None:
         self._write_manifest(include_brand=False)
