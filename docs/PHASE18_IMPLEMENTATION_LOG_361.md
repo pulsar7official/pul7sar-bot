@@ -80,4 +80,4 @@ The remaining execution blocker is a zero-cost host that simultaneously provides
 
 Code-and-test-bearing SHA: `6befc906115e2497f7c39bb8c1e9599cd3660543`.
 
-Matching `Phase 18 Story Intelligence Verification` run `34068215042` / run number `5094` was observed on that exact SHA. At the latest observation in this log update it remained `in_progress` in `Syntax and discover validation`; therefore terminal-green is not claimed. Companion Phase 18 workflows already observed on the same SHA completed successfully.
+Matching `Phase 18 Story Intelligence Verification` run `34068215042` / run number `5094` was re-read after completion on that exact SHA and is terminal-green: `status=completed`, `conclusion=success`.
