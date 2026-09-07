@@ -85,7 +85,14 @@ No model download, paid execution fallback, network-model fallback, synthetic in
 
 ## Test status
 
-The code-and-test-bearing branch SHA is the descendant containing both production and regression commits. GitHub Actions status must be recorded only after fresh observation; no terminal-green claim is made here until the relevant Phase 18 verification run completes successfully.
+The code-and-test-bearing SHA is `dc8338923b5122a006ede4b8ebaeddf678642b4a`.
+
+Fresh GitHub Actions observation after the implementation completed confirms terminal-green status:
+
+- `Phase 18 Story Intelligence Verification` run `34103410071`, run number `5114`: `completed / success` on `dc8338923b5122a006ede4b8ebaeddf678642b4a`.
+- Companion Phase 18 workflows observed on the same SHA also completed successfully: Adaptive Brand Pixel Verification, Data Monument Visual Study, Event Editorial Visual Study, Verified Match Result Visual Study, Tactical Intelligence Visual Study, Result Statement Visual Study, Event Hybrid Context Study, Premium Hybrid Result Visual Study, and Composition Matrix Verification.
+
+This terminal-green record is documentation-only; it grants no new runtime, semantic, visual, Golden, or publication authority.
 
 ## Genuine Golden execution status
 
