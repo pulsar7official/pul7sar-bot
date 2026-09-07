@@ -5,6 +5,11 @@ repository-bound composition-input manifest.  It proves that every required
 non-generative layer has an explicit owner and, for verified-asset layers, an
 exact repository file binding before composition may start.
 
+CS362 additionally preserves the exact Qwen-Image generator snapshot-byte
+lineage already proven by the generated-layer QA contract. Verification
+fresh-replays that upstream contract and rejects any lineage drift even when a
+composition-request digest has been recomputed after tampering.
+
 This module does not render pixels.  It never upgrades semantic, Golden, human
 review, or publication authority.
 """
@@ -23,7 +28,7 @@ from engine.intelligence.qwen_image_canonical_candidate_generated_layer_qa impor
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-deterministic-composition-request-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-deterministic-composition-request-v2"
 MANIFEST_SCHEMA = "pul7sar-phase18-deterministic-composition-input-manifest-v1"
 _ALLOWED_SOURCES = {"generative", "deterministic", "verified_asset", "optional"}
 _DOWNSTREAM_FALSE = (
@@ -34,6 +39,13 @@ _DOWNSTREAM_FALSE = (
     "genuine_golden_png_created",
     "golden_quality_approved",
     "publication_ready",
+)
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -105,6 +117,34 @@ def _assert_downstream_closed(value: Mapping[str, Any], prefix: str) -> None:
     for field in _DOWNSTREAM_FALSE:
         if value.get(field) is not False:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
+
+
+def _extract_snapshot_lineage(value: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_NOT_VERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if (
+        not isinstance(inventory_sha, str)
+        or len(inventory_sha) != 64
+        or any(ch not in "0123456789abcdef" for ch in inventory_sha.lower())
+    ):
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA_INVALID")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    return {
+        "snapshot_byte_inventory_verified": True,
+        "snapshot_inventory_sha256": inventory_sha.lower(),
+        "snapshot_file_count": file_count,
+        "snapshot_total_bytes": total_bytes,
+        "model_revision": model_revision.strip(),
+    }
 
 
 def _normalize_plan(raw_plan: Any) -> list[dict[str, Any]]:
@@ -216,6 +256,7 @@ def build_deterministic_composition_request(
     if cs268.get("schema") != CS268_SCHEMA or cs268.get("generated_layer_qa_approved") is not True:
         raise ValueError("QWEN_COMPOSITION_REQUEST_CS268_NOT_APPROVED")
     _assert_downstream_closed(cs268, "QWEN_COMPOSITION_REQUEST_CS268")
+    snapshot_lineage = _extract_snapshot_lineage(cs268, "QWEN_COMPOSITION_REQUEST_CS268")
 
     story_sha = cs268.get("story_snapshot_sha256")
     candidate = cs268.get("candidate_png")
@@ -241,6 +282,7 @@ def build_deterministic_composition_request(
         "source_cs268_receipt": {**cs268_binding, "receipt_sha256": cs268.get("receipt_sha256")},
         "source_composition_manifest": manifest_binding,
         "candidate_png": dict(candidate),
+        **snapshot_lineage,
         "hybrid_layer_plan": plan,
         "composition_layers": normalized_layers,
         "blockers": blockers,
@@ -255,6 +297,7 @@ def build_deterministic_composition_request(
         "policy": {
             "cs268_generated_layer_qa_must_pass": True,
             "candidate_bytes_reopened": True,
+            "generator_snapshot_lineage_preserved": True,
             "layer_sources_must_match_cs268_plan": True,
             "verified_assets_must_be_repository_byte_bound": True,
             "deterministic_layers_require_renderer_contract_and_payload_digest": True,
@@ -291,6 +334,7 @@ def verify_deterministic_composition_request(receipt_path: Path, *, repo_root: P
     if claimed != sha256_json(unsigned):
         raise ValueError("QWEN_COMPOSITION_REQUEST_RECEIPT_DIGEST_MISMATCH")
     _assert_downstream_closed(receipt, "QWEN_COMPOSITION_REQUEST")
+    sealed_snapshot_lineage = _extract_snapshot_lineage(receipt, "QWEN_COMPOSITION_REQUEST")
 
     source = receipt.get("source_cs268_receipt")
     manifest_source = receipt.get("source_composition_manifest")
@@ -302,6 +346,9 @@ def verify_deterministic_composition_request(receipt_path: Path, *, repo_root: P
     if cs268.get("schema") != CS268_SCHEMA or cs268.get("generated_layer_qa_approved") is not True:
         raise ValueError("QWEN_COMPOSITION_REQUEST_CS268_NOT_APPROVED")
     _assert_downstream_closed(cs268, "QWEN_COMPOSITION_REQUEST_CS268")
+    fresh_snapshot_lineage = _extract_snapshot_lineage(cs268, "QWEN_COMPOSITION_REQUEST_CS268")
+    if any(sealed_snapshot_lineage[field] != fresh_snapshot_lineage[field] for field in _SNAPSHOT_LINEAGE_FIELDS):
+        raise ValueError("QWEN_COMPOSITION_REQUEST_SNAPSHOT_LINEAGE_DRIFT")
     if source.get("receipt_sha256") != cs268.get("receipt_sha256"):
         raise ValueError("QWEN_COMPOSITION_REQUEST_CS268_RECEIPT_DRIFT")
 
