@@ -6,6 +6,12 @@ compose callable is required to originate from that same source file, the
 attempt is consumed before rendering starts, and any produced PNG is rebound
 by bytes.
 
+Change Set 364 preserves the exact Qwen-Image generator snapshot-byte lineage
+from the freshly verified execution preflight through both the pre-render
+attempt-consumption record and the final execution receipt.  Verification
+freshly replays the preflight and rejects any sealed lineage drift, including
+tampering hidden behind a correctly recomputed outer receipt digest.
+
 This boundary deliberately does NOT approve semantic quality, human review,
 Golden status, brand quality, or publication readiness.
 """
@@ -27,8 +33,15 @@ from engine.intelligence.qwen_image_canonical_candidate_composition_execution_pr
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-one-shot-composition-execution-v1"
-CONSUMPTION_SCHEMA = "pul7sar-phase18-qwen-image-composition-attempt-consumption-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-one-shot-composition-execution-v2"
+CONSUMPTION_SCHEMA = "pul7sar-phase18-qwen-image-composition-attempt-consumption-v2"
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
+)
 _DOWNSTREAM_FALSE = (
     "composed_visual_approved",
     "semantic_approved",
@@ -102,6 +115,28 @@ def _assert_downstream_closed(value: Mapping[str, Any], prefix: str) -> None:
     for field in _DOWNSTREAM_FALSE:
         if value.get(field) is not False:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
+
+
+def _extract_snapshot_lineage(value: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_BYTE_INVENTORY_UNVERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    if not isinstance(inventory_sha, str) or len(inventory_sha) != 64:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA256_INVALID")
+    try:
+        int(inventory_sha, 16)
+    except ValueError as exc:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA256_INVALID") from exc
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if isinstance(file_count, bool) or not isinstance(file_count, int) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if isinstance(total_bytes, bool) or not isinstance(total_bytes, int) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    return {field: value.get(field) for field in _SNAPSHOT_LINEAGE_FIELDS}
 
 
 def _png_dimensions(path: Path) -> tuple[int, int]:
@@ -209,6 +244,7 @@ def execute_one_shot_composition(
     if preflight.get("composition_executed") is not False:
         raise ValueError("QWEN_COMPOSITION_EXECUTION_CS270_ALREADY_EXECUTED")
     _assert_downstream_closed(preflight, "QWEN_COMPOSITION_EXECUTION_CS270")
+    snapshot_lineage = _extract_snapshot_lineage(preflight, "QWEN_COMPOSITION_EXECUTION_CS270")
 
     story_sha = preflight.get("story_snapshot_sha256")
     candidate = preflight.get("candidate_png")
@@ -225,6 +261,7 @@ def execute_one_shot_composition(
         "runner_id": runner_id.strip(),
         "runner_source": runner_binding,
         "runner_entrypoint": runner_entrypoint,
+        **snapshot_lineage,
         "attempt_consumed_before_render": True,
     }
     consumption["receipt_sha256"] = sha256_json(consumption)
@@ -261,6 +298,7 @@ def execute_one_shot_composition(
         "runner_entrypoint": runner_entrypoint,
         "candidate_png": dict(candidate),
         "composed_candidate_png": composed_binding,
+        **snapshot_lineage,
         "composition_executed": True,
         "composed_visual_approved": False,
         "semantic_approved": False,
@@ -276,6 +314,8 @@ def execute_one_shot_composition(
             "runner_entrypoint_must_be_top_level_function": True,
             "candidate_bytes_are_reopened": True,
             "composed_png_bytes_are_bound": True,
+            "generator_snapshot_lineage_is_preserved": True,
+            "verification_replays_cs270_snapshot_lineage": True,
             "composition_execution_is_not_visual_approval": True,
         },
     }
@@ -300,6 +340,7 @@ def verify_one_shot_composition_execution(receipt_path: Path, *, repo_root: Path
     if claimed != sha256_json(unsigned):
         raise ValueError("QWEN_COMPOSITION_EXECUTION_RECEIPT_DIGEST_MISMATCH")
     _assert_downstream_closed(receipt, "QWEN_COMPOSITION_EXECUTION")
+    sealed_snapshot_lineage = _extract_snapshot_lineage(receipt, "QWEN_COMPOSITION_EXECUTION")
 
     source = receipt.get("source_cs270_receipt")
     consumption_binding = receipt.get("composition_attempt_consumption")
@@ -317,6 +358,9 @@ def verify_one_shot_composition_execution(receipt_path: Path, *, repo_root: Path
         raise ValueError("QWEN_COMPOSITION_EXECUTION_CS270_RECEIPT_DRIFT")
     if preflight.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256") or preflight.get("candidate_png") != candidate:
         raise ValueError("QWEN_COMPOSITION_EXECUTION_UPSTREAM_BINDING_DRIFT")
+    verified_snapshot_lineage = _extract_snapshot_lineage(preflight, "QWEN_COMPOSITION_EXECUTION_CS270")
+    if sealed_snapshot_lineage != verified_snapshot_lineage:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_SNAPSHOT_LINEAGE_DRIFT")
 
     _reopen_binding(repo_root, candidate, "QWEN_COMPOSITION_EXECUTION_CANDIDATE_INVALID")
     runner_path = _reopen_binding(repo_root, runner_binding, "QWEN_COMPOSITION_EXECUTION_RUNNER_SOURCE_INVALID")
@@ -330,6 +374,12 @@ def verify_one_shot_composition_execution(receipt_path: Path, *, repo_root: Path
     consumption_unsigned.pop("receipt_sha256", None)
     if consumption_claimed != sha256_json(consumption_unsigned):
         raise ValueError("QWEN_COMPOSITION_EXECUTION_CONSUMPTION_DIGEST_MISMATCH")
+    consumption_snapshot_lineage = _extract_snapshot_lineage(
+        consumption,
+        "QWEN_COMPOSITION_EXECUTION_CONSUMPTION",
+    )
+    if consumption_snapshot_lineage != sealed_snapshot_lineage:
+        raise ValueError("QWEN_COMPOSITION_EXECUTION_CONSUMPTION_SNAPSHOT_LINEAGE_DRIFT")
     if (
         consumption.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256")
         or consumption.get("runner_id") != receipt.get("runner_id")
