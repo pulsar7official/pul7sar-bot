@@ -95,7 +95,18 @@ The exact code-and-test-bearing SHA is:
 
 `995850292e06f71f6927605ee369edd7dae0d289`
 
-GitHub Actions status must be observed independently. Do not treat this log entry itself as terminal-green evidence. A later log-only update may record the exact workflow run once terminal status is confirmed.
+Terminal GitHub Actions observation:
+
+- workflow: `Phase 18 Story Intelligence Verification`
+- run: `34153569853` / `#5124`
+- exact tested SHA: `995850292e06f71f6927605ee369edd7dae0d289`
+- conclusion: `completed / success`
+
+This terminal-green observation confirms the CS364 code-and-test boundary passed its repository verification workflow. It does not grant runtime inference, semantic, visual, Human Visual Review, Golden-quality, Genuine Golden materialization, publication-readiness, or external-publication authority.
+
+### Documentation-only follow-up
+
+After terminal status was independently confirmed, this implementation log alone was updated to record the final CI result. No production code, test code, dependency, gate, authority, or runtime behavior changed in this follow-up.
 
 ## Genuine Golden Visual execution blocker
 
