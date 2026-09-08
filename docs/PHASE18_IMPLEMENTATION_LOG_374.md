@@ -9,7 +9,7 @@
 
 ## CS373 prerequisite
 
-`Phase 18 Story Intelligence Verification` run `34271851389` / run number `5224` completed successfully on exact CS373 code-and-test SHA `1654c95d237015f5f946205a4d105fe7698426a0`. CS373 is therefore terminal-green before CS374 was stacked.
+`Phase 18 Story Intelligence Verification` run `34271851389` / run number `5224` completed successfully on exact CS373 code-and-test SHA `1654c95d237015f5f946205a4d105fe7698426a0`. CS373 was terminal-green before CS374 was stacked.
 
 ## Proven downstream target
 
@@ -47,6 +47,9 @@ CS343 schema v2 already carries exact Qwen generator snapshot byte provenance. C
 - `docs/PHASE18_IMPLEMENTATION_LOG_373.md`
   - CS373 CI status updated from in-progress to terminal-green after exact workflow verification.
 
+- `docs/PHASE18_IMPLEMENTATION_LOG_374.md`
+  - CS374 CI status updated to terminal-green after exact workflow verification.
+
 ### Added
 
 - `docs/PHASE18_CHANGESET_374_CS344_FINAL_PRESENTATION_EVIDENCE_SNAPSHOT_LINEAGE.md`
@@ -79,13 +82,13 @@ CS344 may preserve an independently admitted CS280 Final Presentation Review ver
 
 Factual/freshness correctness, Entity/Identity verification, sentiment neutrality/loser respect, zero-cost policy, semantic QA, visual-quality evidence, Human Visual Review provenance, Final Presentation Review provenance, final composed approval, final semantic approval, SemanticPublicationGate, Genuine Golden materialization, publication readiness, and publication execution remain separate and fail-closed.
 
-## Tests / CI
+## Tests / CI — terminal green
 
-Exact code-and-test-bearing SHA under verification: `83cf3767f8b836447c2f208ece8caf9f9b1bc08b`.
+Exact code-and-test-bearing SHA: `83cf3767f8b836447c2f208ece8caf9f9b1bc08b`.
 
-- `Phase 18 Story Intelligence Verification` run `34276951618` / run number `5234`: `in_progress` at the latest observation.
-- Companion Phase 18 workflows on the same exact SHA were also in progress at that observation.
-- CS374 must not be described as terminal-green until Story Intelligence Verification itself completes successfully on this exact SHA.
+- `Phase 18 Story Intelligence Verification` run `34276951618` / run number `5234`: `completed / success`.
+- All companion Phase 18 workflows visible on the same exact SHA also completed successfully.
+- CS374 is terminal-green on the exact code-and-test-bearing SHA.
 
 ## Runtime blocker for first Genuine Golden Visual PNG
 
@@ -104,6 +107,6 @@ The exact blocker remains absence of a compatible zero-cost NVIDIA CUDA executio
 
 ## What remains
 
-1. Obtain terminal-green CI for exact CS374 code-and-test-bearing SHA `83cf3767f8b836447c2f208ece8caf9f9b1bc08b`.
-2. Only then inspect the first real branch-local consumer after CS344/CS280 and harden it only if a genuine lineage gap exists.
+1. Inspect the first real branch-local consumer after CS344/CS280 and harden it only if a genuine lineage gap exists.
+2. Preserve independent final composed approval, final semantic approval, SemanticPublicationGate, Genuine Golden materialization, and publication authority.
 3. Independently, actual first Genuine Golden PNG remains blocked on compatible zero-cost CUDA execution and must not be fabricated.
