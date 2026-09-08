@@ -1,6 +1,7 @@
 """CS343: continue approved CS342 Human Review evidence into exact CS279 presentation request.
 
-This continuation independently replays CS342, reopens and replays the exact CS278
+This continuation independently replays CS342, preserves and verifies the exact Qwen
+generator snapshot byte lineage carried by CS342, reopens and replays the exact CS278
 receipt selected by CS342, requires the external Human Visual Review verdict to be
 approved, then invokes the repository's existing CS279 Final Presentation Review
 Request contract for the exact same composed PNG bytes. It stops before presentation
@@ -31,7 +32,7 @@ from engine.intelligence.qwen_image_composed_candidate_final_presentation_review
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-human-visual-review-evidence-to-final-presentation-review-request-v1"
+SCHEMA = "pul7sar-phase18-human-visual-review-evidence-to-final-presentation-review-request-v2"
 STATUS = "FINAL_PRESENTATION_REVIEW_REQUEST_READY"
 _FINAL_FALSE = (
     "final_presentation_review_executed",
@@ -42,6 +43,13 @@ _FINAL_FALSE = (
     "semantic_approved",
     "genuine_golden_png_created",
     "publication_ready",
+)
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -95,6 +103,31 @@ def _reopen(root: Path, binding: Any, code: str) -> Path:
     return path
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], code: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(code + ":snapshot_byte_inventory_verified")
+    digest = value.get("snapshot_inventory_sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise ValueError(code + ":snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(code + ":snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(code + ":snapshot_total_bytes")
+    revision = value.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError(code + ":model_revision")
+
+
+def _assert_snapshot_match(expected: Mapping[str, Any], actual: Mapping[str, Any], code: str) -> None:
+    _assert_snapshot_lineage(expected, code + "_EXPECTED_INVALID")
+    _assert_snapshot_lineage(actual, code + "_ACTUAL_INVALID")
+    for field in _SNAPSHOT_FIELDS:
+        if expected.get(field) != actual.get(field):
+            raise ValueError(f"{code}:{field}")
+
+
 def _assert_cs342(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS342_SCHEMA or value.get("status") != "HUMAN_VISUAL_REVIEW_EVIDENCE_ADMITTED":
         raise ValueError("CS343_CS342_STATE_INVALID")
@@ -107,6 +140,7 @@ def _assert_cs342(value: Mapping[str, Any]) -> None:
     ):
         if value.get(field) is not True:
             raise ValueError(f"CS343_CS342_REQUIRED_GATE_MISSING:{field}")
+    _assert_snapshot_lineage(value, "CS343_CS342_SNAPSHOT_LINEAGE_INVALID")
     for field in ("composed_visual_approved", "semantic_approved", "genuine_golden_png_created", "publication_ready"):
         if value.get(field) is not False:
             raise ValueError(f"CS343_CS342_PREMATURE_AUTHORITY:{field}")
@@ -205,6 +239,11 @@ def continue_human_visual_review_evidence_to_final_presentation_review_request(
         "story_snapshot_sha256": cs342["story_snapshot_sha256"],
         "candidate_png": dict(cs342["candidate_png"]),
         "composed_candidate_png": dict(cs342["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs342["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs342["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs342["snapshot_file_count"],
+        "snapshot_total_bytes": cs342["snapshot_total_bytes"],
+        "model_revision": cs342["model_revision"],
         "source_cs342_receipt": b342,
         "cs278_receipt": dict(b278),
         "cs279_receipt": {
@@ -229,6 +268,8 @@ def continue_human_visual_review_evidence_to_final_presentation_review_request(
         "policy": {
             "exact_cs342_replayed": True,
             "exact_cs342_selected_cs278_replayed": True,
+            "exact_generator_snapshot_lineage_preserved_from_cs342": True,
+            "generator_identity_remains_independent_from_human_and_presentation_review_identity": True,
             "human_rejection_blocks_progression_fail_closed": True,
             "existing_cs279_presentation_request_contract_reused": True,
             "exact_bound_composed_png_preserved": True,
@@ -279,6 +320,7 @@ def verify_human_visual_review_evidence_to_final_presentation_review_request(
     ):
         if receipt.get(field) is not True:
             raise ValueError(f"CS343_STATE_DRIFT:{field}")
+    _assert_snapshot_lineage(receipt, "CS343_SNAPSHOT_LINEAGE_INVALID")
     for field in _FINAL_FALSE:
         if receipt.get(field) is not False:
             raise ValueError(f"CS343_PREMATURE_AUTHORITY:{field}")
@@ -295,6 +337,7 @@ def verify_human_visual_review_evidence_to_final_presentation_review_request(
         or receipt.get("cs278_receipt") != cs342.get("cs278_receipt")
     ):
         raise ValueError("CS343_CS342_LINEAGE_DRIFT")
+    _assert_snapshot_match(receipt, cs342, "CS343_CS342_SNAPSHOT_LINEAGE_DRIFT")
 
     b278 = receipt.get("cs278_receipt")
     p278 = _reopen(repo_root, b278, "CS343_CS278_RECEIPT_INVALID")
