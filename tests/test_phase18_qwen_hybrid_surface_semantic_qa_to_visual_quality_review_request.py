@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +11,8 @@ from engine.intelligence import qwen_image_hybrid_surface_semantic_qa_to_visual_
 
 
 STORY_SHA = "a" * 64
+SNAPSHOT_SHA = "b" * 64
+MODEL_REVISION = "Qwen-Image@approved-pinned-revision"
 
 
 def bind(path: Path, root: Path) -> dict:
@@ -31,6 +34,16 @@ def downstream_false() -> dict:
         "golden_quality_approved": False,
         "genuine_golden_png_created": False,
         "publication_ready": False,
+    }
+
+
+def snapshot_lineage() -> dict:
+    return {
+        "snapshot_byte_inventory_verified": True,
+        "snapshot_inventory_sha256": SNAPSHOT_SHA,
+        "snapshot_file_count": 17,
+        "snapshot_total_bytes": 123456789,
+        "model_revision": MODEL_REVISION,
     }
 
 
@@ -56,6 +69,7 @@ class Phase18HybridSurfaceSemanticQAToVisualQualityReviewRequestTests(unittest.T
             "candidate_png": candidate,
             "composed_candidate_png": composed,
             "cs273_receipt": cs273_binding,
+            **snapshot_lineage(),
             "composition_executed": True,
             "composed_candidate_bytes_admitted_for_post_composition_qa": True,
             "semantic_inspection_executed": True,
@@ -103,20 +117,27 @@ class Phase18HybridSurfaceSemanticQAToVisualQualityReviewRequestTests(unittest.T
             **downstream_false(),
         }
 
+    def _build_run(self, root: Path):
+        cs337_path, cs273_path, source337, source273 = self._fixture(root)
+        source274 = self._cs274(root, cs273_path, source273, source337)
+        patches = (
+            patch.object(cs338, "verify_composed_byte_admission_to_hybrid_surface_semantic_qa", return_value=source337),
+            patch.object(cs338, "verify_composed_candidate_hybrid_surface_semantic_qa", return_value=source273),
+            patch.object(cs338, "build_composed_candidate_visual_quality_review_request", side_effect=self._fake_build(root, source273)),
+            patch.object(cs338, "verify_composed_candidate_visual_quality_review_request", return_value=source274),
+        )
+        for item in patches:
+            item.start()
+            self.addCleanup(item.stop)
+        run = cs338.continue_hybrid_surface_semantic_qa_to_visual_quality_review_request(
+            cs337_path, root / "out", repo_root=root
+        )
+        return run, cs337_path, source337, source273, source274
+
     def test_semantic_pass_builds_exact_cs274_request_and_stops_before_cs275(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            cs337_path, cs273_path, source337, source273 = self._fixture(root)
-            source274 = self._cs274(root, cs273_path, source273, source337)
-            with (
-                patch.object(cs338, "verify_composed_byte_admission_to_hybrid_surface_semantic_qa", return_value=source337),
-                patch.object(cs338, "verify_composed_candidate_hybrid_surface_semantic_qa", return_value=source273),
-                patch.object(cs338, "build_composed_candidate_visual_quality_review_request", side_effect=self._fake_build(root, source273)) as build274,
-                patch.object(cs338, "verify_composed_candidate_visual_quality_review_request", return_value=source274),
-            ):
-                run = cs338.continue_hybrid_surface_semantic_qa_to_visual_quality_review_request(
-                    cs337_path, root / "out", repo_root=root
-                )
+            run, _, _, _, _ = self._build_run(root)
             receipt = cs338._read_json(run.receipt_path, "bad")
             self.assertTrue(receipt["visual_quality_review_requested"])
             self.assertFalse(receipt["visual_quality_review_executed"])
@@ -128,7 +149,71 @@ class Phase18HybridSurfaceSemanticQAToVisualQualityReviewRequestTests(unittest.T
             self.assertFalse(receipt["genuine_golden_png_created"])
             self.assertFalse(receipt["publication_ready"])
             self.assertFalse(receipt["authoritative"])
-            build274.assert_called_once()
+
+    def test_exact_generator_snapshot_lineage_is_preserved(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run, _, source337, _, _ = self._build_run(root)
+            receipt = cs338._read_json(run.receipt_path, "bad")
+            for field in cs338._SNAPSHOT_LINEAGE_FIELDS:
+                self.assertEqual(receipt[field], source337[field])
+            self.assertTrue(receipt["policy"]["exact_generator_snapshot_lineage_must_survive_visual_quality_request"])
+            self.assertTrue(receipt["policy"]["generator_identity_is_independent_from_semantic_and_visual_verifier_identity"])
+
+    def test_unverified_generator_snapshot_is_rejected_before_cs274(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cs337_path, _, source337, _ = self._fixture(root)
+            source337["snapshot_byte_inventory_verified"] = False
+            with patch.object(
+                cs338,
+                "verify_composed_byte_admission_to_hybrid_surface_semantic_qa",
+                return_value=source337,
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_BYTE_INVENTORY_UNVERIFIED"):
+                    cs338.continue_hybrid_surface_semantic_qa_to_visual_quality_review_request(
+                        cs337_path, root / "out", repo_root=root
+                    )
+
+    def test_receipt_snapshot_inventory_tamper_is_rejected_even_with_recomputed_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run, _, source337, source273, source274 = self._build_run(root)
+            value = cs338._read_json(run.receipt_path, "bad")
+            value["snapshot_inventory_sha256"] = "e" * 64
+            unsigned = dict(value)
+            unsigned.pop("receipt_sha256", None)
+            value["receipt_sha256"] = cs338.sha256_json(unsigned)
+            run.receipt_path.write_text(json.dumps(value, separators=(",", ":")) + "\n", encoding="utf-8")
+            with (
+                patch.object(cs338, "verify_composed_byte_admission_to_hybrid_surface_semantic_qa", return_value=source337),
+                patch.object(cs338, "verify_composed_candidate_hybrid_surface_semantic_qa", return_value=source273),
+                patch.object(cs338, "verify_composed_candidate_visual_quality_review_request", return_value=source274),
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                    cs338.verify_hybrid_surface_semantic_qa_to_visual_quality_review_request(
+                        run.receipt_path, repo_root=root
+                    )
+
+    def test_receipt_model_revision_tamper_is_rejected_even_with_recomputed_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run, _, source337, source273, source274 = self._build_run(root)
+            value = cs338._read_json(run.receipt_path, "bad")
+            value["model_revision"] = "attacker-revision"
+            unsigned = dict(value)
+            unsigned.pop("receipt_sha256", None)
+            value["receipt_sha256"] = cs338.sha256_json(unsigned)
+            run.receipt_path.write_text(json.dumps(value, separators=(",", ":")) + "\n", encoding="utf-8")
+            with (
+                patch.object(cs338, "verify_composed_byte_admission_to_hybrid_surface_semantic_qa", return_value=source337),
+                patch.object(cs338, "verify_composed_candidate_hybrid_surface_semantic_qa", return_value=source273),
+                patch.object(cs338, "verify_composed_candidate_visual_quality_review_request", return_value=source274),
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:model_revision"):
+                    cs338.verify_hybrid_surface_semantic_qa_to_visual_quality_review_request(
+                        run.receipt_path, repo_root=root
+                    )
 
     def test_semantic_rejection_cannot_request_visual_quality(self) -> None:
         with tempfile.TemporaryDirectory() as td:
