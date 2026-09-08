@@ -69,7 +69,9 @@ None added or changed.
 
 The relevant exact code-and-test SHA is `c5e72773f08effac2f50225d95e964b700879fe3`.
 
-At the time this implementation log was created, terminal GitHub Actions status had not yet been claimed. CS368 must not be called terminal-green until the repository's Phase 18 Story Intelligence verification for the exact code-and-test SHA completes successfully.
+GitHub Actions `Phase 18 Story Intelligence Verification` run `34213091450` / run number `5172` completed successfully on that exact SHA. CS368 is terminal-green.
+
+Terminal-green status grants no runtime, semantic, visual, Human Review, Golden, semantic-publication, publication, or authoritative permission beyond the contract already encoded in the receipts.
 
 ## Authority preservation
 
@@ -96,6 +98,4 @@ No genuine Qwen-Image inference or Genuine Golden PNG is claimed by CS368. The f
 
 ## Remaining gap
 
-First, obtain terminal-green verification for exact code-and-test SHA `c5e72773f08effac2f50225d95e964b700879fe3` and fix any fail-closed regression without weakening the contract.
-
-After that, inspect the existing `qwen_image_visual_quality_review_request_to_evidence_admission.py` continuation and only extend snapshot lineage further if a concrete downstream drop is proven. Do not create a speculative parallel gate.
+CS368 is terminal-green. The next proven branch-local continuation is `qwen_image_visual_quality_review_request_to_evidence_admission.py` (CS339), which consumes CS338 and advances through existing CS275 evidence admission while stopping before CS276. Any further change must preserve exact generator lineage without granting downstream authority prematurely.
