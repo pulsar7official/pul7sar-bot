@@ -37,7 +37,8 @@ CS366 closes that specific branch-local gap inside CS336 itself rather than addi
   - rejects model-revision drift;
   - verifies recomputing the outer CS336 receipt digest does not hide snapshot-lineage tampering;
   - retains one-shot/no-retry, premature-authority, and static network/generation/publication isolation coverage;
-  - after full-suite discovery exposed independent mocked lineage drift, the CS272 success fixture was corrected to inherit its five generator-lineage fields directly from the exact mocked CS271 value and an explicit pre-call equality assertion was added.
+  - after full-suite discovery exposed independent mocked lineage drift, the CS272 success fixture was corrected to inherit its five generator-lineage fields directly from the exact mocked CS271 value and an explicit pre-call equality assertion was added;
+  - after the next full-suite run exposed fixture output-root contamination, the temporary binding setup now removes the transient `out` root after removing `out/cs271`, restoring the production precondition that CS336 alone creates a previously nonexistent `output_dir`.
 
 ## Added
 
@@ -54,7 +55,8 @@ Nothing.
 - `21d74532ea078d99017167dfd8e214cf9a1429a0` — initial regression coverage / initial code-and-test SHA
 - `eacc6bd4f03fbaec2457f76fb8cf9790385b5789` — Change Set contract documentation
 - `d60be795e3565f7a0248f2cb2d4ea09748ed1379` — initial implementation log
-- `532a42427aea4b6c15a881e8cead9072bae6e96b` — success-fixture lineage correction after full-suite CI discovery
+- `532a42427aea4b6c15a881e8cead9072bae6e96b` — success-fixture lineage correction after first full-suite CI discovery
+- `5d8b966fd70a5217fb42e82a1cc38556c350a08c` — success-fixture output-root cleanup after second full-suite CI discovery
 
 The commit updating this log follows the commits above.
 
@@ -111,9 +113,17 @@ The push **Phase 18 Story Intelligence Verification** run `34171371439` / #5143 
 
 The failure was not suppressed. The success fixture was corrected so mocked CS272 inherits its generator snapshot lineage from the exact mocked CS271 value, matching the production relationship being modeled. An explicit equality assertion now verifies that fixture invariant before CS336 execution.
 
-Current code-and-test-bearing SHA after that correction:
+The next code-and-test-bearing SHA was:
 
 `532a42427aea4b6c15a881e8cead9072bae6e96b`
+
+Its **Phase 18 Story Intelligence Verification** run `34171648166` reached full discovery and executed 2181 tests. Exactly one test errored: `test_build_executes_exactly_one_cs271_then_cs272_and_stops`, with `CS336_OUTPUT_INVALID`; the CS366 lineage/tamper regressions otherwise passed. The production check was correct: the success fixture temporarily created `out/cs271/one_shot_composition_execution.json` using `mkdir(parents=True)`, then removed only the receipt and `out/cs271`, leaving the `out` root behind. CS336 deliberately requires `output_dir` not to exist before execution and therefore failed closed.
+
+The production precondition was not weakened. The fixture now removes the transient `out` root after deriving the mocked binding, so the actual CS336 call again owns creation of a clean output directory.
+
+Current code-and-test-bearing SHA after that correction:
+
+`5d8b966fd70a5217fb42e82a1cc38556c350a08c`
 
 GitHub Actions verification must be observed on that exact SHA before any terminal-green claim is made. This log deliberately makes no terminal-green claim until the relevant workflow reports `completed/success`.
 
