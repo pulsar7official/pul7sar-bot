@@ -79,10 +79,17 @@ The CS340 continuation still keeps `composed_visual_approved=false`, `semantic_a
 
 ## CI status
 
-Pending observation for exact code-and-test SHA `ac0cde1cd0f1e904d05d026d8e5711e53f657ebe`. Do not treat CS370 as terminal-green until the Phase 18 Story Intelligence Verification workflow completes successfully on that SHA.
+Terminal-green on exact code-and-test SHA `ac0cde1cd0f1e904d05d026d8e5711e53f657ebe`.
+
+- Workflow: `Phase 18 Story Intelligence Verification`
+- Run: `34229244024` / `#5193`
+- Event: `pull_request`
+- Result: `completed / success`
+
+This CI success validates the code/test changes only. It does not grant runtime Qwen inference, Human Review, Genuine Golden, semantic-publication, or publication authority.
 
 ## Remaining gap to first Genuine Golden Visual PNG
 
-After CS370, generator-byte provenance is designed to continue through CS339 evidence admission into CS340/CS276 Golden-quality adjudication. The next safe code step is to prove the first existing consumer after CS340/CS276 (expected to lead toward the established human visual review request path) and inspect whether it drops the five-field generator lineage before changing anything.
+After CS370, generator-byte provenance continues through CS339 evidence admission into CS340/CS276 Golden-quality adjudication. Branch-tree review proved the next existing continuation is CS341 (`qwen_image_golden_quality_adjudication_to_human_visual_review_request.py`), which leads from successful CS340/CS276 into the established CS277 Human Visual Review request path.
 
 Actual Qwen-Image pixel generation remains separately blocked unless a zero-cost compatible CUDA execution host is available with CUDA-enabled PyTorch, native BF16, sufficient RAM/VRAM under real model load/inference, approved runtime, and exact approved already-local pinned generator/verifier assets. No result may be fabricated in their absence.
