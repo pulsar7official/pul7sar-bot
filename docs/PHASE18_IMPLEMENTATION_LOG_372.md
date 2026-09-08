@@ -57,7 +57,7 @@ CS341 schema v2 already preserves exact Qwen generator snapshot byte provenance,
 - Production hardening: `607566b8360c91d068722964e2efad838db4c16a`
 - Exact code-and-test-bearing SHA: `566ca50e95ec1ca8cc9e06749f22605d62a693b6`
 - CS372 changeset documentation: `74cf52714dffd132498ee66ef1f496ff04958d68`
-- Initial CS372 implementation-log commit: this file's creation commit.
+- Initial CS372 implementation-log commit: `4db57ff4711d5834eb96378ac73c4544ac7b25ac`
 
 ## Gate preservation
 
@@ -75,10 +75,13 @@ Factual/freshness correctness, Entity/Identity verification, sentiment neutralit
 
 ## CI status
 
-Pending on exact code-and-test-bearing SHA `566ca50e95ec1ca8cc9e06749f22605d62a693b6`. No terminal-green claim is made until `Phase 18 Story Intelligence Verification` completes successfully on that exact SHA.
+Terminal-green on exact code-and-test-bearing SHA `566ca50e95ec1ca8cc9e06749f22605d62a693b6`.
+
+- `Phase 18 Story Intelligence Verification` run `34241633047` / run number `5214`: `completed / success` on the exact code-and-test SHA.
+- The success is used only as code/test verification. It grants no runtime inference, Human Review, Genuine Golden, semantic-publication, or publication authority.
 
 ## Remaining gap to first Genuine Golden Visual PNG
 
-The provenance chain now reaches CS342/CS278 Human Visual Review evidence admission in code. After terminal-green proof, the next safe code step is to prove the first existing consumer after CS342/CS278 and inspect it for a real lineage discontinuity before modifying anything.
+The provenance chain now reaches CS342/CS278 Human Visual Review evidence admission in terminal-green code. The next safe code step is to prove the first existing consumer after CS342/CS278 and inspect it for a real lineage discontinuity before modifying anything.
 
 Actual Qwen-Image pixel generation remains independently blocked unless a zero-cost compatible execution host provides NVIDIA CUDA, CUDA-enabled PyTorch, native BF16, sufficient RAM/VRAM under real model load/inference, approved runtime, and exact approved already-local pinned generator/verifier assets. No Genuine Golden result may be fabricated in their absence.
