@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -9,6 +10,8 @@ from unittest.mock import patch
 from engine.intelligence import qwen_image_human_visual_review_evidence_to_final_presentation_review_request as cs343
 
 STORY_SHA = "a" * 64
+SNAPSHOT_SHA = "b" * 64
+MODEL_REVISION = "qwen-image-test-revision"
 
 
 def bind(path: Path, root: Path, receipt_sha256: str | None = None) -> dict:
@@ -21,6 +24,16 @@ def bind(path: Path, root: Path, receipt_sha256: str | None = None) -> dict:
     if receipt_sha256 is not None:
         value["receipt_sha256"] = receipt_sha256
     return value
+
+
+def snapshot_lineage() -> dict:
+    return {
+        "snapshot_byte_inventory_verified": True,
+        "snapshot_inventory_sha256": SNAPSHOT_SHA,
+        "snapshot_file_count": 7,
+        "snapshot_total_bytes": 123456,
+        "model_revision": MODEL_REVISION,
+    }
 
 
 def final_false() -> dict:
@@ -79,6 +92,7 @@ class Phase18HumanVisualReviewEvidenceToFinalPresentationReviewRequestTests(unit
             "candidate_png": candidate,
             "composed_candidate_png": composed,
             "cs278_receipt": b278,
+            **snapshot_lineage(),
             "golden_quality_approved": True,
             "human_visual_review_requested": True,
             "human_visual_review_executed": True,
@@ -89,36 +103,48 @@ class Phase18HumanVisualReviewEvidenceToFinalPresentationReviewRequestTests(unit
         }
         return r342, r278, candidate, composed, b278, cs342v, cs278v
 
+    def _build_run(self, root: Path):
+        r342, _r278, _candidate, composed, b278, cs342v, cs278v = self._fixture(root)
+
+        def build(_p278, out, *, repo_root):
+            out.mkdir()
+            path = out / "composed_candidate_final_presentation_review_request.json"
+            path.write_text("279\n", encoding="utf-8")
+            return path
+
+        cs279v = {
+            "schema": cs343.CS279_SCHEMA,
+            "status": "QWEN_IMAGE_COMPOSED_CANDIDATE_FINAL_PRESENTATION_REVIEW_REQUESTED",
+            "receipt_sha256": "9" * 64,
+            "story_snapshot_sha256": STORY_SHA,
+            "source_cs278_receipt": b278,
+            "composed_candidate_png": composed,
+            "human_visual_review_approved": True,
+            "final_presentation_review_requested": True,
+            **presentation_false(),
+        }
+        patches = (
+            patch.object(cs343, "verify_human_visual_review_request_to_evidence_admission", return_value=cs342v),
+            patch.object(cs343, "verify_composed_candidate_human_visual_review_evidence", return_value=cs278v),
+            patch.object(cs343, "build_composed_candidate_final_presentation_review_request", side_effect=build),
+            patch.object(cs343, "verify_composed_candidate_final_presentation_review_request", return_value=cs279v),
+        )
+        with patches[0], patches[1], patches[2] as builder, patches[3]:
+            run = cs343.continue_human_visual_review_evidence_to_final_presentation_review_request(
+                r342,
+                root / "out",
+                repo_root=root,
+            )
+        return run, builder, cs342v, cs278v, cs279v
+
     def test_approved_exact_cs342_opens_existing_cs279_request_only(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            r342, _r278, _candidate, composed, b278, cs342v, cs278v = self._fixture(root)
-
-            def build(_p278, out, *, repo_root):
-                out.mkdir()
-                path = out / "composed_candidate_final_presentation_review_request.json"
-                path.write_text("279\n", encoding="utf-8")
-                return path
-
-            cs279v = {
-                "schema": cs343.CS279_SCHEMA,
-                "status": "QWEN_IMAGE_COMPOSED_CANDIDATE_FINAL_PRESENTATION_REVIEW_REQUESTED",
-                "receipt_sha256": "9" * 64,
-                "story_snapshot_sha256": STORY_SHA,
-                "source_cs278_receipt": b278,
-                "composed_candidate_png": composed,
-                "human_visual_review_approved": True,
-                "final_presentation_review_requested": True,
-                **presentation_false(),
-            }
-            with patch.object(cs343, "verify_human_visual_review_request_to_evidence_admission", return_value=cs342v), patch.object(cs343, "verify_composed_candidate_human_visual_review_evidence", return_value=cs278v), patch.object(cs343, "build_composed_candidate_final_presentation_review_request", side_effect=build) as builder, patch.object(cs343, "verify_composed_candidate_final_presentation_review_request", return_value=cs279v):
-                run = cs343.continue_human_visual_review_evidence_to_final_presentation_review_request(
-                    r342,
-                    root / "out",
-                    repo_root=root,
-                )
+            run, builder, _cs342v, _cs278v, _cs279v = self._build_run(root)
             receipt = cs343._json(run.receipt_path, "bad")
             self.assertEqual(builder.call_count, 1)
+            for field, expected in snapshot_lineage().items():
+                self.assertEqual(receipt[field], expected)
             self.assertTrue(receipt["human_visual_review_approved"])
             self.assertTrue(receipt["final_presentation_review_requested"])
             self.assertFalse(receipt["final_presentation_review_executed"])
@@ -131,10 +157,60 @@ class Phase18HumanVisualReviewEvidenceToFinalPresentationReviewRequestTests(unit
             self.assertFalse(receipt["publication_ready"])
             self.assertFalse(receipt["authoritative"])
 
+    def test_unverified_snapshot_blocks_cs279_before_output_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            r342, _r278, _candidate, _composed, _b278, cs342v, _cs278v = self._fixture(root)
+            cs342v["snapshot_byte_inventory_verified"] = False
+            with patch.object(cs343, "verify_human_visual_review_request_to_evidence_admission", return_value=cs342v), patch.object(cs343, "build_composed_candidate_final_presentation_review_request") as builder:
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_INVALID:snapshot_byte_inventory_verified"):
+                    cs343.continue_human_visual_review_evidence_to_final_presentation_review_request(
+                        r342,
+                        root / "out",
+                        repo_root=root,
+                    )
+            builder.assert_not_called()
+            self.assertFalse((root / "out").exists())
+
+    def test_recomputed_outer_digest_cannot_hide_snapshot_inventory_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run, _builder, cs342v, cs278v, cs279v = self._build_run(root)
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["snapshot_inventory_sha256"] = "c" * 64
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = cs343.sha256_json(unsigned)
+            run.receipt_path.write_text(json.dumps(receipt, separators=(",", ":")) + "\n", encoding="utf-8")
+            with patch.object(cs343, "verify_human_visual_review_request_to_evidence_admission", return_value=cs342v), patch.object(cs343, "verify_composed_candidate_human_visual_review_evidence", return_value=cs278v), patch.object(cs343, "verify_composed_candidate_final_presentation_review_request", return_value=cs279v):
+                with self.assertRaisesRegex(ValueError, "CS342_SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                    cs343.verify_human_visual_review_evidence_to_final_presentation_review_request(
+                        run.receipt_path,
+                        repo_root=root,
+                    )
+
+    def test_recomputed_outer_digest_cannot_hide_model_revision_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            run, _builder, cs342v, cs278v, cs279v = self._build_run(root)
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["model_revision"] = "tampered-revision"
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = cs343.sha256_json(unsigned)
+            run.receipt_path.write_text(json.dumps(receipt, separators=(",", ":")) + "\n", encoding="utf-8")
+            with patch.object(cs343, "verify_human_visual_review_request_to_evidence_admission", return_value=cs342v), patch.object(cs343, "verify_composed_candidate_human_visual_review_evidence", return_value=cs278v), patch.object(cs343, "verify_composed_candidate_final_presentation_review_request", return_value=cs279v):
+                with self.assertRaisesRegex(ValueError, "CS342_SNAPSHOT_LINEAGE_DRIFT:model_revision"):
+                    cs343.verify_human_visual_review_evidence_to_final_presentation_review_request(
+                        run.receipt_path,
+                        repo_root=root,
+                    )
+
     def test_human_rejection_blocks_cs279_fail_closed(self) -> None:
         value = {
             "schema": cs343.CS342_SCHEMA,
             "status": "HUMAN_VISUAL_REVIEW_EVIDENCE_ADMITTED",
+            **snapshot_lineage(),
             "golden_quality_approved": True,
             "human_visual_review_requested": True,
             "human_visual_review_executed": True,
@@ -151,11 +227,11 @@ class Phase18HumanVisualReviewEvidenceToFinalPresentationReviewRequestTests(unit
             root = Path(td)
             _r342, _r278, _candidate, _composed, _b278, cs342v, cs278v = self._fixture(root)
             drifted_story = dict(cs278v)
-            drifted_story["story_snapshot_sha256"] = "b" * 64
+            drifted_story["story_snapshot_sha256"] = "d" * 64
             with self.assertRaisesRegex(ValueError, "STORY_DRIFT"):
                 cs343._assert_cs278(drifted_story, cs342v)
             drifted_png = dict(cs278v)
-            drifted_png["composed_candidate_png"] = {"sha256": "c" * 64}
+            drifted_png["composed_candidate_png"] = {"sha256": "e" * 64}
             with self.assertRaisesRegex(ValueError, "PNG_DRIFT"):
                 cs343._assert_cs278(drifted_png, cs342v)
 
