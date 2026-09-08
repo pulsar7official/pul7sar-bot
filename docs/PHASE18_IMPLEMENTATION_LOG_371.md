@@ -66,6 +66,7 @@ CS340 schema v2 already preserves exact Qwen generator snapshot byte provenance,
 - Exact code-and-test-bearing SHA: `e50bdc32e9c4076ea67244ec9628037ecc436f27`
 - CS370 terminal-green documentation update: `a2131918036b60ca9afd756c76d94d017763b9bf`
 - CS371 changeset documentation: `66fd30e59f2c1a808af92347c1c61ea7f7c639bc`
+- Initial CS371 implementation-log commit: `0ff578b64bb49bf19747407153942a26c53988e1`
 
 ## Gate preservation
 
@@ -83,10 +84,16 @@ The following remain separate and fail-closed: factual/freshness correctness, En
 
 ## CI status
 
-Pending observation for exact code-and-test SHA `e50bdc32e9c4076ea67244ec9628037ecc436f27`. Do not treat CS371 as terminal-green until the Phase 18 Story Intelligence Verification workflow completes successfully on that exact SHA.
+Terminal-green on exact code-and-test SHA `e50bdc32e9c4076ea67244ec9628037ecc436f27`.
+
+- Workflow: `Phase 18 Story Intelligence Verification`
+- Run: `34234719827` / `#5202`
+- Result: `completed / success`
+
+All companion Phase 18 workflows returned for the same exact SHA also completed successfully. This validates the CS371 code/test changes only and grants no Human Review, Genuine Golden, semantic-publication, or publication authority.
 
 ## Remaining gap to first Genuine Golden Visual PNG
 
-The provenance chain is now designed to continue from exact generator snapshot bytes through CS340/CS276 Golden-quality adjudication into CS341/CS277 Human Visual Review request. The next safe code step after terminal-green is to prove the first existing consumer after CS341/CS277 and inspect it for a real lineage discontinuity before modifying anything.
+The provenance chain now continues from exact generator snapshot bytes through CS340/CS276 Golden-quality adjudication into CS341/CS277 Human Visual Review request. The next safe code step is to prove the first existing consumer after CS341/CS277 and inspect it for a real lineage discontinuity before modifying anything.
 
 Actual Qwen-Image pixel generation remains independently blocked unless a zero-cost compatible execution host provides NVIDIA CUDA, CUDA-enabled PyTorch, native BF16, sufficient RAM/VRAM under real model load/inference, approved runtime, and exact approved already-local pinned generator/verifier assets. No Genuine Golden result may be fabricated in their absence.
