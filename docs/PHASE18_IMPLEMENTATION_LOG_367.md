@@ -41,6 +41,9 @@ CS367 closes that specific gap inside CS337 itself rather than creating a parall
   - rejects CS337 model-revision tampering even after recomputing the outer receipt digest;
   - retains semantic rejection preservation, exact CS272 binding, premature-authority, and static no-network/no-generation/no-publication shortcut coverage.
 
+- `docs/PHASE18_IMPLEMENTATION_LOG_366.md`
+  - records terminal-green verification of CS366 on exact code-and-test SHA.
+
 ## Added
 
 - `docs/PHASE18_CHANGESET_367_CS337_SNAPSHOT_LINEAGE.md`
@@ -56,8 +59,9 @@ Nothing.
 - `84fd3328d59255770772b074593feaa565b128f9` — regression coverage / code-and-test-bearing SHA
 - `afdedf3665dc7466a4486a10cc9ae5fe27fe3caf` — record terminal-green CS366 verification
 - `b447efc91581a34b6cab489252a1b3c78f8bc1e1` — CS367 changeset documentation
+- `d969dbd11feb867262b3ab872c765eff6393bb0a` — initial CS367 implementation log
 
-The commit creating this log follows the commits above.
+The commit recording terminal-green CS367 verification follows the commits above.
 
 ## Preserved snapshot lineage
 
@@ -100,7 +104,9 @@ Code-and-test-bearing SHA:
 
 `84fd3328d59255770772b074593feaa565b128f9`
 
-GitHub Actions must report the relevant Phase 18 Story Intelligence Verification on that exact SHA before any terminal-green claim is made. This log deliberately does not claim terminal-green yet.
+**Phase 18 Story Intelligence Verification** push run `34178149703` / #5159 completed successfully on that exact SHA (`completed/success`). The PR-triggered companion run was also launched on the same exact code-and-test SHA. Companion Phase 18 workflows observed on the exact SHA completed successfully.
+
+CS367 is therefore terminal-green. This result grants no runtime, visual, Human Review, Golden, global semantic-publication, or publication authority beyond the explicit CS337 contract.
 
 ## Genuine Golden PNG status
 
@@ -110,4 +116,4 @@ The external generation blocker remains a zero-cost compatible host providing to
 
 ## Remaining path
 
-First, observe full CI on exact SHA `84fd3328d59255770772b074593feaa565b128f9`. If terminal-green, identify the first existing consumer after CS337/CS273 (expected to be the visual-quality-request continuation) and harden only a proven lineage gap while preserving the stop-before-Human/Golden/publication authority chain. Genuine image generation remains blocked by the CUDA/BF16 host requirement.
+CS367 is terminal-green. The exact generator snapshot-byte provenance now survives the first post-composition semantic-QA continuation while remaining distinct from semantic-verifier identity. The next safe action is to identify the first existing consumer after CS337/CS273 and harden only a proven lineage gap while preserving the stop-before-Human/Golden/publication authority chain. Genuine image generation remains blocked by the CUDA/BF16 host requirement.
