@@ -2,7 +2,8 @@
 
 The continuation derives the exact CS272 and sealed canonical candidate admission
 already represented by the admitted CS275 lineage, runs the existing CS276
-Golden-quality adjudicator once, independently reverifies it, and stops before
+Golden-quality adjudicator once, independently reverifies it, preserves the
+exact Qwen generator snapshot byte lineage carried by CS339, and stops before
 Human Review, presentation/brand approval, final semantic approval, Genuine
 Golden PNG creation, or publication.
 """
@@ -56,13 +57,20 @@ from engine.intelligence.qwen_image_composed_candidate_golden_quality_adjudicati
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-visual-quality-evidence-to-golden-quality-adjudication-v1"
+SCHEMA = "pul7sar-phase18-visual-quality-evidence-to-golden-quality-adjudication-v2"
 _DOWNSTREAM_FALSE = (
     "composed_visual_approved",
     "semantic_approved",
     "human_visual_review_approved",
     "genuine_golden_png_created",
     "publication_ready",
+)
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 Verifier = Callable[..., dict[str, Any]]
 
@@ -125,6 +133,31 @@ def _exact(binding: Mapping[str, Any], receipt: Mapping[str, Any]) -> dict[str, 
     return {"repository_relative_path": binding.get("repository_relative_path"), "sha256": binding.get("sha256"), "byte_size": binding.get("byte_size"), "receipt_sha256": receipt.get("receipt_sha256")}
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], code: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(code + ":snapshot_byte_inventory_verified")
+    digest = value.get("snapshot_inventory_sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise ValueError(code + ":snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(code + ":snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(code + ":snapshot_total_bytes")
+    revision = value.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError(code + ":model_revision")
+
+
+def _assert_snapshot_match(expected: Mapping[str, Any], actual: Mapping[str, Any], code: str) -> None:
+    _assert_snapshot_lineage(expected, code + "_EXPECTED_INVALID")
+    _assert_snapshot_lineage(actual, code + "_ACTUAL_INVALID")
+    for field in _SNAPSHOT_FIELDS:
+        if expected.get(field) != actual.get(field):
+            raise ValueError(f"{code}:{field}")
+
+
 def _assert_cs339(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS339_SCHEMA or value.get("status") != "VISUAL_QUALITY_EVIDENCE_ADMITTED":
         raise ValueError("CS340_CS339_STATE_INVALID")
@@ -136,6 +169,7 @@ def _assert_cs339(value: Mapping[str, Any]) -> None:
     for field in _DOWNSTREAM_FALSE:
         if value.get(field) is not False:
             raise ValueError(f"CS340_CS339_PREMATURE_AUTHORITY:{field}")
+    _assert_snapshot_lineage(value, "CS340_CS339_SNAPSHOT_LINEAGE_INVALID")
 
 
 def _derive_cs272_from_cs275(root: Path, cs275: Mapping[str, Any]) -> tuple[Path, dict[str, Any], dict[str, Any]]:
@@ -160,6 +194,7 @@ def _assert_cs276(cs276: Mapping[str, Any], cs339: Mapping[str, Any], b263: Mapp
         raise ValueError("CS340_CS276_VERDICT_INVALID")
     if cs276.get("story_snapshot_sha256") != cs339.get("story_snapshot_sha256") or cs276.get("composed_candidate_png") != cs339.get("composed_candidate_png"):
         raise ValueError("CS340_CS276_LINEAGE_DRIFT")
+    _assert_snapshot_match(cs339, cs272, "CS340_CS339_CS272_SNAPSHOT_LINEAGE_DRIFT")
     expected = (("source_cs263_receipt", b263, cs263), ("source_cs272_receipt", b272, cs272), ("source_cs275_receipt", b275, cs275))
     for field, binding, receipt in expected:
         if cs276.get(field) != _exact(binding, receipt):
@@ -189,6 +224,7 @@ def continue_visual_quality_evidence_to_golden_quality_adjudication(cs339_receip
         raise ValueError("CS340_CS275_RECEIPT_DRIFT")
 
     p272, b272, cs272 = _derive_cs272_from_cs275(repo_root, cs275)
+    _assert_snapshot_match(cs339, cs272, "CS340_CS339_CS272_SNAPSHOT_LINEAGE_DRIFT")
     p263, b263, cs263 = _derive_cs263_from_cs272(repo_root, cs272)
 
     output_dir.mkdir(mode=0o700)
@@ -203,6 +239,11 @@ def continue_visual_quality_evidence_to_golden_quality_adjudication(cs339_receip
         "story_snapshot_sha256": cs339["story_snapshot_sha256"],
         "candidate_png": dict(cs339["candidate_png"]),
         "composed_candidate_png": dict(cs339["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs339["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs339["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs339["snapshot_file_count"],
+        "snapshot_total_bytes": cs339["snapshot_total_bytes"],
+        "model_revision": cs339["model_revision"],
         "source_cs339_receipt": b339,
         "cs275_receipt": b275,
         "cs276_receipt": {**_bind(repo_root, p276, "CS340_CS276_INVALID"), "receipt_sha256": cs276.get("receipt_sha256")},
@@ -220,6 +261,9 @@ def continue_visual_quality_evidence_to_golden_quality_adjudication(cs339_receip
             "exact_cs339_selected_cs275_replayed": True,
             "exact_cs275_to_cs272_lineage_derived": True,
             "exact_cs272_to_sealed_candidate_admission_derived": True,
+            "exact_generator_snapshot_lineage_preserved_from_cs339": True,
+            "exact_generator_snapshot_lineage_rechecked_against_cs272": True,
+            "generator_identity_remains_independent_from_golden_quality_verifier_identity": True,
             "existing_cs276_adjudicator_reused": True,
             "scores_and_blockers_not_generated_here": True,
             "human_review_remains_independent": True,
@@ -247,15 +291,18 @@ def verify_visual_quality_evidence_to_golden_quality_adjudication(receipt_path: 
     for field in _DOWNSTREAM_FALSE:
         if receipt.get(field) is not False:
             raise ValueError(f"CS340_PREMATURE_AUTHORITY:{field}")
+    _assert_snapshot_lineage(receipt, "CS340_SNAPSHOT_LINEAGE_INVALID")
 
     p339 = _reopen(repo_root, receipt.get("source_cs339_receipt"), "CS340_CS339_RECEIPT_INVALID")
     cs339 = verify_visual_quality_review_request_to_evidence_admission(p339, repo_root=repo_root); _assert_cs339(cs339)
     if receipt.get("story_snapshot_sha256") != cs339.get("story_snapshot_sha256") or receipt.get("candidate_png") != cs339.get("candidate_png") or receipt.get("composed_candidate_png") != cs339.get("composed_candidate_png") or receipt.get("cs275_receipt") != cs339.get("cs275_receipt"):
         raise ValueError("CS340_CS339_LINEAGE_DRIFT")
+    _assert_snapshot_match(cs339, receipt, "CS340_CS339_SNAPSHOT_LINEAGE_DRIFT")
 
     p275 = _reopen(repo_root, receipt.get("cs275_receipt"), "CS340_CS275_INVALID")
     b275 = dict(receipt["cs275_receipt"]); cs275 = verify_composed_candidate_visual_quality_review_evidence(p275, repo_root=repo_root)
     p272, b272, cs272 = _derive_cs272_from_cs275(repo_root, cs275)
+    _assert_snapshot_match(cs339, cs272, "CS340_CS339_CS272_SNAPSHOT_LINEAGE_DRIFT")
     _, b263, cs263 = _derive_cs263_from_cs272(repo_root, cs272)
     p276 = _reopen(repo_root, receipt.get("cs276_receipt"), "CS340_CS276_INVALID")
     cs276 = verify_composed_candidate_golden_quality_adjudication(p276, repo_root=repo_root)
