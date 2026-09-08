@@ -74,7 +74,9 @@ None added or changed.
 
 The exact CS369 code-and-test SHA is `3cd2ed1ef73d5c2219651cb7af63fefd0af5e736`.
 
-Terminal-green is not claimed in this log until `Phase 18 Story Intelligence Verification` completes successfully on that exact SHA. Any failure must be fixed fail-closed without weakening generator lineage, factual/identity/sentiment gates, visual-quality review, Human Review, Golden quality, zero-cost policy, semantic publication, or publication authority.
+GitHub Actions `Phase 18 Story Intelligence Verification` run number `5180` completed successfully on that exact SHA. CS369 is terminal-green. Companion Phase 18 workflows observed on the same SHA also completed successfully.
+
+Terminal-green status grants no runtime, semantic, visual, Human Review, Golden, semantic-publication, publication, or authoritative permission beyond the contract already encoded in the receipts.
 
 ## Authority preservation
 
@@ -99,4 +101,4 @@ No genuine Qwen-Image inference, production `canonical_candidate.png`, or `genui
 
 ## Remaining gap
 
-First obtain terminal-green verification for exact code-and-test SHA `3cd2ed1ef73d5c2219651cb7af63fefd0af5e736`, fixing any regression without weakening the contract. After that, inspect the first existing consumer after CS339/CS275 and extend exact generator lineage only if a concrete branch-local drop is proven. Do not create a speculative parallel gate.
+CS369 is terminal-green. Next, inspect the first existing branch-local consumer after CS339/CS275 and extend exact generator lineage only if a concrete lineage drop is proven. Do not create a speculative parallel gate, and do not grant downstream visual, Human Review, Golden, semantic-publication, publication, or authoritative status prematurely.
