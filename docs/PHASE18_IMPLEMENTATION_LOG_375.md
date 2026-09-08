@@ -40,6 +40,9 @@ CS344 schema v2 already carries exact Qwen generator snapshot byte provenance. C
   - recomputed-outer-digest tamper regressions for `snapshot_inventory_sha256` and `model_revision`;
   - presentation rejection, premature semantic authority, exact CS280 binding, and no-shortcut checks retained.
 
+- `docs/PHASE18_IMPLEMENTATION_LOG_375.md`
+  - CI state updated from pending to terminal-green after exact push-workflow success.
+
 ### Added
 
 - `docs/PHASE18_CHANGESET_375_CS345_FINAL_COMPOSED_SNAPSHOT_LINEAGE.md`
@@ -58,6 +61,7 @@ CS344 schema v2 already carries exact Qwen generator snapshot byte provenance. C
 - Production hardening: `abe66172ddea3731e9b4f57b5ece0daa491b77d5`
 - Exact code-and-test-bearing SHA: `bd0d9f05e796ac4ea4ab31c55d7a1f0aad6f8aa4`
 - CS375 changeset documentation: `43f5fa96df76881f793e84ea09b31082c493df4e`
+- Initial implementation log: `51efbe4c40869541ff6a6507d5722fcf7c14d395`
 
 ## Gate preservation
 
@@ -70,16 +74,13 @@ CS345 may grant the existing deterministic final-composed authority only after s
 
 Factual/freshness correctness, Entity/Identity verification, sentiment neutrality/loser respect, zero-cost policy, semantic QA, visual-quality evidence, Human Visual Review provenance, Final Presentation Review provenance, exact-brand/typography integrity, final semantic approval, SemanticPublicationGate, Genuine Golden materialization, publication readiness, and publication execution remain separate and fail-closed.
 
-## Tests / CI — pending exact terminal result
+## Tests / CI — terminal green
 
 Exact code-and-test-bearing SHA: `bd0d9f05e796ac4ea4ab31c55d7a1f0aad6f8aa4`.
 
-At the time this log was created:
-
-- `Phase 18 Story Intelligence Verification` push run `34292792585` / run number `5245`: `in_progress`.
-- `Phase 18 Story Intelligence Verification` pull-request run `34292795007` / run number `5246`: `in_progress`.
-- Companion Phase 18 workflows already observed completed successfully on the same exact SHA.
-- CS375 is NOT claimed terminal-green until the exact Story Intelligence workflow completes successfully.
+- `Phase 18 Story Intelligence Verification` push run `34292792585` / run number `5245`: `completed / success`.
+- Companion Phase 18 workflows observed on the same exact SHA completed successfully.
+- CS375 is terminal-green on the exact code-and-test-bearing SHA.
 
 ## Runtime blocker for first Genuine Golden Visual PNG
 
@@ -98,7 +99,6 @@ The exact blocker remains absence of a compatible zero-cost NVIDIA CUDA executio
 
 ## What remains
 
-1. Obtain terminal result for Story Intelligence Verification on exact code-and-test SHA `bd0d9f05e796ac4ea4ab31c55d7a1f0aad6f8aa4`; fix any real failure rather than weakening gates.
-2. After terminal-green only, inspect the existing next continuation `qwen_image_final_composed_visual_approval_to_final_semantic_approval.py` and harden it only if a genuine lineage gap exists.
-3. Keep final semantic approval, SemanticPublicationGate, Genuine Golden materialization, and publication execution independent and fail-closed.
-4. Independently, actual first Genuine Golden PNG remains blocked on compatible zero-cost CUDA execution and must not be fabricated.
+1. Inspect the existing next continuation `qwen_image_final_composed_visual_approval_to_final_semantic_approval.py` and harden it only if a genuine lineage gap exists.
+2. Keep final semantic approval, SemanticPublicationGate, Genuine Golden materialization, and publication execution independent and fail-closed.
+3. Independently, actual first Genuine Golden PNG remains blocked on compatible zero-cost CUDA execution and must not be fabricated.
