@@ -56,13 +56,11 @@ Nothing.
 - `eacc6bd4f03fbaec2457f76fb8cf9790385b5789` — Change Set contract documentation
 - `d60be795e3565f7a0248f2cb2d4ea09748ed1379` — initial implementation log
 - `532a42427aea4b6c15a881e8cead9072bae6e96b` — success-fixture lineage correction after first full-suite CI discovery
-- `5d8b966fd70a5217fb42e82a1cc38556c350a08c` — success-fixture output-root cleanup after second full-suite CI discovery
-
-The commit updating this log follows the commits above.
+- `5d8b966fd70a5217fb42e82a1cc38556c350a08c` — success-fixture output-root cleanup after second full-suite CI discovery / terminal-green code-and-test SHA
 
 ## Preserved snapshot lineage
 
-CS336 now seals and freshly checks:
+CS336 seals and freshly checks:
 
 - `snapshot_byte_inventory_verified = true`
 - `snapshot_inventory_sha256`
@@ -111,7 +109,7 @@ The push **Phase 18 Story Intelligence Verification** run `34171371439` / #5143 
 
 `CS336_CS271_CS272_SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256`
 
-The failure was not suppressed. The success fixture was corrected so mocked CS272 inherits its generator snapshot lineage from the exact mocked CS271 value, matching the production relationship being modeled. An explicit equality assertion now verifies that fixture invariant before CS336 execution.
+The failure was not suppressed. The success fixture was corrected so mocked CS272 inherits its generator snapshot lineage from the exact mocked CS271 value, matching the production relationship being modeled. An explicit equality assertion verifies that fixture invariant before CS336 execution.
 
 The next code-and-test-bearing SHA was:
 
@@ -119,13 +117,13 @@ The next code-and-test-bearing SHA was:
 
 Its **Phase 18 Story Intelligence Verification** run `34171648166` reached full discovery and executed 2181 tests. Exactly one test errored: `test_build_executes_exactly_one_cs271_then_cs272_and_stops`, with `CS336_OUTPUT_INVALID`; the CS366 lineage/tamper regressions otherwise passed. The production check was correct: the success fixture temporarily created `out/cs271/one_shot_composition_execution.json` using `mkdir(parents=True)`, then removed only the receipt and `out/cs271`, leaving the `out` root behind. CS336 deliberately requires `output_dir` not to exist before execution and therefore failed closed.
 
-The production precondition was not weakened. The fixture now removes the transient `out` root after deriving the mocked binding, so the actual CS336 call again owns creation of a clean output directory.
+The production precondition was not weakened. The fixture removes the transient `out` root after deriving the mocked binding, so the actual CS336 call owns creation of a clean output directory.
 
-Current code-and-test-bearing SHA after that correction:
+Final code-and-test-bearing SHA:
 
 `5d8b966fd70a5217fb42e82a1cc38556c350a08c`
 
-GitHub Actions verification must be observed on that exact SHA before any terminal-green claim is made. This log deliberately makes no terminal-green claim until the relevant workflow reports `completed/success`.
+**Phase 18 Story Intelligence Verification** run `34174679766` / #5154 completed successfully on that exact SHA (`completed/success`). CS366 is therefore terminal-green. This CI result grants no runtime, semantic, visual, Human Review, Golden, semantic-publication, or publication authority beyond the contract described above.
 
 ## Genuine Golden PNG status
 
@@ -143,4 +141,4 @@ The external generation blocker remains a zero-cost compatible host that provide
 
 ## Remaining path
 
-The exact generator snapshot-byte provenance now survives the existing CS336 wrapper boundary and accompanies the exact composed PNG into the post-composition side of the pipeline. First, the corrected exact code-and-test SHA must reach terminal-green CI. After that, the next safe engineering action is to identify the first existing post-composition consumer of CS336/CS272 on this branch and harden it only if it demonstrably drops this lineage. Genuine image generation remains blocked by the CUDA/BF16 host requirement above.
+CS366 is terminal-green. The exact generator snapshot-byte provenance now survives CS336 and accompanies the exact composed PNG into the post-composition side of the pipeline. The next existing consumer is CS337 (`qwen_image_composed_byte_admission_to_hybrid_surface_semantic_qa.py`), which must preserve and freshly compare that lineage while keeping generator identity distinct from the pinned semantic verifier identity. Genuine image generation remains blocked by the CUDA/BF16 host requirement above.
