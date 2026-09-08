@@ -30,7 +30,14 @@ from engine.intelligence.qwen_image_composed_candidate_visual_quality_review_evi
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-visual-quality-review-request-to-evidence-admission-v1"
+SCHEMA = "pul7sar-phase18-visual-quality-review-request-to-evidence-admission-v2"
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
+)
 _DOWNSTREAM_FALSE = (
     "visual_quality_review_approved",
     "composed_visual_approved",
@@ -96,6 +103,31 @@ def _assert_closed(value: Mapping[str, Any], prefix: str) -> None:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], prefix: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_BYTE_INVENTORY_UNVERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if not isinstance(inventory_sha, str) or len(inventory_sha) != 64 or any(c not in "0123456789abcdef" for c in inventory_sha):
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA_INVALID")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+
+
+def _assert_snapshot_matches(value: Mapping[str, Any], upstream: Mapping[str, Any], prefix: str) -> None:
+    _assert_snapshot_lineage(value, prefix)
+    _assert_snapshot_lineage(upstream, prefix + "_UPSTREAM")
+    for field in _SNAPSHOT_FIELDS:
+        if value.get(field) != upstream.get(field):
+            raise ValueError(f"{prefix}_SNAPSHOT_LINEAGE_DRIFT:{field}")
+
+
 def _assert_cs338(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS338_SCHEMA or value.get("status") != "VISUAL_QUALITY_REVIEW_REQUEST_READY":
         raise ValueError("CS339_CS338_STATE_INVALID")
@@ -107,6 +139,7 @@ def _assert_cs338(value: Mapping[str, Any]) -> None:
         or value.get("authoritative") is not False
     ):
         raise ValueError("CS339_CS338_REQUEST_NOT_READY")
+    _assert_snapshot_lineage(value, "CS339_CS338")
     _assert_closed(value, "CS339_CS338")
 
 
@@ -193,6 +226,7 @@ def continue_visual_quality_review_request_to_evidence_admission(
         "story_snapshot_sha256": cs338["story_snapshot_sha256"],
         "candidate_png": dict(cs338["candidate_png"]),
         "composed_candidate_png": dict(cs338["composed_candidate_png"]),
+        **{field: cs338[field] for field in _SNAPSHOT_FIELDS},
         "source_cs338_receipt": cs338_binding,
         "cs274_receipt": cs274_binding,
         "external_review_evidence": external_binding,
@@ -216,6 +250,8 @@ def continue_visual_quality_review_request_to_evidence_admission(
             "external_manual_review_required": True,
             "exact_cs338_selected_cs274_replayed": True,
             "exact_composed_bytes_bound_through_cs275": True,
+            "exact_generator_snapshot_lineage_preserved": True,
+            "generator_identity_independent_from_visual_review_evidence": True,
             "scores_and_blockers_are_admitted_not_generated_here": True,
             "stop_before_cs276_golden_quality_adjudication": True,
             "human_review_remains_independent": True,
@@ -243,6 +279,7 @@ def verify_visual_quality_review_request_to_evidence_admission(receipt_path: Pat
         raise ValueError("CS339_RECEIPT_INVALID")
     if receipt.get("visual_quality_review_executed") is not True or receipt.get("visual_quality_evidence_admitted") is not True or receipt.get("authoritative") is not False:
         raise ValueError("CS339_STATE_DRIFT")
+    _assert_snapshot_lineage(receipt, "CS339")
     _assert_closed(receipt, "CS339")
 
     cs338_path = _reopen(repo_root, receipt.get("source_cs338_receipt"), "CS339_CS338_RECEIPT_INVALID")
@@ -250,6 +287,7 @@ def verify_visual_quality_review_request_to_evidence_admission(receipt_path: Pat
     _assert_cs338(cs338)
     if receipt.get("story_snapshot_sha256") != cs338.get("story_snapshot_sha256") or receipt.get("candidate_png") != cs338.get("candidate_png") or receipt.get("composed_candidate_png") != cs338.get("composed_candidate_png") or receipt.get("cs274_receipt") != cs338.get("cs274_receipt"):
         raise ValueError("CS339_CS338_LINEAGE_DRIFT")
+    _assert_snapshot_matches(receipt, cs338, "CS339_CS338")
 
     cs274_path = _reopen(repo_root, receipt.get("cs274_receipt"), "CS339_CS274_RECEIPT_INVALID")
     cs274 = verify_composed_candidate_visual_quality_review_request(cs274_path, repo_root=repo_root)
