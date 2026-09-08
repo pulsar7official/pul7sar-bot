@@ -143,6 +143,9 @@ class Phase18PrecompositionToComposedByteAdmissionTests(unittest.TestCase):
             )
             cs271_receipt_path.unlink()
             cs271_receipt_path.parent.rmdir()
+            # Restore the production precondition: CS336 owns creation of the
+            # output root, so the transient binding fixture must not leave it behind.
+            output.rmdir()
 
             def fake_execute(*args, **kwargs):
                 out = args[1]
