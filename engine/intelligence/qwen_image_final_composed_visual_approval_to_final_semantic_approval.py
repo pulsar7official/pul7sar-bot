@@ -1,6 +1,7 @@
 """CS346: continue exact CS345 final-composed approval into CS282 final semantic approval.
 
-This continuation independently replays CS345, reopens the exact CS281 receipt selected
+This continuation independently replays CS345, preserves and verifies the exact Qwen
+generator snapshot byte lineage carried by CS345, reopens the exact CS281 receipt selected
 by CS345, invokes the repository's existing CS282 Final Semantic Approval contract, and
 independently replays CS282. It does not alter pixels, execute generation, materialize a
 Genuine Golden PNG, authorize publication, or invoke/bypass SemanticPublicationGate.
@@ -30,7 +31,7 @@ from engine.intelligence.qwen_image_composed_candidate_final_semantic_approval i
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-final-composed-visual-approval-to-final-semantic-approval-v1"
+SCHEMA = "pul7sar-phase18-final-composed-visual-approval-to-final-semantic-approval-v2"
 STATUS = "FINAL_SEMANTIC_APPROVED_AWAITING_SEMANTIC_PUBLICATION_GATE"
 
 _UPSTREAM_TRUE = (
@@ -44,6 +45,13 @@ _UPSTREAM_TRUE = (
 _DOWNSTREAM_FALSE = (
     "genuine_golden_png_created",
     "publication_ready",
+)
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -102,6 +110,31 @@ def _reopen(root: Path, binding: Any, code: str) -> Path:
     return path
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], code: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(code + ":snapshot_byte_inventory_verified")
+    digest = value.get("snapshot_inventory_sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise ValueError(code + ":snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(code + ":snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(code + ":snapshot_total_bytes")
+    revision = value.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError(code + ":model_revision")
+
+
+def _assert_snapshot_match(expected: Mapping[str, Any], actual: Mapping[str, Any], code: str) -> None:
+    _assert_snapshot_lineage(expected, code + "_EXPECTED_INVALID")
+    _assert_snapshot_lineage(actual, code + "_ACTUAL_INVALID")
+    for field in _SNAPSHOT_FIELDS:
+        if expected.get(field) != actual.get(field):
+            raise ValueError(f"{code}:{field}")
+
+
 def _assert_cs345(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS345_SCHEMA or value.get("status") != CS345_STATUS:
         raise ValueError("CS346_CS345_STATE_INVALID")
@@ -110,6 +143,7 @@ def _assert_cs345(value: Mapping[str, Any]) -> None:
     for field in _UPSTREAM_TRUE:
         if value.get(field) is not True:
             raise ValueError(f"CS346_CS345_REQUIRED_GATE_MISSING:{field}")
+    _assert_snapshot_lineage(value, "CS346_CS345_SNAPSHOT_LINEAGE_INVALID")
     if value.get("semantic_approved") is not False:
         raise ValueError("CS346_CS345_PREMATURE_AUTHORITY:semantic_approved")
     for field in _DOWNSTREAM_FALSE:
@@ -205,6 +239,11 @@ def continue_final_composed_visual_approval_to_final_semantic_approval(
         "story_snapshot_sha256": cs345["story_snapshot_sha256"],
         "candidate_png": dict(cs345["candidate_png"]),
         "composed_candidate_png": dict(cs345["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs345["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs345["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs345["snapshot_file_count"],
+        "snapshot_total_bytes": cs345["snapshot_total_bytes"],
+        "model_revision": cs345["model_revision"],
         "source_cs345_receipt": {
             **cs345_binding,
             "receipt_sha256": cs345.get("receipt_sha256"),
@@ -227,6 +266,8 @@ def continue_final_composed_visual_approval_to_final_semantic_approval(
         "policy": {
             "exact_cs345_replayed": True,
             "exact_cs345_selected_cs281_replayed": True,
+            "exact_generator_snapshot_lineage_preserved_from_cs345": True,
+            "generator_identity_remains_independent_from_final_semantic_approval_identity": True,
             "existing_cs282_final_semantic_approval_contract_reused": True,
             "exact_story_and_composed_png_lineage_required": True,
             "no_pixel_generation_or_mutation_here": True,
@@ -275,6 +316,7 @@ def verify_final_composed_visual_approval_to_final_semantic_approval(
     for field in _UPSTREAM_TRUE + ("semantic_approved",):
         if receipt.get(field) is not True:
             raise ValueError(f"CS346_STATE_DRIFT:{field}")
+    _assert_snapshot_lineage(receipt, "CS346_SNAPSHOT_LINEAGE_INVALID")
     for field in _DOWNSTREAM_FALSE:
         if receipt.get(field) is not False:
             raise ValueError(f"CS346_PREMATURE_AUTHORITY:{field}")
@@ -288,6 +330,7 @@ def verify_final_composed_visual_approval_to_final_semantic_approval(
         repo_root=repo_root,
     )
     _assert_cs345(cs345)
+    _assert_snapshot_match(receipt, cs345, "CS346_CS345_SNAPSHOT_LINEAGE_DRIFT")
     if not isinstance(source345, Mapping) or source345.get("receipt_sha256") != cs345.get("receipt_sha256"):
         raise ValueError("CS346_CS345_RECEIPT_DRIFT")
 
