@@ -1,6 +1,7 @@
 """CS344: continue exact CS343 presentation request into CS280 evidence admission.
 
-This continuation independently replays CS343, reopens and replays the exact CS279
+This continuation independently replays CS343, preserves and verifies the exact Qwen
+generator snapshot byte lineage carried by CS343, reopens and replays the exact CS279
 request selected by CS343, then admits repository-bound independent manual Final
 Presentation Review evidence through the existing CS280 contract. It preserves the
 CS280 approve/reject verdict exactly and stops before final composed approval, final
@@ -30,13 +31,20 @@ from engine.intelligence.qwen_image_composed_candidate_final_presentation_review
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-final-presentation-review-request-to-evidence-admission-v1"
+SCHEMA = "pul7sar-phase18-final-presentation-review-request-to-evidence-admission-v2"
 STATUS = "FINAL_PRESENTATION_REVIEW_EVIDENCE_ADMITTED"
 _DOWNSTREAM_FALSE = (
     "composed_visual_approved",
     "semantic_approved",
     "genuine_golden_png_created",
     "publication_ready",
+)
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -90,6 +98,31 @@ def _reopen(root: Path, binding: Any, code: str) -> Path:
     return path
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], code: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(code + ":snapshot_byte_inventory_verified")
+    digest = value.get("snapshot_inventory_sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise ValueError(code + ":snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(code + ":snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(code + ":snapshot_total_bytes")
+    revision = value.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError(code + ":model_revision")
+
+
+def _assert_snapshot_match(expected: Mapping[str, Any], actual: Mapping[str, Any], code: str) -> None:
+    _assert_snapshot_lineage(expected, code + "_EXPECTED_INVALID")
+    _assert_snapshot_lineage(actual, code + "_ACTUAL_INVALID")
+    for field in _SNAPSHOT_FIELDS:
+        if expected.get(field) != actual.get(field):
+            raise ValueError(f"{code}:{field}")
+
+
 def _assert_cs343(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS343_SCHEMA or value.get("status") != "FINAL_PRESENTATION_REVIEW_REQUEST_READY":
         raise ValueError("CS344_CS343_STATE_INVALID")
@@ -103,6 +136,7 @@ def _assert_cs343(value: Mapping[str, Any]) -> None:
     ):
         if value.get(field) is not True:
             raise ValueError(f"CS344_CS343_REQUIRED_GATE_MISSING:{field}")
+    _assert_snapshot_lineage(value, "CS344_CS343_SNAPSHOT_LINEAGE_INVALID")
     for field in (
         "final_presentation_review_executed",
         "final_presentation_review_approved",
@@ -221,6 +255,11 @@ def continue_final_presentation_review_request_to_evidence_admission(
         "story_snapshot_sha256": cs343["story_snapshot_sha256"],
         "candidate_png": dict(cs343["candidate_png"]),
         "composed_candidate_png": dict(cs343["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs343["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs343["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs343["snapshot_file_count"],
+        "snapshot_total_bytes": cs343["snapshot_total_bytes"],
+        "model_revision": cs343["model_revision"],
         "source_cs343_receipt": b343,
         "cs279_receipt": dict(b279),
         "cs280_receipt": {
@@ -244,6 +283,8 @@ def continue_final_presentation_review_request_to_evidence_admission(
         "policy": {
             "exact_cs343_replayed": True,
             "exact_cs343_selected_cs279_replayed": True,
+            "exact_generator_snapshot_lineage_preserved_from_cs343": True,
+            "generator_identity_remains_independent_from_presentation_review_identity": True,
             "external_presentation_verdict_not_generated_here": True,
             "existing_cs280_evidence_contract_reused": True,
             "exact_bound_composed_png_preserved": True,
@@ -290,6 +331,7 @@ def verify_final_presentation_review_request_to_evidence_admission(
     ):
         if receipt.get(field) is not True:
             raise ValueError(f"CS344_STATE_DRIFT:{field}")
+    _assert_snapshot_lineage(receipt, "CS344_SNAPSHOT_LINEAGE_INVALID")
     approved = receipt.get("final_presentation_review_approved")
     if not isinstance(approved, bool):
         raise ValueError("CS344_PRESENTATION_VERDICT_INVALID")
@@ -311,6 +353,7 @@ def verify_final_presentation_review_request_to_evidence_admission(
         or receipt.get("cs279_receipt") != cs343.get("cs279_receipt")
     ):
         raise ValueError("CS344_CS343_LINEAGE_DRIFT")
+    _assert_snapshot_match(receipt, cs343, "CS344_CS343_SNAPSHOT_LINEAGE_DRIFT")
 
     b279 = receipt.get("cs279_receipt")
     p279 = _reopen(repo_root, b279, "CS344_CS279_RECEIPT_INVALID")
