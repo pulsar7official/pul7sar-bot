@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import tempfile
 import unittest
@@ -10,6 +11,13 @@ from engine.intelligence import qwen_image_composed_byte_admission_to_hybrid_sur
 
 
 STORY_SHA = "a" * 64
+SNAPSHOT_LINEAGE = {
+    "snapshot_byte_inventory_verified": True,
+    "snapshot_inventory_sha256": "1" * 64,
+    "snapshot_file_count": 17,
+    "snapshot_total_bytes": 987654321,
+    "model_revision": "qwen-image-pinned-revision",
+}
 CANDIDATE = {
     "repository_relative_path": "source/candidate.png",
     "sha256": "b" * 64,
@@ -58,6 +66,7 @@ class Phase18ComposedByteAdmissionToHybridSurfaceSemanticQATests(unittest.TestCa
         cs336 = {
             "schema": cs337.CS336_SCHEMA,
             "story_snapshot_sha256": STORY_SHA,
+            **SNAPSHOT_LINEAGE,
             "candidate_png": candidate,
             "composed_candidate_png": composed,
             "cs272_receipt": cs272_binding,
@@ -69,6 +78,7 @@ class Phase18ComposedByteAdmissionToHybridSurfaceSemanticQATests(unittest.TestCa
         cs272 = {
             "schema": cs337.CS272_SCHEMA,
             "story_snapshot_sha256": STORY_SHA,
+            **SNAPSHOT_LINEAGE,
             "source_candidate_png": candidate,
             "composed_candidate_png": composed,
             "receipt_sha256": "d" * 64,
@@ -126,6 +136,8 @@ class Phase18ComposedByteAdmissionToHybridSurfaceSemanticQATests(unittest.TestCa
             receipt = cs337._read_json(run.receipt_path, "bad")
             self.assertTrue(run.hybrid_surface_semantic_qa_approved)
             self.assertEqual(receipt["status"], "HYBRID_SURFACE_SEMANTIC_QA_PASSED")
+            for field, expected in SNAPSHOT_LINEAGE.items():
+                self.assertEqual(receipt[field], expected)
             self.assertTrue(receipt["semantic_inspection_executed"])
             self.assertFalse(receipt["visual_quality_review_requested"])
             self.assertFalse(receipt["semantic_approved"])
@@ -176,6 +188,76 @@ class Phase18ComposedByteAdmissionToHybridSurfaceSemanticQATests(unittest.TestCa
                 with self.assertRaisesRegex(ValueError, "CS272_LINEAGE_DRIFT"):
                     cs337.continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
                         cs336_path, root / "out", repo_root=root, inspector=object()
+                    )
+
+    def test_unverified_snapshot_inventory_is_rejected_before_semantic_qa(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cs336_path, _, cs336, _, _ = self._fixture(root)
+            cs336["snapshot_byte_inventory_verified"] = False
+            with patch.object(
+                cs337,
+                "verify_precomposition_to_composed_byte_admission",
+                return_value=cs336,
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_NOT_VERIFIED"):
+                    cs337.continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
+                        cs336_path, root / "out", repo_root=root, inspector=object()
+                    )
+
+    def test_cs272_snapshot_lineage_must_match_cs336(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cs336_path, _, cs336, cs272, _ = self._fixture(root)
+            cs272["snapshot_inventory_sha256"] = "2" * 64
+            with (
+                patch.object(cs337, "verify_precomposition_to_composed_byte_admission", return_value=cs336),
+                patch.object(cs337, "verify_composed_candidate_byte_admission", return_value=cs272),
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                    cs337.continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
+                        cs336_path, root / "out", repo_root=root, inspector=object()
+                    )
+
+    def test_verify_rejects_recomputed_outer_digest_after_snapshot_tamper(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cs336_path, _, cs336, cs272, cs273 = self._fixture(root)
+            with (
+                patch.object(cs337, "verify_precomposition_to_composed_byte_admission", return_value=cs336),
+                patch.object(cs337, "verify_composed_candidate_byte_admission", return_value=cs272),
+                patch.object(
+                    cs337,
+                    "run_composed_candidate_hybrid_surface_semantic_qa",
+                    side_effect=self._fake_run(root),
+                ),
+                patch.object(
+                    cs337,
+                    "verify_composed_candidate_hybrid_surface_semantic_qa",
+                    return_value=cs273,
+                ),
+            ):
+                run = cs337.continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
+                    cs336_path, root / "out", repo_root=root, inspector=object()
+                )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["model_revision"] = "tampered-revision"
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = cs337.sha256_json(unsigned)
+            run.receipt_path.write_text(json.dumps(receipt) + "\n", encoding="utf-8")
+            with (
+                patch.object(cs337, "verify_precomposition_to_composed_byte_admission", return_value=cs336),
+                patch.object(cs337, "verify_composed_candidate_byte_admission", return_value=cs272),
+                patch.object(
+                    cs337,
+                    "verify_composed_candidate_hybrid_surface_semantic_qa",
+                    return_value=cs273,
+                ),
+            ):
+                with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:model_revision"):
+                    cs337.verify_composed_byte_admission_to_hybrid_surface_semantic_qa(
+                        run.receipt_path, repo_root=root
                     )
 
     def test_cs273_must_bind_exact_cs336_selected_cs272(self) -> None:
