@@ -58,7 +58,7 @@ CS342 schema v2 already preserves exact Qwen generator snapshot byte provenance,
 - Production hardening: `16d351f92532780656a752d16978a5990de5fd8c`
 - Exact code-and-test-bearing SHA: `1654c95d237015f5f946205a4d105fe7698426a0`
 - CS373 changeset documentation: `7a4603d5209365b70ccbeccdb3ed8a3b1f6332ec`
-- Initial CS373 implementation-log commit: pending this file creation.
+- Initial CS373 implementation-log commit: `308c2c3229a39888dd13496fc413c5a4b22711d8`
 
 ## Gate preservation
 
@@ -80,10 +80,22 @@ Factual/freshness correctness, Entity/Identity verification, sentiment neutralit
 
 ## CI status
 
-Pending exact-SHA verification for `1654c95d237015f5f946205a4d105fe7698426a0`. CS373 must not be described as terminal-green until `Phase 18 Story Intelligence Verification` succeeds on that exact code-and-test-bearing SHA.
+Exact code-and-test-bearing SHA under verification: `1654c95d237015f5f946205a4d105fe7698426a0`.
+
+- `Phase 18 Story Intelligence Verification` run `34271851389` / run number `5224`: `in_progress` at the latest observation, inside `Syntax and discover validation`.
+- Companion Phase 18 workflows visible on the same exact SHA had completed successfully at that observation.
+- CS373 must not be described as terminal-green until Story Intelligence Verification itself completes successfully on this exact SHA.
+
+## Next proven downstream target
+
+Branch-local inspection already proves the existing next continuation after CS343/CS279:
+
+`engine/intelligence/qwen_image_final_presentation_review_request_to_evidence_admission.py`
+
+This is CS344. Its current schema is v1; it freshly replays CS343 and CS279, admits repository-bound independent manual Final Presentation Review evidence through existing CS280, preserves the approve/reject verdict, and stops before final composed approval, final semantic authority, Genuine Golden materialization, or publication. It currently does not carry the five generator snapshot fields in the inspected portion, so it is the next candidate for lineage-gap hardening only after CS373 reaches terminal-green.
 
 ## Remaining gap to first Genuine Golden Visual PNG
 
-The provenance chain now reaches the CS343 boundary into CS279 Final Presentation Review Request in code. After terminal-green verification, the next safe code step is to prove the first existing consumer after CS343/CS279 and inspect it for an actual generator-lineage discontinuity before modifying anything.
+The provenance chain now reaches the CS343 boundary into CS279 Final Presentation Review Request in code. CS344 is already proven as the next real branch-local continuation, but no CS374 change will be stacked before CS373 terminal-green confirmation.
 
 Actual Qwen-Image pixel generation remains independently blocked unless a zero-cost compatible execution host provides NVIDIA CUDA, CUDA-enabled PyTorch, native BF16, sufficient RAM/VRAM under real model load/inference, approved runtime, and exact approved already-local pinned generator/verifier assets. No Genuine Golden result may be fabricated in their absence.
