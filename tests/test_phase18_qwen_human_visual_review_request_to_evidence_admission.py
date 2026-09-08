@@ -9,6 +9,8 @@ from unittest.mock import patch
 from engine.intelligence import qwen_image_human_visual_review_request_to_evidence_admission as cs342
 
 STORY_SHA = "a" * 64
+SNAPSHOT_SHA = "b" * 64
+MODEL_REVISION = "qwen-image-approved-test-revision"
 
 
 def bind(path: Path, root: Path, receipt_sha256: str | None = None) -> dict:
@@ -21,6 +23,16 @@ def bind(path: Path, root: Path, receipt_sha256: str | None = None) -> dict:
     if receipt_sha256 is not None:
         value["receipt_sha256"] = receipt_sha256
     return value
+
+
+def snapshot_lineage() -> dict:
+    return {
+        "snapshot_byte_inventory_verified": True,
+        "snapshot_inventory_sha256": SNAPSHOT_SHA,
+        "snapshot_file_count": 17,
+        "snapshot_total_bytes": 123456789,
+        "model_revision": MODEL_REVISION,
+    }
 
 
 def final_false() -> dict:
@@ -68,6 +80,7 @@ class Phase18HumanVisualReviewRequestToEvidenceAdmissionTests(unittest.TestCase)
             "candidate_png": candidate,
             "composed_candidate_png": composed,
             "cs277_receipt": b277,
+            **snapshot_lineage(),
             "golden_quality_approved": True,
             "human_visual_review_requested": True,
             "human_visual_review_executed": False,
@@ -109,6 +122,8 @@ class Phase18HumanVisualReviewRequestToEvidenceAdmissionTests(unittest.TestCase)
                 run = cs342.continue_human_visual_review_request_to_evidence_admission(r341, external, root / "out", repo_root=root)
             receipt = cs342._json(run.receipt_path, "bad")
             self.assertEqual(builder.call_count, 1)
+            for field, expected in snapshot_lineage().items():
+                self.assertEqual(receipt[field], expected)
             self.assertTrue(receipt["human_visual_review_executed"])
             self.assertTrue(receipt["human_visual_review_evidence_admitted"])
             self.assertTrue(receipt["human_visual_review_approved"])
@@ -152,10 +167,36 @@ class Phase18HumanVisualReviewRequestToEvidenceAdmissionTests(unittest.TestCase)
             self.assertFalse(receipt["composed_visual_approved"])
             self.assertFalse(receipt["publication_ready"])
 
+    def test_unverified_generator_snapshot_is_rejected_before_cs278_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            r341, _r277, external, _candidate, _composed, _b277, cs341v, _cs277v, _external_binding, _approved = self._fixture(root)
+            cs341v["snapshot_byte_inventory_verified"] = False
+            with patch.object(cs342, "verify_golden_quality_to_human_visual_review_request", return_value=cs341v), patch.object(cs342, "build_composed_candidate_human_visual_review_evidence") as builder:
+                with self.assertRaisesRegex(ValueError, "snapshot_byte_inventory_verified"):
+                    cs342.continue_human_visual_review_request_to_evidence_admission(r341, external, root / "out", repo_root=root)
+            builder.assert_not_called()
+            self.assertFalse((root / "out").exists())
+
+    def test_snapshot_inventory_drift_is_rejected(self) -> None:
+        expected = snapshot_lineage()
+        actual = snapshot_lineage()
+        actual["snapshot_inventory_sha256"] = "c" * 64
+        with self.assertRaisesRegex(ValueError, "snapshot_inventory_sha256"):
+            cs342._assert_snapshot_match(expected, actual, "CS342_TEST_SNAPSHOT_DRIFT")
+
+    def test_model_revision_drift_is_rejected(self) -> None:
+        expected = snapshot_lineage()
+        actual = snapshot_lineage()
+        actual["model_revision"] = "different-approved-revision"
+        with self.assertRaisesRegex(ValueError, "model_revision"):
+            cs342._assert_snapshot_match(expected, actual, "CS342_TEST_SNAPSHOT_DRIFT")
+
     def test_premature_human_authority_in_cs341_is_rejected(self) -> None:
         value = {
             "schema": cs342.CS341_SCHEMA,
             "status": "HUMAN_VISUAL_REVIEW_REQUEST_READY",
+            **snapshot_lineage(),
             "golden_quality_approved": True,
             "human_visual_review_requested": True,
             "human_visual_review_executed": False,
