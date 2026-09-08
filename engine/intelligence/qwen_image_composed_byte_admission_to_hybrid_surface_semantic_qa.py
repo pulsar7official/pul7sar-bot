@@ -5,6 +5,11 @@ admission checkpoint, replays the exact CS272 receipt selected by CS336, then
 runs and independently reverifies the existing pinned CS273 HYBRID_SURFACE
 semantic QA against those exact composed bytes.
 
+Change Set 367 hardens that existing continuation by preserving the exact
+Qwen-Image generator snapshot-byte lineage sealed by CS366/CS336 and by
+rechecking it against fresh CS336 and CS272 verification. Generator identity
+remains distinct from the pinned semantic-verifier identity.
+
 This stage deliberately stops before CS274 visual-quality review. A semantic
 rejection is preserved as evidence and never promoted to visual, Human Review,
 Golden, global semantic-publication, or publication authority.
@@ -33,7 +38,7 @@ from engine.intelligence.qwen_image_composed_candidate_hybrid_surface_semantic_q
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-composed-byte-admission-to-hybrid-surface-semantic-qa-v1"
+SCHEMA = "pul7sar-phase18-composed-byte-admission-to-hybrid-surface-semantic-qa-v2"
 _DOWNSTREAM_FALSE = (
     "composed_visual_approved",
     "semantic_approved",
@@ -42,6 +47,13 @@ _DOWNSTREAM_FALSE = (
     "genuine_golden_png_created",
     "publication_ready",
 )
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
+)
 
 
 @dataclass(frozen=True)
@@ -49,6 +61,12 @@ class ComposedByteAdmissionToHybridSurfaceSemanticQARun:
     receipt_path: Path
     cs273_receipt_path: Path
     hybrid_surface_semantic_qa_approved: bool
+
+
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        ch in "0123456789abcdef" for ch in value.lower()
+    )
 
 
 def _read_json(path: Path, code: str) -> dict[str, Any]:
@@ -131,7 +149,33 @@ def _assert_downstream_closed(value: Mapping[str, Any], prefix: str) -> None:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
 
 
-def _assert_cs336_ready(value: Mapping[str, Any]) -> None:
+def _snapshot_lineage(value: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_NOT_VERIFIED")
+    inventory_sha = value.get("snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    model_revision = value.get("model_revision")
+    if not _is_sha256(inventory_sha):
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_SHA_INVALID")
+    if isinstance(file_count, bool) or not isinstance(file_count, int) or file_count <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_FILE_COUNT_INVALID")
+    if isinstance(total_bytes, bool) or not isinstance(total_bytes, int) or total_bytes <= 0:
+        raise ValueError(f"{prefix}_SNAPSHOT_TOTAL_BYTES_INVALID")
+    if not isinstance(model_revision, str) or not model_revision.strip():
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    return {field: value[field] for field in _SNAPSHOT_LINEAGE_FIELDS}
+
+
+def _assert_snapshot_lineage_matches(
+    sealed: Mapping[str, Any], verified: Mapping[str, Any], prefix: str
+) -> None:
+    for field in _SNAPSHOT_LINEAGE_FIELDS:
+        if sealed.get(field) != verified.get(field):
+            raise ValueError(f"{prefix}_SNAPSHOT_LINEAGE_DRIFT:{field}")
+
+
+def _assert_cs336_ready(value: Mapping[str, Any]) -> dict[str, Any]:
     if value.get("schema") != CS336_SCHEMA:
         raise ValueError("CS337_CS336_SCHEMA_DRIFT")
     if (
@@ -141,9 +185,10 @@ def _assert_cs336_ready(value: Mapping[str, Any]) -> None:
     ):
         raise ValueError("CS337_CS336_NOT_ADMITTED")
     _assert_downstream_closed(value, "CS337_CS336")
+    return _snapshot_lineage(value, "CS337_CS336")
 
 
-def _assert_cs272_matches_cs336(cs272: Mapping[str, Any], cs336: Mapping[str, Any]) -> None:
+def _assert_cs272_matches_cs336(cs272: Mapping[str, Any], cs336: Mapping[str, Any]) -> dict[str, Any]:
     if (
         cs272.get("schema") != CS272_SCHEMA
         or cs272.get("composition_executed") is not True
@@ -157,6 +202,13 @@ def _assert_cs272_matches_cs336(cs272: Mapping[str, Any], cs336: Mapping[str, An
         or cs272.get("composed_candidate_png") != cs336.get("composed_candidate_png")
     ):
         raise ValueError("CS337_CS272_LINEAGE_DRIFT")
+    cs272_snapshot_lineage = _snapshot_lineage(cs272, "CS337_CS272")
+    _assert_snapshot_lineage_matches(
+        _snapshot_lineage(cs336, "CS337_CS336"),
+        cs272_snapshot_lineage,
+        "CS337_CS336_CS272",
+    )
+    return cs272_snapshot_lineage
 
 
 def _assert_cs273_matches(
@@ -201,13 +253,18 @@ def continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
     cs336 = verify_precomposition_to_composed_byte_admission(
         cs336_receipt_path, repo_root=repo_root
     )
-    _assert_cs336_ready(cs336)
+    cs336_snapshot_lineage = _assert_cs336_ready(cs336)
 
     cs272_path = _reopen_binding(
         repo_root, cs336.get("cs272_receipt"), "CS337_CS272_RECEIPT_INVALID"
     )
     cs272 = verify_composed_candidate_byte_admission(cs272_path, repo_root=repo_root)
-    _assert_cs272_matches_cs336(cs272, cs336)
+    cs272_snapshot_lineage = _assert_cs272_matches_cs336(cs272, cs336)
+    _assert_snapshot_lineage_matches(
+        cs336_snapshot_lineage,
+        cs272_snapshot_lineage,
+        "CS337_CS336_CS272",
+    )
     cs272_binding = _bind_file(repo_root, cs272_path, "CS337_CS272_RECEIPT_INVALID")
 
     # CS273 is local-only: never permit a missing pinned verifier to trigger a
@@ -240,6 +297,7 @@ def continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
         "schema": SCHEMA,
         "status": status,
         "story_snapshot_sha256": cs336["story_snapshot_sha256"],
+        **cs336_snapshot_lineage,
         "candidate_png": dict(cs336["candidate_png"]),
         "composed_candidate_png": dict(cs336["composed_candidate_png"]),
         "source_cs336_receipt": source_cs336_binding,
@@ -265,6 +323,9 @@ def continue_composed_byte_admission_to_hybrid_surface_semantic_qa(
             "cs336_must_independently_reverify": True,
             "exact_cs336_selected_cs272_must_be_replayed": True,
             "exact_composed_bytes_must_bind_across_cs336_cs272_cs273": True,
+            "exact_generator_snapshot_lineage_must_survive_cs337": True,
+            "fresh_cs336_cs272_snapshot_lineage_must_match_sealed_receipt": True,
+            "generator_identity_must_remain_distinct_from_semantic_verifier_identity": True,
             "pinned_hybrid_surface_semantic_qa_required": True,
             "semantic_verifier_network_fallback_forbidden": True,
             "cs273_rejection_must_stop_progression": True,
@@ -326,6 +387,7 @@ def verify_composed_byte_admission_to_hybrid_surface_semantic_qa(
     ):
         raise ValueError("CS337_STATE_DRIFT")
     _assert_downstream_closed(receipt, "CS337")
+    sealed_snapshot_lineage = _snapshot_lineage(receipt, "CS337")
 
     cs336_path = _reopen_binding(
         repo_root, receipt.get("source_cs336_receipt"), "CS337_CS336_RECEIPT_INVALID"
@@ -333,7 +395,12 @@ def verify_composed_byte_admission_to_hybrid_surface_semantic_qa(
     cs336 = verify_precomposition_to_composed_byte_admission(
         cs336_path, repo_root=repo_root
     )
-    _assert_cs336_ready(cs336)
+    verified_cs336_snapshot_lineage = _assert_cs336_ready(cs336)
+    _assert_snapshot_lineage_matches(
+        sealed_snapshot_lineage,
+        verified_cs336_snapshot_lineage,
+        "CS337_CS336",
+    )
     if (
         receipt.get("story_snapshot_sha256") != cs336.get("story_snapshot_sha256")
         or receipt.get("candidate_png") != cs336.get("candidate_png")
@@ -345,7 +412,12 @@ def verify_composed_byte_admission_to_hybrid_surface_semantic_qa(
         repo_root, receipt.get("cs272_receipt"), "CS337_CS272_RECEIPT_INVALID"
     )
     cs272 = verify_composed_candidate_byte_admission(cs272_path, repo_root=repo_root)
-    _assert_cs272_matches_cs336(cs272, cs336)
+    verified_cs272_snapshot_lineage = _assert_cs272_matches_cs336(cs272, cs336)
+    _assert_snapshot_lineage_matches(
+        sealed_snapshot_lineage,
+        verified_cs272_snapshot_lineage,
+        "CS337_CS272",
+    )
     if receipt.get("cs272_receipt") != cs336.get("cs272_receipt"):
         raise ValueError("CS337_CS336_SELECTED_CS272_DRIFT")
 
