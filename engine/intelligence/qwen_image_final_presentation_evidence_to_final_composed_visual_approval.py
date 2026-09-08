@@ -1,10 +1,11 @@
 """CS345: continue exact CS344 presentation evidence into CS281 final composed approval.
 
 This continuation independently replays CS344, requires its exact admitted CS280
-presentation verdict to be approved, derives the exact CS273 semantic-QA receipt through
-that CS280 review lineage, and invokes the repository's existing CS281 deterministic
-Final Composed Visual Approval contract. It does not execute a new review, alter pixels,
-grant final semantic authority, materialize a Genuine Golden PNG, or publish.
+presentation verdict to be approved, preserves and verifies the exact Qwen generator
+snapshot byte lineage carried by CS344, derives the exact CS273 semantic-QA receipt
+through that CS280 review lineage, and invokes the repository's existing CS281
+deterministic Final Composed Visual Approval contract. It does not execute a new review,
+alter pixels, grant final semantic authority, materialize a Genuine Golden PNG, or publish.
 """
 from __future__ import annotations
 
@@ -52,7 +53,7 @@ from engine.intelligence.qwen_image_composed_candidate_final_composed_visual_app
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-final-presentation-evidence-to-final-composed-visual-approval-v1"
+SCHEMA = "pul7sar-phase18-final-presentation-evidence-to-final-composed-visual-approval-v2"
 STATUS = "FINAL_COMPOSED_VISUAL_APPROVED_AWAITING_FINAL_SEMANTIC_APPROVAL"
 Verifier = Callable[..., dict[str, Any]]
 
@@ -70,6 +71,13 @@ _DOWNSTREAM_FALSE = (
     "semantic_approved",
     "genuine_golden_png_created",
     "publication_ready",
+)
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
 )
 
 
@@ -140,12 +148,38 @@ def _verified_child(
     return path, child
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], code: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(code + ":snapshot_byte_inventory_verified")
+    digest = value.get("snapshot_inventory_sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise ValueError(code + ":snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(code + ":snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(code + ":snapshot_total_bytes")
+    revision = value.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError(code + ":model_revision")
+
+
+def _assert_snapshot_match(expected: Mapping[str, Any], actual: Mapping[str, Any], code: str) -> None:
+    _assert_snapshot_lineage(expected, code + "_EXPECTED_INVALID")
+    _assert_snapshot_lineage(actual, code + "_ACTUAL_INVALID")
+    for field in _SNAPSHOT_FIELDS:
+        if expected.get(field) != actual.get(field):
+            raise ValueError(f"{code}:{field}")
+
+
 def _assert_cs344(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS344_SCHEMA or value.get("status") != "FINAL_PRESENTATION_REVIEW_EVIDENCE_ADMITTED":
         raise ValueError("CS345_CS344_STATE_INVALID")
     for field in _UPSTREAM_TRUE:
         if value.get(field) is not True:
             raise ValueError(f"CS345_CS344_REQUIRED_GATE_MISSING:{field}")
+    _assert_snapshot_lineage(value, "CS345_CS344_SNAPSHOT_LINEAGE_INVALID")
     if value.get("composed_visual_approved") is not False:
         raise ValueError("CS345_CS344_PREMATURE_AUTHORITY:composed_visual_approved")
     for field in _DOWNSTREAM_FALSE:
@@ -299,6 +333,11 @@ def continue_final_presentation_evidence_to_final_composed_visual_approval(
         "story_snapshot_sha256": cs344["story_snapshot_sha256"],
         "candidate_png": dict(cs344["candidate_png"]),
         "composed_candidate_png": dict(cs344["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs344["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs344["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs344["snapshot_file_count"],
+        "snapshot_total_bytes": cs344["snapshot_total_bytes"],
+        "model_revision": cs344["model_revision"],
         "source_cs344_receipt": b344,
         "cs280_receipt": dict(b280),
         "cs273_receipt": {
@@ -322,6 +361,8 @@ def continue_final_presentation_evidence_to_final_composed_visual_approval(
         "policy": {
             "exact_cs344_replayed": True,
             "exact_cs344_selected_cs280_replayed": True,
+            "exact_generator_snapshot_lineage_preserved_from_cs344": True,
+            "generator_identity_remains_independent_from_final_composed_approval_identity": True,
             "presentation_rejection_blocks_progression_fail_closed": True,
             "exact_cs280_review_lineage_replayed_back_to_cs273": True,
             "exact_cs273_semantic_qa_required": True,
@@ -374,6 +415,7 @@ def verify_final_presentation_evidence_to_final_composed_visual_approval(
     ):
         if receipt.get(field) is not True:
             raise ValueError(f"CS345_STATE_DRIFT:{field}")
+    _assert_snapshot_lineage(receipt, "CS345_SNAPSHOT_LINEAGE_INVALID")
     for field in _DOWNSTREAM_FALSE:
         if receipt.get(field) is not False:
             raise ValueError(f"CS345_PREMATURE_AUTHORITY:{field}")
@@ -383,6 +425,7 @@ def verify_final_presentation_evidence_to_final_composed_visual_approval(
     p344 = _reopen(repo_root, receipt.get("source_cs344_receipt"), "CS345_CS344_RECEIPT_INVALID")
     cs344 = verify_final_presentation_review_request_to_evidence_admission(p344, repo_root=repo_root)
     _assert_cs344(cs344)
+    _assert_snapshot_match(receipt, cs344, "CS345_CS344_SNAPSHOT_LINEAGE_DRIFT")
     if (
         receipt.get("story_snapshot_sha256") != cs344.get("story_snapshot_sha256")
         or receipt.get("candidate_png") != cs344.get("candidate_png")
