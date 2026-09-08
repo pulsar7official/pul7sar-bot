@@ -6,6 +6,10 @@ CS273 receipt selected by CS337 is replayed, then the existing CS274 request
 builder binds those exact composed bytes to the repository's Golden Visual
 quality contract.
 
+Change Set 368 preserves the exact Qwen-Image generator snapshot byte lineage
+already sealed by CS337 across the visual-quality review-request boundary. The
+generator identity remains distinct from semantic/visual verifier identity.
+
 This stage deliberately stops before CS275 visual-quality evidence. It creates
 no scores and grants no visual, Human Review, Golden, semantic-publication, or
 publication authority.
@@ -34,7 +38,14 @@ from engine.intelligence.qwen_image_composed_candidate_visual_quality_review_req
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-hybrid-surface-semantic-qa-to-visual-quality-review-request-v1"
+SCHEMA = "pul7sar-phase18-hybrid-surface-semantic-qa-to-visual-quality-review-request-v2"
+_SNAPSHOT_LINEAGE_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
+)
 _DOWNSTREAM_FALSE = (
     "visual_quality_review_executed",
     "visual_quality_review_approved",
@@ -133,6 +144,31 @@ def _assert_downstream_closed(value: Mapping[str, Any], prefix: str) -> None:
             raise ValueError(f"{prefix}_PREMATURE_AUTHORITY:{field}")
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], prefix: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(f"{prefix}_SNAPSHOT_BYTE_INVENTORY_UNVERIFIED")
+    digest = value.get("snapshot_inventory_sha256")
+    revision = value.get("model_revision")
+    if not isinstance(digest, str) or len(digest) != 64:
+        raise ValueError(f"{prefix}_SNAPSHOT_INVENTORY_INVALID")
+    if not isinstance(revision, str) or not revision:
+        raise ValueError(f"{prefix}_MODEL_REVISION_INVALID")
+    for field in ("snapshot_file_count", "snapshot_total_bytes"):
+        count = value.get(field)
+        if not isinstance(count, int) or isinstance(count, bool) or count <= 0:
+            raise ValueError(f"{prefix}_{field.upper()}_INVALID")
+
+
+def _assert_snapshot_lineage_matches(
+    downstream: Mapping[str, Any], upstream: Mapping[str, Any], prefix: str
+) -> None:
+    _assert_snapshot_lineage(downstream, prefix)
+    _assert_snapshot_lineage(upstream, f"{prefix}_UPSTREAM")
+    for field in _SNAPSHOT_LINEAGE_FIELDS:
+        if downstream.get(field) != upstream.get(field):
+            raise ValueError(f"{prefix}_SNAPSHOT_LINEAGE_DRIFT:{field}")
+
+
 def _assert_cs337_passed(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS337_SCHEMA:
         raise ValueError("CS338_CS337_SCHEMA_DRIFT")
@@ -146,6 +182,7 @@ def _assert_cs337_passed(value: Mapping[str, Any]) -> None:
         or value.get("authoritative") is not False
     ):
         raise ValueError("CS338_CS337_SEMANTIC_PASS_REQUIRED")
+    _assert_snapshot_lineage(value, "CS338_CS337")
     _assert_downstream_closed(value, "CS338_CS337")
 
 
@@ -239,6 +276,11 @@ def continue_hybrid_surface_semantic_qa_to_visual_quality_review_request(
         "story_snapshot_sha256": cs337["story_snapshot_sha256"],
         "candidate_png": dict(cs337["candidate_png"]),
         "composed_candidate_png": dict(cs337["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs337["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs337["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs337["snapshot_file_count"],
+        "snapshot_total_bytes": cs337["snapshot_total_bytes"],
+        "model_revision": cs337["model_revision"],
         "source_cs337_receipt": cs337_binding,
         "cs273_receipt": cs273_binding,
         "cs274_receipt": _bind_file(repo_root, cs274_path, "CS338_CS274_RECEIPT_INVALID"),
@@ -260,6 +302,8 @@ def continue_hybrid_surface_semantic_qa_to_visual_quality_review_request(
             "exact_cs337_semantic_pass_required": True,
             "exact_cs337_selected_cs273_must_be_replayed": True,
             "exact_composed_bytes_must_bind_across_cs337_cs273_cs274": True,
+            "exact_generator_snapshot_lineage_must_survive_visual_quality_request": True,
+            "generator_identity_is_independent_from_semantic_and_visual_verifier_identity": True,
             "existing_cs274_quality_contract_binding_required": True,
             "no_visual_quality_scores_generated_here": True,
             "stop_before_cs275_visual_quality_evidence": True,
@@ -269,6 +313,7 @@ def continue_hybrid_surface_semantic_qa_to_visual_quality_review_request(
             "publication_authority_not_granted": True,
         },
     }
+    _assert_snapshot_lineage_matches(receipt, cs337, "CS338")
     receipt["receipt_sha256"] = sha256_json(receipt)
     receipt_path = output_dir / "hybrid_surface_semantic_qa_to_visual_quality_review_request.json"
     tmp = output_dir / ".hybrid_surface_semantic_qa_to_visual_quality_review_request.json.tmp"
@@ -301,6 +346,7 @@ def verify_hybrid_surface_semantic_qa_to_visual_quality_review_request(
         or receipt.get("authoritative") is not False
     ):
         raise ValueError("CS338_STATE_DRIFT")
+    _assert_snapshot_lineage(receipt, "CS338")
     _assert_downstream_closed(receipt, "CS338")
 
     cs337_path = _reopen_binding(
@@ -317,6 +363,7 @@ def verify_hybrid_surface_semantic_qa_to_visual_quality_review_request(
         or receipt.get("cs273_receipt") != cs337.get("cs273_receipt")
     ):
         raise ValueError("CS338_CS337_LINEAGE_DRIFT")
+    _assert_snapshot_lineage_matches(receipt, cs337, "CS338_CS337")
 
     cs273_path = _reopen_binding(
         repo_root, receipt.get("cs273_receipt"), "CS338_CS273_RECEIPT_INVALID"
