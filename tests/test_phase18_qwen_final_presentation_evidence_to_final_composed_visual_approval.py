@@ -27,6 +27,8 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self.story = "a" * 64
+        self.snapshot_inventory_sha256 = "1" * 64
+        self.model_revision = "qwen-image-approved-revision"
         self.png = {
             "repository_relative_path": "artifacts/composed.png",
             "sha256": "b" * 64,
@@ -52,6 +54,11 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
             "story_snapshot_sha256": self.story,
             "candidate_png": {"sha256": "d" * 64},
             "composed_candidate_png": self.png,
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.snapshot_inventory_sha256,
+            "snapshot_file_count": 42,
+            "snapshot_total_bytes": 987654,
+            "model_revision": self.model_revision,
             "cs280_receipt": _binding(self.root, self.cs280_path, r280),
             "golden_quality_approved": True,
             "human_visual_review_approved": True,
@@ -99,14 +106,14 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
             "hybrid_surface_semantic_qa_approved": True,
         }
 
-    def test_exact_approved_cs344_continues_once_to_existing_cs281(self) -> None:
-        cs344 = self._cs344()
-        cs280 = self._cs280()
-        cs273 = self._cs273()
-        calls = {"cs281": 0}
-
+    def _build_run(
+        self,
+        cs344: dict[str, object],
+        cs280: dict[str, object],
+        cs273: dict[str, object],
+        output_name: str = "out",
+    ) -> tuple[subject.FinalPresentationEvidenceToFinalComposedVisualApprovalRun, dict[str, object]]:
         def build281(given273: Path, given280: Path, output: Path, *, repo_root: Path) -> Path:
-            calls["cs281"] += 1
             self.assertEqual(given273, self.cs273_path)
             self.assertEqual(given280, self.cs280_path)
             output.mkdir()
@@ -120,6 +127,12 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
                 "receipt_sha256": "f" * 64,
                 "story_snapshot_sha256": self.story,
                 "composed_candidate_png": self.png,
+                "source_cs280_final_presentation_evidence": _binding(
+                    self.root, self.cs280_path, str(cs280["receipt_sha256"])
+                ),
+                "source_cs273_semantic_qa": _binding(
+                    self.root, self.cs273_path, str(cs273["receipt_sha256"])
+                ),
                 "composed_visual_approved": True,
                 "semantic_approved": False,
                 "genuine_golden_png_created": False,
@@ -151,13 +164,55 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
         ):
             run = subject.continue_final_presentation_evidence_to_final_composed_visual_approval(
                 self.cs344_path,
-                self.root / "out",
+                self.root / output_name,
+                repo_root=self.root,
+            )
+        return run, verify281(run.cs281_receipt_path, repo_root=self.root)
+
+    def _verify_with_mocks(
+        self,
+        receipt_path: Path,
+        cs344: dict[str, object],
+        cs280: dict[str, object],
+        cs273: dict[str, object],
+        cs281: dict[str, object],
+    ) -> dict[str, object]:
+        with (
+            mock.patch.object(
+                subject,
+                "verify_final_presentation_review_request_to_evidence_admission",
+                return_value=cs344,
+            ),
+            mock.patch.object(
+                subject,
+                "verify_composed_candidate_final_presentation_review_evidence",
+                return_value=cs280,
+            ),
+            mock.patch.object(subject, "_derive_exact_cs273", return_value=(self.cs273_path, cs273)),
+            mock.patch.object(
+                subject,
+                "verify_composed_candidate_final_composed_visual_approval",
+                return_value=cs281,
+            ),
+        ):
+            return subject.verify_final_presentation_evidence_to_final_composed_visual_approval(
+                receipt_path,
                 repo_root=self.root,
             )
 
+    def test_exact_approved_cs344_continues_once_to_existing_cs281(self) -> None:
+        cs344 = self._cs344()
+        cs280 = self._cs280()
+        cs273 = self._cs273()
+        run, _ = self._build_run(cs344, cs280, cs273)
+
         payload = json.loads(run.receipt_path.read_text(encoding="utf-8"))
-        self.assertEqual(calls["cs281"], 1)
         self.assertEqual(payload["status"], subject.STATUS)
+        self.assertIs(payload["snapshot_byte_inventory_verified"], True)
+        self.assertEqual(payload["snapshot_inventory_sha256"], self.snapshot_inventory_sha256)
+        self.assertEqual(payload["snapshot_file_count"], 42)
+        self.assertEqual(payload["snapshot_total_bytes"], 987654)
+        self.assertEqual(payload["model_revision"], self.model_revision)
         self.assertIs(payload["final_presentation_review_approved"], True)
         self.assertIs(payload["exact_brand_integrity_approved"], True)
         self.assertIs(payload["typography_integrity_approved"], True)
@@ -166,6 +221,67 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
         self.assertIs(payload["genuine_golden_png_created"], False)
         self.assertIs(payload["publication_ready"], False)
         self.assertIs(payload["authoritative"], False)
+
+    def test_unverified_snapshot_fails_before_cs281(self) -> None:
+        cs344 = self._cs344()
+        cs344["snapshot_byte_inventory_verified"] = False
+        with (
+            mock.patch.object(
+                subject,
+                "verify_final_presentation_review_request_to_evidence_admission",
+                return_value=cs344,
+            ),
+            mock.patch.object(
+                subject,
+                "build_composed_candidate_final_composed_visual_approval",
+                side_effect=AssertionError("CS281 must remain closed for unverified generator bytes"),
+            ),
+            self.assertRaisesRegex(
+                ValueError,
+                "CS345_CS344_SNAPSHOT_LINEAGE_INVALID:snapshot_byte_inventory_verified",
+            ),
+        ):
+            subject.continue_final_presentation_evidence_to_final_composed_visual_approval(
+                self.cs344_path,
+                self.root / "out",
+                repo_root=self.root,
+            )
+
+    def test_snapshot_inventory_tamper_rejected_after_outer_digest_recomputed(self) -> None:
+        cs344 = self._cs344()
+        cs280 = self._cs280()
+        cs273 = self._cs273()
+        run, cs281 = self._build_run(cs344, cs280, cs273)
+        payload = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        payload["snapshot_inventory_sha256"] = "2" * 64
+        unsigned = dict(payload)
+        unsigned.pop("receipt_sha256")
+        payload["receipt_sha256"] = subject.sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "CS345_CS344_SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256",
+        ):
+            self._verify_with_mocks(run.receipt_path, cs344, cs280, cs273, cs281)
+
+    def test_model_revision_tamper_rejected_after_outer_digest_recomputed(self) -> None:
+        cs344 = self._cs344()
+        cs280 = self._cs280()
+        cs273 = self._cs273()
+        run, cs281 = self._build_run(cs344, cs280, cs273)
+        payload = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        payload["model_revision"] = "tampered-revision"
+        unsigned = dict(payload)
+        unsigned.pop("receipt_sha256")
+        payload["receipt_sha256"] = subject.sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(payload), encoding="utf-8")
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "CS345_CS344_SNAPSHOT_LINEAGE_DRIFT:model_revision",
+        ):
+            self._verify_with_mocks(run.receipt_path, cs344, cs280, cs273, cs281)
 
     def test_presentation_rejection_never_reaches_cs281(self) -> None:
         cs344 = self._cs344(approved=False)
@@ -235,6 +351,7 @@ class FinalPresentationEvidenceToFinalComposedVisualApprovalTests(unittest.TestC
         source = Path(subject.__file__).read_text(encoding="utf-8")
         self.assertIn("build_composed_candidate_final_composed_visual_approval", source)
         self.assertIn("verify_composed_candidate_final_presentation_review_evidence", source)
+        self.assertIn("exact_generator_snapshot_lineage_preserved_from_cs344", source)
         self.assertNotIn("QwenImagePipeline", source)
         self.assertNotIn(".from_pretrained(", source)
         self.assertNotIn("build_composed_candidate_final_semantic_approval", source)
