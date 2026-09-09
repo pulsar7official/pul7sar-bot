@@ -63,7 +63,9 @@ CS349 may admit `genuine_golden_png_created=true` only after successful existing
 
 ## Tests / CI
 
-Targeted lineage and authority regressions are committed at exact code-and-test SHA `f10e49d48fe996b43533ad788750a0a359ec5fdb`. GitHub Actions must complete successfully on that exact SHA before CS379 is called terminal-green.
+Targeted lineage and authority regressions are committed at exact code-and-test SHA `f10e49d48fe996b43533ad788750a0a359ec5fdb`.
+
+`Phase 18 Story Intelligence Verification` run `34397572536` / #5284 completed successfully on that exact SHA. The visible companion Phase 18 workflows on the same SHA also completed successfully. CS379 is therefore terminal-green.
 
 ## Genuine Golden blocker
 
@@ -73,4 +75,4 @@ A real first Golden Visual still requires a compatible zero-cost NVIDIA CUDA hos
 
 ## Next boundary
 
-After CS379 reaches terminal-green, inspect the first existing consumer of CS349/CS285 for publication-readiness or final artifact admission. Harden only a demonstrated provenance/authority gap; do not invent a parallel publication contract.
+CS379 is terminal-green. Inspect the first existing consumer of CS349/CS285 for publication-readiness or final artifact admission. Harden only a demonstrated provenance/authority gap; do not invent a parallel publication contract.
