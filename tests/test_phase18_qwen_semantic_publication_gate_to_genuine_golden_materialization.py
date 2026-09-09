@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -34,6 +35,8 @@ class SemanticPublicationGateToGenuineGoldenMaterializationTests(unittest.TestCa
         self.cs348_path.write_text("{}", encoding="utf-8")
         self.cs284_path = self.root / "cs284.json"
         self.cs284_path.write_text("{}", encoding="utf-8")
+        self.snapshot_digest = "1" * 64
+        self.model_revision = "qwen-image-pinned-test-revision"
 
     def tearDown(self) -> None:
         self._tmp.cleanup()
@@ -46,6 +49,11 @@ class SemanticPublicationGateToGenuineGoldenMaterializationTests(unittest.TestCa
             "story_snapshot_sha256": self.story,
             "candidate_png": {"sha256": "d" * 64},
             "composed_candidate_png": self.png,
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": self.snapshot_digest,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 123456789,
+            "model_revision": self.model_revision,
             "cs284_receipt": _binding(self.root, self.cs284_path, "4" * 64),
             "composed_visual_approved": True,
             "semantic_approved": True,
@@ -99,19 +107,34 @@ class SemanticPublicationGateToGenuineGoldenMaterializationTests(unittest.TestCa
             "publication_ready": False,
         }
 
+    def _materialize(self, given284: Path, output: Path, *, repo_root: Path) -> Path:
+        self.assertEqual(given284, self.cs284_path)
+        output.mkdir()
+        golden = output / "genuine_golden_visual.png"
+        golden.write_bytes(self.composed_path.read_bytes())
+        receipt = output / "genuine_golden_materialization.json"
+        receipt.write_text("{}", encoding="utf-8")
+        return receipt
+
+    def _build_valid_run(self) -> subject.SemanticPublicationGateToGenuineGoldenRun:
+        cs348, cs284 = self._cs348(), self._cs284()
+        with (
+            mock.patch.object(subject, "verify_semantic_publication_request_to_gate_execution", return_value=cs348),
+            mock.patch.object(subject, "verify_semantic_publication_execution", return_value=cs284),
+            mock.patch.object(subject, "materialize_genuine_golden_visual", side_effect=self._materialize),
+            mock.patch.object(subject, "verify_genuine_golden_materialization", side_effect=lambda *args, **kwargs: self._cs285()),
+        ):
+            return subject.continue_semantic_publication_gate_to_genuine_golden_materialization(
+                self.cs348_path, self.root / "out", repo_root=self.root
+            )
+
     def test_allowed_exact_cs348_materializes_once_through_existing_cs285(self) -> None:
         cs348, cs284 = self._cs348(), self._cs284()
         calls = {"cs285": 0}
 
         def materialize(given284: Path, output: Path, *, repo_root: Path) -> Path:
             calls["cs285"] += 1
-            self.assertEqual(given284, self.cs284_path)
-            output.mkdir()
-            golden = output / "genuine_golden_visual.png"
-            golden.write_bytes(self.composed_path.read_bytes())
-            receipt = output / "genuine_golden_materialization.json"
-            receipt.write_text("{}", encoding="utf-8")
-            return receipt
+            return self._materialize(given284, output, repo_root=repo_root)
 
         with (
             mock.patch.object(subject, "verify_semantic_publication_request_to_gate_execution", return_value=cs348),
@@ -130,7 +153,25 @@ class SemanticPublicationGateToGenuineGoldenMaterializationTests(unittest.TestCa
         self.assertTrue(receipt["byte_identity_preserved"])
         self.assertFalse(receipt["publication_ready"])
         self.assertFalse(receipt["authoritative"])
+        self.assertTrue(receipt["snapshot_byte_inventory_verified"])
+        self.assertEqual(receipt["snapshot_inventory_sha256"], self.snapshot_digest)
+        self.assertEqual(receipt["snapshot_file_count"], 17)
+        self.assertEqual(receipt["snapshot_total_bytes"], 123456789)
+        self.assertEqual(receipt["model_revision"], self.model_revision)
         self.assertEqual(run.genuine_golden_visual_path.read_bytes(), self.composed_path.read_bytes())
+
+    def test_unverified_snapshot_is_rejected_before_cs285(self) -> None:
+        cs348 = self._cs348()
+        cs348["snapshot_byte_inventory_verified"] = False
+        with (
+            mock.patch.object(subject, "verify_semantic_publication_request_to_gate_execution", return_value=cs348),
+            mock.patch.object(subject, "materialize_genuine_golden_visual") as materialize,
+        ):
+            with self.assertRaisesRegex(ValueError, "CS349_CS348_SNAPSHOT_LINEAGE_INVALID:snapshot_byte_inventory_verified"):
+                subject.continue_semantic_publication_gate_to_genuine_golden_materialization(
+                    self.cs348_path, self.root / "out", repo_root=self.root
+                )
+        materialize.assert_not_called()
 
     def test_rejected_cs348_cannot_reach_cs285(self) -> None:
         cs348 = self._cs348(allowed=False)
@@ -161,13 +202,6 @@ class SemanticPublicationGateToGenuineGoldenMaterializationTests(unittest.TestCa
     def test_cs285_byte_identity_drift_is_rejected(self) -> None:
         cs348, cs284 = self._cs348(), self._cs284()
 
-        def materialize(given284: Path, output: Path, *, repo_root: Path) -> Path:
-            output.mkdir()
-            (output / "genuine_golden_visual.png").write_bytes(self.composed_path.read_bytes())
-            receipt = output / "genuine_golden_materialization.json"
-            receipt.write_text("{}", encoding="utf-8")
-            return receipt
-
         def bad_cs285(*args: object, **kwargs: object) -> dict[str, object]:
             value = self._cs285()
             value["genuine_golden_visual_png"] = {
@@ -180,12 +214,50 @@ class SemanticPublicationGateToGenuineGoldenMaterializationTests(unittest.TestCa
         with (
             mock.patch.object(subject, "verify_semantic_publication_request_to_gate_execution", return_value=cs348),
             mock.patch.object(subject, "verify_semantic_publication_execution", return_value=cs284),
-            mock.patch.object(subject, "materialize_genuine_golden_visual", side_effect=materialize),
+            mock.patch.object(subject, "materialize_genuine_golden_visual", side_effect=self._materialize),
             mock.patch.object(subject, "verify_genuine_golden_materialization", side_effect=bad_cs285),
         ):
             with self.assertRaisesRegex(ValueError, "BYTE_IDENTITY_DRIFT"):
                 subject.continue_semantic_publication_gate_to_genuine_golden_materialization(
                     self.cs348_path, self.root / "out", repo_root=self.root
+                )
+
+    def test_rehashed_snapshot_inventory_tamper_is_rejected_by_fresh_cs348(self) -> None:
+        run = self._build_valid_run()
+        receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        receipt["snapshot_inventory_sha256"] = "f" * 64
+        unsigned = dict(receipt)
+        unsigned.pop("receipt_sha256", None)
+        receipt["receipt_sha256"] = subject.sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(receipt, separators=(",", ":")) + "\n", encoding="utf-8")
+        cs348, cs284 = self._cs348(), self._cs284()
+        with (
+            mock.patch.object(subject, "verify_semantic_publication_request_to_gate_execution", return_value=cs348),
+            mock.patch.object(subject, "verify_semantic_publication_execution", return_value=cs284),
+            mock.patch.object(subject, "verify_genuine_golden_materialization", side_effect=lambda *args, **kwargs: self._cs285()),
+        ):
+            with self.assertRaisesRegex(ValueError, "CS349_CS348_SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                subject.verify_semantic_publication_gate_to_genuine_golden_materialization(
+                    run.receipt_path, repo_root=self.root
+                )
+
+    def test_rehashed_model_revision_tamper_is_rejected_by_fresh_cs348(self) -> None:
+        run = self._build_valid_run()
+        receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        receipt["model_revision"] = "tampered-revision"
+        unsigned = dict(receipt)
+        unsigned.pop("receipt_sha256", None)
+        receipt["receipt_sha256"] = subject.sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(receipt, separators=(",", ":")) + "\n", encoding="utf-8")
+        cs348, cs284 = self._cs348(), self._cs284()
+        with (
+            mock.patch.object(subject, "verify_semantic_publication_request_to_gate_execution", return_value=cs348),
+            mock.patch.object(subject, "verify_semantic_publication_execution", return_value=cs284),
+            mock.patch.object(subject, "verify_genuine_golden_materialization", side_effect=lambda *args, **kwargs: self._cs285()),
+        ):
+            with self.assertRaisesRegex(ValueError, "CS349_CS348_SNAPSHOT_LINEAGE_DRIFT:model_revision"):
+                subject.verify_semantic_publication_gate_to_genuine_golden_materialization(
+                    run.receipt_path, repo_root=self.root
                 )
 
     def test_source_contains_no_generation_network_or_publication_shortcut(self) -> None:
