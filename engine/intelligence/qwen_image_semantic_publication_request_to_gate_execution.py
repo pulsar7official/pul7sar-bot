@@ -1,6 +1,7 @@
 """CS348: continue exact CS347 publication request into existing CS284 gate execution.
 
-This continuation independently replays CS347 and its exact CS283 request, then admits
+This continuation independently replays CS347 and its exact CS283 request, preserves and
+verifies the exact Qwen generator snapshot byte lineage carried by CS347, then admits
 repository-bound semantic-publication execution evidence through the existing CS284 v2
 contract. The SemanticPublicationGate decision is computed by CS284 and is preserved
 exactly; this layer cannot manufacture an allowed result, mutate pixels, materialize a
@@ -32,8 +33,16 @@ from engine.intelligence.qwen_image_composed_candidate_semantic_publication_exec
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-semantic-publication-request-to-gate-execution-v1"
+SCHEMA = "pul7sar-phase18-semantic-publication-request-to-gate-execution-v2"
 STATUS = "SEMANTIC_PUBLICATION_GATE_EXECUTION_ADMITTED"
+
+_SNAPSHOT_FIELDS = (
+    "snapshot_byte_inventory_verified",
+    "snapshot_inventory_sha256",
+    "snapshot_file_count",
+    "snapshot_total_bytes",
+    "model_revision",
+)
 
 
 @dataclass(frozen=True)
@@ -86,11 +95,37 @@ def _reopen(root: Path, binding: Any, code: str) -> Path:
     return path
 
 
+def _assert_snapshot_lineage(value: Mapping[str, Any], code: str) -> None:
+    if value.get("snapshot_byte_inventory_verified") is not True:
+        raise ValueError(code + ":snapshot_byte_inventory_verified")
+    digest = value.get("snapshot_inventory_sha256")
+    if not isinstance(digest, str) or len(digest) != 64 or any(ch not in "0123456789abcdef" for ch in digest):
+        raise ValueError(code + ":snapshot_inventory_sha256")
+    file_count = value.get("snapshot_file_count")
+    if not isinstance(file_count, int) or isinstance(file_count, bool) or file_count <= 0:
+        raise ValueError(code + ":snapshot_file_count")
+    total_bytes = value.get("snapshot_total_bytes")
+    if not isinstance(total_bytes, int) or isinstance(total_bytes, bool) or total_bytes <= 0:
+        raise ValueError(code + ":snapshot_total_bytes")
+    revision = value.get("model_revision")
+    if not isinstance(revision, str) or not revision.strip():
+        raise ValueError(code + ":model_revision")
+
+
+def _assert_snapshot_match(expected: Mapping[str, Any], actual: Mapping[str, Any], code: str) -> None:
+    _assert_snapshot_lineage(expected, code + "_EXPECTED_INVALID")
+    _assert_snapshot_lineage(actual, code + "_ACTUAL_INVALID")
+    for field in _SNAPSHOT_FIELDS:
+        if expected.get(field) != actual.get(field):
+            raise ValueError(f"{code}:{field}")
+
+
 def _assert_cs347(value: Mapping[str, Any]) -> None:
     if value.get("schema") != CS347_SCHEMA or value.get("status") != CS347_STATUS:
         raise ValueError("CS348_CS347_STATE_INVALID")
     if not _is_sha256(value.get("story_snapshot_sha256")):
         raise ValueError("CS348_CS347_STORY_INVALID")
+    _assert_snapshot_lineage(value, "CS348_CS347_SNAPSHOT_LINEAGE_INVALID")
     expected = {
         "composed_visual_approved": True,
         "semantic_approved": True,
@@ -210,6 +245,11 @@ def continue_semantic_publication_request_to_gate_execution(
         "story_snapshot_sha256": cs347["story_snapshot_sha256"],
         "candidate_png": dict(cs347["candidate_png"]),
         "composed_candidate_png": dict(cs347["composed_candidate_png"]),
+        "snapshot_byte_inventory_verified": cs347["snapshot_byte_inventory_verified"],
+        "snapshot_inventory_sha256": cs347["snapshot_inventory_sha256"],
+        "snapshot_file_count": cs347["snapshot_file_count"],
+        "snapshot_total_bytes": cs347["snapshot_total_bytes"],
+        "model_revision": cs347["model_revision"],
         "source_cs347_receipt": {**cs347_binding, "receipt_sha256": cs347.get("receipt_sha256")},
         "cs283_receipt": dict(cs283_binding),
         "cs284_receipt": {**_bind(repo_root, cs284_path, "CS348_CS284_RECEIPT_INVALID"), "receipt_sha256": cs284.get("receipt_sha256")},
@@ -229,6 +269,8 @@ def continue_semantic_publication_request_to_gate_execution(
         "policy": {
             "exact_cs347_replayed": True,
             "exact_cs347_selected_cs283_replayed": True,
+            "exact_generator_snapshot_lineage_preserved_from_cs347": True,
+            "generator_identity_remains_independent_from_semantic_publication_gate_identity": True,
             "existing_cs284_gate_execution_contract_reused": True,
             "repository_semantic_publication_gate_decision_preserved_exactly": True,
             "external_allowed_override_forbidden": True,
@@ -275,11 +317,13 @@ def verify_semantic_publication_request_to_gate_execution(
     for field in ("genuine_golden_png_created", "publication_ready", "authoritative"):
         if receipt.get(field) is not False:
             raise ValueError(f"CS348_PREMATURE_AUTHORITY:{field}")
+    _assert_snapshot_lineage(receipt, "CS348_SNAPSHOT_LINEAGE_INVALID")
 
     source = receipt.get("source_cs347_receipt")
     cs347_path = _reopen(repo_root, source, "CS348_CS347_RECEIPT_INVALID")
     cs347 = verify_final_semantic_approval_to_semantic_publication_execution_request(cs347_path, repo_root=repo_root)
     _assert_cs347(cs347)
+    _assert_snapshot_match(receipt, cs347, "CS348_CS347_SNAPSHOT_LINEAGE_DRIFT")
     if not isinstance(source, Mapping) or source.get("receipt_sha256") != cs347.get("receipt_sha256"):
         raise ValueError("CS348_CS347_RECEIPT_DRIFT")
     for field in ("story_snapshot_sha256", "candidate_png", "composed_candidate_png", "cs283_receipt"):
