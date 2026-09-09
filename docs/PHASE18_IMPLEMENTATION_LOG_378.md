@@ -63,7 +63,9 @@ Even `semantic_publication_allowed=true` is only a gate result and is not Genuin
 
 ## Tests / CI
 
-The targeted regressions are committed at `3ea81b0e673a6ee5813310988747de43cdc8bcf2`. GitHub Actions status on this exact code-and-test SHA must be completed successfully before CS378 is called terminal-green. Until then, no terminal-green claim is made.
+The targeted regressions are committed at `3ea81b0e673a6ee5813310988747de43cdc8bcf2`.
+
+`Phase 18 Story Intelligence Verification` run `34391189414` / #5274 completed successfully on that exact SHA. The visible companion Phase 18 workflows on the same SHA also completed successfully. CS378 is therefore terminal-green.
 
 ## Genuine Golden blocker
 
@@ -71,4 +73,4 @@ No Genuine Qwen-Image PNG was generated or fabricated in this changeset. Current
 
 ## Next boundary
 
-After CS378 reaches terminal-green, inspect the existing `qwen_image_semantic_publication_gate_to_genuine_golden_materialization.py` contract directly. Only harden it if a real provenance or authority gap is demonstrated; do not introduce a parallel materialization gate.
+CS378 is terminal-green. The existing `qwen_image_semantic_publication_gate_to_genuine_golden_materialization.py` contract is the next real downstream boundary; CS379 hardens that exact contract rather than introducing a parallel materialization gate.
