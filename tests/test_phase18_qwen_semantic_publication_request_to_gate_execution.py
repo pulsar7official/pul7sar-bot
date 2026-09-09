@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -51,6 +52,11 @@ class SemanticPublicationRequestToGateExecutionTests(unittest.TestCase):
             "story_snapshot_sha256": self.story,
             "candidate_png": {"sha256": "d" * 64},
             "composed_candidate_png": self.png,
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": "b" * 64,
+            "snapshot_file_count": 23,
+            "snapshot_total_bytes": 987654321,
+            "model_revision": "qwen-image-pinned-test-revision",
             "cs283_receipt": _binding(self.root, self.cs283_path, "3" * 64),
             "composed_visual_approved": True,
             "semantic_approved": True,
@@ -134,6 +140,11 @@ class SemanticPublicationRequestToGateExecutionTests(unittest.TestCase):
         receipt = self._run(allowed=True)
         self.assertTrue(receipt["semantic_publication_gate_executed"])
         self.assertTrue(receipt["semantic_publication_allowed"])
+        self.assertTrue(receipt["snapshot_byte_inventory_verified"])
+        self.assertEqual(receipt["snapshot_inventory_sha256"], "b" * 64)
+        self.assertEqual(receipt["snapshot_file_count"], 23)
+        self.assertEqual(receipt["snapshot_total_bytes"], 987654321)
+        self.assertEqual(receipt["model_revision"], "qwen-image-pinned-test-revision")
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
         self.assertFalse(receipt["authoritative"])
@@ -145,6 +156,19 @@ class SemanticPublicationRequestToGateExecutionTests(unittest.TestCase):
         self.assertEqual(receipt["semantic_publication_failures"], ["semantic evidence rejected"])
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
+
+    def test_unverified_snapshot_is_rejected_before_cs284_execution(self) -> None:
+        cs347 = self._cs347()
+        cs347["snapshot_byte_inventory_verified"] = False
+        with (
+            mock.patch.object(subject, "verify_final_semantic_approval_to_semantic_publication_execution_request", return_value=cs347),
+            mock.patch.object(subject, "execute_semantic_publication_gate") as execute284,
+        ):
+            with self.assertRaisesRegex(ValueError, "snapshot_byte_inventory_verified"):
+                subject.continue_semantic_publication_request_to_gate_execution(
+                    self.cs347_path, self.evidence_path, self.root / "out", repo_root=self.root
+                )
+        execute284.assert_not_called()
 
     def test_cs347_must_still_be_request_only(self) -> None:
         cs347 = self._cs347()
@@ -166,6 +190,44 @@ class SemanticPublicationRequestToGateExecutionTests(unittest.TestCase):
                 subject.continue_semantic_publication_request_to_gate_execution(
                     self.cs347_path, self.evidence_path, self.root / "out", repo_root=self.root
                 )
+
+    def test_snapshot_digest_tamper_with_recomputed_outer_digest_is_rejected(self) -> None:
+        receipt = self._run(allowed=True)
+        path = self.root / "out" / "semantic_publication_request_to_gate_execution.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["snapshot_inventory_sha256"] = "e" * 64
+        unsigned = dict(value)
+        unsigned.pop("receipt_sha256", None)
+        value["receipt_sha256"] = subject.sha256_json(unsigned)
+        path.write_text(json.dumps(value, separators=(",", ":")) + "\n", encoding="utf-8")
+        cs347, cs283, cs284 = self._cs347(), self._cs283(), self._cs284(allowed=True)
+        cs284_path = self.root / "out" / "cs284" / "semantic_publication_execution.json"
+        with (
+            mock.patch.object(subject, "verify_final_semantic_approval_to_semantic_publication_execution_request", return_value=cs347),
+            mock.patch.object(subject, "verify_semantic_publication_execution_request", return_value=cs283),
+            mock.patch.object(subject, "verify_semantic_publication_execution", return_value=cs284),
+        ):
+            with self.assertRaisesRegex(ValueError, "snapshot_inventory_sha256"):
+                subject.verify_semantic_publication_request_to_gate_execution(path, repo_root=self.root)
+        self.assertTrue(cs284_path.is_file())
+
+    def test_model_revision_tamper_with_recomputed_outer_digest_is_rejected(self) -> None:
+        self._run(allowed=True)
+        path = self.root / "out" / "semantic_publication_request_to_gate_execution.json"
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["model_revision"] = "different-revision"
+        unsigned = dict(value)
+        unsigned.pop("receipt_sha256", None)
+        value["receipt_sha256"] = subject.sha256_json(unsigned)
+        path.write_text(json.dumps(value, separators=(",", ":")) + "\n", encoding="utf-8")
+        cs347, cs283, cs284 = self._cs347(), self._cs283(), self._cs284(allowed=True)
+        with (
+            mock.patch.object(subject, "verify_final_semantic_approval_to_semantic_publication_execution_request", return_value=cs347),
+            mock.patch.object(subject, "verify_semantic_publication_execution_request", return_value=cs283),
+            mock.patch.object(subject, "verify_semantic_publication_execution", return_value=cs284),
+        ):
+            with self.assertRaisesRegex(ValueError, "model_revision"):
+                subject.verify_semantic_publication_request_to_gate_execution(path, repo_root=self.root)
 
     def test_source_contains_no_generation_network_or_publication_shortcut(self) -> None:
         source = Path(subject.__file__).read_text(encoding="utf-8")
