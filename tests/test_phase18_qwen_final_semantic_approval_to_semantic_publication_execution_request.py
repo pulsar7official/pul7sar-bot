@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -49,6 +50,11 @@ class FinalSemanticApprovalToSemanticPublicationRequestTests(unittest.TestCase):
             "story_snapshot_sha256": self.story,
             "candidate_png": {"sha256": "d" * 64},
             "composed_candidate_png": self.png,
+            "snapshot_byte_inventory_verified": True,
+            "snapshot_inventory_sha256": "b" * 64,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 987654321,
+            "model_revision": "approved-qwen-image-revision",
             "cs282_receipt": _binding(self.root, self.cs282_path, "2" * 64),
             "golden_quality_approved": True,
             "human_visual_review_approved": True,
@@ -89,7 +95,31 @@ class FinalSemanticApprovalToSemanticPublicationRequestTests(unittest.TestCase):
             "publication_ready": False,
         }
 
-    def test_exact_cs346_continues_once_to_existing_cs283_request(self) -> None:
+    def _run(self) -> tuple[subject.FinalSemanticApprovalToSemanticPublicationExecutionRequestRun, dict[str, object]]:
+        cs346, cs282, cs283 = self._cs346(), self._cs282(), self._cs283()
+
+        def build283(given282: Path, output: Path, *, repo_root: Path) -> Path:
+            self.assertEqual(given282, self.cs282_path)
+            output.mkdir()
+            path = output / "cs283.json"
+            path.write_text("{}", encoding="utf-8")
+            return path
+
+        with (
+            mock.patch.object(subject, "verify_final_composed_visual_approval_to_final_semantic_approval", return_value=cs346),
+            mock.patch.object(subject, "verify_composed_candidate_final_semantic_approval", return_value=cs282),
+            mock.patch.object(subject, "build_semantic_publication_execution_request", side_effect=build283),
+            mock.patch.object(subject, "verify_semantic_publication_execution_request", return_value=cs283),
+        ):
+            run = subject.continue_final_semantic_approval_to_semantic_publication_execution_request(
+                self.cs346_path, self.root / "out", repo_root=self.root
+            )
+            receipt = subject.verify_final_semantic_approval_to_semantic_publication_execution_request(
+                run.receipt_path, repo_root=self.root
+            )
+        return run, receipt
+
+    def test_exact_cs346_continues_once_to_existing_cs283_request_with_snapshot_lineage(self) -> None:
         cs346, cs282, cs283 = self._cs346(), self._cs282(), self._cs283()
         calls = {"cs283": 0}
 
@@ -114,12 +144,27 @@ class FinalSemanticApprovalToSemanticPublicationRequestTests(unittest.TestCase):
                 run.receipt_path, repo_root=self.root
             )
         self.assertEqual(calls["cs283"], 1)
+        for field in subject._SNAPSHOT_FIELDS:
+            self.assertEqual(receipt[field], cs346[field])
         self.assertTrue(receipt["semantic_publication_execution_requested"])
         self.assertFalse(receipt["semantic_publication_gate_executed"])
         self.assertFalse(receipt["semantic_publication_allowed"])
         self.assertFalse(receipt["genuine_golden_png_created"])
         self.assertFalse(receipt["publication_ready"])
         self.assertFalse(receipt["authoritative"])
+
+    def test_unverified_snapshot_is_rejected_before_cs283_build(self) -> None:
+        cs346 = self._cs346()
+        cs346["snapshot_byte_inventory_verified"] = False
+        with (
+            mock.patch.object(subject, "verify_final_composed_visual_approval_to_final_semantic_approval", return_value=cs346),
+            mock.patch.object(subject, "build_semantic_publication_execution_request") as build283,
+        ):
+            with self.assertRaisesRegex(ValueError, "snapshot_byte_inventory_verified"):
+                subject.continue_final_semantic_approval_to_semantic_publication_execution_request(
+                    self.cs346_path, self.root / "out", repo_root=self.root
+                )
+        build283.assert_not_called()
 
     def test_final_semantic_approval_is_required(self) -> None:
         cs346 = self._cs346(); cs346["semantic_approved"] = False
@@ -148,6 +193,21 @@ class FinalSemanticApprovalToSemanticPublicationRequestTests(unittest.TestCase):
                 subject.continue_final_semantic_approval_to_semantic_publication_execution_request(
                     self.cs346_path, self.root / "out", repo_root=self.root
                 )
+
+    def test_rehashed_snapshot_digest_tamper_is_rejected_by_fresh_cs346_replay(self) -> None:
+        run, _ = self._run()
+        receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+        receipt["snapshot_inventory_sha256"] = "c" * 64
+        unsigned = dict(receipt); unsigned.pop("receipt_sha256")
+        receipt["receipt_sha256"] = subject.sha256_json(unsigned)
+        run.receipt_path.write_text(json.dumps(receipt, separators=(",", ":")) + "\n", encoding="utf-8")
+        with (
+            mock.patch.object(subject, "verify_final_composed_visual_approval_to_final_semantic_approval", return_value=self._cs346()),
+            mock.patch.object(subject, "verify_composed_candidate_final_semantic_approval", return_value=self._cs282()),
+            mock.patch.object(subject, "verify_semantic_publication_execution_request", return_value=self._cs283()),
+        ):
+            with self.assertRaisesRegex(ValueError, "snapshot_inventory_sha256"):
+                subject.verify_final_semantic_approval_to_semantic_publication_execution_request(run.receipt_path, repo_root=self.root)
 
     def test_source_contains_no_gate_execution_generation_or_publish_shortcut(self) -> None:
         source = Path(subject.__file__).read_text(encoding="utf-8")
