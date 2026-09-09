@@ -70,7 +70,9 @@ Mandatory downstream states remain:
 
 ## Tests / CI
 
-The targeted regressions are committed at `0bce98bcd0f3d0d34d2dd13ac5e2906bfaf78c22`. GitHub Actions status must be observed on that exact code-and-test commit before claiming terminal-green. No success claim is made here unless a later log update records the completed workflow result.
+The targeted regressions are committed at `0bce98bcd0f3d0d34d2dd13ac5e2906bfaf78c22`.
+
+Terminal result: `Phase 18 Story Intelligence Verification` run `34385536423`, run number `5265`, completed successfully on the exact code-and-test-bearing SHA `0bce98bcd0f3d0d34d2dd13ac5e2906bfaf78c22` on 2026-09-09. CS377 is therefore terminal-green.
 
 ## Genuine Golden blocker
 
@@ -78,4 +80,4 @@ No Genuine Qwen-Image PNG was fabricated or claimed. Real materialization still 
 
 ## Next proven boundary
 
-The branch-local tree already shows the next existing continuation after CS347/CS283: `qwen_image_semantic_publication_request_to_gate_execution.py`, followed by `qwen_image_semantic_publication_gate_to_genuine_golden_materialization.py`. Any subsequent hardening must inspect those existing contracts directly rather than introducing a parallel gate.
+The branch-local tree shows the next existing continuation after CS347/CS283: `qwen_image_semantic_publication_request_to_gate_execution.py`, followed by `qwen_image_semantic_publication_gate_to_genuine_golden_materialization.py`. Any subsequent hardening must inspect those existing contracts directly rather than introducing a parallel gate.
