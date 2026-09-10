@@ -3,8 +3,13 @@
 Change Set 266 does not perform face recognition and cannot approve identity. It
 turns CS265's requirement classification into an immutable review request bound
 to the exact candidate bytes, source identity evidence, story, and canonical
-human targets.  The request is intentionally fail-closed until a separate,
+human targets. The request is intentionally fail-closed until a separate,
 compatible identity-review execution is available.
+
+Change Set 388 additionally preserves the exact replay-verified CS351
+CUDA/native-BF16 static-readiness receipt binding carried by CS305. Verification
+freshly replays CS305 and compares that readiness binding before the pixel-
+identity review request can be trusted downstream.
 """
 from __future__ import annotations
 
@@ -22,7 +27,7 @@ from engine.intelligence.qwen_image_canonical_candidate_identity_requirement imp
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-pixel-identity-review-request-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-pixel-identity-review-request-v2"
 _REQUIRED_CHECKS = (
     "candidate_subject_matches_canonical_entity",
     "no_identity_substitution",
@@ -104,6 +109,39 @@ def _reopen_binding(repo_root: Path, binding: Mapping[str, Any], code: str) -> P
     return path
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        ch in "0123456789abcdef" for ch in value.lower()
+    )
+
+
+def _readiness_lineage(source: Mapping[str, Any]) -> dict[str, Any]:
+    if source.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_PIXEL_ID_REVIEW_READINESS_AUTHORITY_MISSING")
+    readiness = source.get("static_readiness_receipt")
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_PIXEL_ID_REVIEW_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+    ):
+        raise ValueError("QWEN_PIXEL_ID_REVIEW_READINESS_PATH_INVALID")
+    if not _is_sha256(digest):
+        raise ValueError("QWEN_PIXEL_ID_REVIEW_READINESS_DIGEST_INVALID")
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise ValueError("QWEN_PIXEL_ID_REVIEW_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
+    }
+
+
 def _review_targets(identity_evidence: Mapping[str, Any], expected_targets: list[dict[str, Any]]) -> list[dict[str, Any]]:
     canonical_entities = identity_evidence.get("canonical_entities")
     if not isinstance(canonical_entities, list):
@@ -149,6 +187,7 @@ def build_pixel_identity_review_request(
         if source.get(field) is not False:
             raise ValueError(f"QWEN_PIXEL_ID_REVIEW_PREMATURE_AUTHORITY:{field}")
 
+    readiness = _readiness_lineage(source)
     story_sha = source.get("story_snapshot_sha256")
     if not isinstance(story_sha, str) or len(story_sha) != 64:
         raise ValueError("QWEN_PIXEL_ID_REVIEW_STORY_SHA_INVALID")
@@ -179,6 +218,8 @@ def build_pixel_identity_review_request(
         ),
         "story_snapshot_sha256": story_sha,
         "source_cs265_receipt": {**source_binding, "receipt_sha256": source.get("receipt_sha256")},
+        "static_readiness_receipt": readiness,
+        "static_readiness_receipt_verified": True,
         "candidate_png": dict(candidate),
         "identity_evidence": dict(identity_binding),
         "review_targets": review_targets,
@@ -240,6 +281,11 @@ def verify_pixel_identity_review_request(receipt_path: Path, *, repo_root: Path)
         raise ValueError("QWEN_PIXEL_ID_REVIEW_CS265_RECEIPT_DIGEST_DRIFT")
     if source.get("story_snapshot_sha256") != receipt.get("story_snapshot_sha256"):
         raise ValueError("QWEN_PIXEL_ID_REVIEW_STORY_DRIFT")
+
+    source_readiness = _readiness_lineage(source)
+    receipt_readiness = _readiness_lineage(receipt)
+    if receipt_readiness != source_readiness:
+        raise ValueError("QWEN_PIXEL_ID_REVIEW_READINESS_RECEIPT_DRIFT")
 
     candidate = receipt.get("candidate_png")
     identity_binding = receipt.get("identity_evidence")
