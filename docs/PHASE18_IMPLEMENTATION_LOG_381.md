@@ -51,8 +51,9 @@ Production hardening commit: `c07fb984fab7c79b4e553365f81d986fbf3aebf0`.
 Initial code-and-test-bearing commit: `746efeb7770248bec480e9526c05382bb0463c1d`.
 Changeset documentation commit: `c73d7a84667f3b0bed8cef293f2e36e3f72b1913`.
 Initial implementation-log commit: `84ba61d340b5df7bce9d0ede63e1402fe8702648`.
-CI compatibility fix commit: `cf5523d21992d060505ec66eb98f973f7c67a926`.
-This log update is committed separately on the same branch.
+CI compatibility fix commit and final exact code-and-test-bearing SHA: `cf5523d21992d060505ec66eb98f973f7c67a926`.
+Failure-analysis log update commit: `013395c5a0e02b0415dd79f9535654efdee36c49`.
+This terminal-green log update is committed separately on the same branch.
 
 ## Gate preservation
 
@@ -77,16 +78,18 @@ Failure boundary: `Syntax and discover validation`; later Phase 18 workflow step
 
 Corrective commit `cf5523d21992d060505ec66eb98f973f7c67a926` removes the `pytest` import/autouse fixture and explicitly stubs the CUDA BF16 smoke result in the relevant synthetic GPU tests. No production behavior and no dependency manifest were changed by this correction.
 
-The replacement Phase 18 Story Intelligence Verification for corrective SHA `cf5523d21992d060505ec66eb98f973f7c67a926` is run `34431012562`, run number `5311`. It was queued when this log correction was prepared; CS381 remains non-terminal until the authoritative run completes successfully.
+The replacement authoritative workflow is `Phase 18 Story Intelligence Verification` run `34431012562`, run number `5311`, on exact corrective SHA `cf5523d21992d060505ec66eb98f973f7c67a926`.
+
+Result: `completed / success`.
+
+Every authoritative job step completed successfully, including `Syntax and discover validation`, `Completion and production isolation`, all visual-study/golden-handoff build-and-verify steps, and artifact uploads. Therefore CS381 is terminal-green on exact code-and-test SHA `cf5523d21992d060505ec66eb98f973f7c67a926`.
 
 ## Genuine Golden execution blocker
 
 No Genuine Golden PNG is claimed by this changeset. A real canonical candidate still requires a compatible zero-cost self-hosted NVIDIA CUDA runner, CUDA-enabled PyTorch, native BF16, a passing real BF16 CUDA smoke operation, sufficient RAM/VRAM under actual model load/inference, and the approved already-local pinned Qwen snapshot and verifier/runtime assets.
 
-The current automation execution environment itself does not provide the required GPU path; no fixture/test bytes are treated as a production Golden Visual.
+The current execution environment remains CPU-only (`torch=2.10.0+cpu`, CUDA unavailable, no CUDA runtime reported by PyTorch, zero CUDA devices, native CUDA BF16 unavailable, and `nvidia-smi` unavailable). No fixture/test bytes are treated as a production Golden Visual.
 
 ## Remaining gap
 
-First, authoritative CI for corrective commit `cf5523d21992d060505ec66eb98f973f7c67a926` must complete successfully. Only then can CS381 be called terminal-green.
-
-Once a compatible host exists, the existing workflow can proceed through CS351 readiness, CS354 exact snapshot-byte-bound launch, manifest-bound genuine inference, launch-to-output attestation, candidate handoff, and downstream QA. The first actual model-load/inference attempt remains the only valid proof of resource sufficiency; CS381 does not invent a VRAM threshold.
+CS381 is terminal-green. Once a compatible host exists, the existing workflow can proceed through CS351 readiness, CS354 exact snapshot-byte-bound launch, manifest-bound genuine inference, launch-to-output attestation, candidate handoff, and downstream QA. The first actual model-load/inference attempt remains the only valid proof of resource sufficiency; CS381 does not invent a VRAM threshold.
