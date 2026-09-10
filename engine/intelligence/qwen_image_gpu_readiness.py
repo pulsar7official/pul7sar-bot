@@ -11,6 +11,12 @@ a readable Diffusers ``model_index.json`` for ``QwenImagePipeline`` and every de
 pipeline component must have a non-empty local component directory. This still does
 not claim that all weight bytes can be loaded; it closes the avoidable empty/partial
 snapshot false-positive before an authorized GPU model-load attempt.
+
+CS381 hardens the host boundary further: capability flags alone are insufficient.
+When CUDA and native BF16 are reported available, CS351 performs one tiny local BF16
+CUDA allocation/arithmetic/synchronization smoke test. A driver/runtime/kernel failure
+therefore blocks before Qwen model load while preserving the $0-local, no-network and
+no-inference contract.
 """
 from __future__ import annotations
 
@@ -28,7 +34,7 @@ from .approved_model_revisions import (
     assert_snapshot_revision,
 )
 
-SCHEMA = "pul7sar.phase18.qwen_image_gpu_readiness.v2"
+SCHEMA = "pul7sar.phase18.qwen_image_gpu_readiness.v3"
 PIPELINE_CLASS = "QwenImagePipeline"
 
 
@@ -42,6 +48,7 @@ class QwenImageGpuReadiness:
     cuda_available: bool
     cuda_device_count: int
     bf16_supported: bool
+    cuda_bf16_smoke_test_passed: bool
     gpu_name: Optional[str]
     gpu_memory_gib_observed: Optional[float]
     nvidia_smi_available: bool
@@ -80,6 +87,24 @@ def _nvidia_smi_available() -> bool:
     except (OSError, subprocess.SubprocessError):
         return False
     return completed.returncode == 0
+
+
+def _cuda_bf16_smoke_test(torch: object) -> bool:
+    """Exercise one tiny native BF16 CUDA kernel without loading Qwen.
+
+    ``is_available``/``is_bf16_supported`` are capability reports; a stale driver,
+    broken runtime, allocation failure, or unusable kernel can still fail at the
+    first real CUDA operation. This probe intentionally performs only two BF16
+    elements and synchronizes device 0. It never loads model bytes or runs inference.
+    """
+    try:
+        values = torch.ones((2,), device="cuda:0", dtype=torch.bfloat16)
+        doubled = values + values
+        torch.cuda.synchronize(0)
+        observed = doubled.float().cpu().tolist()
+    except Exception:
+        return False
+    return observed == [2.0, 2.0]
 
 
 def _component_has_local_file(component_dir: Path) -> bool:
@@ -148,6 +173,7 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
     cuda_available = bool(torch and torch.cuda.is_available())
     device_count = int(torch.cuda.device_count()) if cuda_available else 0
     bf16_supported = bool(cuda_available and torch.cuda.is_bf16_supported())
+    cuda_bf16_smoke_test_passed = False
     gpu_name: Optional[str] = None
     gpu_memory_gib: Optional[float] = None
     if cuda_available and device_count > 0:
@@ -163,6 +189,10 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         blockers.append("no_cuda_device")
     if not bf16_supported:
         blockers.append("native_bf16_unavailable")
+    if cuda_available and device_count > 0 and bf16_supported:
+        cuda_bf16_smoke_test_passed = _cuda_bf16_smoke_test(torch)
+        if not cuda_bf16_smoke_test_passed:
+            blockers.append("cuda_bf16_smoke_test_failed")
 
     pipeline_importable = False
     sequential_offload_supported = False
@@ -213,6 +243,7 @@ def inspect_qwen_image_gpu_readiness(*, snapshot_path: str | Path | None = None)
         cuda_available=cuda_available,
         cuda_device_count=device_count,
         bf16_supported=bf16_supported,
+        cuda_bf16_smoke_test_passed=cuda_bf16_smoke_test_passed,
         gpu_name=gpu_name,
         gpu_memory_gib_observed=gpu_memory_gib,
         nvidia_smi_available=smi,
