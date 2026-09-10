@@ -1,11 +1,16 @@
 """Admit byte-bound external pixel-identity review evidence for a CS266 request.
 
 Change Set 267 does not perform face recognition and does not manufacture a
-review.  It accepts an independently produced review-evidence JSON document,
+review. It accepts an independently produced review-evidence JSON document,
 replays the exact CS266 request and candidate bindings, and only records
 identity approval when every required identity check is explicitly attested.
 All downstream visual, Golden, human-quality and publication authorities remain
 closed.
+
+Change Set 388 compatibility hardening preserves the exact replay-verified
+CS351 CUDA/native-BF16 static-readiness binding carried by CS266. CS267 now
+requires that authority before admitting external identity evidence and freshly
+replays CS266 during verification so readiness drift remains fail-closed.
 """
 from __future__ import annotations
 
@@ -22,7 +27,7 @@ from engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_re
 )
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-pixel-identity-review-evidence-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-pixel-identity-review-evidence-v2"
 EVIDENCE_SCHEMA = "pul7sar-phase18-pixel-identity-external-review-v1"
 _ALLOWED_METHODS = ("manual_source_comparison",)
 _REQUIRED_CHECKS = (
@@ -104,6 +109,39 @@ def _reopen_binding(repo_root: Path, binding: Mapping[str, Any], code: str) -> P
     return path
 
 
+def _is_sha256(value: Any) -> bool:
+    return isinstance(value, str) and len(value) == 64 and all(
+        ch in "0123456789abcdef" for ch in value.lower()
+    )
+
+
+def _readiness_lineage(source: Mapping[str, Any]) -> dict[str, Any]:
+    if source.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_READINESS_AUTHORITY_MISSING")
+    readiness = source.get("static_readiness_receipt")
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+    ):
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_READINESS_PATH_INVALID")
+    if not _is_sha256(digest):
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_READINESS_DIGEST_INVALID")
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
+    }
+
+
 def _validate_external_review(
     evidence: Mapping[str, Any],
     request: Mapping[str, Any],
@@ -170,6 +208,7 @@ def build_pixel_identity_review_evidence(
         if request.get(field) is not False:
             raise ValueError(f"QWEN_PIXEL_ID_EVIDENCE_PREMATURE_AUTHORITY:{field}")
 
+    readiness = _readiness_lineage(request)
     evidence, _ = _read_json(external_review_path, "QWEN_PIXEL_ID_EVIDENCE_EXTERNAL_INVALID")
     approved, checks = _validate_external_review(evidence, request)
 
@@ -182,6 +221,8 @@ def build_pixel_identity_review_evidence(
         ),
         "story_snapshot_sha256": request.get("story_snapshot_sha256"),
         "source_cs266_request": {**request_binding, "receipt_sha256": request.get("receipt_sha256")},
+        "static_readiness_receipt": readiness,
+        "static_readiness_receipt_verified": True,
         "candidate_png": dict(request.get("candidate_png") or {}),
         "identity_evidence": dict(request.get("identity_evidence") or {}),
         "review_targets": list(request.get("review_targets") or []),
@@ -202,6 +243,7 @@ def build_pixel_identity_review_evidence(
             "general_semantic_scene_verdict_is_not_identity_evidence": True,
             "external_review_is_structurally_admitted_not_automatically_generated": True,
             "rejection_cannot_advance_downstream_authority": True,
+            "cs351_static_readiness_lineage_preserved": True,
         },
     }
     receipt["receipt_sha256"] = sha256_json(receipt)
@@ -243,10 +285,18 @@ def verify_pixel_identity_review_evidence(receipt_path: Path, *, repo_root: Path
         raise ValueError("QWEN_PIXEL_ID_EVIDENCE_BINDING_INVALID")
     request_path = _reopen_binding(repo_root, request_binding, "QWEN_PIXEL_ID_EVIDENCE_CS266_INVALID")
     request = verify_pixel_identity_review_request(request_path, repo_root=repo_root)
+    if request.get("schema") != REVIEW_REQUEST_SCHEMA:
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_CS266_SCHEMA_DRIFT")
     if request_binding.get("receipt_sha256") != request.get("receipt_sha256"):
         raise ValueError("QWEN_PIXEL_ID_EVIDENCE_CS266_RECEIPT_DRIFT")
     if request.get("pixel_identity_review_required") is not True:
         raise ValueError("QWEN_PIXEL_ID_EVIDENCE_REVIEW_NOT_REQUIRED")
+
+    request_readiness = _readiness_lineage(request)
+    receipt_readiness = _readiness_lineage(receipt)
+    if receipt_readiness != request_readiness:
+        raise ValueError("QWEN_PIXEL_ID_EVIDENCE_READINESS_RECEIPT_DRIFT")
+
     external_path = _reopen_binding(repo_root, external_binding, "QWEN_PIXEL_ID_EVIDENCE_EXTERNAL_INVALID")
     evidence, _ = _read_json(external_path, "QWEN_PIXEL_ID_EVIDENCE_EXTERNAL_INVALID")
     approved, checks = _validate_external_review(evidence, request)
@@ -270,6 +320,7 @@ def verify_pixel_identity_review_evidence(receipt_path: Path, *, repo_root: Path
         "general_semantic_scene_verdict_is_not_identity_evidence",
         "external_review_is_structurally_admitted_not_automatically_generated",
         "rejection_cannot_advance_downstream_authority",
+        "cs351_static_readiness_lineage_preserved",
     )):
         raise ValueError("QWEN_PIXEL_ID_EVIDENCE_POLICY_DRIFT")
     return receipt
