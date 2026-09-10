@@ -44,9 +44,14 @@ None.
 
 None added or changed.
 
-## Test status
+## Test status — terminal green
 
-Pending repository CI after the exact code-and-test-bearing commit is created. Do not treat CS387 as terminal-green until `Phase 18 Story Intelligence Verification` completes with `success` on that exact SHA.
+- Exact code-and-test-bearing commit: `299b043840ecee54f5f130d78c9a48101eaf68f1`.
+- `Phase 18 Story Intelligence Verification` run `34457277579`, job `verify-story-intelligence` / job id `102806504289`: `completed / success` on that exact SHA.
+- `Syntax and discover validation`: success.
+- `Completion and production isolation`: success.
+- Visual-study handoff build/verify, result-family isolation, project-native/self-contained brand studies, Golden editorial v6 build+verify, legacy-logo non-canonical assertion, and artifact uploads: all success.
+- CS387 is terminal-green.
 
 ## Gate preservation
 
@@ -56,4 +61,4 @@ CS305 still only classifies whether pixel-identity review is required. It cannot
 
 ## Genuine Golden PNG status
 
-No production Genuine Golden PNG is created or claimed by CS387. Compatible CUDA/GPU execution remains required for genuine Qwen-Image inference; the available execution environment for this run does not provide a usable NVIDIA CUDA device/runtime.
+No production Genuine Golden PNG is created or claimed by CS387. Compatible CUDA/GPU execution remains required for genuine Qwen-Image inference. The execution environment observed in this run is CPU-only (`torch=2.10.0+cpu`), reports `cuda_available=False`, `torch_cuda_version=None`, `cuda_device_count=0`, `native_bf16=False`, and has no usable `nvidia-smi`. Therefore genuine Qwen-Image inference remains hardware-blocked here; no fixture or synthetic PNG is treated as a Golden Visual.
