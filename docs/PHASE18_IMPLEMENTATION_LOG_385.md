@@ -28,7 +28,7 @@ Carry the exact replay-verified CS351 CUDA/native-BF16 static-readiness receipt 
   - requires `static_readiness_receipt_verified=true` before admission;
   - fresh CS358 replay compares readiness path, SHA-256, and byte size and fails on drift.
 - `tests/test_phase18_qwen_image_canonical_candidate_byte_admission.py`
-  - positive readiness propagation coverage;
+  - positive readiness-lineage propagation coverage;
   - missing readiness-authority rejection;
   - readiness SHA tamper rejection even after recomputing the outer admission digest.
 - `docs/PHASE18_IMPLEMENTATION_LOG_384.md`
@@ -49,11 +49,9 @@ None added or changed.
 - CS385 tests / exact code-and-test-bearing SHA: `ef6f1da30c873523935cec5a166764ddb02e15f1`
 - CS385 changeset documentation: `97d2ff47393ef545410896282b83709b425ab2d2`
 
-The implementation-log commit is recorded by branch history after this file is created.
-
 ## Test status
 
-Regression tests are present on exact code-and-test-bearing SHA `ef6f1da30c873523935cec5a166764ddb02e15f1`. GitHub Actions remains authoritative for terminal-green status. CS385 must not be described as terminal-green until `Phase 18 Story Intelligence Verification` reports `completed / success` for that SHA or a later SHA containing the same production code and tests.
+**TERMINAL-GREEN.** `Phase 18 Story Intelligence Verification` push run `#5353` / `34447655351` completed with `success` on the exact code-and-test-bearing SHA `ef6f1da30c873523935cec5a166764ddb02e15f1`. The companion pull-request verification run `#5354` / `34447659712` also completed with `success` on the same SHA. CS385 is therefore closed.
 
 ## Gate preservation
 
