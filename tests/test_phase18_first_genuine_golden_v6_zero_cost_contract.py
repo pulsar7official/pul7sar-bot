@@ -33,16 +33,10 @@ class FirstGenuineGoldenV6ZeroCostContractTests(unittest.TestCase):
         )
 
     def test_gpu_cuda_bf16_runner_contract_stays_explicit(self) -> None:
-        for label in (
-            "self-hosted",
-            "linux",
-            "x64",
-            "gpu",
-            "cuda",
-            "bf16",
-            "pul7sar-phase18",
-        ):
-            self.assertIn(f"- {label}", self.workflow)
+        self.assertIn(
+            "runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]",
+            self.workflow,
+        )
         self.assertIn("torch.cuda.is_available()", self.workflow)
         self.assertIn(
             "CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically",
@@ -73,10 +67,10 @@ class FirstGenuineGoldenV6ZeroCostContractTests(unittest.TestCase):
 
     def test_downstream_authority_remains_fail_closed(self) -> None:
         self.assertIn(
-            'for field in ("golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):',
+            'for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):',
             self.workflow,
         )
-        self.assertIn("if staging.get(field) is not False:", self.workflow)
+        self.assertIn("if final.get(field) is not False:", self.workflow)
         self.assertIn('"publication_ready": False', self.workflow)
         self.assertIn('"seeds_2_to_4_authorized": False', self.workflow)
 
