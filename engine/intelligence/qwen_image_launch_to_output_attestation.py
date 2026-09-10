@@ -1,9 +1,14 @@
-"""CS293/357: bind the verified inventory-bound GPU launch manifest to genuine output.
+"""CS293/357/383: bind the verified GPU launch manifest to genuine output.
 
 CS357 upgrades the historical launch-to-output attestation so both construction and
 verification replay the CS354 exact local Qwen snapshot-byte inventory, not only the
-older path/revision launch manifest. The attestation therefore cannot bless a genuine
-canonical PNG if the authorized model/config/tokenizer bytes drift after launch.
+older path/revision launch manifest.
+
+CS383 carries the exact CS351 static-readiness receipt binding sealed by CS382/CS354
+into postflight provenance. Verification still replays the inventory-bound launch
+manifest, so the readiness receipt bytes and semantics are independently reopened
+before the attestation can be trusted. This makes the successful CUDA/native-BF16
+preflight auditable downstream without replacing CS297 live preload checks.
 
 This module still grants no semantic, human-review, Golden, or publication authority.
 """
@@ -15,13 +20,14 @@ from typing import Any, Mapping
 
 from .qwen_image_inventory_bound_launch_manifest import (
     INVENTORY_FIELD,
+    READINESS_FIELD,
     verify_inventory_bound_gpu_host_launch_manifest,
 )
 from .qwen_image_local_inference_provenance import verify_local_inference_provenance
 from .qwen_image_one_shot_canonical_inference import verify_one_shot_canonical_inference
 from .qwen_image_inference_measurement import sha256_json
 
-SCHEMA = "pul7sar-phase18-qwen-image-2512-launch-to-output-attestation-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-2512-launch-to-output-attestation-v2"
 STATUS = "QWEN_IMAGE_2512_LAUNCH_TO_OUTPUT_ATTESTED"
 DOWNSTREAM_FALSE = ("semantic_approved","human_visual_review_approved","golden_quality_approved","genuine_golden_png_created","publication_ready")
 
@@ -62,9 +68,9 @@ def _snapshot_inventory_evidence(launch: Mapping[str, Any]) -> dict[str, Any]:
     revision = inventory.get("model_revision")
     if not _sha(digest):
         raise ValueError("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_DIGEST_INVALID")
-    if not isinstance(count, int) or count < 1:
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         raise ValueError("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_FILE_COUNT_INVALID")
-    if not isinstance(total, int) or total < 1:
+    if not isinstance(total, int) or isinstance(total, bool) or total < 1:
         raise ValueError("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_BYTE_COUNT_INVALID")
     if revision != launch.get("model_revision"):
         raise ValueError("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_REVISION_DRIFT")
@@ -73,6 +79,26 @@ def _snapshot_inventory_evidence(launch: Mapping[str, Any]) -> dict[str, Any]:
         "snapshot_file_count": count,
         "snapshot_total_bytes": total,
         "model_revision": revision,
+    }
+
+
+def _readiness_evidence(launch: Mapping[str, Any]) -> dict[str, Any]:
+    readiness = launch.get(READINESS_FIELD)
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_LAUNCH_OUTPUT_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        raise ValueError("QWEN_LAUNCH_OUTPUT_READINESS_PATH_INVALID")
+    if not _sha(digest):
+        raise ValueError("QWEN_LAUNCH_OUTPUT_READINESS_DIGEST_INVALID")
+    if not isinstance(size, int) or isinstance(size, bool) or size < 1:
+        raise ValueError("QWEN_LAUNCH_OUTPUT_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
     }
 
 
@@ -109,6 +135,7 @@ def build_launch_to_output_attestation(launch_manifest_path: Path, provenance_pa
     pp, _ = _file(provenance_path, root, "QWEN_LAUNCH_OUTPUT_PROVENANCE_INVALID")
     launch = verify_inventory_bound_gpu_host_launch_manifest(lm, repo_root=root)
     inventory_evidence = _snapshot_inventory_evidence(launch)
+    readiness_evidence = _readiness_evidence(launch)
     prov = verify_local_inference_provenance(pp, repo_root=root)
     cr = prov.get("canonical_inference_receipt")
     if not isinstance(cr, Mapping) or not isinstance(cr.get("repository_relative_path"), str):
@@ -127,11 +154,13 @@ def build_launch_to_output_attestation(launch_manifest_path: Path, provenance_pa
         "cost_mode": "$0-local", "network_allowed": False, "local_files_only": True,
         "launch_manifest": _binding(lm, root, "QWEN_LAUNCH_OUTPUT_MANIFEST_INVALID"),
         "snapshot_byte_inventory": inventory_evidence,
+        "static_readiness_receipt": readiness_evidence,
         "local_inference_provenance": _binding(pp, root, "QWEN_LAUNCH_OUTPUT_PROVENANCE_INVALID"),
         "canonical_inference_receipt": _binding(cp, root, "QWEN_LAUNCH_OUTPUT_CANONICAL_INVALID"),
         "canonical_candidate_png": {**_binding(pngp, root, "QWEN_LAUNCH_OUTPUT_PNG_INVALID"), "width": canonical.get("width"), "height": canonical.get("height")},
         "inference_settings": dict(launch["inference_settings"]),
         "launch_to_output_binding_verified": True, "snapshot_byte_inventory_verified": True,
+        "static_readiness_receipt_verified": True,
         "genuine_canonical_inference_executed": True,
         "semantic_approved": False, "human_visual_review_approved": False, "golden_quality_approved": False,
         "genuine_golden_png_created": False, "publication_ready": False,
@@ -170,6 +199,8 @@ def verify_launch_to_output_attestation(path: Path, *, repo_root: Path) -> dict[
         raise ValueError("QWEN_LAUNCH_OUTPUT_AUTHORITY_MISSING")
     if payload.get("snapshot_byte_inventory_verified") is not True:
         raise ValueError("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_AUTHORITY_MISSING")
+    if payload.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_LAUNCH_OUTPUT_READINESS_AUTHORITY_MISSING")
     def bound(name: str) -> Path:
         b = payload.get(name)
         if not isinstance(b, Mapping) or not isinstance(b.get("repository_relative_path"), str):
@@ -184,6 +215,9 @@ def verify_launch_to_output_attestation(path: Path, *, repo_root: Path) -> dict[
     inventory_evidence = _snapshot_inventory_evidence(launch)
     if payload.get("snapshot_byte_inventory") != inventory_evidence:
         raise ValueError("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_RECEIPT_DRIFT")
+    readiness_evidence = _readiness_evidence(launch)
+    if payload.get("static_readiness_receipt") != readiness_evidence:
+        raise ValueError("QWEN_LAUNCH_OUTPUT_READINESS_RECEIPT_DRIFT")
     prov = verify_local_inference_provenance(pp, repo_root=root)
     canonical = verify_one_shot_canonical_inference(cp, repo_root=root)
     _assert_join(launch, prov, canonical)
