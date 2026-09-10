@@ -5,7 +5,7 @@
 - Repository: `pulsar7official/pul7sar-bot`
 - Working branch only: `phase18/story-intelligence`
 - Starting HEAD: `788cc1e5d8ee91705f04c2f08d44427cf5cc6ace`
-- `main` was inspected read-only. No merge, rebase, reset, force-update, file write or commit was performed on `main`.
+- `main` was inspected read-only. During this run it was observed at `d6f8cf00a575f702e851ee5f9100e84cbb79b8c7`. No merge, rebase, reset, force-update, file write or commit was performed on `main`.
 
 ## Verified next boundary
 
@@ -48,10 +48,13 @@ Read-only workflow/runner inspection confirmed CS268 Generated-Layer QA as the n
 - Production hardening: `3a30197d27de1b1582d32f2847e569e994600762`
 - Exact code-and-test-bearing SHA: `4739ca48db94accc0320cb6553b6f03a41a0e0cc`
 - Change-set documentation: `d7989b0317e094c9ffb80feb917cac5b0fd282eb`
+- Initial implementation log: `5666e60faa05b50815333c7fc0c3ed25da9bbae2`
 
-## Verification status
+## Verification status — terminal green
 
-`Phase 18 Story Intelligence Verification` run `34485888513` / run number `5390` was started on exact code-and-test SHA `4739ca48db94accc0320cb6553b6f03a41a0e0cc`. At the time this initial implementation log was written, the run was `in_progress`; therefore CS389 is **not recorded terminal-green yet**. A later log-only update may record `completed/success` if and only if GitHub Actions actually reaches that state.
+`Phase 18 Story Intelligence Verification` run `34485888513` / run number `5390` completed with `conclusion=success` on the exact code-and-test-bearing SHA `4739ca48db94accc0320cb6553b6f03a41a0e0cc`.
+
+CS389 is therefore **terminal-green**. This later documentation-only commit does not alter the production code or regression definitions that were verified by that run.
 
 ## Gate preservation
 
@@ -76,4 +79,4 @@ Therefore no genuine Qwen-Image inference and no genuine Golden PNG were produce
 
 ## Remaining engineering work
 
-After CS389 reaches terminal-green, inspect the next concrete consumer after CS268 and extend readiness provenance only if a real drop is present. Do not create a parallel gate and do not synthesize a Golden result while compatible execution is unavailable.
+Inspect the next concrete consumer after CS268 and extend readiness provenance only if a real drop is present. Do not create a parallel gate and do not synthesize a Golden result while compatible execution is unavailable.
