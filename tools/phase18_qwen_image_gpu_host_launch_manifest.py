@@ -16,6 +16,8 @@ from engine.intelligence.qwen_image_inventory_bound_launch_manifest import (
     verify_inventory_bound_gpu_host_launch_manifest,
 )
 
+DEFAULT_READINESS_RECEIPT = Path("output/phase18_qwen_image/static-readiness.json")
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Build/verify a readiness- and byte-bound zero-cost local Qwen GPU-host launch manifest")
@@ -25,7 +27,12 @@ def main() -> int:
     build.add_argument("--authorization", type=Path, required=True)
     build.add_argument("--cs257-run-dir", type=Path, required=True)
     build.add_argument("--snapshot-path", type=Path, required=True)
-    build.add_argument("--readiness-receipt", type=Path, required=True)
+    build.add_argument(
+        "--readiness-receipt",
+        type=Path,
+        default=DEFAULT_READINESS_RECEIPT,
+        help="Exact CS351 static readiness JSON; defaults to the canonical workflow output path.",
+    )
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--repo-root", type=Path, default=ROOT)
     build.add_argument("--width", type=int, default=1024)
