@@ -30,6 +30,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         self.repo = Path(self.tmp.name)
         self.candidate = self.repo / "candidate.png"
         self.candidate.write_bytes(b"\x89PNG\r\n\x1a\nphase18-candidate")
+        self.readiness_path = self.repo / "static-readiness.json"
+        self.readiness_path.write_text('{"ready_for_model_load_attempt":true}\n', encoding="utf-8")
         self.cs264_path = self.repo / "cs264.json"
         self.cs265_path = self.repo / "cs265.json"
         self.cs266_path = self.repo / "cs266.json"
@@ -60,6 +62,9 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "height": 1024,
         }
 
+    def _readiness_lineage(self) -> dict[str, object]:
+        return self._file_binding(self.readiness_path)
+
     def _snapshot_lineage(self) -> dict[str, object]:
         return {
             "snapshot_byte_inventory_verified": True,
@@ -78,6 +83,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
             "story_snapshot_sha256": self.story_sha,
             "candidate_png": self._candidate_binding(),
             **self._snapshot_lineage(),
+            "static_readiness_receipt": self._readiness_lineage(),
+            "static_readiness_receipt_verified": True,
             "semantic_base_scene_approved": True,
             "semantic_layer_evidence": {
                 "complete": True,
@@ -109,6 +116,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
                 **self._file_binding(self.cs264_path),
                 "receipt_sha256": "a" * 64,
             },
+            "static_readiness_receipt": self._readiness_lineage(),
+            "static_readiness_receipt_verified": True,
             "identity_requirement_classified": True,
             "pixel_identity_review_required": required,
             "identity_approved": False,
@@ -126,6 +135,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
                 **self._file_binding(self.cs265_path),
                 "receipt_sha256": "b" * 64,
             },
+            "static_readiness_receipt": self._readiness_lineage(),
+            "static_readiness_receipt_verified": True,
         }
 
     def _cs267(self) -> dict[str, object]:
@@ -138,6 +149,8 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
                 **self._file_binding(self.cs266_path),
                 "receipt_sha256": "d" * 64,
             },
+            "static_readiness_receipt": self._readiness_lineage(),
+            "static_readiness_receipt_verified": True,
             "pixel_identity_review_executed": True,
             "identity_approved": True,
             "semantic_approved": False,
@@ -215,6 +228,73 @@ class CanonicalCandidateGeneratedLayerQATests(unittest.TestCase):
         for field, expected in self._snapshot_lineage().items():
             self.assertEqual(receipt[field], expected)
         self.assertTrue(receipt["policy"]["generator_snapshot_lineage_preserved"])
+
+    def test_static_readiness_lineage_is_preserved_from_fresh_upstream_replay(self) -> None:
+        cs264, cs265 = self._cs264(), self._cs265(required=False)
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
+            run = run_canonical_candidate_generated_layer_qa(
+                self.cs264_path,
+                self.cs265_path,
+                self.repo / "out",
+                repo_root=self.repo,
+            )
+            receipt = verify_canonical_candidate_generated_layer_qa(run.receipt_path, repo_root=self.repo)
+        self.assertEqual(receipt["static_readiness_receipt"], self._readiness_lineage())
+        self.assertTrue(receipt["static_readiness_receipt_verified"])
+        self.assertTrue(receipt["policy"]["static_cuda_readiness_lineage_preserved"])
+
+    def test_missing_readiness_authority_fails_closed_before_generated_layer_gate(self) -> None:
+        cs264, cs265 = self._cs264(), self._cs265(required=False)
+        cs264["static_readiness_receipt_verified"] = False
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
+            with self.assertRaisesRegex(ValueError, "READINESS_AUTHORITY_MISSING"):
+                run_canonical_candidate_generated_layer_qa(
+                    self.cs264_path,
+                    self.cs265_path,
+                    self.repo / "out",
+                    repo_root=self.repo,
+                )
+
+    def test_required_identity_readiness_mismatch_fails_closed(self) -> None:
+        cs264, cs265, cs267 = self._cs264(), self._cs265(required=True), self._cs267()
+        cs267["static_readiness_receipt"] = {
+            **self._readiness_lineage(),
+            "sha256": "7" * 64,
+        }
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265, cs267))
+            with self.assertRaisesRegex(ValueError, "READINESS_RECEIPT_DRIFT"):
+                run_canonical_candidate_generated_layer_qa(
+                    self.cs264_path,
+                    self.cs265_path,
+                    self.repo / "out",
+                    repo_root=self.repo,
+                    cs267_receipt_path=self.cs267_path,
+                )
+
+    def test_readiness_tamper_fails_even_with_recomputed_outer_digest(self) -> None:
+        cs264, cs265 = self._cs264(), self._cs265(required=False)
+        with ExitStack() as stack:
+            self._enter_patches(stack, self._patch(cs264, cs265))
+            run = run_canonical_candidate_generated_layer_qa(
+                self.cs264_path,
+                self.cs265_path,
+                self.repo / "out",
+                repo_root=self.repo,
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["static_readiness_receipt"]["sha256"] = "8" * 64
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = sha256_json(unsigned)
+            run.receipt_path.write_text(
+                json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "READINESS_RECEIPT_DRIFT"):
+                verify_canonical_candidate_generated_layer_qa(run.receipt_path, repo_root=self.repo)
 
     def test_missing_snapshot_inventory_proof_fails_closed(self) -> None:
         cs264, cs265 = self._cs264(), self._cs265(required=False)
