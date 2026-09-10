@@ -11,7 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 EXPECTED_SCHEMA = "pul7sar-first-genuine-golden-v6-resource-lock-v4"
 EXPECTED_STATUS = "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED"
@@ -32,6 +32,50 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _safe_candidate(root: Path, relative: PurePosixPath) -> Path:
+    if relative.is_absolute() or ".." in relative.parts:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
+    candidate = root.joinpath(*relative.parts).resolve()
+    if candidate != root and root not in candidate.parents:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
+    return candidate
+
+
+def _artifact_png(root: Path, recorded: str) -> Path:
+    """Resolve a runner-recorded output path inside an extracted upload-artifact.
+
+    The producer records repository/runner paths (often absolute). The workflow
+    uploads multiple ``output/...`` paths, so upload-artifact uses their least
+    common ancestor as the archive root. A downloaded artifact can therefore
+    contain ``phase18_generated/...`` rather than ``output/phase18_generated/...``.
+    Only the suffix rooted at the literal ``output`` segment is eligible for
+    rebasing; arbitrary absolute paths are never trusted.
+    """
+    normalized = recorded.replace("\\", "/")
+    parts = PurePosixPath(normalized).parts
+    try:
+        output_index = parts.index("output")
+    except ValueError as exc:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_PATH_NOT_OUTPUT_ROOTED") from exc
+
+    suffix = PurePosixPath(*parts[output_index + 1 :])
+    if not suffix.parts or ".." in suffix.parts:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
+
+    # Support both the native upload-artifact layout (LCA ``output`` stripped)
+    # and an explicitly rewrapped extraction that retains the ``output`` folder.
+    candidates = (
+        _safe_candidate(root, suffix),
+        _safe_candidate(root, PurePosixPath("output") / suffix),
+    )
+    existing = [candidate for candidate in candidates if candidate.is_file()]
+    if not existing:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_MISSING")
+    if len(existing) > 1 and existing[0] != existing[1]:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_PATH_AMBIGUOUS")
+    return existing[0]
 
 
 def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str, object]:
@@ -64,16 +108,7 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
     png_value = payload.get("png")
     if not isinstance(png_value, str) or not png_value.strip():
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_PATH_MISSING")
-    png = Path(png_value)
-    if not png.is_absolute():
-        # Workflow receipts may store repository-relative output paths. When an
-        # artifact has been extracted elsewhere, bind those paths to artifact_root.
-        png = root / png
-    png = png.resolve()
-    if png != root and root not in png.parents:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
-    if not png.is_file():
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_MISSING")
+    png = _artifact_png(root, png_value)
     with png.open("rb") as handle:
         if handle.read(8) != PNG_SIGNATURE:
             raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_SIGNATURE_INVALID")
@@ -83,6 +118,12 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
     if not isinstance(expected_sha, str) or len(expected_sha) != 64 or actual_sha != expected_sha:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_SHA_DRIFT")
 
+    expected_bytes = payload.get("png_bytes")
+    if isinstance(expected_bytes, bool) or not isinstance(expected_bytes, int) or expected_bytes <= 8:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_BYTE_COUNT_INVALID")
+    if png.stat().st_size != expected_bytes:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_BYTE_COUNT_DRIFT")
+
     return {
         "status": "FIRST_GENUINE_GOLDEN_V6_ARTIFACT_REPLAY_VERIFIED",
         "candidate": 1,
@@ -90,6 +131,7 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
         "cost_mode": EXPECTED_COST_MODE,
         "png": str(png),
         "png_sha256": actual_sha,
+        "png_bytes": expected_bytes,
         "human_visual_review_approved": False,
         "golden_quality_approved": False,
         "publication_ready": False,
