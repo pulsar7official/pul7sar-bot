@@ -74,6 +74,12 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
             "snapshot_file_count": 37,
             "snapshot_total_bytes": 987654321,
             "model_revision": "0123456789abcdef0123456789abcdef01234567",
+            "static_readiness_receipt": {
+                "repository_relative_path": "output/phase18_qwen_image/static-readiness.json",
+                "sha256": "9" * 64,
+                "byte_size": 4096,
+            },
+            "static_readiness_receipt_verified": True,
             "source_candidate_handoff": {
                 "repository_relative_path": "artifacts/cs302/canonical_candidate_handoff.json",
                 "sha256": "c" * 64,
@@ -106,7 +112,7 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
         inspector = _Inspector(verdict or _verdict())
         return repo, admission_receipt, candidate, source, inspector
 
-    def test_passes_base_semantics_and_preserves_snapshot_lineage_without_escalation(self):
+    def test_passes_base_semantics_and_preserves_snapshot_and_readiness_lineage_without_escalation(self):
         with tempfile.TemporaryDirectory() as td:
             repo, admission, _candidate, source, inspector = self._fixture(Path(td))
             run = qa.run_canonical_candidate_semantic_base_qa(
@@ -125,6 +131,8 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
             )
             for field in qa._SNAPSHOT_LINEAGE_FIELDS:
                 self.assertEqual(result[field], source[field])
+            self.assertTrue(result["static_readiness_receipt_verified"])
+            self.assertEqual(result["static_readiness_receipt"], source["static_readiness_receipt"])
             self.assertFalse(result["identity_approved"])
             self.assertFalse(result["semantic_approved"])
             self.assertFalse(result["human_visual_review_approved"])
@@ -156,6 +164,32 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
                     inspector=inspector,
                 )
 
+    def test_rejects_missing_verified_readiness_at_admission_edge_before_semantic_inspection(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source["static_readiness_receipt_verified"] = False
+            with self.assertRaisesRegex(ValueError, "READINESS_AUTHORITY_MISSING"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+            self.assertEqual(inspector.calls, [])
+
+    def test_rejects_invalid_readiness_path_at_admission_edge(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, source, inspector = self._fixture(Path(td))
+            source["static_readiness_receipt"]["repository_relative_path"] = "../outside.json"
+            with self.assertRaisesRegex(ValueError, "READINESS_PATH_INVALID"):
+                qa.run_canonical_candidate_semantic_base_qa(
+                    admission,
+                    repo / "artifacts" / "cs304",
+                    repo_root=repo,
+                    inspector=inspector,
+                )
+            self.assertEqual(inspector.calls, [])
+
     def test_rejects_snapshot_lineage_tamper_even_with_recomputed_receipt_digest(self):
         with tempfile.TemporaryDirectory() as td:
             repo, admission, _candidate, _source, inspector = self._fixture(Path(td))
@@ -174,6 +208,26 @@ class CanonicalCandidateSemanticBaseQATests(unittest.TestCase):
                 encoding="utf-8",
             )
             with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_DRIFT:snapshot_inventory_sha256"):
+                qa.verify_canonical_candidate_semantic_base_qa(run.receipt_path, repo_root=repo)
+
+    def test_rejects_readiness_lineage_tamper_even_with_recomputed_receipt_digest(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, admission, _candidate, _source, inspector = self._fixture(Path(td))
+            run = qa.run_canonical_candidate_semantic_base_qa(
+                admission,
+                repo / "artifacts" / "cs304",
+                repo_root=repo,
+                inspector=inspector,
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["static_readiness_receipt"]["sha256"] = "8" * 64
+            receipt.pop("receipt_sha256")
+            receipt["receipt_sha256"] = qa.sha256_json(receipt)
+            run.receipt_path.write_text(
+                json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "READINESS_LINEAGE_DRIFT:sha256"):
                 qa.verify_canonical_candidate_semantic_base_qa(run.receipt_path, repo_root=repo)
 
     def test_records_rejection_when_generated_text_is_detected(self):

@@ -5,9 +5,16 @@ turn requires the CS301/302 sealed canonical-candidate handoff. The existing
 pinned Qwen2.5-VL semantic inspector runs in BASE_SCENE mode, and its verdict is
 evaluated by the existing SemanticVisualVerdictGate and
 SemanticLayerEvidenceAdapter. CS360 additionally preserves and fresh-replays
-the exact Qwen-Image snapshot byte lineage already proven by CS359. This module
-cannot claim identity approval, Human Review, Golden quality, branding, or
-publication readiness.
+the exact Qwen-Image snapshot byte lineage already proven by CS359.
+
+Change Set 386 additionally carries the exact replay-verified CS351
+CUDA/native-BF16 static-readiness receipt binding already preserved through
+CS354, CS357, CS358, and CS359. Verification freshly replays CS359 and compares
+that readiness binding so the first semantic image-inspection boundary cannot
+silently discard or rewrite pre-inference host-readiness provenance.
+
+This module cannot claim identity approval, Human Review, Golden quality,
+branding, or publication readiness.
 """
 from __future__ import annotations
 
@@ -41,7 +48,7 @@ from engine.intelligence.semantic_visual_verdict import (
 )
 
 CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA = (
-    "pul7sar-phase18-qwen-image-canonical-candidate-semantic-base-qa-v3"
+    "pul7sar-phase18-qwen-image-canonical-candidate-semantic-base-qa-v4"
 )
 MINIMUM_CONFIDENCE = 0.85
 _REQUIRED_SOURCE_TRUE = (
@@ -127,6 +134,34 @@ def _snapshot_lineage(source: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _readiness_lineage(source: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract only the replay-verified CS351 readiness binding from CS359."""
+    if source.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_AUTHORITY_MISSING")
+    readiness = source.get("static_readiness_receipt")
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+    ):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_PATH_INVALID")
+    if not _is_sha256(digest):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_DIGEST_INVALID")
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
+    }
+
+
 def _check_payload(check: SemanticCheck | None) -> dict[str, Any] | None:
     if check is None:
         return None
@@ -205,6 +240,7 @@ def _assert_source_authority(source: Mapping[str, Any]) -> None:
     if not isinstance(handoff, Mapping) or not _is_sha256(handoff.get("handoff_sha256")):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_HANDOFF_BINDING_MISSING")
     _snapshot_lineage(source)
+    _readiness_lineage(source)
 
 
 def _evaluate(verdict: SemanticVisualVerdict) -> tuple[bool, tuple[str, ...], Any]:
@@ -262,6 +298,7 @@ def run_canonical_candidate_semantic_base_qa(
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_SCHEMA_DRIFT")
     _assert_source_authority(source)
     snapshot_lineage = _snapshot_lineage(source)
+    readiness_lineage = _readiness_lineage(source)
 
     story_sha = source.get("story_snapshot_sha256")
     if not _is_sha256(story_sha):
@@ -328,6 +365,8 @@ def run_canonical_candidate_semantic_base_qa(
         ),
         "story_snapshot_sha256": story_sha,
         **snapshot_lineage,
+        "static_readiness_receipt": readiness_lineage,
+        "static_readiness_receipt_verified": True,
         "source_candidate_admission": {
             "repository_relative_path": source_relative,
             **source_binding,
@@ -401,7 +440,7 @@ def run_canonical_candidate_semantic_base_qa(
 def verify_canonical_candidate_semantic_base_qa(
     receipt_path: Path, *, repo_root: Path
 ) -> dict[str, Any]:
-    """Replay CS359 admission/candidate/snapshot bindings and semantic decision."""
+    """Replay CS359 admission/candidate/snapshot/readiness bindings and semantic decision."""
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_RECEIPT_INVALID")
     try:
@@ -422,6 +461,8 @@ def verify_canonical_candidate_semantic_base_qa(
             raise ValueError(f"QWEN_CANDIDATE_SEMANTIC_QA_PREMATURE_AUTHORITY:{field}")
     if receipt.get("identity_approved") is not False:
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_IDENTITY_AUTHORITY_FORBIDDEN")
+    if receipt.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_AUTHORITY_MISSING")
 
     inspector_meta = receipt.get("semantic_inspector")
     if not isinstance(inspector_meta, Mapping):
@@ -473,6 +514,13 @@ def verify_canonical_candidate_semantic_base_qa(
     for field in _SNAPSHOT_LINEAGE_FIELDS:
         if receipt.get(field) != fresh_snapshot_lineage[field]:
             raise ValueError(f"QWEN_CANDIDATE_SEMANTIC_QA_SNAPSHOT_LINEAGE_DRIFT:{field}")
+    fresh_readiness_lineage = _readiness_lineage(source)
+    receipt_readiness = receipt.get("static_readiness_receipt")
+    if not isinstance(receipt_readiness, Mapping):
+        raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_READINESS_MISSING")
+    for field in ("repository_relative_path", "sha256", "byte_size"):
+        if receipt_readiness.get(field) != fresh_readiness_lineage[field]:
+            raise ValueError(f"QWEN_CANDIDATE_SEMANTIC_QA_READINESS_LINEAGE_DRIFT:{field}")
     if source.get("receipt_sha256") != source_meta.get("receipt_sha256"):
         raise ValueError("QWEN_CANDIDATE_SEMANTIC_QA_ADMISSION_DIGEST_DRIFT")
     source_handoff = source.get("source_candidate_handoff")
