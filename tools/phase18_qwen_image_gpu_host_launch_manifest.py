@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or verify the CS354 inventory-bound pre-inference GPU-host manifest."""
+"""Build or verify the CS354/CS382 pre-inference GPU-host manifest."""
 from __future__ import annotations
 
 import argparse
@@ -18,13 +18,14 @@ from engine.intelligence.qwen_image_inventory_bound_launch_manifest import (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Build/verify a byte-bound zero-cost local Qwen GPU-host launch manifest")
+    parser = argparse.ArgumentParser(description="Build/verify a readiness- and byte-bound zero-cost local Qwen GPU-host launch manifest")
     sub = parser.add_subparsers(dest="command", required=True)
 
     build = sub.add_parser("build")
     build.add_argument("--authorization", type=Path, required=True)
     build.add_argument("--cs257-run-dir", type=Path, required=True)
     build.add_argument("--snapshot-path", type=Path, required=True)
+    build.add_argument("--readiness-receipt", type=Path, required=True)
     build.add_argument("--output", type=Path, required=True)
     build.add_argument("--repo-root", type=Path, default=ROOT)
     build.add_argument("--width", type=int, default=1024)
@@ -41,9 +42,17 @@ def main() -> int:
     root = args.repo_root.resolve()
     if args.command == "build":
         payload = build_inventory_bound_gpu_host_launch_manifest(
-            args.authorization, args.cs257_run_dir, args.snapshot_path, args.output,
-            repo_root=root, width=args.width, height=args.height, seed=args.seed,
-            num_inference_steps=args.steps, guidance_scale=args.guidance_scale,
+            args.authorization,
+            args.cs257_run_dir,
+            args.snapshot_path,
+            args.readiness_receipt,
+            args.output,
+            repo_root=root,
+            width=args.width,
+            height=args.height,
+            seed=args.seed,
+            num_inference_steps=args.steps,
+            guidance_scale=args.guidance_scale,
         )
     else:
         payload = verify_inventory_bound_gpu_host_launch_manifest(args.manifest, repo_root=root)
