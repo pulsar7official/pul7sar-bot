@@ -22,6 +22,8 @@ jobs:
     env:
       PYTHONPATH: .
       PUL7SAR_PHASE18_COST_MODE: $0-local
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
 
     steps:
       - name: Require explicit confirmation and immutable Phase 18 dispatch
@@ -69,10 +71,13 @@ jobs:
         run: |
           set -euo pipefail
           python - <<'PY'
+          import os
           import torch
+          if os.environ.get("HF_HUB_OFFLINE") != "1" or os.environ.get("TRANSFORMERS_OFFLINE") != "1":
+              raise SystemExit("First Genuine Golden v6 requires local-cache-only model resolution")
           if not torch.cuda.is_available():
               raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
-          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count(), "model_cache_mode": "offline-local-only"})
           PY
 
       - name: Run model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1
@@ -197,6 +202,8 @@ jobs:
               raise SystemExit("semantic preflight readiness drift during replay")
           if semantic.get("cost_mode") != "$0-local":
               raise SystemExit("semantic preflight zero-cost drift during replay")
+          if semantic.get("model_downloaded_now") is not False:
+              raise SystemExit("semantic preflight attempted a model download instead of using the approved local cache")
           for field in ("generation_authorized", "queue_mutated", "png_created", "publication_ready"):
               if semantic.get(field) is not False:
                   raise SystemExit(f"semantic preflight authority drift during replay: {field}")
@@ -209,6 +216,8 @@ jobs:
               raise SystemExit("Qwen cache revision drift during replay")
           if qwen_cache.get("cost_mode") != "$0-local":
               raise SystemExit("Qwen cache zero-cost drift during replay")
+          if qwen_cache.get("downloaded_now") is not False:
+              raise SystemExit("Qwen snapshot was not already present in the approved local cache")
           qwen_snapshot = qwen_cache.get("snapshot_path")
           if not isinstance(qwen_snapshot, str) or not qwen_snapshot.strip():
               raise SystemExit("Qwen cache snapshot path missing during replay")
@@ -231,6 +240,8 @@ jobs:
               raise SystemExit("FLUX cache revision drift during replay")
           if flux_cache.get("cost_mode") != "$0-local":
               raise SystemExit("FLUX cache zero-cost drift during replay")
+          if flux_cache.get("downloaded_now") is not False:
+              raise SystemExit("FLUX snapshot was not already present in the approved local cache")
           flux_snapshot = flux_cache.get("snapshot_path")
           if not isinstance(flux_snapshot, str) or not flux_snapshot.strip():
               raise SystemExit("FLUX cache snapshot path missing during replay")
