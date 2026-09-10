@@ -63,7 +63,7 @@ CS350 may admit `publication_ready=true` only after successful existing CS286 ve
 
 Targeted lineage and authority regressions are committed at exact code-and-test SHA `34d358f6dcfc9666cb8886c78f003c7632c2896a`.
 
-CI status must be checked on that exact SHA before CS380 is called terminal-green. No terminal-green claim is made in this initial log entry.
+`Phase 18 Story Intelligence Verification` run `34423526828` / #5296 completed successfully on that exact SHA. All visible companion Phase 18 workflows on the same SHA also completed successfully. CS380 is therefore terminal-green.
 
 ## Genuine Golden execution blocker
 
@@ -71,4 +71,4 @@ This changeset hardens the publication-readiness boundary but does not fabricate
 
 ## Next boundary
 
-After CS380 becomes terminal-green, inspect any existing downstream consumer of CS350/CS286 separately. Do not equate `publication_ready=true` with an external publication side effect, and do not invent a parallel publication authority.
+CS380 is terminal-green. Inspect any existing downstream consumer of CS350/CS286 separately. Do not equate `publication_ready=true` with an external publication side effect, and do not invent a parallel publication authority.
