@@ -29,6 +29,8 @@ The existing genuine-inference path was reviewed instead. CS354 already owns exa
    - Updated compatible-host expectations for the new smoke field.
    - Added dedicated regression for advertised CUDA/BF16 with a failing real-operation smoke probe.
    - Preserved CPU-only, revision, snapshot-structure, component, pipeline-class, zero-cost, and no-inference assertions.
+   - CI compatibility correction: removed the newly introduced module-level `pytest` dependency/autouse fixture because the authoritative Phase 18 workflow installs only `requirements.txt` and imports all `test_phase18_*.py` modules through `unittest discover`.
+   - Each synthetic compatible-GPU test now stubs `_cuda_bf16_smoke_test` explicitly, keeping the regression behavior deterministic without adding or changing dependencies.
 
 ### Added
 
@@ -41,14 +43,16 @@ None.
 
 ### Dependencies
 
-None added or changed.
+None added or changed. In particular, `pytest` was not added to `requirements.txt`; the accidental test-only import was removed instead.
 
 ## Commits
 
 Production hardening commit: `c07fb984fab7c79b4e553365f81d986fbf3aebf0`.
-Exact code-and-test-bearing commit: `746efeb7770248bec480e9526c05382bb0463c1d`.
+Initial code-and-test-bearing commit: `746efeb7770248bec480e9526c05382bb0463c1d`.
 Changeset documentation commit: `c73d7a84667f3b0bed8cef293f2e36e3f72b1913`.
-Implementation-log creation commit: recorded by the branch commit produced for this file.
+Initial implementation-log commit: `84ba61d340b5df7bce9d0ede63e1402fe8702648`.
+CI compatibility fix commit: `cf5523d21992d060505ec66eb98f973f7c67a926`.
+This log update is committed separately on the same branch.
 
 ## Gate preservation
 
@@ -65,9 +69,15 @@ The readiness receipt still requires:
 
 ## Tests / CI
 
-Targeted regression code is committed at exact code-and-test SHA `746efeb7770248bec480e9526c05382bb0463c1d`.
+The first authoritative workflow for initial exact code-and-test SHA `746efeb7770248bec480e9526c05382bb0463c1d` was `Phase 18 Story Intelligence Verification` run `34427480974`, run number `5305`.
 
-CI result is intentionally not claimed here until the Phase 18 verification for that exact SHA completes. If it is still running, CS381 remains non-terminal until that result is observed.
+Result: `completed / failure`.
+
+Failure boundary: `Syntax and discover validation`; later Phase 18 workflow steps were skipped. The authoritative workflow executes `python tools/phase18_cpu_validate.py`, which imports `test_phase18_*.py` through `python -m unittest discover` after installing only `requirements.txt`. The CS381 test commit had newly introduced a module-level `import pytest` solely for an autouse fixture. That new dependency was unnecessary and incompatible with the authoritative discovery environment.
+
+Corrective commit `cf5523d21992d060505ec66eb98f973f7c67a926` removes the `pytest` import/autouse fixture and explicitly stubs the CUDA BF16 smoke result in the relevant synthetic GPU tests. No production behavior and no dependency manifest were changed by this correction.
+
+The replacement Phase 18 Story Intelligence Verification for corrective SHA `cf5523d21992d060505ec66eb98f973f7c67a926` is run `34431012562`, run number `5311`. It was queued when this log correction was prepared; CS381 remains non-terminal until the authoritative run completes successfully.
 
 ## Genuine Golden execution blocker
 
@@ -76,5 +86,7 @@ No Genuine Golden PNG is claimed by this changeset. A real canonical candidate s
 The current automation execution environment itself does not provide the required GPU path; no fixture/test bytes are treated as a production Golden Visual.
 
 ## Remaining gap
+
+First, authoritative CI for corrective commit `cf5523d21992d060505ec66eb98f973f7c67a926` must complete successfully. Only then can CS381 be called terminal-green.
 
 Once a compatible host exists, the existing workflow can proceed through CS351 readiness, CS354 exact snapshot-byte-bound launch, manifest-bound genuine inference, launch-to-output attestation, candidate handoff, and downstream QA. The first actual model-load/inference attempt remains the only valid proof of resource sufficiency; CS381 does not invent a VRAM threshold.
