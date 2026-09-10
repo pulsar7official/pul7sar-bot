@@ -39,14 +39,20 @@ None added or changed.
 ## Commits in this changeset
 
 - Production hardening: `db94278d701788b8baf8f70ce10573952bff02e3`
-- Test hardening: `ef42dd7b7c5c7471bb8fb1532ead9cf18c75e031`
+- Test hardening / exact code-and-test-bearing SHA: `ef42dd7b7c5c7471bb8fb1532ead9cf18c75e031`
 - Changeset documentation: `9b3271aa1f728ea10458495d51782dc9849dd467`
-
-The final documentation commit SHA for this log is recorded by the branch history after this file is created.
+- Initial implementation-log commit / verified branch SHA: `f1dd26c9ff8ce783181b039c75984a860d3bcea4`
 
 ## Tests and verification status
 
-Static/unit regression coverage has been updated in the repository. GitHub Actions status for the resulting branch SHA must be treated as authoritative; this log must not claim terminal-green until the Phase 18 Story Intelligence Verification workflow reports `completed / success` for the exact code-and-test-bearing SHA or a later SHA containing the same code and tests.
+Terminal-green.
+
+- Workflow: `Phase 18 Story Intelligence Verification`
+- Run: `#5337` / `34438882583`
+- Verified SHA: `f1dd26c9ff8ce783181b039c75984a860d3bcea4`
+- Result: `completed / success`
+
+The verified SHA contains the CS383 production code and tests. The later documentation-only update that records this result does not alter those semantics.
 
 ## Gate preservation
 
