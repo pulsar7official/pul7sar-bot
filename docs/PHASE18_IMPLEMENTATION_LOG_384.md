@@ -48,12 +48,11 @@ None added or changed.
 - CS384 production hardening: `0ca90a55e571ecdf3d3e3d398ee657c7a7239b7d`
 - CS384 tests / exact code-and-test-bearing SHA: `fcb274fe3c904904cf220dbbece30e4b201e2421`
 - CS384 changeset documentation: `7198edc8716a8c1b7d63b0f67b2051098419cd62`
-
-The final implementation-log commit is recorded by branch history after this file is created.
+- CS384 implementation-log commit before terminal verification: `30fe510fe0c8277ecfa9e56e7dd3b18b192bf63a`
 
 ## Test status
 
-Repository regression tests were added at exact code-and-test-bearing SHA `fcb274fe3c904904cf220dbbece30e4b201e2421`. GitHub Actions remains authoritative for terminal-green status. This log must not claim CS384 terminal-green until `Phase 18 Story Intelligence Verification` reports `completed / success` for that SHA or a later SHA containing the same production code and tests.
+**TERMINAL-GREEN.** `Phase 18 Story Intelligence Verification` run `#5348` / `34442658270` completed with `success` on branch HEAD `30fe510fe0c8277ecfa9e56e7dd3b18b192bf63a`, which contains the exact CS384 production code and regression tests. CS384 is therefore closed before CS385 production work begins.
 
 ## Gate preservation
 
