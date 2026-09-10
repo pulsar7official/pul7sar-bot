@@ -3,6 +3,7 @@
 Date: 2026-09-10
 Branch: `phase18/story-intelligence`
 Starting HEAD: `9a4c3cdb333050ddba796a1435eb538a87346c0f`
+Initial CS390 commit: `92b0a0331610710cc9b3f39316780cb754f4f171`
 Scope: branch-only execution-readiness audit after CS389 / CS268 Generated-Layer QA.
 
 ## Objective
@@ -11,7 +12,8 @@ Advance Phase 18 toward the first genuine Golden Visual PNG without weakening or
 
 ## Repository state reviewed first
 
-- Target branch was confirmed at `9a4c3cdb333050ddba796a1435eb538a87346c0f` immediately before this audit log was created.
+- Target branch was confirmed at `9a4c3cdb333050ddba796a1435eb538a87346c0f` immediately before the original CS390 audit log was created.
+- CS390 was committed at `92b0a0331610710cc9b3f39316780cb754f4f171`.
 - `main` was inspected read-only and was not used as a write, merge, rebase, reset, or force-update target.
 - CS389 remains the last production-contract change in this lineage. Its generated-layer QA contract is `pul7sar-phase18-qwen-image-canonical-candidate-generated-layer-qa-v3` and explicitly preserves the replay-verified CS351 CUDA/BF16 static-readiness receipt across CS264, CS265 and CS267 when identity review is required.
 
@@ -28,6 +30,8 @@ The workflow is not a generic CI job. It is gated for a purpose-qualified self-h
 It also fixes `PUL7SAR_PHASE18_COST_MODE` to `$0-local`, requires an explicit dispatch confirmation, requires dispatch from `refs/heads/phase18/story-intelligence`, checks out the immutable dispatched SHA, reattaches that exact SHA to the Phase 18 branch, and performs a read-only comparison against `origin/main` to reject an unexpected `main.py` modification in the Phase 18 diff.
 
 Before generation it explicitly refuses to replace or auto-install PyTorch and aborts unless `torch.cuda.is_available()` is true. The workflow then binds GPU-host qualification, host-memory preflight, cache budget, semantic preflight, pinned Qwen2.5-VL cache, pinned FLUX.2 cache, pre/post runtime fingerprints, and strict Golden staging evidence. It keeps human visual review, Golden quality, publication readiness, and seeds 2–4 authority false at the staging/resource-lock boundary.
+
+The workflow also replays all bound evidence after generation, checks the PNG signature and SHA-256 binding, and uploads the Phase 18 evidence/output directories as a seven-day GitHub Actions artifact. Successful generation therefore still does not imply Golden-quality approval or publication authority.
 
 ## Current execution-host blocker
 
@@ -46,11 +50,13 @@ No synthetic fixture, placeholder PNG, test image, or non-genuine output was sub
 
 ## Workflow-dispatch history checked
 
-At audit time, GitHub Actions reported zero `workflow_dispatch` runs for `phase18/story-intelligence`. Consequently there is no prior dispatched v6 run whose artifacts can be promoted or truthfully claimed as the first genuine Golden Visual PNG.
+The complete repository `workflow_dispatch` history visible through GitHub Actions was re-audited in two pages covering all 173 dispatch runs. No run named or sourced from `phase18-first-genuine-golden-v6.yml` was present.
+
+Consequently there is no prior dispatched v6 run whose artifacts can be promoted, recovered, or truthfully claimed as the first genuine Golden Visual PNG.
 
 ## Code-change decision
 
-No production code was modified in this change set.
+No production code was modified in CS390.
 
 Reason: review of the current CS268 contract confirms that CS389 already preserves static CUDA/BF16 readiness provenance and keeps all downstream authorities closed. The first-genuine-Golden v6 workflow independently proves a stricter runtime/resource/staging contract. No concrete post-CS268 production consumer gap was proven during this audit that would justify changing a successful contract merely to create activity.
 
@@ -60,11 +66,11 @@ Changing a production schema without a proven consumer/gate gap would increase c
 
 ### Added
 
-- `docs/PHASE18_IMPLEMENTATION_LOG_390.md` — this execution-readiness audit.
+- `docs/PHASE18_IMPLEMENTATION_LOG_390.md` — execution-readiness audit and terminal verification record.
 
 ### Modified
 
-- None.
+- `docs/PHASE18_IMPLEMENTATION_LOG_390.md` — updated after CI completion to record terminal-green verification and complete workflow-dispatch audit.
 
 ### Deleted
 
@@ -78,11 +84,18 @@ Changing a production schema without a proven consumer/gate gap would increase c
 
 - Re-read branch HEAD before work.
 - Read the live CS268 Generated-Layer QA implementation on `phase18/story-intelligence` and confirmed CS389 readiness-lineage hardening is present.
-- Read the live `.github/workflows/phase18-first-genuine-golden-v6.yml` workflow and confirmed branch isolation, `$0-local`, GPU/CUDA/BF16 host qualification, immutable-SHA checkout, model-cache/resource/runtime/semantic-lock evidence, and downstream-authority closure.
-- Queried Actions history for `workflow_dispatch` runs on the target branch; result: `0`.
+- Read the live `.github/workflows/phase18-first-genuine-golden-v6.yml` workflow and confirmed branch isolation, `$0-local`, GPU/CUDA/BF16 host qualification, immutable-SHA checkout, model-cache/resource/runtime/semantic-lock evidence, PNG byte/SHA replay verification, artifact upload, and downstream-authority closure.
+- Re-audited all 173 visible repository `workflow_dispatch` runs across both result pages; no First Genuine Golden v6 dispatch exists.
 - Probed the available runtime directly; CUDA/BF16 execution is unavailable as recorded above.
+- `Phase 18 Story Intelligence Verification` run `34504661080` / run number `5397` completed with conclusion `success` on exact CS390 SHA `92b0a0331610710cc9b3f39316780cb754f4f171`.
 
 No inference test was fabricated because the hardware precondition failed.
+
+## Terminal status
+
+CS390 is terminal-green for its declared execution-readiness-audit scope.
+
+The terminal-green statement means only that the branch-only audit/documentation change passed the Phase 18 verification workflow on the exact CS390 commit. It does **not** mean that Genuine Golden inference has executed.
 
 ## Gate status
 
@@ -100,6 +113,13 @@ All factual, identity, sentiment, zero-cost, semantic-publication, generated-lay
 
 ## Remaining gap to first genuine Golden PNG
 
-The next irreversible step is not another speculative schema change. It is an actual dispatch/execution of the existing first-genuine-Golden v6 pipeline on a compatible `$0-local` self-hosted host that satisfies the required labels and runtime checks, with the approved pinned model caches/resources available locally.
+The next irreversible step is not another speculative schema change. It is an actual dispatch/execution of the existing first-genuine-Golden v6 pipeline on a compatible `$0-local` self-hosted host satisfying:
 
-Only after a real execution produces candidate PNG bytes and the existing semantic/layer/runtime/staging checks pass may those exact bytes proceed to the later visual/human/Golden/publication gates. A generated PNG must not be called `genuine_golden_visual.png` merely because inference completed; all subsequent quality and publication authorities remain independently required.
+1. runner labels `self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18`;
+2. CUDA-enabled PyTorch already present, with `torch.cuda.is_available() == True`;
+3. native BF16 support and sufficient compatible GPU resources;
+4. sufficient host RAM / storage for the bound cache-budget preflight;
+5. approved pinned Qwen2.5-VL and FLUX.2 snapshots/resources already available under the `$0-local` contract;
+6. dispatch from `phase18/story-intelligence` using the workflow's exact confirmation token.
+
+Only after a real execution produces candidate PNG bytes and the existing semantic/layer/runtime/staging checks pass may those exact bytes proceed to later visual/human/Golden/publication gates. A generated PNG must not be called `genuine_golden_visual.png` merely because inference completed; all subsequent quality and publication authorities remain independently required.
