@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,6 +27,8 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
         self._tmp = tempfile.TemporaryDirectory()
         self.root = Path(self._tmp.name)
         self.story = "a" * 64
+        self.snapshot_digest = "b" * 64
+        self.model_revision = "Qwen/Qwen-Image@approved-test-revision"
         (self.root / "artifacts").mkdir()
         self.composed_path = self.root / "artifacts/composed.png"
         self.composed_path.write_bytes(b"PNG")
@@ -44,7 +47,14 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def _cs349(self, *, publication_ready: bool = False) -> dict[str, object]:
+    def _cs349(
+        self,
+        *,
+        publication_ready: bool = False,
+        snapshot_verified: bool = True,
+        snapshot_digest: str | None = None,
+        model_revision: str | None = None,
+    ) -> dict[str, object]:
         return {
             "schema": subject.CS349_SCHEMA,
             "status": subject.CS349_STATUS,
@@ -52,6 +62,11 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
             "story_snapshot_sha256": self.story,
             "candidate_png": {"sha256": "d" * 64},
             "composed_candidate_png": self.composed,
+            "snapshot_byte_inventory_verified": snapshot_verified,
+            "snapshot_inventory_sha256": snapshot_digest or self.snapshot_digest,
+            "snapshot_file_count": 17,
+            "snapshot_total_bytes": 987654321,
+            "model_revision": model_revision or self.model_revision,
             "cs285_receipt": _binding(self.root, self.cs285_path, "5" * 64),
             "genuine_golden_visual_png": self.golden,
             "composed_visual_approved": True,
@@ -107,6 +122,21 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
             "publication_ready": True,
         }
 
+    def _patch_chain(self, cs349: dict[str, object], cs285: dict[str, object]):
+        def finalize(given285: Path, output: Path, *, repo_root: Path) -> Path:
+            self.assertEqual(given285, self.cs285_path)
+            output.mkdir()
+            receipt = output / "genuine_golden_publication_readiness.json"
+            receipt.write_text("{}", encoding="utf-8")
+            return receipt
+
+        return (
+            mock.patch.object(subject, "verify_semantic_publication_gate_to_genuine_golden_materialization", return_value=cs349),
+            mock.patch.object(subject, "verify_genuine_golden_materialization", return_value=cs285),
+            mock.patch.object(subject, "finalize_genuine_golden_publication_readiness", side_effect=finalize),
+            mock.patch.object(subject, "verify_genuine_golden_publication_readiness", side_effect=lambda path, *, repo_root: self._cs286(path)),
+        )
+
     def test_exact_cs349_finalizes_once_through_existing_cs286(self) -> None:
         cs349, cs285 = self._cs349(), self._cs285()
         calls = {"cs286": 0}
@@ -142,8 +172,25 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
         self.assertTrue(receipt["genuine_golden_png_created"])
         self.assertTrue(receipt["byte_identity_preserved"])
         self.assertFalse(receipt["authoritative"])
+        self.assertTrue(receipt["snapshot_byte_inventory_verified"])
+        self.assertEqual(receipt["snapshot_inventory_sha256"], self.snapshot_digest)
+        self.assertEqual(receipt["snapshot_file_count"], 17)
+        self.assertEqual(receipt["snapshot_total_bytes"], 987654321)
+        self.assertEqual(receipt["model_revision"], self.model_revision)
         self.assertEqual(run.genuine_golden_visual_path.read_bytes(), self.composed_path.read_bytes())
         self.assertEqual(run.cs286_receipt_path, last_receipt["path"])
+
+    def test_unverified_snapshot_cannot_reach_cs286(self) -> None:
+        cs349 = self._cs349(snapshot_verified=False)
+        with (
+            mock.patch.object(subject, "verify_semantic_publication_gate_to_genuine_golden_materialization", return_value=cs349),
+            mock.patch.object(subject, "finalize_genuine_golden_publication_readiness") as finalize,
+        ):
+            with self.assertRaisesRegex(ValueError, "SNAPSHOT_LINEAGE_INVALID:snapshot_byte_inventory_verified"):
+                subject.continue_genuine_golden_materialization_to_publication_readiness(
+                    self.cs349_path, self.root / "out", repo_root=self.root
+                )
+        finalize.assert_not_called()
 
     def test_premature_cs349_publication_readiness_cannot_reach_cs286(self) -> None:
         cs349 = self._cs349(publication_ready=True)
@@ -199,6 +246,29 @@ class GenuineGoldenMaterializationToPublicationReadinessTests(unittest.TestCase)
                 subject.continue_genuine_golden_materialization_to_publication_readiness(
                     self.cs349_path, self.root / "out", repo_root=self.root
                 )
+
+    def _assert_rehashed_snapshot_tamper_rejected(self, field: str, replacement: object) -> None:
+        cs349, cs285 = self._cs349(), self._cs285()
+        p1, p2, p3, p4 = self._patch_chain(cs349, cs285)
+        with p1, p2, p3, p4:
+            run = subject.continue_genuine_golden_materialization_to_publication_readiness(
+                self.cs349_path, self.root / "out", repo_root=self.root
+            )
+            value = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            value[field] = replacement
+            value.pop("receipt_sha256")
+            value["receipt_sha256"] = subject.sha256_json(value)
+            run.receipt_path.write_text(json.dumps(value, separators=(",", ":")) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, f"CS349_SNAPSHOT_LINEAGE_DRIFT:{field}"):
+                subject.verify_genuine_golden_materialization_to_publication_readiness(
+                    run.receipt_path, repo_root=self.root
+                )
+
+    def test_rehashed_snapshot_inventory_digest_tamper_is_rejected(self) -> None:
+        self._assert_rehashed_snapshot_tamper_rejected("snapshot_inventory_sha256", "e" * 64)
+
+    def test_rehashed_model_revision_tamper_is_rejected(self) -> None:
+        self._assert_rehashed_snapshot_tamper_rejected("model_revision", "Qwen/Qwen-Image@tampered-revision")
 
     def test_source_contains_no_generation_network_or_publish_side_effect(self) -> None:
         source = Path(subject.__file__).read_text(encoding="utf-8")
