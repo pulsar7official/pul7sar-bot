@@ -72,6 +72,11 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
         handoff_path = run / "canonical_candidate_handoff.json"
         handoff_path.write_text("{}\n", encoding="utf-8")
         source = _source(raw)
+        readiness = {
+            "repository_relative_path": "output/phase18_qwen_image/static-readiness.json",
+            "sha256": "9" * 64,
+            "byte_size": 987,
+        }
         handoff = {
             "schema": HANDOFF_SCHEMA,
             "handoff_sha256": "d" * 64,
@@ -103,6 +108,8 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
                 "model_revision": "c" * 40,
             },
             "snapshot_byte_inventory_verified": True,
+            "static_readiness_receipt": readiness,
+            "static_readiness_receipt_verified": True,
             "genuine_canonical_inference_executed": True,
             "handoff_sealed": True,
             "genuine_golden_png_created": False,
@@ -143,6 +150,15 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
             self.assertEqual(result["snapshot_byte_inventory"]["snapshot_file_count"], 17)
             self.assertEqual(result["snapshot_byte_inventory"]["snapshot_total_bytes"], 123456)
             self.assertEqual(result["snapshot_byte_inventory"]["model_revision"], "c" * 40)
+            self.assertTrue(result["static_readiness_receipt_verified"])
+            self.assertEqual(
+                result["static_readiness_receipt"],
+                {
+                    "repository_relative_path": "output/phase18_qwen_image/static-readiness.json",
+                    "sha256": "9" * 64,
+                    "byte_size": 987,
+                },
+            )
             self.assertEqual(result["cost_mode"], "$0-local")
             self.assertFalse(result["network_allowed"])
             self.assertTrue(result["local_files_only"])
@@ -191,6 +207,33 @@ class CanonicalCandidateByteAdmissionTests(unittest.TestCase):
                 admission.admit_canonical_candidate_bytes(
                     handoff_path, repo / "artifacts" / "cs303", repo_root=repo
                 )
+
+    def test_rejects_missing_readiness_authority_before_admission(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, handoff_path, _source_path, _candidate, _source, handoff = self._fixture(Path(td))
+            handoff["static_readiness_receipt_verified"] = False
+            with self.assertRaisesRegex(ValueError, "READINESS_AUTHORITY_MISSING"):
+                admission.admit_canonical_candidate_bytes(
+                    handoff_path, repo / "artifacts" / "cs303", repo_root=repo
+                )
+
+    def test_rejects_readiness_tamper_even_with_recomputed_receipt_digest(self):
+        with tempfile.TemporaryDirectory() as td:
+            repo, handoff_path, _source_path, _candidate, _source, _handoff = self._fixture(Path(td))
+            run = admission.admit_canonical_candidate_bytes(
+                handoff_path, repo / "artifacts" / "cs303", repo_root=repo
+            )
+            receipt = json.loads(run.receipt_path.read_text(encoding="utf-8"))
+            receipt["static_readiness_receipt"]["sha256"] = "8" * 64
+            unsigned = dict(receipt)
+            unsigned.pop("receipt_sha256", None)
+            receipt["receipt_sha256"] = admission.sha256_json(unsigned)
+            run.receipt_path.write_text(
+                json.dumps(receipt, ensure_ascii=False, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "READINESS_RECEIPT_DRIFT"):
+                admission.verify_canonical_candidate_byte_admission(run.receipt_path, repo_root=repo)
 
     def test_rejects_snapshot_inventory_tamper_even_with_recomputed_receipt_digest(self):
         with tempfile.TemporaryDirectory() as td:
