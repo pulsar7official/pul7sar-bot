@@ -29,19 +29,30 @@ The regression test reads the canonical First Genuine Golden v6 workflow and ass
 - `PUL7SAR_PHASE18_COST_MODE: $0-local`.
 - `HF_HUB_OFFLINE: "1"` and `TRANSFORMERS_OFFLINE: "1"`.
 - Runtime refusal when those offline environment flags are absent.
-- The dedicated self-hosted `gpu`, `cuda`, `bf16`, `pul7sar-phase18` runner labels remain present.
+- The dedicated self-hosted `gpu`, `cuda`, `bf16`, `pul7sar-phase18` runner contract remains present.
 - CUDA-enabled PyTorch remains mandatory and automatic PyTorch replacement remains refused.
 - Semantic preflight replay rejects `model_downloaded_now != false`.
 - Qwen and FLUX cache replay each reject `downloaded_now != false`.
-- Strict staging keeps `golden_quality_approved`, `publication_ready`, and `seeds_2_to_4_authorized` fail-closed at this workflow boundary.
+- Strict staging/final evidence keeps Human Review, Golden Quality, publication readiness, and Seeds 2–4 authorization fail-closed at this workflow boundary.
 
-The initial test commit was `053861863a1f55297cca94865f0cb18ab1f104f3`. Before relying on CI, the authority assertion was reviewed against the exact workflow text and corrected so it checks the actual strict-staging authority tuple rather than assuming a Human Review field is serialized directly in this YAML. No workflow or production behavior was changed by that correction.
+The initial test commit was `053861863a1f55297cca94865f0cb18ab1f104f3`. A first correction produced `4eb9eabc6ebf4fce47499cf9a815a56b798f8ade`, but repository verification later proved that the test still encoded two textual assumptions that did not match the canonical YAML representation.
 
-Exact corrected code-and-test-bearing commit: `4eb9eabc6ebf4fce47499cf9a815a56b798f8ade`.
+## CI failure diagnosis and corrective change
+
+`Phase 18 Story Intelligence Verification` run `34529528611` on documentation descendant `baad47a5502e6e6986a4f0c1a44a4b7ee8f801e6` failed at `Syntax and discover validation`; downstream Phase 18 steps were skipped.
+
+Review of the exact CS392 test against `.github/workflows/phase18-first-genuine-golden-v6.yml` identified two contract-test defects rather than production/workflow defects:
+
+1. The test searched for each runner label as a block-list line such as `- gpu`, while the canonical workflow intentionally declares the complete runner contract inline as `runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]`.
+2. The test searched for a three-field authority tuple beginning with `golden_quality_approved`, while the canonical replay gate deliberately includes `human_visual_review_approved` in the same fail-closed tuple and checks those fields against the final resource-lock receipt.
+
+The corrective commit `c2442cadc5d915646e62bf112140a856e675cec5` changes only the regression test so that it guards the exact canonical contract actually used by the workflow. It does not weaken or alter the workflow itself.
 
 ## Modified
 
-`tests/test_phase18_first_genuine_golden_v6_zero_cost_contract.py` was corrected once after creation so the downstream-authority regression matches the real workflow contract exactly.
+`tests/test_phase18_first_genuine_golden_v6_zero_cost_contract.py` was corrected so runner qualification is asserted against the canonical inline `runs-on` declaration, and downstream authority is asserted against the full fail-closed final-evidence tuple including Human Review.
+
+`docs/PHASE18_IMPLEMENTATION_LOG_392.md` was updated with the exact CI failure diagnosis and corrective commit.
 
 No production Python files were modified.
 
@@ -69,4 +80,6 @@ No Genuine Golden Visual PNG is claimed or fabricated by this changeset. Genuine
 
 ## Verification
 
-CI for the exact corrected CS392 test-bearing commit must be checked separately. CS392 is not terminal-green until the repository's Phase 18 verification completes successfully on the exact corrected code-and-test-bearing SHA (or a documentation-only descendant whose code tree is unchanged and whose corresponding verification is also successful).
+The failed run `34529528611` is retained here as part of the implementation history and must not be described as green.
+
+The corrective code-and-test-bearing SHA is `c2442cadc5d915646e62bf112140a856e675cec5`. CS392 is not terminal-green until Phase 18 verification completes successfully on this corrective SHA or a documentation-only descendant with the identical code/test tree.
