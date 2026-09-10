@@ -33,11 +33,15 @@ The regression test reads the canonical First Genuine Golden v6 workflow and ass
 - CUDA-enabled PyTorch remains mandatory and automatic PyTorch replacement remains refused.
 - Semantic preflight replay rejects `model_downloaded_now != false`.
 - Qwen and FLUX cache replay each reject `downloaded_now != false`.
-- Human visual review, Golden quality, and publication authority remain explicitly false at this workflow boundary.
+- Strict staging keeps `golden_quality_approved`, `publication_ready`, and `seeds_2_to_4_authorized` fail-closed at this workflow boundary.
 
-Exact code-and-test-bearing commit: `053861863a1f55297cca94865f0cb18ab1f104f3`.
+The initial test commit was `053861863a1f55297cca94865f0cb18ab1f104f3`. Before relying on CI, the authority assertion was reviewed against the exact workflow text and corrected so it checks the actual strict-staging authority tuple rather than assuming a Human Review field is serialized directly in this YAML. No workflow or production behavior was changed by that correction.
+
+Exact corrected code-and-test-bearing commit: `4eb9eabc6ebf4fce47499cf9a815a56b798f8ade`.
 
 ## Modified
+
+`tests/test_phase18_first_genuine_golden_v6_zero_cost_contract.py` was corrected once after creation so the downstream-authority regression matches the real workflow contract exactly.
 
 No production Python files were modified.
 
@@ -65,4 +69,4 @@ No Genuine Golden Visual PNG is claimed or fabricated by this changeset. Genuine
 
 ## Verification
 
-At changeset creation time, CI for the exact CS392 test-bearing commit is expected to be checked separately. CS392 is not to be called terminal-green until the repository's Phase 18 verification completes successfully on the exact code-and-test-bearing SHA (or a documentation-only descendant whose code tree is unchanged and whose corresponding verification is also successful).
+CI for the exact corrected CS392 test-bearing commit must be checked separately. CS392 is not terminal-green until the repository's Phase 18 verification completes successfully on the exact corrected code-and-test-bearing SHA (or a documentation-only descendant whose code tree is unchanged and whose corresponding verification is also successful).
