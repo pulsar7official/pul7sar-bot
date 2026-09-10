@@ -1,24 +1,24 @@
-"""Byte-bind the CS291/292 Qwen launch manifest to the exact local snapshot.
+"""Byte-bind the Qwen launch manifest to exact local snapshot and host readiness.
 
-CS354 closes the remaining authorization-to-load asset gap. The historical launch
-manifest binds the approved model id/revision and resolved snapshot path; CS352/353
-then protect the snapshot immediately around ``from_pretrained``. This module adds
-a deterministic CS352 byte inventory to the launch manifest itself so the exact
-model/config/tokenizer bytes are fixed at manifest construction and replayed again
-before the manifest-bound canonical subprocess can start.
+CS354 closes the authorization-to-load asset gap by sealing a deterministic CS352
+snapshot byte inventory into the historical CS291/292 launch manifest. CS356 then
+requires that same byte-bound manifest at the direct canonical-child execution edge.
 
-CS356 closes the direct canonical-child bypass around that byte binding. The
-execution verifier in this module now composes the CS354 byte replay with the
-historical CS292 concrete-invocation replay, so the production child itself requires
-both the exact authorized invocation and the exact authorized snapshot bytes before
-prompt extraction, model import/load, authorization consumption, or inference.
+CS382 closes the remaining CS351-to-CS354 host-preflight lineage gap. The launch
+manifest now also binds the exact repository-local CS351 static-readiness JSON bytes
+and verifies that the receipt proves a zero-cost, offline, CUDA/native-BF16 host with
+a passing real BF16 CUDA smoke operation for the same approved snapshot. The receipt
+is replayed on every manifest verification, including the launcher and canonical-child
+execution edges. This does not replace CS297 live preload checks; it makes the exact
+successful CS351 preflight auditable and non-substitutable while CS297 still rechecks
+the live host immediately before subprocess launch.
 
-The implementation deliberately composes the existing CS291/292 manifest instead
-of weakening or replacing it. It performs no download, model load, inference,
-pixel creation, semantic approval, Golden approval, or publication action.
+No download, model load, inference, pixel creation, semantic approval, Golden
+approval, upload, publication action, or downstream authority is performed here.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -29,10 +29,12 @@ from .qwen_image_gpu_host_launch_manifest import (
     verify_gpu_host_launch_manifest,
     verify_gpu_host_launch_manifest_for_execution,
 )
+from .qwen_image_gpu_readiness import SCHEMA as GPU_READINESS_SCHEMA
 from .qwen_image_inference_measurement import sha256_json
 from .qwen_image_snapshot_inventory import build_qwen_image_snapshot_inventory
 
 INVENTORY_FIELD = "snapshot_byte_inventory"
+READINESS_FIELD = "static_readiness_receipt"
 
 
 def _write_exclusive(path: Path, payload: Mapping[str, Any]) -> None:
@@ -57,10 +59,76 @@ def _target(path: Path, root: Path) -> Path:
     return candidate
 
 
+def _repo_readiness_file(path: Path, root: Path) -> tuple[Path, str]:
+    candidate = path if path.is_absolute() else root / path
+    if candidate.is_symlink():
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_INVALID")
+    resolved = candidate.resolve()
+    try:
+        relative = resolved.relative_to(root.resolve()).as_posix()
+    except ValueError as exc:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_OUTSIDE_REPOSITORY") from exc
+    if not resolved.is_file():
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_INVALID")
+    return resolved, relative
+
+
+def _load_verified_readiness(
+    path: Path,
+    root: Path,
+    *,
+    expected_snapshot_path: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    resolved, relative = _repo_readiness_file(path, root)
+    raw = resolved.read_bytes()
+    if not raw:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_INVALID")
+    try:
+        payload = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_INVALID") from exc
+    if not isinstance(payload, dict) or payload.get("schema") != GPU_READINESS_SCHEMA:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_SCHEMA_DRIFT")
+    if payload.get("snapshot_path") != expected_snapshot_path:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_SNAPSHOT_DRIFT")
+    required_true = (
+        "cuda_available",
+        "bf16_supported",
+        "cuda_bf16_smoke_test_passed",
+        "nvidia_smi_available",
+        "qwen_image_pipeline_importable",
+        "sequential_cpu_offload_supported",
+        "snapshot_revision_verified",
+        "snapshot_structure_verified",
+        "zero_cost_local_only",
+        "static_preflight_passed",
+        "ready_for_model_load_attempt",
+    )
+    if any(payload.get(field) is not True for field in required_true):
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_NOT_READY")
+    if payload.get("network_required") is not False:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_NETWORK_DRIFT")
+    if payload.get("genuine_inference_executed") is not False or payload.get("ready_for_genuine_inference_claim") is not False:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_AUTHORITY_DRIFT")
+    blockers = payload.get("blockers")
+    if blockers != []:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_BLOCKERS_PRESENT")
+    count = payload.get("cuda_device_count")
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_DEVICE_INVALID")
+    binding = {
+        "repository_relative_path": relative,
+        "sha256": hashlib.sha256(raw).hexdigest(),
+        "byte_size": len(raw),
+    }
+    return payload, binding
+
+
 def build_inventory_bound_gpu_host_launch_manifest(
     authorization_path: Path,
     cs257_run_dir: Path,
     snapshot_path: Path,
+    readiness_receipt_path: Path,
     output_path: Path,
     *,
     repo_root: Path,
@@ -70,7 +138,7 @@ def build_inventory_bound_gpu_host_launch_manifest(
     num_inference_steps: int,
     guidance_scale: float,
 ) -> dict[str, Any]:
-    """Build CS291/292 and seal the exact CS352 snapshot inventory into it."""
+    """Build CS291/292 and seal exact CS352 bytes plus exact CS351 readiness."""
     root = repo_root.resolve()
     target = _target(output_path, root)
     if target.exists() or target.is_symlink():
@@ -101,9 +169,15 @@ def build_inventory_bound_gpu_host_launch_manifest(
             raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_SNAPSHOT_PATH_INVALID")
 
         inventory = build_qwen_image_snapshot_inventory(resolved_path).to_dict()
+        _, readiness_binding = _load_verified_readiness(
+            readiness_receipt_path,
+            root,
+            expected_snapshot_path=resolved_path,
+        )
         bound = dict(payload)
         bound.pop("manifest_sha256", None)
         bound[INVENTORY_FIELD] = inventory
+        bound[READINESS_FIELD] = readiness_binding
         bound["manifest_sha256"] = sha256_json(bound)
         _write_exclusive(target, bound)
         return verify_inventory_bound_gpu_host_launch_manifest(target, repo_root=root)
@@ -119,7 +193,7 @@ def verify_inventory_bound_gpu_host_launch_manifest(
     *,
     repo_root: Path,
 ) -> dict[str, Any]:
-    """Replay the original manifest plus exact local snapshot bytes fail-closed."""
+    """Replay original manifest, exact snapshot bytes, and exact CS351 readiness."""
     root = repo_root.resolve()
     payload = verify_gpu_host_launch_manifest(path, repo_root=root)
     snapshot = payload.get("snapshot")
@@ -135,6 +209,20 @@ def verify_inventory_bound_gpu_host_launch_manifest(
     current = build_qwen_image_snapshot_inventory(resolved_path).to_dict()
     if dict(recorded) != current:
         raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_SNAPSHOT_BYTE_DRIFT")
+
+    readiness = payload.get(READINESS_FIELD)
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_MISSING")
+    readiness_relative = readiness.get("repository_relative_path")
+    if not isinstance(readiness_relative, str) or not readiness_relative or Path(readiness_relative).is_absolute():
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_PATH_INVALID")
+    _, current_binding = _load_verified_readiness(
+        root / readiness_relative,
+        root,
+        expected_snapshot_path=resolved_path,
+    )
+    if dict(readiness) != current_binding:
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_READINESS_BYTE_DRIFT")
     return payload
 
 
@@ -151,14 +239,7 @@ def verify_inventory_bound_gpu_host_launch_manifest_for_execution(
     num_inference_steps: int,
     guidance_scale: float,
 ) -> dict[str, Any]:
-    """Require exact snapshot bytes and the exact CS292 invocation at child edge.
-
-    The byte-bound replay intentionally runs first. A missing inventory or any local
-    snapshot byte drift therefore fails before the historical execution-binding
-    verifier is allowed to validate the concrete CLI arguments. The historical
-    verifier remains authoritative for authorization/CS257/snapshot-path/settings
-    equality; this wrapper adds no new downstream authority.
-    """
+    """Require exact readiness/snapshot bytes and exact CS292 invocation at child edge."""
     root = repo_root.resolve()
     byte_bound = verify_inventory_bound_gpu_host_launch_manifest(path, repo_root=root)
     execution_bound = verify_gpu_host_launch_manifest_for_execution(
@@ -177,4 +258,6 @@ def verify_inventory_bound_gpu_host_launch_manifest_for_execution(
         raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_EXECUTION_REPLAY_DRIFT")
     if execution_bound.get(INVENTORY_FIELD) != byte_bound.get(INVENTORY_FIELD):
         raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_EXECUTION_INVENTORY_DRIFT")
+    if execution_bound.get(READINESS_FIELD) != byte_bound.get(READINESS_FIELD):
+        raise ValueError("QWEN_INVENTORY_BOUND_MANIFEST_EXECUTION_READINESS_DRIFT")
     return execution_bound
