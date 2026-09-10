@@ -76,7 +76,9 @@ Factual/freshness, Entity/Identity, sentiment neutrality and loser-respect, `$0-
 
 Exact code-and-test SHA: `bcd5d60e22d0dc57feb591b376f15f1dff5c97a5`
 
-GitHub Actions verification is not yet recorded as terminal-green in this log. This section must only be updated after an exact-SHA verification run finishes successfully.
+`Phase 18 Story Intelligence Verification` run `34473313423` completed successfully on this exact SHA (`completed / success`). Therefore CS388 is terminal-green for the CS266 → CS267 compatibility and readiness-lineage boundary.
+
+The successful exact-SHA run proves the previous `QWEN_PIXEL_ID_EVIDENCE_CS266_SCHEMA_DRIFT` compatibility failure is closed without dropping CS351 readiness provenance.
 
 ## Remaining blocker to first Genuine Golden Visual PNG
 
