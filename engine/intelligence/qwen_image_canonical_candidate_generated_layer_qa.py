@@ -9,7 +9,9 @@ required CS267 review must trace through a CS266 request that binds the same
 CS265 receipt supplied to this gate. This prevents same-story/same-candidate
 cross-run receipt substitution. Change Set 361 preserves and fresh-replays the
 exact Qwen-Image generator snapshot byte lineage proven by CS360 across this
-generated-layer QA boundary.
+generated-layer QA boundary. Change Set 389 additionally preserves and
+cross-checks the exact replay-verified CS351 CUDA/BF16 static-readiness receipt
+across CS264, CS265 and, when required, CS267 before generated-layer QA may run.
 
 The gate deliberately evaluates only the generated/base layer. It does not
 claim that deterministic typography, score/data, sport geometry, verified
@@ -44,7 +46,7 @@ from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import 
 from engine.intelligence.qwen_image_inference_measurement import sha256_json
 from engine.intelligence.visual_layer_qa import HybridLayerQualityGate, LayerLeakageEvidence
 
-SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-generated-layer-qa-v2"
+SCHEMA = "pul7sar-phase18-qwen-image-canonical-candidate-generated-layer-qa-v3"
 _DOWNSTREAM_FALSE = (
     "semantic_approved",
     "human_visual_review_approved",
@@ -108,6 +110,40 @@ def _snapshot_lineage(source: Mapping[str, Any]) -> dict[str, Any]:
         "snapshot_total_bytes": total_bytes,
         "model_revision": model_revision,
     }
+
+
+def _readiness_lineage(source: Mapping[str, Any], prefix: str) -> dict[str, Any]:
+    if source.get("static_readiness_receipt_verified") is not True:
+        raise ValueError(f"{prefix}_READINESS_AUTHORITY_MISSING")
+    readiness = source.get("static_readiness_receipt")
+    if not isinstance(readiness, Mapping):
+        raise ValueError(f"{prefix}_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+    ):
+        raise ValueError(f"{prefix}_READINESS_PATH_INVALID")
+    if not _is_sha256(digest):
+        raise ValueError(f"{prefix}_READINESS_DIGEST_INVALID")
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise ValueError(f"{prefix}_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
+    }
+
+
+def _assert_readiness_equal(
+    claimed: Mapping[str, Any], source: Mapping[str, Any], prefix: str
+) -> None:
+    if _readiness_lineage(source, prefix) != dict(claimed):
+        raise ValueError(f"{prefix}_READINESS_RECEIPT_DRIFT")
 
 
 def _inside_repo_file(repo_root: Path, path: Path, code: str) -> str:
@@ -340,6 +376,8 @@ def run_canonical_candidate_generated_layer_qa(
     _assert_downstream_closed(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
     _assert_downstream_closed(cs265, "QWEN_GENERATED_LAYER_QA_CS265")
     snapshot_lineage = _snapshot_lineage(cs264)
+    readiness_lineage = _readiness_lineage(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
+    _assert_readiness_equal(readiness_lineage, cs265, "QWEN_GENERATED_LAYER_QA_CS265")
     _assert_exact_receipt_binding(
         cs265.get("source_cs264_receipt"),
         cs264_binding,
@@ -367,6 +405,7 @@ def run_canonical_candidate_generated_layer_qa(
         if cs267.get("schema") != PIXEL_IDENTITY_EVIDENCE_SCHEMA:
             raise ValueError("QWEN_GENERATED_LAYER_QA_CS267_SCHEMA_DRIFT")
         _assert_downstream_closed(cs267, "QWEN_GENERATED_LAYER_QA_CS267")
+        _assert_readiness_equal(readiness_lineage, cs267, "QWEN_GENERATED_LAYER_QA_CS267")
         _verify_required_identity_lineage(
             repo_root=repo_root,
             cs267=cs267,
@@ -409,6 +448,8 @@ def run_canonical_candidate_generated_layer_qa(
         ),
         "candidate_png": dict(candidate),
         **snapshot_lineage,
+        "static_readiness_receipt": readiness_lineage,
+        "static_readiness_receipt_verified": True,
         "pixel_identity_review_required": identity_required,
         "identity_approved": identity_approved if identity_required else False,
         "hybrid_layer_plan": _plan_payload(plan),
@@ -433,6 +474,7 @@ def run_canonical_candidate_generated_layer_qa(
             "missing_required_identity_review_fails_closed": True,
             "upstream_unverified_identity_evidence_is_never_suppressed": True,
             "generator_snapshot_lineage_preserved": True,
+            "static_cuda_readiness_lineage_preserved": True,
         },
     }
     receipt["receipt_sha256"] = sha256_json(receipt)
@@ -492,6 +534,13 @@ def verify_canonical_candidate_generated_layer_qa(
     for field in _SNAPSHOT_LINEAGE_FIELDS:
         if receipt.get(field) != snapshot_lineage[field]:
             raise ValueError(f"QWEN_GENERATED_LAYER_QA_SNAPSHOT_LINEAGE_DRIFT:{field}")
+    readiness_lineage = _readiness_lineage(cs264, "QWEN_GENERATED_LAYER_QA_CS264")
+    if receipt.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_GENERATED_LAYER_QA_READINESS_AUTHORITY_MISSING")
+    claimed_readiness = receipt.get("static_readiness_receipt")
+    if not isinstance(claimed_readiness, Mapping) or dict(claimed_readiness) != readiness_lineage:
+        raise ValueError("QWEN_GENERATED_LAYER_QA_READINESS_RECEIPT_DRIFT")
+    _assert_readiness_equal(readiness_lineage, cs265, "QWEN_GENERATED_LAYER_QA_CS265")
     _assert_exact_receipt_binding(
         cs265.get("source_cs264_receipt"),
         b264,
@@ -519,6 +568,7 @@ def verify_canonical_candidate_generated_layer_qa(
         p267 = _reopen_binding(repo_root, b267, "QWEN_GENERATED_LAYER_QA_CS267_INVALID")
         cs267 = verify_pixel_identity_review_evidence(p267, repo_root=repo_root)
         _assert_downstream_closed(cs267, "QWEN_GENERATED_LAYER_QA_CS267")
+        _assert_readiness_equal(readiness_lineage, cs267, "QWEN_GENERATED_LAYER_QA_CS267")
         _verify_required_identity_lineage(
             repo_root=repo_root,
             cs267=cs267,
@@ -575,6 +625,7 @@ def verify_canonical_candidate_generated_layer_qa(
             "missing_required_identity_review_fails_closed",
             "upstream_unverified_identity_evidence_is_never_suppressed",
             "generator_snapshot_lineage_preserved",
+            "static_cuda_readiness_lineage_preserved",
         )
     ):
         raise ValueError("QWEN_GENERATED_LAYER_QA_POLICY_DRIFT")
