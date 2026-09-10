@@ -14,8 +14,10 @@ from engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_re
     build_pixel_identity_review_request,
     verify_pixel_identity_review_request,
 )
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 STORY_SHA = "a" * 64
+READINESS_SHA = "d" * 64
 
 
 def _write_json(path: Path, payload: dict) -> bytes:
@@ -53,6 +55,12 @@ class CS266PixelIdentityReviewRequestTests(unittest.TestCase):
             "schema": IDENTITY_REQUIREMENT_SCHEMA,
             "receipt_sha256": "c" * 64,
             "story_snapshot_sha256": STORY_SHA,
+            "static_readiness_receipt": {
+                "repository_relative_path": "output/phase18_qwen_image/static-readiness.json",
+                "sha256": READINESS_SHA,
+                "byte_size": 321,
+            },
+            "static_readiness_receipt_verified": True,
             "candidate_png": {
                 "repository_relative_path": "candidate.png",
                 "sha256": hashlib.sha256(candidate_raw).hexdigest(),
@@ -112,6 +120,15 @@ class CS266PixelIdentityReviewRequestTests(unittest.TestCase):
             self.assertTrue(
                 receipt["review_contract"]["fail_closed_without_compatible_identity_review"]
             )
+            self.assertTrue(receipt["static_readiness_receipt_verified"])
+            self.assertEqual(
+                receipt["static_readiness_receipt"],
+                {
+                    "repository_relative_path": "output/phase18_qwen_image/static-readiness.json",
+                    "sha256": READINESS_SHA,
+                    "byte_size": 321,
+                },
+            )
 
     def test_nonhuman_candidate_does_not_manufacture_identity_approval(self):
         with tempfile.TemporaryDirectory() as td:
@@ -120,6 +137,42 @@ class CS266PixelIdentityReviewRequestTests(unittest.TestCase):
             self.assertFalse(receipt["pixel_identity_review_required"])
             self.assertFalse(receipt["pixel_identity_review_request_created"])
             self.assertFalse(receipt["identity_approved"])
+            self.assertTrue(receipt["static_readiness_receipt_verified"])
+
+    def test_unverified_readiness_rejected_before_review_request(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cs265, source, _, _ = self._fixture(root, human=True)
+            source["static_readiness_receipt_verified"] = False
+            target = (
+                "engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_request."
+                "verify_identity_requirement"
+            )
+            with patch(target, return_value=source):
+                with self.assertRaisesRegex(ValueError, "READINESS_AUTHORITY_MISSING"):
+                    build_pixel_identity_review_request(cs265, root / "out", repo_root=root)
+            self.assertFalse((root / "out").exists())
+
+    def test_readiness_digest_tamper_rejected_after_outer_digest_recomputed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            result, _, source, _, _, _ = self._build(root)
+            payload = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+            payload["static_readiness_receipt"]["sha256"] = "e" * 64
+            unsigned = dict(payload)
+            unsigned.pop("receipt_sha256", None)
+            payload["receipt_sha256"] = sha256_json(unsigned)
+            result.receipt_path.write_text(
+                json.dumps(payload, separators=(",", ":")) + "\n",
+                encoding="utf-8",
+            )
+            target = (
+                "engine.intelligence.qwen_image_canonical_candidate_pixel_identity_review_request."
+                "verify_identity_requirement"
+            )
+            with patch(target, return_value=source):
+                with self.assertRaisesRegex(ValueError, "READINESS_RECEIPT_DRIFT"):
+                    verify_pixel_identity_review_request(result.receipt_path, repo_root=root)
 
     def test_missing_source_backed_reference_rejected_for_human_target(self):
         with tempfile.TemporaryDirectory() as td:
