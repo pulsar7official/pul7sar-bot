@@ -72,12 +72,13 @@ class FirstGenuineGoldenV6ZeroCostContractTests(unittest.TestCase):
         )
 
     def test_downstream_authority_remains_fail_closed(self) -> None:
-        for marker in (
-            '"human_visual_review_approved": false',
-            '"golden_quality_approved": false',
-            '"publication_ready": false',
-        ):
-            self.assertIn(marker, self.workflow)
+        self.assertIn(
+            'for field in ("golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):',
+            self.workflow,
+        )
+        self.assertIn("if staging.get(field) is not False:", self.workflow)
+        self.assertIn('"publication_ready": False', self.workflow)
+        self.assertIn('"seeds_2_to_4_authorized": False', self.workflow)
 
 
 if __name__ == "__main__":
