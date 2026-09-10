@@ -4,8 +4,6 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
-import pytest
-
 import engine.intelligence.qwen_image_gpu_readiness as readiness
 
 
@@ -31,12 +29,6 @@ class _FakeCuda:
 class _FakePipeline:
     def enable_sequential_cpu_offload(self):
         return None
-
-
-@pytest.fixture(autouse=True)
-def _successful_cuda_bf16_smoke(monkeypatch):
-    """Keep existing capability tests focused; dedicated regressions cover smoke failure."""
-    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
 
 def _make_snapshot(tmp_path: Path, *, revision: str | None = None, missing_component: str | None = None) -> Path:
@@ -91,6 +83,7 @@ def test_compatible_local_runtime_passes_static_preflight_without_claiming_infer
     )
     monkeypatch.setattr(readiness, "import_module", lambda name: fake_torch if name == "torch" else SimpleNamespace(QwenImagePipeline=_FakePipeline))
     monkeypatch.setattr(readiness, "_nvidia_smi_available", lambda: True)
+    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
@@ -140,6 +133,7 @@ def test_gpu_memory_is_observed_not_used_as_an_invented_threshold(monkeypatch, t
     )
     monkeypatch.setattr(readiness, "import_module", lambda name: fake_torch if name == "torch" else SimpleNamespace(QwenImagePipeline=_FakePipeline))
     monkeypatch.setattr(readiness, "_nvidia_smi_available", lambda: True)
+    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
@@ -159,6 +153,7 @@ def test_wrong_snapshot_revision_blocks(monkeypatch, tmp_path: Path):
     )
     monkeypatch.setattr(readiness, "import_module", lambda name: fake_torch if name == "torch" else SimpleNamespace(QwenImagePipeline=_FakePipeline))
     monkeypatch.setattr(readiness, "_nvidia_smi_available", lambda: True)
+    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
@@ -180,6 +175,7 @@ def test_correctly_named_but_empty_snapshot_is_not_ready(monkeypatch, tmp_path: 
     )
     monkeypatch.setattr(readiness, "import_module", lambda name: fake_torch if name == "torch" else SimpleNamespace(QwenImagePipeline=_FakePipeline))
     monkeypatch.setattr(readiness, "_nvidia_smi_available", lambda: True)
+    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
@@ -200,6 +196,7 @@ def test_partial_snapshot_component_is_reported_fail_closed(monkeypatch, tmp_pat
     )
     monkeypatch.setattr(readiness, "import_module", lambda name: fake_torch if name == "torch" else SimpleNamespace(QwenImagePipeline=_FakePipeline))
     monkeypatch.setattr(readiness, "_nvidia_smi_available", lambda: True)
+    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
@@ -223,6 +220,7 @@ def test_snapshot_pipeline_class_must_match_qwen(monkeypatch, tmp_path: Path):
     )
     monkeypatch.setattr(readiness, "import_module", lambda name: fake_torch if name == "torch" else SimpleNamespace(QwenImagePipeline=_FakePipeline))
     monkeypatch.setattr(readiness, "_nvidia_smi_available", lambda: True)
+    monkeypatch.setattr(readiness, "_cuda_bf16_smoke_test", lambda _torch: True)
 
     result = readiness.inspect_qwen_image_gpu_readiness(snapshot_path=snapshot)
 
