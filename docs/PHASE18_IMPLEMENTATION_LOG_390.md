@@ -70,7 +70,7 @@ Changing a production schema without a proven consumer/gate gap would increase c
 
 ### Modified
 
-- `docs/PHASE18_IMPLEMENTATION_LOG_390.md` — updated after CI completion to record terminal-green verification and complete workflow-dispatch audit.
+- `docs/PHASE18_IMPLEMENTATION_LOG_390.md` — updated after CI completion to record terminal-green verification, complete workflow-dispatch audit, and later continuation verification on branch HEAD.
 
 ### Deleted
 
@@ -88,6 +88,9 @@ Changing a production schema without a proven consumer/gate gap would increase c
 - Re-audited all 173 visible repository `workflow_dispatch` runs across both result pages; no First Genuine Golden v6 dispatch exists.
 - Probed the available runtime directly; CUDA/BF16 execution is unavailable as recorded above.
 - `Phase 18 Story Intelligence Verification` run `34504661080` / run number `5397` completed with conclusion `success` on exact CS390 SHA `92b0a0331610710cc9b3f39316780cb754f4f171`.
+- Continuation verification: `Phase 18 Story Intelligence Verification` run `34510618620` / run number `5400` completed with conclusion `success` on exact branch SHA `805d795a737bd8337742d13f1863094d73d16213`.
+- The six artifacts emitted by run `34510618620` were inspected by metadata. They are CI/editorial-study artifacts only; none is a dispatched `phase18-first-genuine-golden-v6` inference artifact and none can be promoted to a genuine Golden PNG.
+- `main` was re-read at `86e23081e8373720c287872d03d47185b0c946fe` and remained read-only throughout the continuation.
 
 No inference test was fabricated because the hardware precondition failed.
 
@@ -95,7 +98,7 @@ No inference test was fabricated because the hardware precondition failed.
 
 CS390 is terminal-green for its declared execution-readiness-audit scope.
 
-The terminal-green statement means only that the branch-only audit/documentation change passed the Phase 18 verification workflow on the exact CS390 commit. It does **not** mean that Genuine Golden inference has executed.
+The terminal-green statement means only that the branch-only audit/documentation change passed the Phase 18 verification workflow. It does **not** mean that Genuine Golden inference has executed.
 
 ## Gate status
 
