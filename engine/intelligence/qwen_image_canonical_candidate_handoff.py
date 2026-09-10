@@ -1,13 +1,18 @@
-"""CS301/358: seal a genuine canonical Qwen candidate for downstream gate handoff.
+"""CS301/358/384: seal a genuine canonical Qwen candidate for downstream gate handoff.
 
 The handoff is not an approval. It packages a replay-verified canonical candidate and
 its exact evidence lineage into one byte-bound artifact that downstream semantic,
 composition, visual-quality, human-review, brand/typography, Golden, and publication
 gates can consume without trusting directory convention or operator-selected files.
 
-CS358 also carries the CS357 exact local Qwen snapshot-byte inventory into the sealed
+CS358 carries the CS357 exact local Qwen snapshot-byte inventory into the sealed
 handoff so downstream QA can prove which already-local model/config/tokenizer bytes
 produced the candidate without weakening any later approval gate.
+
+CS384 additionally carries the exact CS351 static-readiness receipt binding already
+sealed through CS354 and CS357. Verification still freshly replays CS357, which in
+turn replays the inventory-bound launch manifest, so downstream consumers can audit
+the exact CUDA/native-BF16 preflight evidence without trusting copied metadata.
 """
 from __future__ import annotations
 
@@ -20,7 +25,7 @@ from typing import Any, Mapping
 from .qwen_image_inference_measurement import sha256_json
 from .qwen_image_launch_to_output_attestation import verify_launch_to_output_attestation
 
-SCHEMA = "pul7sar-phase18-qwen-image-2512-canonical-candidate-handoff-v1"
+SCHEMA = "pul7sar-phase18-qwen-image-2512-canonical-candidate-handoff-v2"
 STATUS = "QWEN_IMAGE_2512_CANONICAL_CANDIDATE_HANDOFF_SEALED"
 SOURCE_FILES = (
     "canonical_candidate.png",
@@ -87,9 +92,9 @@ def _snapshot_inventory_evidence(attestation: Mapping[str, Any]) -> dict[str, An
     revision = inventory.get("model_revision")
     if not _sha(digest):
         raise ValueError("QWEN_CANDIDATE_HANDOFF_SNAPSHOT_INVENTORY_DIGEST_INVALID")
-    if not isinstance(count, int) or count < 1:
+    if not isinstance(count, int) or isinstance(count, bool) or count < 1:
         raise ValueError("QWEN_CANDIDATE_HANDOFF_SNAPSHOT_INVENTORY_FILE_COUNT_INVALID")
-    if not isinstance(total, int) or total < 1:
+    if not isinstance(total, int) or isinstance(total, bool) or total < 1:
         raise ValueError("QWEN_CANDIDATE_HANDOFF_SNAPSHOT_INVENTORY_BYTE_COUNT_INVALID")
     if revision != attestation.get("model_revision"):
         raise ValueError("QWEN_CANDIDATE_HANDOFF_SNAPSHOT_INVENTORY_REVISION_DRIFT")
@@ -98,6 +103,28 @@ def _snapshot_inventory_evidence(attestation: Mapping[str, Any]) -> dict[str, An
         "snapshot_file_count": count,
         "snapshot_total_bytes": total,
         "model_revision": revision,
+    }
+
+
+def _readiness_evidence(attestation: Mapping[str, Any]) -> dict[str, Any]:
+    if attestation.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_AUTHORITY_MISSING")
+    readiness = attestation.get("static_readiness_receipt")
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if not isinstance(relative, str) or not relative or Path(relative).is_absolute():
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_PATH_INVALID")
+    if not _sha(digest):
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_DIGEST_INVALID")
+    if not isinstance(size, int) or isinstance(size, bool) or size < 1:
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
     }
 
 
@@ -129,6 +156,7 @@ def build_canonical_candidate_handoff(
         raise ValueError("QWEN_CANDIDATE_HANDOFF_GENUINE_INFERENCE_MISSING")
     _assert_downstream_closed(attestation, "QWEN_CANDIDATE_HANDOFF_PREMATURE_AUTHORITY")
     inventory_evidence = _snapshot_inventory_evidence(attestation)
+    readiness_evidence = _readiness_evidence(attestation)
 
     candidate_binding = _binding(
         output / "canonical_candidate.png", root, "QWEN_CANDIDATE_HANDOFF_CANDIDATE_INVALID"
@@ -166,6 +194,8 @@ def build_canonical_candidate_handoff(
         "inference_settings": dict(attestation.get("inference_settings", {})),
         "snapshot_byte_inventory": inventory_evidence,
         "snapshot_byte_inventory_verified": True,
+        "static_readiness_receipt": readiness_evidence,
+        "static_readiness_receipt_verified": True,
         "launch_to_output_binding_verified": True,
         "genuine_canonical_inference_executed": True,
         "handoff_sealed": True,
@@ -208,7 +238,7 @@ def build_canonical_candidate_handoff(
 
 
 def verify_canonical_candidate_handoff(path: Path, *, repo_root: Path) -> dict[str, Any]:
-    """Replay the sealed handoff, including exact sources and CS357 inventory lineage."""
+    """Replay the sealed handoff, including exact CS357 inventory/readiness lineage."""
     root = repo_root.resolve()
     receipt, _ = _repo_file(path, root, "QWEN_CANDIDATE_HANDOFF_RECEIPT_INVALID")
     try:
@@ -231,6 +261,8 @@ def verify_canonical_candidate_handoff(path: Path, *, repo_root: Path) -> dict[s
         raise ValueError("QWEN_CANDIDATE_HANDOFF_AUTHORITY_MISSING")
     if payload.get("snapshot_byte_inventory_verified") is not True:
         raise ValueError("QWEN_CANDIDATE_HANDOFF_SNAPSHOT_INVENTORY_AUTHORITY_MISSING")
+    if payload.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_AUTHORITY_MISSING")
     _assert_downstream_closed(payload, "QWEN_CANDIDATE_HANDOFF_DOWNSTREAM_AUTHORITY_DRIFT")
 
     bindings = payload.get("source_bindings")
@@ -257,6 +289,9 @@ def verify_canonical_candidate_handoff(path: Path, *, repo_root: Path) -> dict[s
     inventory_evidence = _snapshot_inventory_evidence(attestation)
     if payload.get("snapshot_byte_inventory") != inventory_evidence:
         raise ValueError("QWEN_CANDIDATE_HANDOFF_SNAPSHOT_INVENTORY_RECEIPT_DRIFT")
+    readiness_evidence = _readiness_evidence(attestation)
+    if payload.get("static_readiness_receipt") != readiness_evidence:
+        raise ValueError("QWEN_CANDIDATE_HANDOFF_READINESS_RECEIPT_DRIFT")
 
     candidate = payload.get("canonical_candidate_png")
     attested_candidate = attestation.get("canonical_candidate_png")
