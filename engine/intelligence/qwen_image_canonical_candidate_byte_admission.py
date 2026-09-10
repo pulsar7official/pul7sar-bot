@@ -11,6 +11,12 @@ the CS358 exact local Qwen snapshot-byte inventory lineage is sealed into the
 byte-admission receipt and replay-compared against a fresh canonical-candidate
 handoff verification before downstream post-generation QA can consume it.
 
+Change Set 385 additionally carries the exact CS351 CUDA/native-BF16 static-
+readiness receipt binding already sealed through CS354, CS357, and CS358.
+Verification freshly replays CS358 and compares that readiness binding so the
+admission boundary cannot silently discard or rewrite pre-inference host
+readiness provenance.
+
 Admission is still non-semantic and non-generative. It never upgrades a
 candidate into a Golden Visual and never grants publication authority.
 """
@@ -35,7 +41,7 @@ from engine.intelligence.qwen_image_one_shot_canonical_inference import (
 )
 
 CANONICAL_CANDIDATE_BYTE_ADMISSION_SCHEMA = (
-    "pul7sar-phase18-qwen-image-2512-canonical-candidate-byte-admission-v3"
+    "pul7sar-phase18-qwen-image-2512-canonical-candidate-byte-admission-v4"
 )
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 _REQUIRED_TRUE = (
@@ -139,6 +145,34 @@ def _snapshot_inventory_evidence(handoff: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _readiness_evidence(handoff: Mapping[str, Any]) -> dict[str, Any]:
+    """Extract only replay-verified CS358/CS351 static-readiness lineage."""
+    if handoff.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_AUTHORITY_MISSING")
+    readiness = handoff.get("static_readiness_receipt")
+    if not isinstance(readiness, Mapping):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_MISSING")
+    relative = readiness.get("repository_relative_path")
+    digest = readiness.get("sha256")
+    size = readiness.get("byte_size")
+    if (
+        not isinstance(relative, str)
+        or not relative
+        or Path(relative).is_absolute()
+        or ".." in Path(relative).parts
+    ):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_PATH_INVALID")
+    if not _is_sha256(digest):
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_DIGEST_INVALID")
+    if not isinstance(size, int) or isinstance(size, bool) or size < 1:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_BYTE_SIZE_INVALID")
+    return {
+        "repository_relative_path": relative,
+        "sha256": digest,
+        "byte_size": size,
+    }
+
+
 def _binding_path(
     repo_root: Path,
     binding: Mapping[str, Any],
@@ -192,6 +226,7 @@ def admit_canonical_candidate_bytes(
         raise ValueError("QWEN_CANDIDATE_ADMISSION_HANDOFF_SCHEMA_DRIFT")
     _assert_handoff_authority(handoff)
     inventory_evidence = _snapshot_inventory_evidence(handoff)
+    readiness_evidence = _readiness_evidence(handoff)
 
     bindings = handoff.get("source_bindings")
     if not isinstance(bindings, Mapping):
@@ -295,6 +330,8 @@ def admit_canonical_candidate_bytes(
         "inference_settings": dict(handoff.get("inference_settings", {})),
         "snapshot_byte_inventory": inventory_evidence,
         "snapshot_byte_inventory_verified": True,
+        "static_readiness_receipt": readiness_evidence,
+        "static_readiness_receipt_verified": True,
         "genuine_canonical_inference_executed": True,
         "handoff_sealed": True,
         "candidate_bytes_admitted_for_post_generation_qa": True,
@@ -332,7 +369,7 @@ def admit_canonical_candidate_bytes(
 def verify_canonical_candidate_byte_admission(
     receipt_path: Path, *, repo_root: Path
 ) -> dict[str, Any]:
-    """Replay admission, sealed CS358 handoff, exact candidate and snapshot lineage."""
+    """Replay admission, CS358 handoff, exact candidate, snapshot, and readiness lineage."""
     if receipt_path.is_symlink() or not receipt_path.is_file():
         raise ValueError("QWEN_CANDIDATE_ADMISSION_RECEIPT_INVALID")
     try:
@@ -353,6 +390,8 @@ def verify_canonical_candidate_byte_admission(
         raise ValueError("QWEN_CANDIDATE_ADMISSION_AUTHORITY_MISSING")
     if receipt.get("snapshot_byte_inventory_verified") is not True:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_AUTHORITY_MISSING")
+    if receipt.get("static_readiness_receipt_verified") is not True:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_AUTHORITY_MISSING")
 
     handoff_meta = receipt.get("source_candidate_handoff")
     source_meta = receipt.get("source_canonical_inference_receipt")
@@ -374,6 +413,9 @@ def verify_canonical_candidate_byte_admission(
         raise ValueError("QWEN_CANDIDATE_ADMISSION_SNAPSHOT_INVENTORY_RECEIPT_DRIFT")
     if receipt.get("model_revision") != inventory_evidence["model_revision"]:
         raise ValueError("QWEN_CANDIDATE_ADMISSION_MODEL_REVISION_DRIFT")
+    readiness_evidence = _readiness_evidence(handoff)
+    if receipt.get("static_readiness_receipt") != readiness_evidence:
+        raise ValueError("QWEN_CANDIDATE_ADMISSION_READINESS_RECEIPT_DRIFT")
 
     source_path = _binding_path(
         repo_root,
