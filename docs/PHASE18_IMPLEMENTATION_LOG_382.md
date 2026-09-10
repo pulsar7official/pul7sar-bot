@@ -54,7 +54,8 @@ Production manifest hardening: `cd6dfc2955d365333177af0127a830df80c9989d`.
 CLI wiring commits: `9006500d50b85806906c7dcddb37837ace6c4567`, then compatibility/default-path refinement `87f366563d2b3516f7b1dcbbe6dd550204757fe7`.
 Exact code-and-test-bearing SHA: `86d2d791616f1026daa84abda2f062cb1f6db4a8`.
 Changeset documentation commit: `6536d4d693dc2e485b4d1847bae911a5e3dcd762`.
-This implementation log is committed separately on the same branch.
+Initial implementation-log commit: `05ab556c96cb326121ea8934f961d0a3796e6063`.
+This terminal-green log update is committed separately on the same branch.
 
 ## Gate preservation
 
@@ -66,7 +67,9 @@ CS382 performs no model load, inference, pixel creation/mutation, upload, public
 
 Authoritative `Phase 18 Story Intelligence Verification` run `34435044526`, run number `5323`, was automatically triggered on exact code-and-test SHA `86d2d791616f1026daa84abda2f062cb1f6db4a8`.
 
-Status at initial log creation: `in_progress`. CS382 must not be called terminal-green unless this exact run (or a replacement run on a corrective exact code-and-test SHA) completes successfully.
+Result: `completed / success`.
+
+Every authoritative job step completed successfully, including `Syntax and discover validation`, `Completion and production isolation`, all visual-study and Golden handoff build/verify steps, and artifact uploads. Therefore CS382 is terminal-green on exact code-and-test SHA `86d2d791616f1026daa84abda2f062cb1f6db4a8`.
 
 ## Genuine Golden execution blocker
 
@@ -76,4 +79,4 @@ No fixture or synthetic PNG is treated as a production Golden Visual.
 
 ## Remaining gap
 
-First, obtain terminal-green CI for this exact readiness-binding change. Then the existing canonical workflow can advance on a compatible GPU host through exact CS351 readiness, CS354 readiness+snapshot-byte-bound launch, manifest-derived canonical execution, postflight attestation, candidate handoff, semantic/identity routing, and the already hardened downstream Golden/publication gates. The actual first Qwen model-load/inference attempt remains the only valid proof of resource sufficiency.
+CS382 is terminal-green. The existing canonical workflow can now advance on a compatible GPU host through exact CS351 readiness, CS354 readiness+snapshot-byte-bound launch, manifest-derived canonical execution, postflight attestation, candidate handoff, semantic/identity routing, and the already hardened downstream Golden/publication gates. The actual first Qwen model-load/inference attempt remains the only valid proof of resource sufficiency.
