@@ -49,10 +49,11 @@ None added or changed.
 
 - CS386 exact production code-and-test SHA: `be97d7469eb211b6c67e5cbf3c7ad98e9830f1e9`
 - CS386 changeset documentation: `6e8916dfbaeb487bf8e6d34c6183a08d6873ddf2`
+- Initial CS386 implementation-log commit: `d9ae622de715767c84a8651c3cd0f3cdbc39899b`
 
 ## Test status
 
-Regression tests are present on exact code-and-test SHA `be97d7469eb211b6c67e5cbf3c7ad98e9830f1e9`. GitHub Actions remains authoritative for terminal-green status. CS386 must not be described as terminal-green until `Phase 18 Story Intelligence Verification` reports `completed / success` for that SHA or a later SHA containing the same production code and tests.
+**TERMINAL-GREEN.** `Phase 18 Story Intelligence Verification` pull-request run `#5362` / `34452521995` completed with `success` on the exact code-and-test-bearing SHA `be97d7469eb211b6c67e5cbf3c7ad98e9830f1e9`. Its `Syntax and discover validation`, `Completion and production isolation`, all visual-study/Golden verification steps, and artifact upload steps completed successfully. CS386 is therefore closed.
 
 ## Gate preservation
 
@@ -62,4 +63,4 @@ CS360 still cannot create identity approval, final semantic approval, Human Revi
 
 ## Genuine Golden PNG status
 
-No production Genuine Golden PNG was created or claimed by CS386. Genuine Qwen-Image inference still requires a compatible zero-cost NVIDIA CUDA host with CUDA-enabled PyTorch, native BF16, sufficient RAM/VRAM, and the approved already-local pinned Qwen assets.
+No production Genuine Golden PNG was created or claimed by CS386. The execution environment checked during this change set reports CPU-only PyTorch (`2.10.0+cpu`), `cuda_available=False`, `torch_cuda_version=None`, `cuda_device_count=0`, `native_bf16=False`, and `nvidia-smi=unavailable`. Genuine Qwen-Image inference therefore still requires a compatible zero-cost NVIDIA CUDA host with CUDA-enabled PyTorch, native BF16, sufficient RAM/VRAM, and the approved already-local pinned Qwen assets.
