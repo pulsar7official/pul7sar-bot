@@ -16,8 +16,10 @@ from engine.intelligence.qwen_image_canonical_candidate_identity_requirement imp
 from engine.intelligence.qwen_image_canonical_candidate_semantic_base_qa import (
     CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
 )
+from engine.intelligence.qwen_image_inference_measurement import sha256_json
 
 STORY_SHA = "a" * 64
+READINESS_SHA = "9" * 64
 
 
 def _write(path: Path, payload: dict) -> bytes:
@@ -50,6 +52,11 @@ class CS265IdentityRequirementTests(unittest.TestCase):
             "exact_entity_assets": [],
         }
         evidence_raw = _write(evidence_path, evidence)
+        readiness = {
+            "repository_relative_path": "runs/static-readiness.json",
+            "sha256": READINESS_SHA,
+            "byte_size": 321,
+        }
         source = {
             "schema": CANONICAL_CANDIDATE_SEMANTIC_BASE_QA_SCHEMA,
             "receipt_sha256": "d" * 64,
@@ -60,6 +67,8 @@ class CS265IdentityRequirementTests(unittest.TestCase):
                 "sha256": hashlib.sha256(candidate_raw).hexdigest(),
                 "byte_size": len(candidate_raw),
             },
+            "static_readiness_receipt": readiness,
+            "static_readiness_receipt_verified": True,
             "identity_approved": False,
             "semantic_approved": False,
             "human_visual_review_approved": False,
@@ -112,13 +121,15 @@ class CS265IdentityRequirementTests(unittest.TestCase):
     def test_human_entity_requires_pixel_identity_review(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            result, receipt, _, _, _, lineage, _, _, _ = self._build(root)
+            result, receipt, source, _, _, lineage, _, _, _ = self._build(root)
             self.assertTrue(result.pixel_identity_review_required)
             self.assertFalse(receipt["identity_approved"])
             self.assertFalse(receipt["publication_ready"])
             self.assertEqual(receipt["human_identity_targets"][0]["display_name"], "Test Player")
             self.assertIn("source_cs264_receipt", receipt)
             self.assertEqual(receipt["lineage_bound_identity_source"], lineage)
+            self.assertTrue(receipt["static_readiness_receipt_verified"])
+            self.assertEqual(receipt["static_readiness_receipt"], source["static_readiness_receipt"])
 
     def test_nonhuman_entity_does_not_claim_identity_approval(self):
         with tempfile.TemporaryDirectory() as td:
@@ -131,6 +142,53 @@ class CS265IdentityRequirementTests(unittest.TestCase):
         parameters = inspect.signature(run_identity_requirement).parameters
         self.assertNotIn("cs257_run_dir", parameters)
         self.assertEqual(list(parameters), ["cs264_receipt_path", "output_dir", "repo_root"])
+
+    def test_unverified_readiness_is_rejected_before_identity_lineage(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source, evidence, identity_binding, lineage, _, _, cs264 = self._fixture(root)
+            source["static_readiness_receipt_verified"] = False
+            semantic_target = (
+                "engine.intelligence.qwen_image_canonical_candidate_identity_requirement."
+                "verify_canonical_candidate_semantic_base_qa"
+            )
+            lineage_target = (
+                "engine.intelligence.qwen_image_canonical_candidate_identity_requirement."
+                "_lineage_bound_identity"
+            )
+            with patch(semantic_target, return_value=source), patch(
+                lineage_target,
+                return_value=(evidence, identity_binding, lineage),
+            ) as lineage_mock:
+                with self.assertRaisesRegex(ValueError, "READINESS_AUTHORITY_MISSING"):
+                    run_identity_requirement(cs264, root / "out", repo_root=root)
+                lineage_mock.assert_not_called()
+
+    def test_readiness_digest_tampering_is_rejected_after_outer_digest_recomputed(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            result, _, source, evidence, identity_binding, lineage, _, _, _ = self._build(root)
+            payload = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+            payload["static_readiness_receipt"]["sha256"] = "8" * 64
+            payload.pop("receipt_sha256", None)
+            payload["receipt_sha256"] = sha256_json(payload)
+            result.receipt_path.write_text(
+                json.dumps(payload, separators=(",", ":")) + "\n", encoding="utf-8"
+            )
+            semantic_target = (
+                "engine.intelligence.qwen_image_canonical_candidate_identity_requirement."
+                "verify_canonical_candidate_semantic_base_qa"
+            )
+            lineage_target = (
+                "engine.intelligence.qwen_image_canonical_candidate_identity_requirement."
+                "_lineage_bound_identity"
+            )
+            with patch(semantic_target, return_value=source), patch(
+                lineage_target,
+                return_value=(evidence, identity_binding, lineage),
+            ):
+                with self.assertRaisesRegex(ValueError, "READINESS_RECEIPT_DRIFT"):
+                    verify_identity_requirement(result.receipt_path, repo_root=root)
 
     def test_launch_bound_identity_evidence_byte_drift_is_rejected(self):
         with tempfile.TemporaryDirectory() as td:
