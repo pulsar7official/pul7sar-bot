@@ -40,6 +40,12 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
                 "model_revision": revision,
             },
             "snapshot_byte_inventory_verified": True,
+            "static_readiness_receipt": {
+                "repository_relative_path": "runs/readiness/static-readiness.json",
+                "sha256": "d" * 64,
+                "byte_size": 321,
+            },
+            "static_readiness_receipt_verified": True,
             "canonical_candidate_png": {
                 "repository_relative_path": candidate.as_posix(),
                 "sha256": hashlib.sha256(raw).hexdigest(),
@@ -82,6 +88,8 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
             self.assertTrue(payload["genuine_canonical_inference_executed"])
             self.assertTrue(payload["snapshot_byte_inventory_verified"])
             self.assertEqual(payload["snapshot_byte_inventory"], attestation["snapshot_byte_inventory"])
+            self.assertTrue(payload["static_readiness_receipt_verified"])
+            self.assertEqual(payload["static_readiness_receipt"], attestation["static_readiness_receipt"])
             self.assertFalse(payload["semantic_approved"])
             self.assertFalse(payload["golden_quality_approved"])
             self.assertFalse(payload["genuine_golden_png_created"])
@@ -129,6 +137,26 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
                         repo_root=root,
                     )
 
+    def test_build_rejects_missing_static_readiness_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = self._materialize(root)
+            attestation = self._attestation(output)
+            attestation["canonical_candidate_png"]["repository_relative_path"] = (
+                output / "canonical_candidate.png"
+            ).relative_to(root).as_posix()
+            attestation["static_readiness_receipt_verified"] = False
+            with patch(
+                "engine.intelligence.qwen_image_canonical_candidate_handoff.verify_launch_to_output_attestation",
+                return_value=attestation,
+            ):
+                with self.assertRaisesRegex(ValueError, "READINESS_AUTHORITY_MISSING"):
+                    build_canonical_candidate_handoff(
+                        output,
+                        output / "canonical_candidate_handoff.json",
+                        repo_root=root,
+                    )
+
     def test_verify_detects_source_byte_drift(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -167,6 +195,28 @@ class QwenImageCanonicalCandidateHandoffTests(unittest.TestCase):
                 payload["handoff_sha256"] = sha256_json(payload)
                 handoff.write_text(json.dumps(payload) + "\n", encoding="utf-8")
                 with self.assertRaisesRegex(ValueError, "SNAPSHOT_INVENTORY_RECEIPT_DRIFT"):
+                    verify_canonical_candidate_handoff(handoff, repo_root=root)
+
+    def test_verify_rejects_readiness_receipt_drift_even_with_valid_handoff_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = self._materialize(root)
+            attestation = self._attestation(output)
+            attestation["canonical_candidate_png"]["repository_relative_path"] = (
+                output / "canonical_candidate.png"
+            ).relative_to(root).as_posix()
+            handoff = output / "canonical_candidate_handoff.json"
+            with patch(
+                "engine.intelligence.qwen_image_canonical_candidate_handoff.verify_launch_to_output_attestation",
+                return_value=attestation,
+            ):
+                build_canonical_candidate_handoff(output, handoff, repo_root=root)
+                payload = json.loads(handoff.read_text(encoding="utf-8"))
+                payload["static_readiness_receipt"]["sha256"] = "e" * 64
+                payload.pop("handoff_sha256")
+                payload["handoff_sha256"] = sha256_json(payload)
+                handoff.write_text(json.dumps(payload) + "\n", encoding="utf-8")
+                with self.assertRaisesRegex(ValueError, "READINESS_RECEIPT_DRIFT"):
                     verify_canonical_candidate_handoff(handoff, repo_root=root)
 
     def test_verify_rejects_handoff_authority_tampering(self) -> None:
