@@ -5,6 +5,7 @@ import unittest
 
 from engine.intelligence.qwen_image_launch_to_output_attestation import (
     _assert_join,
+    _readiness_evidence,
     _snapshot_inventory_evidence,
 )
 
@@ -28,6 +29,11 @@ def _records():
             "snapshot_inventory_sha256": "c" * 64,
             "snapshot_file_count": 17,
             "snapshot_total_bytes": 123456,
+        },
+        "static_readiness_receipt": {
+            "repository_relative_path": "output/phase18_qwen_image/static-readiness.json",
+            "sha256": "e" * 64,
+            "byte_size": 2048,
         },
         "inference_settings": {
             "width": 1024,
@@ -84,6 +90,34 @@ class LaunchToOutputAttestationTests(unittest.TestCase):
         self.assertEqual(evidence["snapshot_total_bytes"], 123456)
         self.assertEqual(evidence["model_revision"], launch["model_revision"])
 
+    def test_readiness_evidence_accepts_exact_bound_receipt(self) -> None:
+        launch, _, _ = _records()
+        evidence = _readiness_evidence(launch)
+        self.assertEqual(
+            evidence["repository_relative_path"],
+            "output/phase18_qwen_image/static-readiness.json",
+        )
+        self.assertEqual(evidence["sha256"], "e" * 64)
+        self.assertEqual(evidence["byte_size"], 2048)
+
+    def test_readiness_evidence_rejects_missing_receipt(self) -> None:
+        launch, _, _ = _records()
+        launch.pop("static_readiness_receipt")
+        with self.assertRaisesRegex(ValueError, "READINESS_MISSING"):
+            _readiness_evidence(launch)
+
+    def test_readiness_evidence_rejects_digest_drift(self) -> None:
+        launch, _, _ = _records()
+        launch["static_readiness_receipt"]["sha256"] = "not-a-sha"
+        with self.assertRaisesRegex(ValueError, "READINESS_DIGEST_INVALID"):
+            _readiness_evidence(launch)
+
+    def test_readiness_evidence_rejects_absolute_path(self) -> None:
+        launch, _, _ = _records()
+        launch["static_readiness_receipt"]["repository_relative_path"] = "/tmp/static-readiness.json"
+        with self.assertRaisesRegex(ValueError, "READINESS_PATH_INVALID"):
+            _readiness_evidence(launch)
+
     def test_inventory_evidence_rejects_missing_inventory(self) -> None:
         launch, _, _ = _records()
         launch.pop("snapshot_byte_inventory")
@@ -126,18 +160,21 @@ class LaunchToOutputAttestationTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "PREMATURE_AUTHORITY:genuine_golden_png_created"):
             _assert_join(launch, provenance, canonical)
 
-    def test_attestation_module_requires_inventory_bound_manifest_replay(self) -> None:
+    def test_attestation_module_requires_readiness_and_inventory_bound_manifest_replay(self) -> None:
         root = Path(__file__).resolve().parents[1]
         source = (
             root / "engine/intelligence/qwen_image_launch_to_output_attestation.py"
         ).read_text(encoding="utf-8")
         self.assertIn("verify_inventory_bound_gpu_host_launch_manifest", source)
+        self.assertIn("READINESS_FIELD", source)
         self.assertNotIn(
             "from .qwen_image_gpu_host_launch_manifest import verify_gpu_host_launch_manifest",
             source,
         )
         self.assertIn('"snapshot_byte_inventory_verified": True', source)
+        self.assertIn('"static_readiness_receipt_verified": True', source)
         self.assertIn("QWEN_LAUNCH_OUTPUT_SNAPSHOT_INVENTORY_RECEIPT_DRIFT", source)
+        self.assertIn("QWEN_LAUNCH_OUTPUT_READINESS_RECEIPT_DRIFT", source)
 
     def test_production_cli_materializes_and_replays_postflight_attestation(self) -> None:
         root = Path(__file__).resolve().parents[1]
