@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path
+import tempfile
+import unittest
+from unittest import mock
+
+import sys
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools"))
+
+import phase18_verify_first_genuine_golden_v6_source_bound_artifact as source_bound
+
+SOURCE_SHA = "1" * 40
+
+
+def _resource_lock() -> dict[str, object]:
+    return {
+        "schema": "pul7sar-first-genuine-golden-v6-resource-lock-v4",
+        "status": "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED",
+        "branch": "phase18/story-intelligence",
+        "candidate": 1,
+        "human_visual_review_approved": False,
+        "golden_quality_approved": False,
+        "publication_ready": False,
+        "seeds_2_to_4_authorized": False,
+    }
+
+
+def _replay_result() -> dict[str, object]:
+    return {
+        "status": "FIRST_GENUINE_GOLDEN_V6_ARTIFACT_REPLAY_VERIFIED",
+        "branch": "phase18/story-intelligence",
+        "candidate": 1,
+        "cost_mode": "$0-local",
+        "evidence_files_verified": 9,
+        "evidence_semantics_verified": True,
+        "png": "/artifact/candidate.png",
+        "png_sha256": "2" * 64,
+        "png_bytes": 123,
+        "human_visual_review_approved": False,
+        "golden_quality_approved": False,
+        "publication_ready": False,
+        "seeds_2_to_4_authorized": False,
+    }
+
+
+class SourceBoundArtifactReplayTests(unittest.TestCase):
+    def _fixture(self, root: Path, *, source_sha: str = SOURCE_SHA, flattened: bool = False) -> Path:
+        receipt = root / "resource-lock.json"
+        receipt.write_text(json.dumps(_resource_lock(), sort_keys=True), encoding="utf-8")
+        data = receipt.read_bytes()
+        prefix = root if flattened else root / "output"
+        binding = prefix / "phase18_gpu_smoke" / "first-genuine-golden-v6-source-binding.json"
+        binding.parent.mkdir(parents=True, exist_ok=True)
+        binding.write_text(
+            json.dumps(
+                {
+                    "schema": "pul7sar-first-genuine-golden-v6-source-binding-v1",
+                    "status": "FIRST_GENUINE_GOLDEN_V6_SOURCE_COMMIT_BOUND",
+                    "branch": "phase18/story-intelligence",
+                    "candidate": 1,
+                    "source_commit_sha": source_sha,
+                    "resource_lock_sha256": hashlib.sha256(data).hexdigest(),
+                    "resource_lock_bytes": len(data),
+                    "human_visual_review_approved": False,
+                    "golden_quality_approved": False,
+                    "publication_ready": False,
+                    "seeds_2_to_4_authorized": False,
+                },
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+        )
+        return receipt
+
+    def test_accepts_exact_external_source_sha_without_opening_authority(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+            self.assertEqual(result["status"], "FIRST_GENUINE_GOLDEN_V6_SOURCE_BOUND_ARTIFACT_REPLAY_VERIFIED")
+            self.assertEqual(result["source_commit_sha"], SOURCE_SHA)
+            self.assertTrue(result["source_commit_verified"])
+            self.assertFalse(result["publication_ready"])
+            self.assertFalse(result["golden_quality_approved"])
+
+    def test_accepts_upload_artifact_flattened_output_topology(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root, flattened=True)
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+            self.assertEqual(Path(result["source_binding"]), (root / "phase18_gpu_smoke" / "first-genuine-golden-v6-source-binding.json").resolve())
+
+    def test_rejects_binding_to_different_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root, source_sha="3" * 40)
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                with self.assertRaisesRegex(RuntimeError, "SOURCE_COMMIT_DRIFT"):
+                    source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+
+    def test_rejects_resource_lock_tampering_after_source_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            receipt.write_text(json.dumps({**_resource_lock(), "tampered": True}), encoding="utf-8")
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                with self.assertRaisesRegex(RuntimeError, "RESOURCE_LOCK_SHA_DRIFT|RESOURCE_LOCK_BYTES_DRIFT"):
+                    source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+
+    def test_rejects_missing_source_binding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = root / "resource-lock.json"
+            receipt.write_text(json.dumps(_resource_lock()), encoding="utf-8")
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                with self.assertRaisesRegex(RuntimeError, "SOURCE_BINDING_ARTIFACT_MISSING"):
+                    source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+
+    def test_rejects_ambiguous_source_binding_topology(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            flattened = root / "phase18_gpu_smoke" / "first-genuine-golden-v6-source-binding.json"
+            flattened.parent.mkdir(parents=True, exist_ok=True)
+            flattened.write_bytes((root / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-source-binding.json").read_bytes())
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                with self.assertRaisesRegex(RuntimeError, "SOURCE_BINDING_ARTIFACT_AMBIGUOUS"):
+                    source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+
+
+if __name__ == "__main__":
+    unittest.main()
