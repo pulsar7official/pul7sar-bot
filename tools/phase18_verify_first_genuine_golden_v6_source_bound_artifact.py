@@ -6,11 +6,12 @@ exact source-commit envelope produced by the Golden v6 workflow. It performs no
 model loading, generation, network access, Human Review, Golden approval, or
 publication action.
 
-When invoked from the CLI, it also writes an atomic artifact-readiness manifest
-next to the resource-lock receipt. The readiness filename and payload are bound
-to the immutable GitHub Actions run id and run attempt. This makes a marker from
-a previous self-hosted-runner workspace distinguishable from the current run,
-even when ``if: always()`` uploads diagnostic output after an early failure.
+The default CLI path writes an atomic artifact-readiness manifest next to the
+resource-lock receipt. The readiness filename and payload are bound to the
+immutable GitHub Actions run id and run attempt. The ``--verify-existing-ready``
+mode is deliberately read-only: it replays an already-uploaded readiness marker
+without deleting, rewriting, or normalizing it, so a downloaded artifact can be
+independently checked exactly as uploaded.
 """
 from __future__ import annotations
 
@@ -203,6 +204,47 @@ def write_artifact_ready_manifest(
     return manifest
 
 
+def resolve_existing_artifact_ready_manifest(
+    receipt_path: Path,
+    *,
+    workflow_run_id: object,
+    workflow_run_attempt: object,
+) -> Path:
+    receipt_path = receipt_path.resolve()
+    expected_name = artifact_ready_filename(workflow_run_id, workflow_run_attempt)
+    ready_path = receipt_path.parent / expected_name
+    if not ready_path.is_file():
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_MANIFEST_MISSING")
+    return ready_path
+
+
+def replay_existing_artifact_ready_manifest(
+    receipt_path: Path,
+    result: dict[str, object],
+    *,
+    workflow_run_id: object,
+    workflow_run_attempt: object,
+) -> Path:
+    ready_path = resolve_existing_artifact_ready_manifest(
+        receipt_path,
+        workflow_run_id=workflow_run_id,
+        workflow_run_attempt=workflow_run_attempt,
+    )
+    try:
+        manifest = json.loads(ready_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_MANIFEST_INVALID_JSON") from exc
+    if not isinstance(manifest, dict):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_MANIFEST_INVALID_OBJECT")
+    verify_artifact_ready_manifest(
+        manifest,
+        result,
+        expected_workflow_run_id=workflow_run_id,
+        expected_workflow_run_attempt=workflow_run_attempt,
+    )
+    return ready_path
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("receipt", type=Path)
@@ -210,6 +252,11 @@ def main() -> int:
     parser.add_argument("--expected-source-sha", required=True)
     parser.add_argument("--workflow-run-id", default=os.environ.get("GITHUB_RUN_ID"))
     parser.add_argument("--workflow-run-attempt", default=os.environ.get("GITHUB_RUN_ATTEMPT"))
+    parser.add_argument(
+        "--verify-existing-ready",
+        action="store_true",
+        help="read-only replay of the run-bound readiness marker already present beside the receipt",
+    )
     args = parser.parse_args()
 
     run_id = _positive_int(args.workflow_run_id, label="WORKFLOW_RUN_ID")
@@ -217,17 +264,35 @@ def main() -> int:
     ready_dir = args.receipt.resolve().parent
     ready_path = ready_dir / artifact_ready_filename(run_id, run_attempt)
 
-    # Remove only a same-run partial marker plus the obsolete v1 canonical name.
-    # Markers from other run ids are deliberately not trusted; their distinct
-    # filenames make stale self-hosted-runner output externally detectable.
-    ready_path.unlink(missing_ok=True)
-    (ready_dir / LEGACY_ARTIFACT_READY_FILENAME).unlink(missing_ok=True)
-
     result = verify(
         args.receipt,
         artifact_root=args.artifact_root,
         expected_source_sha=args.expected_source_sha,
     )
+
+    if args.verify_existing_ready:
+        verified_path = replay_existing_artifact_ready_manifest(
+            args.receipt,
+            result,
+            workflow_run_id=run_id,
+            workflow_run_attempt=run_attempt,
+        )
+        result = dict(result)
+        result.update(
+            {
+                "artifact_ready_manifest": str(verified_path),
+                "artifact_ready_manifest_verified": True,
+                "artifact_ready_manifest_rewritten": False,
+            }
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
+
+    # Producer mode: remove only a same-run partial marker plus the obsolete v1
+    # canonical name, then atomically create the run-bound readiness marker.
+    ready_path.unlink(missing_ok=True)
+    (ready_dir / LEGACY_ARTIFACT_READY_FILENAME).unlink(missing_ok=True)
+
     manifest = write_artifact_ready_manifest(
         ready_path,
         result,
