@@ -72,11 +72,13 @@ class FluxModelRevisionLockTests(unittest.TestCase):
         self.assertEqual(calls[0][1]["revision"], FLUX2_KLEIN_4B_REVISION)
         self.assertEqual(calls[0][1]["torch_dtype"], "bf16")
 
-    def test_prefetch_command_pins_same_revision_for_cache_and_download(self):
+    def test_prefetch_command_pins_same_revision_for_local_cache_proof(self):
         text = Path("tools/phase18_prefetch_flux2.py").read_text(encoding="utf-8")
+        self.assertIn("_require_cached_snapshot(", text)
+        self.assertIn("FLUX2_KLEIN_4B_LOCAL.model_id", text)
         self.assertIn("FLUX2_KLEIN_4B_REVISION", text)
         self.assertIn("revision=revision", text)
-        self.assertIn("revision=FLUX2_KLEIN_4B_REVISION", text)
+        self.assertIn("local_files_only=True", text)
         self.assertIn('"schema": "pul7sar-phase18-model-cache-v2"', text)
         self.assertIn('"revision_pinned": True', text)
         self.assertIn("assert_snapshot_revision", text)
