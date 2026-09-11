@@ -3,8 +3,8 @@
 
 This verifier is intentionally CPU-safe. It does not generate pixels, load models,
 perform network access, or grant Human Review / Golden Quality / publication
-authority. It only replays the final resource-lock receipt against the PNG bytes
-present in an extracted workflow artifact.
+authority. It independently replays the final resource-lock receipt, every bound
+evidence file, and the PNG bytes present in an extracted workflow artifact.
 """
 from __future__ import annotations
 
@@ -18,6 +18,19 @@ EXPECTED_STATUS = "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+EXPECTED_EVIDENCE = frozenset(
+    {
+        "gpu_host_qualification",
+        "host_memory_preflight",
+        "cache_budget",
+        "semantic_preflight",
+        "qwen_model_cache",
+        "flux_model_cache",
+        "runtime_fingerprint_pre",
+        "runtime_fingerprint_post",
+        "strict_golden_staging",
+    }
+)
 FAIL_CLOSED_FIELDS = (
     "human_visual_review_approved",
     "golden_quality_approved",
@@ -36,46 +49,75 @@ def _sha256(path: Path) -> str:
 
 def _safe_candidate(root: Path, relative: PurePosixPath) -> Path:
     if relative.is_absolute() or ".." in relative.parts:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PATH_ESCAPES_ARTIFACT_ROOT")
     candidate = root.joinpath(*relative.parts).resolve()
     if candidate != root and root not in candidate.parents:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PATH_ESCAPES_ARTIFACT_ROOT")
     return candidate
 
 
-def _artifact_png(root: Path, recorded: str) -> Path:
-    """Resolve a runner-recorded output path inside an extracted upload-artifact.
+def _artifact_output_file(root: Path, recorded: str, *, kind: str) -> Path:
+    """Resolve one producer-recorded ``output/...`` path inside an artifact.
 
-    The producer records repository/runner paths (often absolute). The workflow
-    uploads multiple ``output/...`` paths, so upload-artifact uses their least
-    common ancestor as the archive root. A downloaded artifact can therefore
-    contain ``phase18_generated/...`` rather than ``output/phase18_generated/...``.
-    Only the suffix rooted at the literal ``output`` segment is eligible for
-    rebasing; arbitrary absolute paths are never trusted.
+    The producer records repository/runner paths, often absolute. upload-artifact
+    receives several ``output/...`` paths and may strip that least-common-ancestor
+    directory. Only the suffix rooted at the literal ``output`` segment may be
+    rebased into the extracted artifact; arbitrary runner paths are never trusted.
     """
     normalized = recorded.replace("\\", "/")
     parts = PurePosixPath(normalized).parts
     try:
         output_index = parts.index("output")
     except ValueError as exc:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_PATH_NOT_OUTPUT_ROOTED") from exc
+        raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_{kind}_PATH_NOT_OUTPUT_ROOTED") from exc
 
     suffix = PurePosixPath(*parts[output_index + 1 :])
     if not suffix.parts or ".." in suffix.parts:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_ESCAPES_ARTIFACT_ROOT")
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PATH_ESCAPES_ARTIFACT_ROOT")
 
-    # Support both the native upload-artifact layout (LCA ``output`` stripped)
-    # and an explicitly rewrapped extraction that retains the ``output`` folder.
     candidates = (
         _safe_candidate(root, suffix),
         _safe_candidate(root, PurePosixPath("output") / suffix),
     )
     existing = [candidate for candidate in candidates if candidate.is_file()]
     if not existing:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_MISSING")
+        raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_{kind}_MISSING")
     if len(existing) > 1 and existing[0] != existing[1]:
-        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_PATH_AMBIGUOUS")
+        raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_{kind}_PATH_AMBIGUOUS")
     return existing[0]
+
+
+def _artifact_png(root: Path, recorded: str) -> Path:
+    return _artifact_output_file(root, recorded, kind="PNG")
+
+
+def _verify_evidence(root: Path, payload: dict[str, object]) -> dict[str, Path]:
+    evidence = payload.get("evidence")
+    if not isinstance(evidence, dict) or set(evidence) != EXPECTED_EVIDENCE:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SET_INCOMPLETE")
+
+    resolved: dict[str, Path] = {}
+    for label in sorted(EXPECTED_EVIDENCE):
+        record = evidence.get(label)
+        if not isinstance(record, dict):
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_RECORD_INVALID:{label}")
+        recorded_path = record.get("path")
+        expected_sha = record.get("sha256")
+        expected_bytes = record.get("bytes")
+        if not isinstance(recorded_path, str) or not recorded_path.strip():
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_PATH_INVALID:{label}")
+        if not isinstance(expected_sha, str) or len(expected_sha) != 64:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SHA_INVALID:{label}")
+        if isinstance(expected_bytes, bool) or not isinstance(expected_bytes, int) or expected_bytes <= 0:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_BYTE_COUNT_INVALID:{label}")
+
+        evidence_path = _artifact_output_file(root, recorded_path, kind="EVIDENCE")
+        if evidence_path.stat().st_size != expected_bytes:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_BYTE_COUNT_DRIFT:{label}")
+        if _sha256(evidence_path) != expected_sha:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SHA_DRIFT:{label}")
+        resolved[label] = evidence_path
+    return resolved
 
 
 def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str, object]:
@@ -105,6 +147,15 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
         if payload.get(field) is not False:
             raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_ILLEGAL_AUTHORITY:{field}")
 
+    resolved_evidence = _verify_evidence(root, payload)
+
+    staging_receipt = payload.get("staging_receipt")
+    if not isinstance(staging_receipt, str) or not staging_receipt.strip():
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_STAGING_RECEIPT_PATH_MISSING")
+    resolved_staging = _artifact_output_file(root, staging_receipt, kind="STAGING_RECEIPT")
+    if resolved_staging != resolved_evidence["strict_golden_staging"]:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_STAGING_RECEIPT_BINDING_DRIFT")
+
     png_value = payload.get("png")
     if not isinstance(png_value, str) or not png_value.strip():
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_PNG_PATH_MISSING")
@@ -129,6 +180,7 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
         "candidate": 1,
         "branch": EXPECTED_BRANCH,
         "cost_mode": EXPECTED_COST_MODE,
+        "evidence_files_verified": len(resolved_evidence),
         "png": str(png),
         "png_sha256": actual_sha,
         "png_bytes": expected_bytes,
