@@ -138,6 +138,82 @@ class ArtifactReadyManifestTests(unittest.TestCase):
             self.assertFalse(destination.with_name(destination.name + ".tmp").exists())
             self.assertEqual(json.loads(destination.read_text(encoding="utf-8")), manifest)
 
+    def test_replays_existing_uploaded_manifest_without_rewriting_it(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "phase18_gpu_smoke"
+            directory.mkdir(parents=True)
+            receipt = directory / "first-genuine-golden-v6-resource-lock.json"
+            receipt.write_text("{}\n", encoding="utf-8")
+            ready = directory / source_bound.artifact_ready_filename(RUN_ID, RUN_ATTEMPT)
+            original = json.dumps(_build(), indent=2, sort_keys=True) + "\n"
+            ready.write_text(original, encoding="utf-8")
+
+            verified_path = source_bound.replay_existing_artifact_ready_manifest(
+                receipt,
+                _verified_result(),
+                workflow_run_id=RUN_ID,
+                workflow_run_attempt=RUN_ATTEMPT,
+            )
+
+            self.assertEqual(verified_path, ready.resolve())
+            self.assertEqual(ready.read_text(encoding="utf-8"), original)
+
+    def test_existing_ready_replay_rejects_missing_tampered_or_wrong_run_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "phase18_gpu_smoke"
+            directory.mkdir(parents=True)
+            receipt = directory / "first-genuine-golden-v6-resource-lock.json"
+            receipt.write_text("{}\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "MANIFEST_MISSING"):
+                source_bound.replay_existing_artifact_ready_manifest(
+                    receipt,
+                    _verified_result(),
+                    workflow_run_id=RUN_ID,
+                    workflow_run_attempt=RUN_ATTEMPT,
+                )
+
+            wrong_run = directory / source_bound.artifact_ready_filename(RUN_ID + 1, RUN_ATTEMPT)
+            wrong_run.write_text(json.dumps(_build()) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "MANIFEST_MISSING"):
+                source_bound.replay_existing_artifact_ready_manifest(
+                    receipt,
+                    _verified_result(),
+                    workflow_run_id=RUN_ID,
+                    workflow_run_attempt=RUN_ATTEMPT,
+                )
+
+            ready = directory / source_bound.artifact_ready_filename(RUN_ID, RUN_ATTEMPT)
+            tampered = _build()
+            tampered["publication_ready"] = True
+            ready.write_text(json.dumps(tampered) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "REPLAY_MISMATCH"):
+                source_bound.replay_existing_artifact_ready_manifest(
+                    receipt,
+                    _verified_result(),
+                    workflow_run_id=RUN_ID,
+                    workflow_run_attempt=RUN_ATTEMPT,
+                )
+
+    def test_existing_ready_replay_rejects_invalid_json_without_mutation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp) / "phase18_gpu_smoke"
+            directory.mkdir(parents=True)
+            receipt = directory / "first-genuine-golden-v6-resource-lock.json"
+            receipt.write_text("{}\n", encoding="utf-8")
+            ready = directory / source_bound.artifact_ready_filename(RUN_ID, RUN_ATTEMPT)
+            invalid = "{not-json}\n"
+            ready.write_text(invalid, encoding="utf-8")
+
+            with self.assertRaisesRegex(RuntimeError, "INVALID_JSON"):
+                source_bound.replay_existing_artifact_ready_manifest(
+                    receipt,
+                    _verified_result(),
+                    workflow_run_id=RUN_ID,
+                    workflow_run_attempt=RUN_ATTEMPT,
+                )
+            self.assertEqual(ready.read_text(encoding="utf-8"), invalid)
+
 
 if __name__ == "__main__":
     unittest.main()
