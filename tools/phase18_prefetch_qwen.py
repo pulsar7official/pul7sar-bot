@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Prefetch the immutable local Qwen semantic model before FLUX GPU generation.
+"""Prove the immutable local Qwen semantic model is cached before FLUX generation.
 
-The command is zero-cost and never performs inference. It proves that the exact
-approved Qwen2.5-VL upstream revision is already cached or that the Hugging Face
-cache filesystem has conservative free-space headroom, then downloads only that
-immutable revision. This prevents a late semantic-model download or upstream
-model drift from invalidating a successful Golden base-scene generation.
+The command is zero-cost and never performs inference or downloads model bytes. It
+requires the exact approved Qwen2.5-VL upstream revision to already exist in the
+local Hugging Face cache, validates that snapshot, and emits a fail-closed receipt.
+This prevents late semantic-model downloads or upstream drift from invalidating a
+successful Golden base-scene generation.
 """
 from __future__ import annotations
 
@@ -41,16 +41,25 @@ def _cache_root() -> Path:
     return (Path.home() / ".cache" / "huggingface").resolve()
 
 
-def _cached_snapshot(snapshot_download, model_id: str, revision: str) -> str | None:
+def _require_cached_snapshot(snapshot_download, model_id: str, revision: str) -> str:
+    """Resolve only an already-cached approved snapshot; never allow network fallback."""
     try:
-        return str(snapshot_download(repo_id=model_id, revision=revision, local_files_only=True))
-    except Exception:
-        return None
+        return str(
+            snapshot_download(
+                repo_id=model_id,
+                revision=revision,
+                local_files_only=True,
+            )
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            "QWEN_APPROVED_LOCAL_SNAPSHOT_REQUIRED: exact approved revision is not available in the local cache"
+        ) from exc
 
 
 def _assert_snapshot_complete(snapshot: Path) -> None:
     if not snapshot.is_dir():
-        raise RuntimeError("Qwen snapshot download did not return an existing directory")
+        raise RuntimeError("cached Qwen snapshot did not resolve to an existing directory")
     if not (snapshot / "config.json").is_file():
         raise RuntimeError("cached Qwen snapshot is incomplete: config.json is missing")
     if not any(snapshot.rglob("*.safetensors")):
@@ -58,7 +67,7 @@ def _assert_snapshot_complete(snapshot: Path) -> None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Prefetch the immutable Phase 18 Qwen2.5-VL semantic model")
+    parser = argparse.ArgumentParser(description="Prove the immutable Phase 18 Qwen2.5-VL semantic model is already cached locally")
     parser.add_argument("--receipt", default="output/phase18_gpu_smoke/qwen-model-cache.json")
     parser.add_argument("--minimum-free-gib", type=float, default=DEFAULT_MINIMUM_FREE_GIB)
     args = parser.parse_args()
@@ -66,21 +75,19 @@ def main() -> int:
     try:
         from huggingface_hub import snapshot_download
     except ImportError as exc:
-        raise RuntimeError("huggingface_hub is required for Phase 18 Qwen model prefetch") from exc
+        raise RuntimeError("huggingface_hub is required for Phase 18 Qwen local-cache proof") from exc
 
     cache_root = _cache_root()
     cache_root.mkdir(parents=True, exist_ok=True)
-    cached = _cached_snapshot(snapshot_download, MODEL_ID, MODEL_REVISION)
+    snapshot_path = _require_cached_snapshot(snapshot_download, MODEL_ID, MODEL_REVISION)
     free_bytes = shutil.disk_usage(cache_root).free
     policy = ModelCachePolicy(minimum_free_gib=args.minimum_free_gib)
-    before = policy.evaluate(model_id=MODEL_ID, cached_snapshot_path=cached, free_bytes=free_bytes)
-    policy.assert_eligible(before)
-
-    downloaded = False
-    snapshot_path = cached
-    if snapshot_path is None:
-        snapshot_path = str(snapshot_download(repo_id=MODEL_ID, revision=MODEL_REVISION))
-        downloaded = True
+    qualification = policy.evaluate(
+        model_id=MODEL_ID,
+        cached_snapshot_path=snapshot_path,
+        free_bytes=free_bytes,
+    )
+    policy.assert_eligible(qualification)
 
     snapshot = Path(snapshot_path)
     _assert_snapshot_complete(snapshot)
@@ -98,10 +105,12 @@ def main() -> int:
         "cost_mode": "$0-local",
         "snapshot_path": str(snapshot),
         "cache_root": str(cache_root),
-        "downloaded_now": downloaded,
+        "downloaded_now": False,
+        "network_download_authorized": False,
+        "local_files_only": True,
         "file_count": len(files),
         "apparent_snapshot_gib": round(apparent_bytes / (1024 ** 3), 3),
-        "qualification_before_download": asdict(before),
+        "qualification_before_download": asdict(qualification),
         "ready": True,
     }
 
