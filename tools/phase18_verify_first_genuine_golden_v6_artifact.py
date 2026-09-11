@@ -4,7 +4,8 @@
 This verifier is intentionally CPU-safe. It does not generate pixels, load models,
 perform network access, or grant Human Review / Golden Quality / publication
 authority. It independently replays the final resource-lock receipt, every bound
-evidence file, and the PNG bytes present in an extracted workflow artifact.
+evidence file, the critical semantic meaning of those evidence receipts, and the
+PNG bytes present in an extracted workflow artifact.
 """
 from __future__ import annotations
 
@@ -12,6 +13,15 @@ import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+from typing import Mapping
+
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+)
+from engine.intelligence.generation_runtime_fingerprint import verify_matching_runtime_fingerprints
 
 EXPECTED_SCHEMA = "pul7sar-first-genuine-golden-v6-resource-lock-v4"
 EXPECTED_STATUS = "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED"
@@ -57,13 +67,7 @@ def _safe_candidate(root: Path, relative: PurePosixPath) -> Path:
 
 
 def _artifact_output_file(root: Path, recorded: str, *, kind: str) -> Path:
-    """Resolve one producer-recorded ``output/...`` path inside an artifact.
-
-    The producer records repository/runner paths, often absolute. upload-artifact
-    receives several ``output/...`` paths and may strip that least-common-ancestor
-    directory. Only the suffix rooted at the literal ``output`` segment may be
-    rebased into the extracted artifact; arbitrary runner paths are never trusted.
-    """
+    """Resolve one producer-recorded ``output/...`` path inside an artifact."""
     normalized = recorded.replace("\\", "/")
     parts = PurePosixPath(normalized).parts
     try:
@@ -89,6 +93,114 @@ def _artifact_output_file(root: Path, recorded: str, *, kind: str) -> Path:
 
 def _artifact_png(root: Path, recorded: str) -> Path:
     return _artifact_output_file(root, recorded, kind="PNG")
+
+
+def _load_json(path: Path, *, label: str) -> dict[str, object]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_JSON_INVALID:{label}") from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_JSON_INVALID:{label}")
+    return payload
+
+
+def _require_false(payload: Mapping[str, object], fields: tuple[str, ...], *, label: str) -> None:
+    for field in fields:
+        if payload.get(field) is not False:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_EVIDENCE_AUTHORITY_DRIFT:{label}:{field}")
+
+
+def _validate_evidence_semantics(resolved: Mapping[str, Path], final: Mapping[str, object]) -> None:
+    gpu = _load_json(resolved["gpu_host_qualification"], label="gpu_host_qualification")
+    if gpu.get("eligible") is not True or gpu.get("cuda_available") is not True or gpu.get("bf16_supported") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_GPU_BF16_UNPROVEN")
+    if gpu.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_GPU_COST_MODE_DRIFT")
+    free_vram = gpu.get("gpu_free_vram_gb")
+    required_vram = gpu.get("required_vram_gb")
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or float(value) <= 0 for value in (free_vram, required_vram)):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_GPU_VRAM_INVALID")
+    if float(free_vram) < float(required_vram):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_GPU_VRAM_BELOW_FLOOR")
+
+    memory = _load_json(resolved["host_memory_preflight"], label="host_memory_preflight")
+    if memory.get("ready") is not True or memory.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_HOST_MEMORY_NOT_READY")
+
+    budget = _load_json(resolved["cache_budget"], label="cache_budget")
+    if budget.get("schema") != "pul7sar-first-golden-cache-budget-v1" or budget.get("ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_CACHE_BUDGET_INVALID")
+    if budget.get("branch") != EXPECTED_BRANCH or budget.get("cost_mode") != EXPECTED_COST_MODE or budget.get("revisions_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_CACHE_BUDGET_POLICY_DRIFT")
+    if budget.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or budget.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_CACHE_BUDGET_QWEN_DRIFT")
+    if budget.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or budget.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_CACHE_BUDGET_FLUX_DRIFT")
+    _require_false(budget, ("downloads_performed", "generation_authorized", "queue_mutated", "png_created", "publication_ready"), label="cache_budget")
+
+    semantic = _load_json(resolved["semantic_preflight"], label="semantic_preflight")
+    if semantic.get("schema") != "pul7sar-phase18-semantic-gpu-preflight-v2" or semantic.get("branch") != EXPECTED_BRANCH:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SEMANTIC_PREFLIGHT_IDENTITY_DRIFT")
+    if semantic.get("model_id") != QWEN25_VL_3B_MODEL_ID or semantic.get("model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SEMANTIC_MODEL_DRIFT")
+    if semantic.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or semantic.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SEMANTIC_REVISION_DRIFT")
+    if semantic.get("semantic_runtime_ready") is not True or semantic.get("semantic_model_ready") is not True or semantic.get("cuda_available") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SEMANTIC_RUNTIME_NOT_READY")
+    if semantic.get("cost_mode") != EXPECTED_COST_MODE or semantic.get("model_downloaded_now") is not False:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_SEMANTIC_ZERO_COST_DRIFT")
+    _require_false(semantic, ("generation_authorized", "queue_mutated", "png_created", "publication_ready"), label="semantic_preflight")
+
+    qwen = _load_json(resolved["qwen_model_cache"], label="qwen_model_cache")
+    if qwen.get("schema") != "pul7sar-phase18-qwen-model-cache-v2" or qwen.get("ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_QWEN_CACHE_INVALID")
+    if qwen.get("model_id") != QWEN25_VL_3B_MODEL_ID or qwen.get("model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_QWEN_MODEL_DRIFT")
+    if qwen.get("resolved_snapshot_revision") != QWEN25_VL_3B_REVISION or qwen.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_QWEN_REVISION_DRIFT")
+    if qwen.get("cost_mode") != EXPECTED_COST_MODE or qwen.get("downloaded_now") is not False:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_QWEN_ZERO_COST_DRIFT")
+
+    flux = _load_json(resolved["flux_model_cache"], label="flux_model_cache")
+    if flux.get("schema") != "pul7sar-phase18-model-cache-v2" or flux.get("ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_CACHE_INVALID")
+    if flux.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or flux.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_MODEL_DRIFT")
+    if flux.get("resolved_snapshot_revision") != FLUX2_KLEIN_4B_REVISION or flux.get("revision_pinned") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_REVISION_DRIFT")
+    if flux.get("cost_mode") != EXPECTED_COST_MODE or flux.get("downloaded_now") is not False:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_ZERO_COST_DRIFT")
+    if flux.get("working_headroom_ready") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_HEADROOM_UNPROVEN")
+
+    runtime_pre = _load_json(resolved["runtime_fingerprint_pre"], label="runtime_fingerprint_pre")
+    runtime_post = _load_json(resolved["runtime_fingerprint_post"], label="runtime_fingerprint_post")
+    try:
+        runtime_sha = verify_matching_runtime_fingerprints(runtime_pre, runtime_post)
+    except RuntimeError as exc:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_RUNTIME_FINGERPRINT_DRIFT") from exc
+    if runtime_sha != final.get("runtime_fingerprint_sha256"):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_RUNTIME_BINDING_DRIFT")
+
+    staging = _load_json(resolved["strict_golden_staging"], label="strict_golden_staging")
+    if staging.get("schema") != "pul7sar-first-genuine-golden-staging-v3":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_SCHEMA_DRIFT")
+    if staging.get("status") != "FIRST_GENUINE_GOLDEN_EDITORIAL_CANDIDATE_READY_FOR_HUMAN_REVIEW":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_STATUS_DRIFT")
+    if staging.get("candidate") != 1 or staging.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_IDENTITY_DRIFT")
+    if staging.get("model_id") != FLUX2_KLEIN_4B_MODEL_ID or staging.get("model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_FLUX_DRIFT")
+    if staging.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID or staging.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_SEMANTIC_DRIFT")
+    if staging.get("resolved_dtype") != "bfloat16" or staging.get("precision_quality_tier") != "golden_reference":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_PRECISION_DRIFT")
+    if staging.get("semantic_approved") is not True or staging.get("layer_ownership_approved") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_GATE_UNPROVEN")
+    _require_false(staging, ("golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"), label="strict_golden_staging")
+    if staging.get("png_sha256") != final.get("png_sha256"):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_STAGING_PNG_BINDING_DRIFT")
 
 
 def _verify_evidence(root: Path, payload: dict[str, object]) -> dict[str, Path]:
@@ -148,6 +260,7 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
             raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_ILLEGAL_AUTHORITY:{field}")
 
     resolved_evidence = _verify_evidence(root, payload)
+    _validate_evidence_semantics(resolved_evidence, payload)
 
     staging_receipt = payload.get("staging_receipt")
     if not isinstance(staging_receipt, str) or not staging_receipt.strip():
@@ -181,6 +294,7 @@ def verify(receipt_path: Path, *, artifact_root: Path | None = None) -> dict[str
         "branch": EXPECTED_BRANCH,
         "cost_mode": EXPECTED_COST_MODE,
         "evidence_files_verified": len(resolved_evidence),
+        "evidence_semantics_verified": True,
         "png": str(png),
         "png_sha256": actual_sha,
         "png_bytes": expected_bytes,
