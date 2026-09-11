@@ -58,6 +58,7 @@ jobs:
           test -f tools/phase18_preflight_first_golden_cache_budget.py
           test -f tools/phase18_preflight_semantic_gpu.py
           test -f tools/phase18_prefetch_flux2.py
+          test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -290,6 +291,21 @@ jobs:
               "seeds_2_to_4_authorized": False,
           }, indent=2, sort_keys=True))
           PY
+
+      - name: Bind and replay exact source commit provenance
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_bind_first_genuine_golden_source_commit.py bind \
+            output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json \
+            output/phase18_gpu_smoke/first-genuine-golden-v6-source-binding.json \
+            --repo-root .
+          python tools/phase18_bind_first_genuine_golden_source_commit.py verify \
+            output/phase18_gpu_smoke/first-genuine-golden-v6-source-binding.json \
+            output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json \
+            --expected-source-sha "$DISPATCH_SHA"
 
       - name: Upload genuine Golden v6 Candidate 1 evidence
         if: always()
