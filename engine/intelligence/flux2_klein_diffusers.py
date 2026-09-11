@@ -6,6 +6,8 @@ while preserving the provider-neutral DiffusersLocalBackend contract used by
 PUL7SAR.
 
 No dependency installation, weight download, or network call happens at import.
+Real pipeline construction is also explicitly local-cache-only: the approved
+immutable snapshot must already exist on the host or loading fails closed.
 """
 
 from __future__ import annotations
@@ -187,7 +189,9 @@ def build_flux2_klein_pipeline_factory(
     Tests may inject `pipeline_loader` and `torch_module`; production/local use
     imports the optional dependencies lazily. The upstream FLUX repository is
     always loaded at an immutable, project-approved Hugging Face commit revision
-    so a mutable `main` update cannot silently change Golden Candidate bytes.
+    and with ``local_files_only=True``. A mutable upstream update therefore
+    cannot change Golden Candidate bytes, and a missing local snapshot cannot
+    silently trigger a network download.
 
     Low-VRAM hosts prefer Diffusers' sequential CPU offload when the installed
     pipeline exposes it. Sequential offload is slower than model-level offload,
@@ -234,6 +238,7 @@ def build_flux2_klein_pipeline_factory(
             model_id,
             revision=FLUX2_KLEIN_4B_REVISION,
             torch_dtype=dtype_map[dtype],
+            local_files_only=True,
         )
 
         offload_mode = "none"
