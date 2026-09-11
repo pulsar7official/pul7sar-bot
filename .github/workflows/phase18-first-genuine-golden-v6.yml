@@ -9,6 +9,7 @@ on:
         type: string
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
@@ -60,6 +61,7 @@ jobs:
           test -f tools/phase18_prefetch_flux2.py
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
+          test -f tools/phase18_attest_first_genuine_golden_v6_uploaded_artifact.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -333,6 +335,7 @@ jobs:
           PY
 
       - name: Upload genuine Golden v6 Candidate 1 evidence
+        id: golden_evidence_upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -346,3 +349,95 @@ jobs:
             output/phase18_visual_proof/**
             output/phase18_generated/**
             output/phase18_handoffs/golden-batch/**
+
+      - name: Attest uploaded Golden v6 transport against GitHub REST metadata
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DISPATCH_SHA: ${{ github.sha }}
+          ARTIFACT_ID: ${{ steps.golden_evidence_upload.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.golden_evidence_upload.outputs.artifact-digest }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$ARTIFACT_ID" | grep -Eq '^[1-9][0-9]*$'
+          printf '%s' "$ARTIFACT_DIGEST" | grep -Eq '^sha256:[0-9a-f]{64}$'
+          metadata="output/phase18_gpu_smoke/first-genuine-golden-v6-uploaded-artifact-metadata.json"
+          readiness="output/phase18_gpu_smoke/first-genuine-golden-v6-artifact-ready-run-${GITHUB_RUN_ID}-attempt-${GITHUB_RUN_ATTEMPT}.json"
+          attestation="output/phase18_gpu_smoke/first-genuine-golden-v6-upload-transport-attestation.json"
+          test -f "$readiness"
+          export ARTIFACT_METADATA_PATH="$metadata"
+          python - <<'PY'
+          import json
+          import os
+          import time
+          import urllib.error
+          import urllib.request
+          from pathlib import Path
+
+          artifact_id = os.environ["ARTIFACT_ID"]
+          token = os.environ["GH_TOKEN"]
+          repository = os.environ["GITHUB_REPOSITORY"]
+          destination = Path(os.environ["ARTIFACT_METADATA_PATH"])
+          url = f"https://api.github.com/repos/{repository}/actions/artifacts/{artifact_id}"
+          headers = {
+              "Accept": "application/vnd.github+json",
+              "Authorization": f"Bearer {token}",
+              "X-GitHub-Api-Version": "2022-11-28",
+              "User-Agent": "pul7sar-phase18-golden-v6-transport-attestation",
+          }
+          last_error = None
+          for attempt in range(5):
+              try:
+                  request = urllib.request.Request(url, headers=headers, method="GET")
+                  with urllib.request.urlopen(request, timeout=20) as response:
+                      payload = json.load(response)
+                  if not isinstance(payload, dict):
+                      raise RuntimeError("GitHub artifact metadata response was not an object")
+                  destination.parent.mkdir(parents=True, exist_ok=True)
+                  temporary = destination.with_name(f".{destination.name}.tmp")
+                  temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+                  temporary.replace(destination)
+                  break
+              except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, RuntimeError) as exc:
+                  last_error = exc
+                  if attempt == 4:
+                      raise SystemExit(f"failed to fetch uploaded artifact metadata: {exc}") from exc
+                  time.sleep(2 ** attempt)
+          if last_error is not None and not destination.is_file():
+              raise SystemExit(f"uploaded artifact metadata unavailable: {last_error}")
+          PY
+          python tools/phase18_attest_first_genuine_golden_v6_uploaded_artifact.py \
+            "$metadata" \
+            "$readiness" \
+            --expected-source-sha "$DISPATCH_SHA" \
+            --workflow-run-id "$GITHUB_RUN_ID" \
+            --workflow-run-attempt "$GITHUB_RUN_ATTEMPT" \
+            --upload-artifact-id "$ARTIFACT_ID" \
+            --upload-artifact-digest "$ARTIFACT_DIGEST" \
+            --output "$attestation"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-upload-transport-attestation.json")
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          if payload.get("status") != "FIRST_GENUINE_GOLDEN_V6_UPLOAD_TRANSPORT_ATTESTED":
+              raise SystemExit("Golden v6 upload transport attestation did not reach verified status")
+          if payload.get("source_commit_verified") is not True or payload.get("uploaded_artifact_metadata_verified") is not True:
+              raise SystemExit("Golden v6 upload transport provenance not fully verified")
+          if payload.get("eligible_for_human_visual_review") is not True:
+              raise SystemExit("Golden v6 artifact was not proven eligible for Human Visual Review")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if payload.get(field) is not False:
+                  raise SystemExit(f"transport attestation authority drift: {field}")
+          PY
+
+      - name: Upload immutable transport attestation audit evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-genuine-golden-v6-transport-attestation-${{ github.run_id }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/first-genuine-golden-v6-uploaded-artifact-metadata.json
+            output/phase18_gpu_smoke/first-genuine-golden-v6-upload-transport-attestation.json
