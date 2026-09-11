@@ -59,6 +59,7 @@ jobs:
           test -f tools/phase18_preflight_semantic_gpu.py
           test -f tools/phase18_prefetch_flux2.py
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
+          test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -306,6 +307,30 @@ jobs:
             output/phase18_gpu_smoke/first-genuine-golden-v6-source-binding.json \
             output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json \
             --expected-source-sha "$DISPATCH_SHA"
+
+      - name: Replay complete source-bound artifact contract before upload
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py \
+            output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json \
+            --artifact-root . \
+            --expected-source-sha "$DISPATCH_SHA" \
+            > output/phase18_gpu_smoke/first-genuine-golden-v6-source-bound-replay.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          receipt = json.loads(Path("output/phase18_gpu_smoke/first-genuine-golden-v6-source-bound-replay.json").read_text(encoding="utf-8"))
+          if receipt.get("status") != "FIRST_GENUINE_GOLDEN_V6_SOURCE_BOUND_ARTIFACT_REPLAY_VERIFIED":
+              raise SystemExit("source-bound artifact replay did not reach verified status")
+          if receipt.get("source_commit_verified") is not True:
+              raise SystemExit("source-bound artifact replay did not verify exact source commit")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if receipt.get(field) is not False:
+                  raise SystemExit(f"source-bound replay authority drift: {field}")
+          PY
 
       - name: Upload genuine Golden v6 Candidate 1 evidence
         if: always()
