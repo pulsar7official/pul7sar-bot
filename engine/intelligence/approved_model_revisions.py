@@ -25,16 +25,38 @@ def assert_full_commit_sha(value: str, *, label: str = "model revision") -> str:
     return candidate
 
 
+def _assert_canonical_hf_snapshot_path(path: Path) -> None:
+    """Require the standard Hub cache hierarchy around a resolved snapshot.
+
+    ``snapshot_download`` without ``local_dir`` resolves cached repositories as
+    ``.../models--<owner>--<repo>/snapshots/<commit-sha>``.  Merely naming an
+    arbitrary directory ``snapshots/<approved-sha>`` is not enough evidence for
+    Phase 18 because it could be a locally fabricated path unrelated to the Hub
+    cache that the zero-cost model-cache gates are intended to prove.
+    """
+    snapshots_dir = path.parent
+    repository_cache_dir = snapshots_dir.parent
+    if snapshots_dir.name != "snapshots":
+        raise RuntimeError("model snapshot path is not a canonical Hugging Face snapshots/<revision> path")
+    cache_name = repository_cache_dir.name
+    cache_parts = cache_name.split("--")
+    if len(cache_parts) < 3 or cache_parts[0] != "models" or any(not part for part in cache_parts[1:]):
+        raise RuntimeError(
+            "model snapshot path is not inside a canonical Hugging Face models--<owner>--<repo>/snapshots cache"
+        )
+
+
 def snapshot_revision_from_path(snapshot_path: str | Path) -> str:
     """Extract the Hugging Face snapshot revision from a canonical cache path.
 
-    Standard Hub snapshots resolve to ``.../snapshots/<commit-sha>``. Phase 18
-    deliberately refuses paths that do not expose a full immutable revision,
-    rather than guessing that a mutable ref such as ``main`` is equivalent.
+    Standard Hub snapshots resolve to
+    ``.../models--<owner>--<repo>/snapshots/<commit-sha>``. Phase 18 deliberately
+    refuses paths that do not expose both that cache hierarchy and a full
+    immutable revision, rather than trusting a locally fabricated directory or
+    guessing that a mutable ref such as ``main`` is equivalent.
     """
     path = Path(snapshot_path).expanduser().resolve()
-    if path.parent.name != "snapshots":
-        raise RuntimeError("model snapshot path is not a canonical Hugging Face snapshots/<revision> path")
+    _assert_canonical_hf_snapshot_path(path)
     return assert_full_commit_sha(path.name, label="resolved snapshot revision")
 
 
