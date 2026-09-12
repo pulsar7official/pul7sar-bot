@@ -98,7 +98,7 @@ class FirstGoldenColabBootstrapTests(unittest.TestCase):
             "model_revision": bootstrap.QWEN25_VL_3B_REVISION,
             "resolved_snapshot_revision": bootstrap.QWEN25_VL_3B_REVISION,
             "revision_pinned": True,
-            "snapshot_path": f"/tmp/hf/snapshots/{bootstrap.QWEN25_VL_3B_REVISION}",
+            "snapshot_path": f"/tmp/hf/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/{bootstrap.QWEN25_VL_3B_REVISION}",
             "cost_mode": "$0-local",
         }
 
