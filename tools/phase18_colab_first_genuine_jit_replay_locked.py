@@ -3,9 +3,9 @@
 
 This wrapper delegates to the existing pre-model/actual-offload locked path, then
 replays the strict staging receipt's just-in-time GPU and host-memory evidence.
-It binds the outer offload lock, inner resource lock, strict staging receipt and
-JIT replay receipt by SHA-256 before Candidate 1 can be described as ready for
-human Golden review.
+It binds the outer offload lock, inner resource lock, strict staging receipt,
+local-only model provenance, and JIT replay receipt by SHA-256 before Candidate 1
+can be described as ready for human Golden review.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -27,7 +27,16 @@ FINAL = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-jit-loc
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+)
 from engine.intelligence.golden_jit_resource_replay import verify_golden_jit_resource_replay
+
+LOCAL_ONLY_SCHEMA = "pul7sar-phase18-local-only-model-receipt-verification-v1"
+LOCAL_ONLY_STATUS = "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED"
 
 
 def _branch() -> str:
@@ -78,6 +87,41 @@ def _validate_record(record: object, *, label: str) -> Path:
     if record.get("sha256") != _sha256(path) or record.get("bytes") != path.stat().st_size:
         raise RuntimeError(f"FIRST_GENUINE_GOLDEN_JIT_{label}_REPLAY_DRIFT")
     return path
+
+
+def _validate_local_only_provenance(inner: dict[str, object], receipt: dict[str, object]) -> None:
+    if inner.get("local_only_model_receipts_bound") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_LOCAL_ONLY_RECEIPTS_NOT_BOUND")
+    if inner.get("network_download_authorized") is not False:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_NETWORK_DOWNLOAD_AUTHORITY_DRIFT")
+    if inner.get("local_files_only") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_LOCAL_FILES_ONLY_UNPROVEN")
+    if inner.get("semantic_model_id") != QWEN25_VL_3B_MODEL_ID:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_QWEN_MODEL_ID_DRIFT")
+    if inner.get("semantic_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_QWEN_MODEL_REVISION_DRIFT")
+    if inner.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_FLUX_MODEL_ID_DRIFT")
+    if inner.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_FLUX_MODEL_REVISION_DRIFT")
+
+    expected = {
+        "schema": LOCAL_ONLY_SCHEMA,
+        "status": LOCAL_ONLY_STATUS,
+        "cost_mode": "$0-local",
+        "network_download_authorized": False,
+        "local_files_only": True,
+        "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+        "qwen_model_revision": QWEN25_VL_3B_REVISION,
+        "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
+        "generation_authorized": False,
+        "publication_ready": False,
+        "seeds_2_to_4_authorized": False,
+    }
+    for field, value in expected.items():
+        if receipt.get(field) != value:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_JIT_LOCAL_ONLY_RECEIPT_DRIFT:{field}")
 
 
 def _write(path: Path, payload: dict[str, object]) -> None:
@@ -133,6 +177,12 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     inner_evidence = inner.get("evidence")
     if not isinstance(inner_evidence, dict):
         raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_INNER_EVIDENCE_MISSING")
+    local_only_path = _validate_record(
+        inner_evidence.get("local_only_model_receipts"), label="LOCAL_ONLY_MODEL_RECEIPTS"
+    )
+    local_only_receipt = _load(local_only_path)
+    _validate_local_only_provenance(inner, local_only_receipt)
+
     staging_path = _validate_record(inner_evidence.get("strict_golden_staging"), label="STRICT_STAGING")
     if inner.get("staging_receipt") != str(staging_path):
         raise RuntimeError("FIRST_GENUINE_GOLDEN_JIT_STAGING_PATH_DRIFT")
@@ -158,6 +208,13 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "candidate": 1,
         "cost_mode": "$0-local",
         "jit_pre_execution_resource_replay_bound": True,
+        "local_only_model_receipts_verified": True,
+        "network_download_authorized": False,
+        "local_files_only": True,
+        "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+        "qwen_model_revision": QWEN25_VL_3B_REVISION,
+        "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
         "jit_resource_fingerprint_sha256": jit.get("resource_fingerprint_sha256"),
         "selected_safe_offload_mode": outer.get("selected_safe_offload_mode"),
         "actual_offload_mode": outer.get("actual_offload_mode"),
@@ -167,6 +224,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "evidence": {
             "offload_lock": _record(OFFLOAD_LOCK),
             "inner_resource_lock": _record(inner_path),
+            "local_only_model_receipts": _record(local_only_path),
             "strict_golden_staging": _record(staging_path),
             "jit_resource_replay": _record(JIT_REPLAY),
         },
