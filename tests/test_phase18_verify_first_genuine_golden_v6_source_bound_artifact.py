@@ -11,6 +11,12 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools"))
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+)
 import phase18_verify_first_genuine_golden_v6_source_bound_artifact as source_bound
 
 SOURCE_SHA = "1" * 40
@@ -86,22 +92,28 @@ class SourceBoundArtifactReplayTests(unittest.TestCase):
             self.assertEqual(result["source_commit_sha"], SOURCE_SHA)
             self.assertTrue(result["source_commit_verified"])
             self.assertEqual(result["evidence_files_verified"], 10)
+            self.assertTrue(result["local_only_model_receipts_verified"])
+            self.assertFalse(result["network_download_authorized"])
+            self.assertTrue(result["local_files_only"])
             self.assertFalse(result["publication_ready"])
             self.assertFalse(result["golden_quality_approved"])
 
-    def test_readiness_manifest_preserves_ten_evidence_contract(self) -> None:
+    def test_readiness_manifest_preserves_ten_evidence_and_offline_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             receipt = self._fixture(root)
             with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
                 result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
-            manifest = source_bound.build_artifact_ready_manifest(
-                result,
-                workflow_run_id=123,
-                workflow_run_attempt=1,
-            )
+            manifest = source_bound.build_artifact_ready_manifest(result, workflow_run_id=123, workflow_run_attempt=1)
             self.assertEqual(manifest["evidence_files_verified"], 10)
             self.assertTrue(manifest["evidence_semantics_verified"])
+            self.assertTrue(manifest["local_only_model_receipts_verified"])
+            self.assertFalse(manifest["network_download_authorized"])
+            self.assertTrue(manifest["local_files_only"])
+            self.assertEqual(manifest["qwen_model_id"], QWEN25_VL_3B_MODEL_ID)
+            self.assertEqual(manifest["qwen_model_revision"], QWEN25_VL_3B_REVISION)
+            self.assertEqual(manifest["flux_model_id"], FLUX2_KLEIN_4B_MODEL_ID)
+            self.assertEqual(manifest["flux_model_revision"], FLUX2_KLEIN_4B_REVISION)
             self.assertFalse(manifest["publication_ready"])
             self.assertFalse(manifest["seeds_2_to_4_authorized"])
 
@@ -114,11 +126,24 @@ class SourceBoundArtifactReplayTests(unittest.TestCase):
             with mock.patch.object(source_bound, "verify_artifact", return_value=legacy_replay):
                 result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
             with self.assertRaisesRegex(RuntimeError, "ARTIFACT_READY_EVIDENCE_NOT_VERIFIED"):
-                source_bound.build_artifact_ready_manifest(
-                    result,
-                    workflow_run_id=123,
-                    workflow_run_attempt=1,
-                )
+                source_bound.build_artifact_ready_manifest(result, workflow_run_id=123, workflow_run_attempt=1)
+
+    def test_readiness_rejects_offline_provenance_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+            for patch in (
+                {"local_only_model_receipts_verified": False},
+                {"network_download_authorized": True},
+                {"local_files_only": False},
+                {"qwen_model_revision": "f" * 40},
+                {"flux_model_revision": "e" * 40},
+            ):
+                with self.subTest(patch=patch):
+                    with self.assertRaisesRegex(RuntimeError, "LOCAL_ONLY_NOT_VERIFIED|QWEN_IDENTITY_DRIFT|FLUX_IDENTITY_DRIFT"):
+                        source_bound.build_artifact_ready_manifest({**result, **patch}, workflow_run_id=123, workflow_run_attempt=1)
 
     def test_accepts_upload_artifact_flattened_output_topology(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
