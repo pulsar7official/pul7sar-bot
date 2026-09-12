@@ -35,7 +35,7 @@ def _replay_result() -> dict[str, object]:
         "branch": "phase18/story-intelligence",
         "candidate": 1,
         "cost_mode": "$0-local",
-        "evidence_files_verified": 9,
+        "evidence_files_verified": 10,
         "evidence_semantics_verified": True,
         "png": "/artifact/candidate.png",
         "png_sha256": "2" * 64,
@@ -85,8 +85,40 @@ class SourceBoundArtifactReplayTests(unittest.TestCase):
             self.assertEqual(result["status"], "FIRST_GENUINE_GOLDEN_V6_SOURCE_BOUND_ARTIFACT_REPLAY_VERIFIED")
             self.assertEqual(result["source_commit_sha"], SOURCE_SHA)
             self.assertTrue(result["source_commit_verified"])
+            self.assertEqual(result["evidence_files_verified"], 10)
             self.assertFalse(result["publication_ready"])
             self.assertFalse(result["golden_quality_approved"])
+
+    def test_readiness_manifest_preserves_ten_evidence_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            with mock.patch.object(source_bound, "verify_artifact", return_value=_replay_result()):
+                result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+            manifest = source_bound.build_artifact_ready_manifest(
+                result,
+                workflow_run_id=123,
+                workflow_run_attempt=1,
+            )
+            self.assertEqual(manifest["evidence_files_verified"], 10)
+            self.assertTrue(manifest["evidence_semantics_verified"])
+            self.assertFalse(manifest["publication_ready"])
+            self.assertFalse(manifest["seeds_2_to_4_authorized"])
+
+    def test_readiness_rejects_legacy_nine_evidence_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            legacy_replay = _replay_result()
+            legacy_replay["evidence_files_verified"] = 9
+            with mock.patch.object(source_bound, "verify_artifact", return_value=legacy_replay):
+                result = source_bound.verify(receipt, artifact_root=root, expected_source_sha=SOURCE_SHA)
+            with self.assertRaisesRegex(RuntimeError, "ARTIFACT_READY_EVIDENCE_NOT_VERIFIED"):
+                source_bound.build_artifact_ready_manifest(
+                    result,
+                    workflow_run_id=123,
+                    workflow_run_attempt=1,
+                )
 
     def test_accepts_upload_artifact_flattened_output_topology(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
