@@ -7,6 +7,8 @@ It binds the outer offload lock, inner resource lock, strict staging receipt,
 local-only model provenance, and JIT replay receipt by SHA-256 before Candidate 1
 can be described as ready for human Golden review.
 
+Its CLI first records the non-authoritative first-Golden execution blocker probe
+so an incompatible host fails before entering the heavier offload/generation path.
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
 from __future__ import annotations
@@ -20,6 +22,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_BRANCH = "phase18/story-intelligence"
+EXECUTION_PROBE = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-execution-blocker-probe.json"
 OFFLOAD_LOCK = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-offload-lock.json"
 JIT_REPLAY = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-jit-resource-replay.json"
 FINAL = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-jit-lock.json"
@@ -34,6 +37,7 @@ from engine.intelligence.approved_model_revisions import (
     QWEN25_VL_3B_REVISION,
 )
 from engine.intelligence.golden_jit_resource_replay import verify_golden_jit_resource_replay
+from tools.phase18_probe_first_golden_execution_blocker import inspect as inspect_execution_blockers
 
 LOCAL_ONLY_SCHEMA = "pul7sar-phase18-local-only-model-receipt-verification-v1"
 LOCAL_ONLY_STATUS = "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED"
@@ -128,6 +132,12 @@ def _write(path: Path, payload: dict[str, object]) -> None:
     target = _inside_repo(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _probe_execution_prerequisites(output: Path = EXECUTION_PROBE) -> dict[str, object]:
+    payload = inspect_execution_blockers()
+    _write(output, payload)
+    return payload
 
 
 def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
@@ -244,6 +254,12 @@ def main() -> int:
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--output", type=Path, default=FINAL)
     args = parser.parse_args()
+
+    probe = _probe_execution_prerequisites()
+    if probe.get("ready_for_authoritative_golden_preflight") is not True:
+        print(json.dumps(probe, ensure_ascii=False, indent=2, sort_keys=True))
+        return 2
+
     payload = run(force=args.force, output=args.output)
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0
