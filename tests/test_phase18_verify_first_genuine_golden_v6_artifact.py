@@ -110,6 +110,20 @@ class FirstGenuineGoldenV6ArtifactVerifierTests(unittest.TestCase):
                 "downloaded_now": False,
                 "working_headroom_ready": True,
             },
+            "local_only_model_receipts": {
+                "schema": "pul7sar-phase18-local-only-model-receipt-verification-v1",
+                "status": "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED",
+                "cost_mode": "$0-local",
+                "network_download_authorized": False,
+                "local_files_only": True,
+                "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+                "qwen_model_revision": QWEN25_VL_3B_REVISION,
+                "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+                "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
+                "generation_authorized": False,
+                "publication_ready": False,
+                "seeds_2_to_4_authorized": False,
+            },
             "runtime_fingerprint_pre": dict(runtime),
             "runtime_fingerprint_post": dict(runtime),
             "strict_golden_staging": {
@@ -199,7 +213,7 @@ class FirstGenuineGoldenV6ArtifactVerifierTests(unittest.TestCase):
             root = Path(tmp)
             result = verify(self._fixture(root), artifact_root=root)
             self.assertEqual(result["status"], "FIRST_GENUINE_GOLDEN_V6_ARTIFACT_REPLAY_VERIFIED")
-            self.assertEqual(result["evidence_files_verified"], 9)
+            self.assertEqual(result["evidence_files_verified"], 10)
             self.assertTrue(result["evidence_semantics_verified"])
             self.assertFalse(result["publication_ready"])
             self.assertFalse(result["golden_quality_approved"])
@@ -230,6 +244,14 @@ class FirstGenuineGoldenV6ArtifactVerifierTests(unittest.TestCase):
             receipt = self._fixture(root)
             self._rewrite_evidence(root, receipt, "gpu_host_qualification", lambda payload: payload.__setitem__("bf16_supported", False))
             with self.assertRaisesRegex(RuntimeError, "GPU_BF16_UNPROVEN"):
+                verify(receipt, artifact_root=root)
+
+    def test_rejects_local_only_network_authority_rewritten_with_matching_receipt_hash(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            receipt = self._fixture(root)
+            self._rewrite_evidence(root, receipt, "local_only_model_receipts", lambda payload: payload.__setitem__("network_download_authorized", True))
+            with self.assertRaisesRegex(RuntimeError, "LOCAL_ONLY_NETWORK_POLICY_DRIFT"):
                 verify(receipt, artifact_root=root)
 
     def test_rejects_staging_authority_rewritten_with_matching_receipt_hash(self) -> None:
