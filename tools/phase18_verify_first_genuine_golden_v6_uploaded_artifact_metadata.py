@@ -14,6 +14,12 @@ import json
 from pathlib import Path
 import re
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+)
 
 BRANCH = "phase18/story-intelligence"
 READY_SCHEMA = "pul7sar-first-genuine-golden-v6-artifact-ready-v2"
@@ -72,6 +78,16 @@ def verify(
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_NOT_VERIFIED")
     if readiness.get("evidence_files_verified") != EXPECTED_EVIDENCE_FILES or readiness.get("evidence_semantics_verified") is not True:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_EVIDENCE_NOT_VERIFIED")
+    if (
+        readiness.get("local_only_model_receipts_verified") is not True
+        or readiness.get("network_download_authorized") is not False
+        or readiness.get("local_files_only") is not True
+    ):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_LOCAL_ONLY_NOT_VERIFIED")
+    if readiness.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or readiness.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_QWEN_IDENTITY_DRIFT")
+    if readiness.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or readiness.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_FLUX_IDENTITY_DRIFT")
     if readiness.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_COST_MODE_DRIFT")
     for field in (
@@ -121,6 +137,13 @@ def verify(
         "workflow_run_attempt": run_attempt,
         "source_commit_sha": expected_source_sha,
         "source_commit_verified": True,
+        "local_only_model_receipts_verified": True,
+        "network_download_authorized": False,
+        "local_files_only": True,
+        "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+        "qwen_model_revision": QWEN25_VL_3B_REVISION,
+        "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
         "artifact_id": artifact_id,
         "artifact_name": expected_name,
         "artifact_digest": f"sha256:{digest_hex}",
