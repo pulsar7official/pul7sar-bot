@@ -49,20 +49,28 @@ class FirstGenuineGoldenV6JitBlockerProbeIntegrationTests(unittest.TestCase):
         self.assertIn("FLUX_APPROVED_SNAPSHOT_MISSING", text)
         self.assertIn("NATIVE_BF16_UNAVAILABLE", text)
 
-    def test_probe_receipt_is_covered_by_always_uploaded_gpu_smoke_artifact(self) -> None:
+    def test_workflow_records_probe_before_native_cuda_preflight_and_uploads_receipt_on_failure(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
+        probe_step = "Record first-Golden execution blocker probe before CUDA preflight"
+        cuda_step = "Prove CUDA-enabled PyTorch native BF16 and offline-only model resolution exist without replacing them"
+        self.assertIn(probe_step, text)
+        self.assertIn(cuda_step, text)
+        self.assertIn("phase18_probe_first_golden_execution_blocker.py", text)
+        self.assertIn("first-genuine-golden-v6-execution-blocker-probe.json", text)
+        self.assertLess(text.index(probe_step), text.index(cuda_step))
         self.assertIn("if: always()", text)
         self.assertIn("output/phase18_gpu_smoke/**", text)
         self.assertIn("phase18_colab_first_genuine_jit_replay_locked.py", text)
 
     def test_run_function_remains_separate_from_cli_probe_for_existing_unit_replay(self) -> None:
-        tree = ast.parse(TOOL.read_text(encoding="utf-8"))
+        source = TOOL.read_text(encoding="utf-8")
+        tree = ast.parse(source)
         functions = {node.name: node for node in tree.body if isinstance(node, ast.FunctionDef)}
         self.assertIn("run", functions)
         self.assertIn("main", functions)
 
-        run_source = ast.get_source_segment(TOOL.read_text(encoding="utf-8"), functions["run"]) or ""
-        main_source = ast.get_source_segment(TOOL.read_text(encoding="utf-8"), functions["main"]) or ""
+        run_source = ast.get_source_segment(source, functions["run"]) or ""
+        main_source = ast.get_source_segment(source, functions["main"]) or ""
         self.assertNotIn("_probe_execution_prerequisites", run_source)
         self.assertIn("_probe_execution_prerequisites", main_source)
 
