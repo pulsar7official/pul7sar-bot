@@ -139,8 +139,8 @@ def main() -> int:
     parser.add_argument("artifact_metadata", type=Path)
     parser.add_argument("readiness_manifest", type=Path)
     parser.add_argument("--expected-source-sha", required=True)
-    parser.add_argument("--expected-workflow-run-id", required=True)
-    parser.add_argument("--expected-workflow-run-attempt", required=True)
+    parser.add_argument("--workflow-run-id", required=True)
+    parser.add_argument("--workflow-run-attempt", required=True)
     parser.add_argument("--expected-artifact-digest", default=None)
     args = parser.parse_args()
 
@@ -148,8 +148,8 @@ def main() -> int:
         _load_object(args.artifact_metadata, "ARTIFACT_METADATA"),
         _load_object(args.readiness_manifest, "READINESS"),
         expected_source_sha=args.expected_source_sha,
-        expected_workflow_run_id=args.expected_workflow_run_id,
-        expected_workflow_run_attempt=args.expected_workflow_run_attempt,
+        expected_workflow_run_id=args.workflow_run_id,
+        expected_workflow_run_attempt=args.workflow_run_attempt,
         expected_artifact_digest=args.expected_artifact_digest,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
