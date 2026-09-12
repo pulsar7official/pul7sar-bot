@@ -18,7 +18,8 @@ class LocalInferenceProvenanceTests(unittest.TestCase):
         (root / "engine/intelligence").mkdir(parents=True)
         (root / "tools").mkdir(parents=True)
         (root / "runs/one").mkdir(parents=True)
-        (root / "cache/snapshots" / QWEN_IMAGE_2512_REVISION).mkdir(parents=True)
+        snapshot = root / "cache/models--Qwen--Qwen-Image-2512/snapshots" / QWEN_IMAGE_2512_REVISION
+        snapshot.mkdir(parents=True)
         (root / "engine/intelligence/qwen_image_local_inference_runtime.py").write_text(
             "runtime-contract\n", encoding="utf-8"
         )
@@ -42,7 +43,6 @@ class LocalInferenceProvenanceTests(unittest.TestCase):
             "genuine_golden_png_created": False,
             "publication_ready": False,
         }
-        snapshot = root / "cache/snapshots" / QWEN_IMAGE_2512_REVISION
         return receipt, png, snapshot, verified
 
     def test_build_binds_local_snapshot_candidate_and_contract_sources(self) -> None:
@@ -91,7 +91,7 @@ class LocalInferenceProvenanceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             receipt, _png, _snapshot, verified = self._fixture(root)
-            wrong = root / "cache/snapshots" / ("1" * 40)
+            wrong = root / "cache/models--Qwen--Qwen-Image-2512/snapshots" / ("1" * 40)
             wrong.mkdir(parents=True)
             with patch(
                 "engine.intelligence.qwen_image_local_inference_provenance.verify_one_shot_canonical_inference",
