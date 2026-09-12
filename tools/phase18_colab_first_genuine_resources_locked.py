@@ -4,12 +4,13 @@
 This wrapper is the preferred execution seam for an immutable self-hosted GPU
 checkout. It proves live GPU qualification and live host-memory readiness,
 proves combined pinned-model cache headroom before any model download, binds the
-exact pinned Qwen and FLUX snapshots, verifies that conservative local working
-headroom still exists after the FLUX snapshot is ready, captures the approved
+exact pinned Qwen and FLUX snapshots, proves both cache receipts are immutable
+local-only/$0-local evidence, verifies that conservative local working headroom
+still exists after the FLUX snapshot is ready, captures the approved
 software/runtime fingerprint immediately before the strict genuine-Golden
 entrypoint, then captures it again after staging and fails closed on any drift.
-Resource, model cache, semantic, runtime and staging receipts are all bound by
-SHA-256.
+Resource, model cache, local-only, semantic, runtime and staging receipts are all
+bound by SHA-256.
 
 It never authorizes human acceptance, Golden quality, publication, or Seeds 2-4.
 """
@@ -30,6 +31,7 @@ CACHE_BUDGET = ROOT / "output" / "phase18_gpu_smoke" / "first-golden-cache-budge
 SEMANTIC_PREFLIGHT = ROOT / "output" / "phase18_gpu_smoke" / "semantic-preflight.json"
 QWEN_MODEL_CACHE = ROOT / "output" / "phase18_gpu_smoke" / "qwen-model-cache.json"
 FLUX_MODEL_CACHE = ROOT / "output" / "phase18_gpu_smoke" / "flux-model-cache.json"
+LOCAL_ONLY_MODEL_RECEIPTS = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-resource-lock-local-only-model-receipts.json"
 RUNTIME_PRE = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-pre.json"
 RUNTIME_POST = ROOT / "output" / "phase18_gpu_smoke" / "first-genuine-golden-runtime-post.json"
 STAGING = ROOT / "output" / "phase18_visual_proof" / "editorial" / "candidate-01-first-genuine-golden-staging.json"
@@ -194,6 +196,26 @@ def _validate_flux_cache(flux_cache: dict[str, object]) -> tuple[float, float]:
     return float(free_gib), float(minimum_gib)
 
 
+def _validate_local_only_model_receipts(payload: dict[str, object]) -> None:
+    if payload.get("schema") != "pul7sar-phase18-local-only-model-receipt-verification-v1":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_LOCAL_ONLY_RECEIPT_SCHEMA_DRIFT")
+    if payload.get("status") != "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_LOCAL_ONLY_RECEIPTS_UNVERIFIED")
+    if payload.get("cost_mode") != "$0-local":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_LOCAL_ONLY_COST_MODE_DRIFT")
+    if payload.get("network_download_authorized") is not False:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_NETWORK_DOWNLOAD_AUTHORITY_DRIFT")
+    if payload.get("local_files_only") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_LOCAL_FILES_ONLY_UNPROVEN")
+    if payload.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or payload.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_LOCAL_ONLY_QWEN_IDENTITY_DRIFT")
+    if payload.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or payload.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_LOCAL_ONLY_FLUX_IDENTITY_DRIFT")
+    for field in ("generation_authorized", "publication_ready", "seeds_2_to_4_authorized"):
+        if payload.get(field) is not False:
+            raise RuntimeError(f"FIRST_GENUINE_GOLDEN_LOCAL_ONLY_AUTHORITY_DRIFT:{field}")
+
+
 def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     if _branch() != EXPECTED_BRANCH:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_RESOURCE_LOCK_BRANCH_BLOCKED")
@@ -223,7 +245,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_HOST_MEMORY_NOT_READY")
 
     # Prove combined disk headroom against the exact approved model revisions
-    # before either Qwen or FLUX is allowed to download model bytes.
+    # before either Qwen or FLUX is allowed to resolve model bytes.
     _run(
         [sys.executable, str(ROOT / "tools" / "phase18_preflight_first_golden_cache_budget.py"), "--receipt", str(CACHE_BUDGET)],
         label="FIRST_GENUINE_GOLDEN_CACHE_BUDGET_PREFLIGHT",
@@ -249,15 +271,32 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
     _validate_semantic_preflight(semantic, qwen_cache)
 
     # Bind the exact immutable FLUX snapshot before Candidate 1. This prevents
-    # the executor from performing an unsealed first download inside generation.
-    # The prefetch also performs a live post-cache disk measurement; validate
-    # that receipt here so the headroom guarantee becomes part of this lock.
+    # the executor from performing an unsealed first model resolution inside
+    # generation. The prefetch also performs a live post-cache disk measurement;
+    # validate that receipt here so the headroom guarantee becomes part of this lock.
     _run(
         [sys.executable, str(ROOT / "tools" / "phase18_prefetch_flux2.py"), "--receipt", str(FLUX_MODEL_CACHE)],
         label="FIRST_GENUINE_GOLDEN_FLUX_MODEL_PREFETCH",
     )
     flux_cache = _load(FLUX_MODEL_CACHE)
     post_cache_free_gib, post_cache_required_gib = _validate_flux_cache(flux_cache)
+
+    # Prove both model receipts are exact immutable local-cache evidence before
+    # any Candidate 1 generation can begin. The independent verifier is
+    # CPU-safe/network-free and fails closed on download or network authority.
+    _run(
+        [
+            sys.executable,
+            str(ROOT / "tools" / "phase18_verify_local_only_model_receipts.py"),
+            str(QWEN_MODEL_CACHE),
+            str(FLUX_MODEL_CACHE),
+            "--output",
+            str(LOCAL_ONLY_MODEL_RECEIPTS),
+        ],
+        label="FIRST_GENUINE_GOLDEN_LOCAL_ONLY_MODEL_RECEIPTS",
+    )
+    local_only_receipts = _load(LOCAL_ONLY_MODEL_RECEIPTS)
+    _validate_local_only_model_receipts(local_only_receipts)
 
     # Freeze the software/runtime identity immediately before Candidate 1.
     runtime_before = capture_generation_runtime_fingerprint()
@@ -310,6 +349,7 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "semantic_preflight": _record(SEMANTIC_PREFLIGHT),
         "qwen_model_cache": _record(QWEN_MODEL_CACHE),
         "flux_model_cache": _record(FLUX_MODEL_CACHE),
+        "local_only_model_receipts": _record(LOCAL_ONLY_MODEL_RECEIPTS),
         "runtime_fingerprint_pre": _record(RUNTIME_PRE),
         "runtime_fingerprint_post": _record(RUNTIME_POST),
         "strict_golden_staging": _record(STAGING),
@@ -329,6 +369,9 @@ def run(*, force: bool = False, output: Path = FINAL) -> dict[str, object]:
         "semantic_preflight_bound": True,
         "qwen_model_cache_bound": True,
         "flux_model_cache_bound": True,
+        "local_only_model_receipts_bound": True,
+        "network_download_authorized": False,
+        "local_files_only": True,
         "post_cache_working_headroom_bound": True,
         "post_cache_free_gib": post_cache_free_gib,
         "post_cache_required_gib": post_cache_required_gib,
