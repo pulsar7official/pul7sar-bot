@@ -63,6 +63,14 @@ jobs:
             exit 6
           fi
 
+      - name: Record first-Golden execution blocker probe before CUDA preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_probe_first_golden_execution_blocker.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json
+
       - name: Prove CUDA-enabled PyTorch native BF16 and offline-only model resolution exist without replacing them
         shell: bash
         run: |
