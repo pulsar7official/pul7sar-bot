@@ -30,7 +30,7 @@ def _verified_result() -> dict[str, object]:
         "resource_lock_sha256": RESOURCE_LOCK_SHA,
         "png_sha256": PNG_SHA,
         "png_bytes": 4096,
-        "evidence_files_verified": 9,
+        "evidence_files_verified": 10,
         "evidence_semantics_verified": True,
         "human_visual_review_approved": False,
         "golden_quality_approved": False,
@@ -68,7 +68,7 @@ class ArtifactReadyManifestTests(unittest.TestCase):
         self.assertEqual(manifest["resource_lock_sha256"], RESOURCE_LOCK_SHA)
         self.assertEqual(manifest["png_sha256"], PNG_SHA)
         self.assertEqual(manifest["png_bytes"], 4096)
-        self.assertEqual(manifest["evidence_files_verified"], 9)
+        self.assertEqual(manifest["evidence_files_verified"], 10)
         self.assertTrue(manifest["evidence_semantics_verified"])
         self.assertEqual(
             source_bound.artifact_ready_filename(RUN_ID, RUN_ATTEMPT),
@@ -79,7 +79,7 @@ class ArtifactReadyManifestTests(unittest.TestCase):
         for patch in (
             {"source_commit_verified": False},
             {"cost_mode": "network"},
-            {"evidence_files_verified": 8},
+            {"evidence_files_verified": 9},
             {"evidence_semantics_verified": False},
         ):
             result = {**_verified_result(), **patch}
