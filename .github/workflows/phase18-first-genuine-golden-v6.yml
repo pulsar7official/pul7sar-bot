@@ -187,6 +187,7 @@ jobs:
               "semantic_preflight",
               "qwen_model_cache",
               "flux_model_cache",
+              "local_only_model_receipts",
               "runtime_fingerprint_pre",
               "runtime_fingerprint_post",
               "strict_golden_staging",
@@ -278,6 +279,23 @@ jobs:
               assert_snapshot_revision(flux_snapshot, FLUX2_KLEIN_4B_REVISION)
           except (RuntimeError, ValueError) as exc:
               raise SystemExit("FLUX cache snapshot path revision drift during replay") from exc
+
+          local_only = json.loads(inside(str(evidence["local_only_model_receipts"]["path"])).read_text(encoding="utf-8"))
+          if local_only.get("schema") != "pul7sar-phase18-local-only-model-receipt-verification-v1":
+              raise SystemExit("local-only model receipt schema drift during replay")
+          if local_only.get("status") != "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED":
+              raise SystemExit("local-only model receipt status drift during replay")
+          if local_only.get("cost_mode") != "$0-local":
+              raise SystemExit("local-only model receipt cost-mode drift during replay")
+          if local_only.get("network_download_authorized") is not False or local_only.get("local_files_only") is not True:
+              raise SystemExit("local-only model receipt network policy drift during replay")
+          if local_only.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or local_only.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+              raise SystemExit("local-only Qwen identity drift during replay")
+          if local_only.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or local_only.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+              raise SystemExit("local-only FLUX identity drift during replay")
+          for field in ("generation_authorized", "publication_ready", "seeds_2_to_4_authorized"):
+              if local_only.get(field) is not False:
+                  raise SystemExit(f"local-only model receipt authority drift during replay: {field}")
 
           runtime_pre = json.loads(inside(str(evidence["runtime_fingerprint_pre"]["path"])).read_text(encoding="utf-8"))
           runtime_post = json.loads(inside(str(evidence["runtime_fingerprint_post"]["path"])).read_text(encoding="utf-8"))
