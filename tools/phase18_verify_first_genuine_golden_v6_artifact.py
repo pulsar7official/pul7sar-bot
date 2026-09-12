@@ -36,6 +36,7 @@ EXPECTED_EVIDENCE = frozenset(
         "semantic_preflight",
         "qwen_model_cache",
         "flux_model_cache",
+        "local_only_model_receipts",
         "runtime_fingerprint_pre",
         "runtime_fingerprint_post",
         "strict_golden_staging",
@@ -173,6 +174,21 @@ def _validate_evidence_semantics(resolved: Mapping[str, Path], final: Mapping[st
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_ZERO_COST_DRIFT")
     if flux.get("working_headroom_ready") is not True:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_FLUX_HEADROOM_UNPROVEN")
+
+    local_only = _load_json(resolved["local_only_model_receipts"], label="local_only_model_receipts")
+    if local_only.get("schema") != "pul7sar-phase18-local-only-model-receipt-verification-v1":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_LOCAL_ONLY_SCHEMA_DRIFT")
+    if local_only.get("status") != "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED":
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_LOCAL_ONLY_STATUS_DRIFT")
+    if local_only.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_LOCAL_ONLY_COST_MODE_DRIFT")
+    if local_only.get("network_download_authorized") is not False or local_only.get("local_files_only") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_LOCAL_ONLY_NETWORK_POLICY_DRIFT")
+    if local_only.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or local_only.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_LOCAL_ONLY_QWEN_DRIFT")
+    if local_only.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or local_only.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_EVIDENCE_LOCAL_ONLY_FLUX_DRIFT")
+    _require_false(local_only, ("generation_authorized", "publication_ready", "seeds_2_to_4_authorized"), label="local_only_model_receipts")
 
     runtime_pre = _load_json(resolved["runtime_fingerprint_pre"], label="runtime_fingerprint_pre")
     runtime_post = _load_json(resolved["runtime_fingerprint_post"], label="runtime_fingerprint_post")
