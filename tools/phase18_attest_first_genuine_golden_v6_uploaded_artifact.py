@@ -3,9 +3,9 @@
 
 This helper is CPU-safe and network-free. It consumes GitHub artifact metadata
 that was fetched by the workflow plus the immutable outputs from
-``actions/upload-artifact`` and delegates semantic verification to the CS404
-transport verifier. It never grants Human Review, Golden-quality, publication,
-or Seeds 2-4 authority.
+``actions/upload-artifact`` and delegates semantic verification to the transport
+verifier. It never grants Human Review, Golden-quality, publication, or Seeds
+2-4 authority.
 """
 from __future__ import annotations
 
@@ -15,7 +15,6 @@ from pathlib import Path
 import re
 
 from tools.phase18_verify_first_genuine_golden_v6_uploaded_artifact_metadata import verify
-
 
 SCHEMA = "pul7sar-first-genuine-golden-v6-upload-transport-attestation-v1"
 STATUS = "FIRST_GENUINE_GOLDEN_V6_UPLOAD_TRANSPORT_ATTESTED"
@@ -80,13 +79,14 @@ def build_attestation(
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ATTEST_UPLOAD_ARTIFACT_DIGEST_MISMATCH")
     if verified.get("uploaded_artifact_metadata_verified") is not True:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ATTEST_TRANSPORT_NOT_VERIFIED")
-
-    for field in (
-        "human_visual_review_approved",
-        "golden_quality_approved",
-        "publication_ready",
-        "seeds_2_to_4_authorized",
+    if (
+        verified.get("local_only_model_receipts_verified") is not True
+        or verified.get("network_download_authorized") is not False
+        or verified.get("local_files_only") is not True
     ):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ATTEST_LOCAL_ONLY_NOT_VERIFIED")
+
+    for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
         if verified.get(field) is not False:
             raise RuntimeError(f"FIRST_GENUINE_GOLDEN_V6_ATTEST_ILLEGAL_AUTHORITY:{field}")
 
@@ -100,6 +100,13 @@ def build_attestation(
         "workflow_run_attempt": run_attempt,
         "source_commit_sha": expected_source_sha,
         "source_commit_verified": True,
+        "local_only_model_receipts_verified": True,
+        "network_download_authorized": False,
+        "local_files_only": True,
+        "qwen_model_id": verified["qwen_model_id"],
+        "qwen_model_revision": verified["qwen_model_revision"],
+        "flux_model_id": verified["flux_model_id"],
+        "flux_model_revision": verified["flux_model_revision"],
         "upload_action_artifact_id": upload_id,
         "upload_action_artifact_digest": digest,
         "rest_artifact_id": verified["artifact_id"],
