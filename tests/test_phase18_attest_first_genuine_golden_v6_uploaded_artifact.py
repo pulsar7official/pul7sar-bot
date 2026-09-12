@@ -30,6 +30,8 @@ def readiness():
         "source_commit_sha": SHA,
         "source_commit_verified": True,
         "artifact_replay_verified": True,
+        "evidence_files_verified": 10,
+        "evidence_semantics_verified": True,
         "eligible_for_human_visual_review": True,
         "cost_mode": "$0-local",
         "human_visual_review_approved": False,
@@ -99,6 +101,20 @@ class UploadTransportAttestationTests(unittest.TestCase):
                         upload_artifact_id=value,
                         upload_artifact_digest=DIGEST,
                     )
+
+    def test_incomplete_evidence_readiness_is_rejected(self):
+        ready = readiness()
+        ready["evidence_files_verified"] = 9
+        with self.assertRaisesRegex(RuntimeError, "READINESS_EVIDENCE_NOT_VERIFIED"):
+            build_attestation(
+                metadata(),
+                ready,
+                expected_source_sha=SHA,
+                workflow_run_id=77,
+                workflow_run_attempt=1,
+                upload_artifact_id=123,
+                upload_artifact_digest=DIGEST,
+            )
 
     def test_atomic_write_leaves_no_tmp_file(self):
         result = build_attestation(
