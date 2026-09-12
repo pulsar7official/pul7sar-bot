@@ -15,6 +15,7 @@ import os
 from pathlib import Path
 import shutil
 import sys
+from typing import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -25,9 +26,11 @@ from engine.intelligence.approved_model_revisions import (
     FLUX2_KLEIN_4B_REVISION,
     QWEN25_VL_3B_MODEL_ID,
     QWEN25_VL_3B_REVISION,
+    assert_snapshot_revision,
 )
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
+SnapshotResolver = Callable[[Path, str, str], Path | None]
 
 
 def _cache_root(env: dict[str, str] | None = None, home: Path | None = None) -> Path:
@@ -45,7 +48,40 @@ def _snapshot_path(cache_root: Path, model_id: str, revision: str) -> Path:
     return cache_root / f"models--{owner}--{repo}" / "snapshots" / revision
 
 
-def inspect(*, env: dict[str, str] | None = None, home: Path | None = None, torch_module=None) -> dict[str, object]:
+def _resolve_local_snapshot(cache_root: Path, model_id: str, revision: str) -> Path | None:
+    """Resolve an exact immutable snapshot using Hugging Face local-only semantics.
+
+    Directory presence alone is intentionally insufficient: ``snapshot_download``
+    must be able to resolve the approved revision without network access, matching
+    the authoritative model-cache preflights used later in the Golden path.
+    """
+    try:
+        from huggingface_hub import snapshot_download
+    except ImportError:
+        return None
+
+    try:
+        snapshot = Path(
+            snapshot_download(
+                repo_id=model_id,
+                revision=revision,
+                cache_dir=str(cache_root),
+                local_files_only=True,
+            )
+        ).resolve()
+        assert_snapshot_revision(snapshot, revision)
+    except Exception:
+        return None
+    return snapshot
+
+
+def inspect(
+    *,
+    env: dict[str, str] | None = None,
+    home: Path | None = None,
+    torch_module=None,
+    snapshot_resolver: SnapshotResolver | None = None,
+) -> dict[str, object]:
     values = dict(os.environ if env is None else env)
     blockers: list[str] = []
 
@@ -77,10 +113,13 @@ def inspect(*, env: dict[str, str] | None = None, home: Path | None = None, torc
         blockers.append("NATIVE_BF16_UNAVAILABLE")
 
     cache_root = _cache_root(values, home)
-    qwen_snapshot = _snapshot_path(cache_root, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION)
-    flux_snapshot = _snapshot_path(cache_root, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION)
-    qwen_cached = qwen_snapshot.is_dir()
-    flux_cached = flux_snapshot.is_dir()
+    qwen_snapshot_expected = _snapshot_path(cache_root, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION)
+    flux_snapshot_expected = _snapshot_path(cache_root, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION)
+    resolver = _resolve_local_snapshot if snapshot_resolver is None else snapshot_resolver
+    qwen_snapshot_resolved = resolver(cache_root, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION)
+    flux_snapshot_resolved = resolver(cache_root, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION)
+    qwen_cached = qwen_snapshot_resolved is not None
+    flux_cached = flux_snapshot_resolved is not None
     if not qwen_cached:
         blockers.append("QWEN_APPROVED_SNAPSHOT_MISSING")
     if not flux_cached:
@@ -96,7 +135,7 @@ def inspect(*, env: dict[str, str] | None = None, home: Path | None = None, torc
         blockers.append("CACHE_FILESYSTEM_UNREADABLE")
 
     return {
-        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v1",
+        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v2",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "branch_required": EXPECTED_BRANCH,
         "cost_mode_required": "$0-local",
@@ -118,13 +157,18 @@ def inspect(*, env: dict[str, str] | None = None, home: Path | None = None, torc
         "cache": {
             "root": str(cache_root),
             "disk_free_gib": disk_free_gib,
+            "resolution_mode": "huggingface-local-files-only",
             "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
             "qwen_model_revision": QWEN25_VL_3B_REVISION,
-            "qwen_snapshot_path": str(qwen_snapshot),
+            "qwen_snapshot_path": str(qwen_snapshot_expected),
+            "qwen_snapshot_directory_present": qwen_snapshot_expected.is_dir(),
+            "qwen_resolved_snapshot_path": str(qwen_snapshot_resolved) if qwen_snapshot_resolved is not None else None,
             "qwen_cached": qwen_cached,
             "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
             "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
-            "flux_snapshot_path": str(flux_snapshot),
+            "flux_snapshot_path": str(flux_snapshot_expected),
+            "flux_snapshot_directory_present": flux_snapshot_expected.is_dir(),
+            "flux_resolved_snapshot_path": str(flux_snapshot_resolved) if flux_snapshot_resolved is not None else None,
             "flux_cached": flux_cached,
         },
         "ready_for_authoritative_golden_preflight": not blockers,
