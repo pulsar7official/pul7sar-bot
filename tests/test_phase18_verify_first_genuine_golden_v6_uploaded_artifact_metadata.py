@@ -31,7 +31,7 @@ def readiness() -> dict[str, object]:
         "resource_lock_sha256": "3" * 64,
         "png_sha256": "4" * 64,
         "png_bytes": 4096,
-        "evidence_files_verified": 9,
+        "evidence_files_verified": 10,
         "evidence_semantics_verified": True,
         "eligible_for_human_visual_review": True,
         "human_visual_review_approved": False,
@@ -133,6 +133,19 @@ class UploadedArtifactTransportMetadataTests(unittest.TestCase):
             ready = {**readiness(), **patch}
             with self.subTest(patch=patch):
                 with self.assertRaises(RuntimeError):
+                    verify(ready=ready)
+
+    def test_rejects_incomplete_or_semantically_unverified_evidence_contract(self) -> None:
+        for patch in (
+            {"evidence_files_verified": 9},
+            {"evidence_files_verified": 11},
+            {"evidence_files_verified": None},
+            {"evidence_semantics_verified": False},
+            {"evidence_semantics_verified": None},
+        ):
+            ready = {**readiness(), **patch}
+            with self.subTest(patch=patch):
+                with self.assertRaisesRegex(RuntimeError, "READINESS_EVIDENCE_NOT_VERIFIED"):
                     verify(ready=ready)
 
     def test_rejects_any_downstream_authority_drift(self) -> None:
