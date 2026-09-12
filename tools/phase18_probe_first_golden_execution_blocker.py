@@ -2,13 +2,14 @@
 """Non-authoritative, zero-cost probe for the first genuine Golden v6 execution blocker.
 
 This command performs no downloads, model loading, generation, queue mutation, or
-publication. It only reports whether the current host exposes the minimum runtime
-and exact local-cache prerequisites needed before the authoritative Golden gates
-can be attempted.
+publication. It only reports whether the current host exposes the minimum runtime,
+live GPU/host-memory headroom, and exact local-cache prerequisites needed before
+the authoritative Golden gates can be attempted.
 """
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 from datetime import datetime, timezone
 import json
 import os
@@ -28,6 +29,10 @@ from engine.intelligence.approved_model_revisions import (
     QWEN25_VL_3B_REVISION,
     assert_snapshot_revision,
 )
+from engine.intelligence.gpu_host_qualification import GpuHostQualificationPolicy
+from engine.intelligence.host_memory_qualification import HostMemoryQualificationProbe
+from engine.intelligence.local_runtime import LocalRuntimeProbe
+from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
 SnapshotResolver = Callable[[Path, str, str], Path | None]
@@ -75,12 +80,42 @@ def _resolve_local_snapshot(cache_root: Path, model_id: str, revision: str) -> P
     return snapshot
 
 
+def _gpu_qualification() -> dict[str, object]:
+    """Reuse the authoritative live-VRAM/BF16 GPU policy without mutating the host."""
+    try:
+        runtime = LocalRuntimeProbe().detect()
+        return GpuHostQualificationPolicy().evaluate(
+            runtime=runtime,
+            model=FLUX2_KLEIN_4B_LOCAL,
+        ).as_dict()
+    except Exception as exc:
+        return {
+            "eligible": False,
+            "reasons": [f"gpu_qualification_probe_failed:{type(exc).__name__}"],
+            "cost_mode": "$0-local",
+        }
+
+
+def _host_memory_qualification() -> dict[str, object]:
+    """Reuse the authoritative available-system-RAM policy without model loading."""
+    try:
+        return asdict(HostMemoryQualificationProbe().inspect())
+    except Exception as exc:
+        return {
+            "ready": False,
+            "reasons": [f"host_memory_probe_failed:{type(exc).__name__}"],
+            "cost_mode": "$0-local",
+        }
+
+
 def inspect(
     *,
     env: dict[str, str] | None = None,
     home: Path | None = None,
     torch_module=None,
     snapshot_resolver: SnapshotResolver | None = None,
+    gpu_qualification_report: dict[str, object] | None = None,
+    host_memory_report: dict[str, object] | None = None,
 ) -> dict[str, object]:
     values = dict(os.environ if env is None else env)
     blockers: list[str] = []
@@ -112,6 +147,22 @@ def inspect(
     if not bf16_supported:
         blockers.append("NATIVE_BF16_UNAVAILABLE")
 
+    gpu_qualification = dict(
+        _gpu_qualification() if gpu_qualification_report is None else gpu_qualification_report
+    )
+    if gpu_qualification.get("eligible") is not True:
+        blockers.append("GPU_HOST_NOT_GOLDEN_QUALIFIED")
+    if gpu_qualification.get("cost_mode") != "$0-local":
+        blockers.append("GPU_QUALIFICATION_ZERO_COST_DRIFT")
+
+    host_memory = dict(
+        _host_memory_qualification() if host_memory_report is None else host_memory_report
+    )
+    if host_memory.get("ready") is not True:
+        blockers.append("HOST_MEMORY_NOT_READY")
+    if host_memory.get("cost_mode") != "$0-local":
+        blockers.append("HOST_MEMORY_ZERO_COST_DRIFT")
+
     cache_root = _cache_root(values, home)
     qwen_snapshot_expected = _snapshot_path(cache_root, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION)
     flux_snapshot_expected = _snapshot_path(cache_root, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION)
@@ -135,7 +186,7 @@ def inspect(
         blockers.append("CACHE_FILESYSTEM_UNREADABLE")
 
     return {
-        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v2",
+        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v3",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "branch_required": EXPECTED_BRANCH,
         "cost_mode_required": "$0-local",
@@ -154,6 +205,8 @@ def inspect(
             "cuda_device_count": device_count,
             "native_bf16": bf16_supported,
         },
+        "gpu_qualification": gpu_qualification,
+        "host_memory": host_memory,
         "cache": {
             "root": str(cache_root),
             "disk_free_gib": disk_free_gib,
