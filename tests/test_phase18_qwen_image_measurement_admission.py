@@ -71,7 +71,7 @@ def _host_memory(*, ready: bool = True, generation_authorized: bool = False) -> 
 
 
 def _complete_snapshot(root: Path, revision: str = QWEN_IMAGE_2512_REVISION) -> Path:
-    snapshot = root / "snapshots" / revision
+    snapshot = root / "models--Qwen--Qwen-Image-2512/snapshots" / revision
     snapshot.mkdir(parents=True)
     (snapshot / "model_index.json").write_text("{}", encoding="utf-8")
     (snapshot / "weights.safetensors").write_bytes(b"weights")
@@ -147,7 +147,7 @@ class QwenImageMeasurementAdmissionTests(unittest.TestCase):
 
     def test_pinned_but_incomplete_snapshot_is_not_treated_as_cached(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
-            snapshot = Path(temp) / "snapshots" / QWEN_IMAGE_2512_REVISION
+            snapshot = Path(temp) / "models--Qwen--Qwen-Image-2512/snapshots" / QWEN_IMAGE_2512_REVISION
             snapshot.mkdir(parents=True)
             result = evaluate_measurement_admission(
                 runtime=_runtime(), host_memory=_host_memory(), diffusers_version="0.test",
