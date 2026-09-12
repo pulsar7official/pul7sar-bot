@@ -20,6 +20,12 @@ import json
 import os
 from pathlib import Path
 
+from engine.intelligence.approved_model_revisions import (
+    FLUX2_KLEIN_4B_MODEL_ID,
+    FLUX2_KLEIN_4B_REVISION,
+    QWEN25_VL_3B_MODEL_ID,
+    QWEN25_VL_3B_REVISION,
+)
 from phase18_bind_first_genuine_golden_source_commit import verify as verify_source_binding
 from phase18_verify_first_genuine_golden_v6_artifact import verify as verify_artifact
 
@@ -98,6 +104,13 @@ def verify(
             "source_commit_verified": True,
             "source_binding": str(binding_path),
             "resource_lock_sha256": source.get("resource_lock_sha256"),
+            "local_only_model_receipts_verified": True,
+            "network_download_authorized": False,
+            "local_files_only": True,
+            "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+            "qwen_model_revision": QWEN25_VL_3B_REVISION,
+            "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+            "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
             "human_visual_review_approved": False,
             "golden_quality_approved": False,
             "publication_ready": False,
@@ -121,6 +134,16 @@ def build_artifact_ready_manifest(
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_COST_MODE_DRIFT")
     if result.get("evidence_semantics_verified") is not True or result.get("evidence_files_verified") != EXPECTED_EVIDENCE_FILES:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_EVIDENCE_NOT_VERIFIED")
+    if (
+        result.get("local_only_model_receipts_verified") is not True
+        or result.get("network_download_authorized") is not False
+        or result.get("local_files_only") is not True
+    ):
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_LOCAL_ONLY_NOT_VERIFIED")
+    if result.get("qwen_model_id") != QWEN25_VL_3B_MODEL_ID or result.get("qwen_model_revision") != QWEN25_VL_3B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_QWEN_IDENTITY_DRIFT")
+    if result.get("flux_model_id") != FLUX2_KLEIN_4B_MODEL_ID or result.get("flux_model_revision") != FLUX2_KLEIN_4B_REVISION:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_FLUX_IDENTITY_DRIFT")
 
     run_id = _positive_int(workflow_run_id, label="WORKFLOW_RUN_ID")
     run_attempt = _positive_int(workflow_run_attempt, label="WORKFLOW_RUN_ATTEMPT")
@@ -161,6 +184,13 @@ def build_artifact_ready_manifest(
         "png_bytes": png_bytes,
         "evidence_files_verified": EXPECTED_EVIDENCE_FILES,
         "evidence_semantics_verified": True,
+        "local_only_model_receipts_verified": True,
+        "network_download_authorized": False,
+        "local_files_only": True,
+        "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+        "qwen_model_revision": QWEN25_VL_3B_REVISION,
+        "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+        "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
         "eligible_for_human_visual_review": True,
         "human_visual_review_approved": False,
         "golden_quality_approved": False,
@@ -289,8 +319,6 @@ def main() -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
         return 0
 
-    # Producer mode: remove only a same-run partial marker plus the obsolete v1
-    # canonical name, then atomically create the run-bound readiness marker.
     ready_path.unlink(missing_ok=True)
     (ready_dir / LEGACY_ARTIFACT_READY_FILENAME).unlink(missing_ok=True)
 
