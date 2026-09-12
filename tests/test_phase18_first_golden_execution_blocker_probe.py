@@ -64,6 +64,11 @@ def _snapshot(root: Path, model_id: str, revision: str) -> Path:
     return root / f"models--{owner}--{repo}" / "snapshots" / revision
 
 
+def _filesystem_local_resolver(cache_root: Path, model_id: str, revision: str) -> Path | None:
+    snapshot = _snapshot(cache_root, model_id, revision)
+    return snapshot.resolve() if snapshot.is_dir() else None
+
+
 class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
     def test_ready_requires_offline_zero_cost_cuda_bf16_and_both_exact_snapshots(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -78,9 +83,14 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
                     "PUL7SAR_PHASE18_COST_MODE": "$0-local",
                 },
                 torch_module=_TorchReady(),
+                snapshot_resolver=_filesystem_local_resolver,
             )
         self.assertTrue(payload["ready_for_authoritative_golden_preflight"])
         self.assertEqual(payload["blockers"], [])
+        self.assertEqual(payload["schema"], "pul7sar-phase18-first-golden-execution-blocker-probe-v2")
+        self.assertEqual(payload["cache"]["resolution_mode"], "huggingface-local-files-only")
+        self.assertTrue(payload["cache"]["qwen_cached"])
+        self.assertTrue(payload["cache"]["flux_cached"])
         self.assertFalse(payload["authoritative_gate"])
         self.assertFalse(payload["network_download_authorized"])
         self.assertFalse(payload["generation_authorized"])
@@ -92,6 +102,7 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             payload = inspect(
                 env={"HF_HUB_CACHE": str(Path(tmp) / "hub")},
                 torch_module=_TorchBlocked(),
+                snapshot_resolver=_filesystem_local_resolver,
             )
         blockers = set(payload["blockers"])
         expected = {
@@ -121,7 +132,35 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
                     "PUL7SAR_PHASE18_COST_MODE": "$0-local",
                 },
                 torch_module=_TorchReady(),
+                snapshot_resolver=_filesystem_local_resolver,
             )
+        self.assertIn("QWEN_APPROVED_SNAPSHOT_MISSING", payload["blockers"])
+        self.assertIn("FLUX_APPROVED_SNAPSHOT_MISSING", payload["blockers"])
+        self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
+
+    def test_directory_presence_alone_does_not_mark_snapshot_cached_without_local_resolution(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "hub"
+            _snapshot(cache, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION).mkdir(parents=True)
+            _snapshot(cache, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION).mkdir(parents=True)
+
+            def unresolved(_cache_root: Path, _model_id: str, _revision: str) -> Path | None:
+                return None
+
+            payload = inspect(
+                env={
+                    "HF_HUB_CACHE": str(cache),
+                    "HF_HUB_OFFLINE": "1",
+                    "TRANSFORMERS_OFFLINE": "1",
+                    "PUL7SAR_PHASE18_COST_MODE": "$0-local",
+                },
+                torch_module=_TorchReady(),
+                snapshot_resolver=unresolved,
+            )
+        self.assertTrue(payload["cache"]["qwen_snapshot_directory_present"])
+        self.assertTrue(payload["cache"]["flux_snapshot_directory_present"])
+        self.assertFalse(payload["cache"]["qwen_cached"])
+        self.assertFalse(payload["cache"]["flux_cached"])
         self.assertIn("QWEN_APPROVED_SNAPSHOT_MISSING", payload["blockers"])
         self.assertIn("FLUX_APPROVED_SNAPSHOT_MISSING", payload["blockers"])
         self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
