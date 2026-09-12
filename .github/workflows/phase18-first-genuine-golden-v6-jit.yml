@@ -22,6 +22,8 @@ jobs:
     env:
       PYTHONPATH: .
       PUL7SAR_PHASE18_COST_MODE: $0-local
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
 
     steps:
       - name: Require explicit confirmation and immutable Phase 18 dispatch
@@ -61,15 +63,18 @@ jobs:
             exit 6
           fi
 
-      - name: Prove CUDA-enabled PyTorch exists without replacing it
+      - name: Prove CUDA-enabled PyTorch and offline-only model resolution exist without replacing them
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
+          import os
           import torch
+          if os.environ.get("HF_HUB_OFFLINE") != "1" or os.environ.get("TRANSFORMERS_OFFLINE") != "1":
+              raise SystemExit("First Genuine Golden v6 JIT requires local-cache-only model resolution")
           if not torch.cuda.is_available():
               raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
-          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count(), "model_cache_mode": "offline-local-only"})
           PY
 
       - name: Run JIT-resource replay locked strict Golden Editorial v6 Candidate 1
