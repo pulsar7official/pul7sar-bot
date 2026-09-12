@@ -18,7 +18,7 @@ from engine.intelligence.qwen_image_snapshot_inventory import build_qwen_image_s
 
 class QwenImageInventoryBoundLaunchManifestTests(unittest.TestCase):
     def _snapshot(self, root: Path) -> Path:
-        snapshot = root / "cache/model/snapshots" / QWEN_IMAGE_2512_REVISION
+        snapshot = root / "cache/models--Qwen--Qwen-Image-2512/snapshots" / QWEN_IMAGE_2512_REVISION
         (snapshot / "transformer").mkdir(parents=True)
         (snapshot / "text_encoder").mkdir()
         (snapshot / "model_index.json").write_text(
