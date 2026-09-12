@@ -109,6 +109,12 @@ jobs:
           import hashlib
           import json
           from pathlib import Path
+          from engine.intelligence.approved_model_revisions import (
+              FLUX2_KLEIN_4B_MODEL_ID,
+              FLUX2_KLEIN_4B_REVISION,
+              QWEN25_VL_3B_MODEL_ID,
+              QWEN25_VL_3B_REVISION,
+          )
           from engine.intelligence.golden_jit_resource_replay import verify_golden_jit_resource_replay
 
           root = Path.cwd().resolve()
@@ -124,6 +130,19 @@ jobs:
               raise SystemExit("JIT-lock identity drift")
           if final.get("cost_mode") != "$0-local" or final.get("jit_pre_execution_resource_replay_bound") is not True:
               raise SystemExit("JIT-lock execution policy drift")
+          if final.get("local_only_model_receipts_verified") is not True:
+              raise SystemExit("JIT-lock local-only model receipts not verified")
+          if final.get("network_download_authorized") is not False or final.get("local_files_only") is not True:
+              raise SystemExit("JIT-lock local-only/network policy drift")
+          expected_models = {
+              "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+              "qwen_model_revision": QWEN25_VL_3B_REVISION,
+              "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+              "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
+          }
+          for field, expected_value in expected_models.items():
+              if final.get(field) != expected_value:
+                  raise SystemExit(f"JIT-lock approved model provenance drift: {field}")
           if final.get("selected_safe_offload_mode") != final.get("actual_offload_mode"):
               raise SystemExit("offload selection/actual mode drift")
           for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
@@ -143,7 +162,7 @@ jobs:
               return hashlib.sha256(path.read_bytes()).hexdigest()
 
           evidence = final.get("evidence")
-          expected = {"offload_lock", "inner_resource_lock", "strict_golden_staging", "jit_resource_replay"}
+          expected = {"offload_lock", "inner_resource_lock", "local_only_model_receipts", "strict_golden_staging", "jit_resource_replay"}
           if not isinstance(evidence, dict) or set(evidence) != expected:
               raise SystemExit("JIT-lock evidence set incomplete")
           for label, record in evidence.items():
@@ -154,6 +173,26 @@ jobs:
                   raise SystemExit(f"evidence missing: {label}")
               if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
                   raise SystemExit(f"evidence replay mismatch: {label}")
+
+          local_only_path = inside(str(evidence["local_only_model_receipts"]["path"]))
+          local_only = json.loads(local_only_path.read_text(encoding="utf-8"))
+          expected_local_only = {
+              "schema": "pul7sar-phase18-local-only-model-receipt-verification-v1",
+              "status": "PHASE18_LOCAL_ONLY_MODEL_RECEIPTS_VERIFIED",
+              "cost_mode": "$0-local",
+              "network_download_authorized": False,
+              "local_files_only": True,
+              "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
+              "qwen_model_revision": QWEN25_VL_3B_REVISION,
+              "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
+              "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
+              "generation_authorized": False,
+              "publication_ready": False,
+              "seeds_2_to_4_authorized": False,
+          }
+          for field, expected_value in expected_local_only.items():
+              if local_only.get(field) != expected_value:
+                  raise SystemExit(f"local-only receipt replay drift: {field}")
 
           staging_path = inside(str(evidence["strict_golden_staging"]["path"]))
           staging = json.loads(staging_path.read_text(encoding="utf-8"))
@@ -177,6 +216,9 @@ jobs:
           print(json.dumps({
               "status": "FIRST_GENUINE_GOLDEN_V6_JIT_REPLAY_VERIFIED",
               "jit_resource_fingerprint_sha256": replay.get("resource_fingerprint_sha256"),
+              "local_only_model_receipts_verified": True,
+              "network_download_authorized": False,
+              "local_files_only": True,
               "png": str(png),
               "png_sha256": final.get("png_sha256"),
               "publication_ready": False,
