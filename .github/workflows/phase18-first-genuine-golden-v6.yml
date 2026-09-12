@@ -63,6 +63,7 @@ jobs:
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_attest_first_genuine_golden_v6_uploaded_artifact.py
+          test -f tools/phase18_probe_first_golden_execution_blocker.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -71,18 +72,34 @@ jobs:
             exit 6
           fi
 
-      - name: Prove CUDA-enabled PyTorch exists without replacing it
+      - name: Record first-Golden execution blocker probe before CUDA preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_probe_first_golden_execution_blocker.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json
+
+      - name: Prove CUDA-enabled PyTorch native BF16 and offline-only model resolution exist without replacing them
         shell: bash
         run: |
           set -euo pipefail
           python - <<'PY'
           import os
           import torch
+          if os.environ.get("PUL7SAR_PHASE18_COST_MODE") != "$0-local":
+              raise SystemExit("First Genuine Golden v6 requires $0-local execution")
           if os.environ.get("HF_HUB_OFFLINE") != "1" or os.environ.get("TRANSFORMERS_OFFLINE") != "1":
               raise SystemExit("First Genuine Golden v6 requires local-cache-only model resolution")
           if not torch.cuda.is_available():
               raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
-          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count(), "model_cache_mode": "offline-local-only"})
+          if torch.version.cuda is None:
+              raise SystemExit("PyTorch CUDA runtime is unavailable")
+          if torch.cuda.device_count() < 1:
+              raise SystemExit("At least one CUDA device is required")
+          if not torch.cuda.is_bf16_supported():
+              raise SystemExit("Native BF16 support is required; refusing FP16/FP32 substitution")
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count(), "native_bf16": True, "model_cache_mode": "offline-local-only"})
           PY
 
       - name: Run model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1
