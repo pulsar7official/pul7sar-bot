@@ -26,6 +26,7 @@ from phase18_verify_first_genuine_golden_v6_artifact import verify as verify_art
 SOURCE_BINDING_RECORDED_PATH = "output/phase18_gpu_smoke/first-genuine-golden-v6-source-binding.json"
 ARTIFACT_READY_FILENAME_PREFIX = "first-genuine-golden-v6-artifact-ready"
 LEGACY_ARTIFACT_READY_FILENAME = "first-genuine-golden-v6-artifact-ready.json"
+EXPECTED_EVIDENCE_FILES = 10
 
 
 def _resolve_source_binding(root: Path) -> Path:
@@ -118,7 +119,7 @@ def build_artifact_ready_manifest(
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_SOURCE_NOT_VERIFIED")
     if result.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_COST_MODE_DRIFT")
-    if result.get("evidence_semantics_verified") is not True or result.get("evidence_files_verified") != 9:
+    if result.get("evidence_semantics_verified") is not True or result.get("evidence_files_verified") != EXPECTED_EVIDENCE_FILES:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_EVIDENCE_NOT_VERIFIED")
 
     run_id = _positive_int(workflow_run_id, label="WORKFLOW_RUN_ID")
@@ -158,7 +159,7 @@ def build_artifact_ready_manifest(
         "resource_lock_sha256": resource_lock_sha256,
         "png_sha256": png_sha256,
         "png_bytes": png_bytes,
-        "evidence_files_verified": 9,
+        "evidence_files_verified": EXPECTED_EVIDENCE_FILES,
         "evidence_semantics_verified": True,
         "eligible_for_human_visual_review": True,
         "human_visual_review_approved": False,
