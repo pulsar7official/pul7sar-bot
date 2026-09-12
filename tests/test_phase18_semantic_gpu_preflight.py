@@ -78,7 +78,7 @@ class SemanticGpuPreflightTests(unittest.TestCase):
                 readiness=self._ready(),
                 prefetch={
                     "ready": True,
-                    "snapshot_path": f"/cache/snapshots/{preflight.MODEL_REVISION}",
+                    "snapshot_path": f"/cache/models--Qwen--Qwen2.5-VL-3B-Instruct/snapshots/{preflight.MODEL_REVISION}",
                     "resolved_snapshot_revision": preflight.MODEL_REVISION,
                     "revision_pinned": True,
                     "downloaded_now": False,
@@ -102,7 +102,7 @@ class SemanticGpuPreflightTests(unittest.TestCase):
             (root / "engine" / "intelligence").mkdir(parents=True)
             output = root / "output" / "semantic-preflight.json"
             cache = root / "output" / "qwen-model-cache.json"
-            snapshot = root / "cache" / "snapshots" / preflight.MODEL_REVISION
+            snapshot = root / "cache" / "models--Qwen--Qwen2.5-VL-3B-Instruct" / "snapshots" / preflight.MODEL_REVISION
             snapshot.mkdir(parents=True)
             payload = self._prefetch_payload(str(snapshot))
             with (
