@@ -19,6 +19,7 @@ BRANCH = "phase18/story-intelligence"
 READY_SCHEMA = "pul7sar-first-genuine-golden-v6-artifact-ready-v2"
 READY_STATUS = "FIRST_GENUINE_GOLDEN_V6_ARTIFACT_READY_FOR_HUMAN_VISUAL_REVIEW"
 TRANSPORT_STATUS = "FIRST_GENUINE_GOLDEN_V6_UPLOADED_ARTIFACT_METADATA_VERIFIED"
+EXPECTED_EVIDENCE_FILES = 10
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
@@ -69,6 +70,8 @@ def verify(
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_SOURCE_DRIFT")
     if readiness.get("artifact_replay_verified") is not True or readiness.get("eligible_for_human_visual_review") is not True:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_NOT_VERIFIED")
+    if readiness.get("evidence_files_verified") != EXPECTED_EVIDENCE_FILES or readiness.get("evidence_semantics_verified") is not True:
+        raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_READINESS_EVIDENCE_NOT_VERIFIED")
     if readiness.get("cost_mode") != "$0-local":
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_TRANSPORT_COST_MODE_DRIFT")
     for field in (
@@ -136,8 +139,8 @@ def main() -> int:
     parser.add_argument("artifact_metadata", type=Path)
     parser.add_argument("readiness_manifest", type=Path)
     parser.add_argument("--expected-source-sha", required=True)
-    parser.add_argument("--workflow-run-id", required=True)
-    parser.add_argument("--workflow-run-attempt", required=True)
+    parser.add_argument("--expected-workflow-run-id", required=True)
+    parser.add_argument("--expected-workflow-run-attempt", required=True)
     parser.add_argument("--expected-artifact-digest", default=None)
     args = parser.parse_args()
 
@@ -145,8 +148,8 @@ def main() -> int:
         _load_object(args.artifact_metadata, "ARTIFACT_METADATA"),
         _load_object(args.readiness_manifest, "READINESS"),
         expected_source_sha=args.expected_source_sha,
-        expected_workflow_run_id=args.workflow_run_id,
-        expected_workflow_run_attempt=args.workflow_run_attempt,
+        expected_workflow_run_id=args.expected_workflow_run_id,
+        expected_workflow_run_attempt=args.expected_workflow_run_attempt,
         expected_artifact_digest=args.expected_artifact_digest,
     )
     print(json.dumps(result, indent=2, sort_keys=True))
