@@ -38,7 +38,7 @@ class QwenImageGpuHostLaunchManifestTests(unittest.TestCase):
         cs257.mkdir()
         (cs257 / "story.json").write_text('{"story":true}\n', encoding="utf-8")
         (cs257 / "semantic.json").write_text('{"semantic":true}\n', encoding="utf-8")
-        snapshot = root / "cache/snapshots" / QWEN_IMAGE_2512_REVISION
+        snapshot = root / "cache/models--Qwen--Qwen-Image-2512/snapshots" / QWEN_IMAGE_2512_REVISION
         snapshot.mkdir(parents=True)
         verified = {
             "story_snapshot_sha256": "a" * 64,
