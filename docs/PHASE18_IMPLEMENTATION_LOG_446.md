@@ -9,7 +9,7 @@ No write was made to `main`.
 ## Starting state
 
 - Phase 18 branch start SHA: `bc56b073a74e6e303ddcc58b2c5b058f36b8b691`.
-- CS445 was terminal-green before CS446 began: the exact-SHA Story Intelligence Verification push and pull-request runs had completed successfully.
+- Correction recorded during CS447 review: CS445 was **not** terminal-green. The later terminal Story Intelligence Verification result on the CS445 exact SHA showed `Syntax and discover validation` failure. The earlier CS446 wording claiming both exact-SHA verification runs had succeeded was incorrect and is superseded by this correction.
 - Canonical, JIT, offload, and host-readiness paths were already using the attested pre-GPU contract.
 - Direct inspection confirmed the current host-readiness workflow uses the runner's actual flags (`--expected-commit`, `--receipt`, `--attestation`, `--summary`). No production CLI mismatch was present in the starting HEAD.
 - The remaining risk was regression drift: the workflows and Python entrypoints could later diverge without a focused cross-path test.
@@ -20,7 +20,6 @@ No write was made to `main`.
 
 - `tests/test_phase18_first_golden_attested_cli_contract.py`
   - Standard-library `unittest` only.
-  - Extracts `argparse` flags independent of one-line vs multi-line formatting.
   - Verifies the attested pre-GPU runner exposes the current evidence flags and rejects stale `*-out` aliases.
   - Verifies host-readiness, JIT, and offload workflows invoke the attested runner with the immutable dispatch SHA plus `--receipt`, `--attestation`, and `--summary`.
   - Verifies those direct paths retain `$0-local`, `HF_HUB_OFFLINE=1`, and `TRANSFORMERS_OFFLINE=1`.
@@ -35,12 +34,16 @@ No write was made to `main`.
 
 - `tests/test_phase18_first_golden_attested_cli_contract.py`
   - Follow-up in the same CS after initial creation: made argument discovery formatting-independent so multi-line `argparse.add_argument(...)` definitions in the canonical launcher are handled correctly.
+  - CS447 subsequently replaced regex-based parser inspection with standard-library AST inspection after exact-HEAD verification exposed the test as the remaining central CI regression. That repair changes test implementation only; it does not change production authority or generation behavior.
+
+- `docs/PHASE18_IMPLEMENTATION_LOG_446.md`
+  - CS447 corrected the inaccurate historical statement that CS445 had already reached terminal-green status.
 
 ### Deleted
 
 - Nothing.
 
-## Commit sequence before this log commit
+## Commit sequence before the original log commit
 
 - `8d7cd807ca4fcc9f7a41f6b6634cb222e2ad2ad7` — add the cross-path attested CLI contract regression test.
 - `1a2b317bce1a10bd72fcb4cb27c033432ce0c4db` — make parser flag extraction robust to multi-line formatting.
