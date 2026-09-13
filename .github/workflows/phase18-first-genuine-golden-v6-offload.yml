@@ -57,6 +57,9 @@ jobs:
           test -f tools/phase18_preflight_flux2_offload.py
           test -f tools/phase18_colab_first_genuine_resources_locked.py
           test -f tools/phase18_probe_first_golden_execution_blocker.py
+          test -f tools/phase18_run_first_golden_pre_gpu_attested.py
+          test -f tools/phase18_probe_first_golden_pre_gpu.py
+          test -f tools/phase18_attest_first_golden_pre_gpu_receipt.py
           test -f engine/intelligence/golden_offload_provenance.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
@@ -65,6 +68,44 @@ jobs:
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 6
           fi
+
+      - name: Attest immutable source and zero-cost host before offload Golden execution
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_run_first_golden_pre_gpu_attested.py \
+            --expected-commit "$DISPATCH_SHA" \
+            --receipt output/phase18_gpu_smoke/first-genuine-golden-v6-offload-attested-pre-gpu-receipt.json \
+            --attestation output/phase18_gpu_smoke/first-genuine-golden-v6-offload-attested-pre-gpu-attestation.json \
+            --summary output/phase18_gpu_smoke/first-genuine-golden-v6-offload-attested-pre-gpu-summary.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-offload-attested-pre-gpu-summary.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          if data.get("schema") != "pul7sar-phase18-first-golden-attested-pre-gpu-run-v1":
+              raise SystemExit("unexpected attested pre-GPU summary schema")
+          if data.get("expected_commit") != os.environ["DISPATCH_SHA"]:
+              raise SystemExit("offload attested pre-GPU source commit drift")
+          if data.get("ready_for_authoritative_golden_preflight") is not True or data.get("receipt_attested") is not True:
+              raise SystemExit("offload attested pre-GPU readiness proof failed")
+          if data.get("blockers") != []:
+              raise SystemExit("offload attested pre-GPU blockers remain")
+          for field in (
+              "authoritative_gate",
+              "network_download_authorized",
+              "generation_authorized",
+              "publication_ready",
+              "seeds_2_to_4_authorized",
+          ):
+              if data.get(field) is not False:
+                  raise SystemExit(f"illegal offload pre-GPU authority drift: {field}")
+          PY
 
       - name: Record first-Golden execution blocker probe before offload CUDA preflight
         shell: bash
