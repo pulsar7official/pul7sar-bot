@@ -55,6 +55,9 @@ jobs:
           test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
           test -f tools/phase18_colab_first_genuine_jit_replay_locked.py
           test -f engine/intelligence/golden_jit_resource_replay.py
+          test -f tools/phase18_run_first_golden_pre_gpu_attested.py
+          test -f tools/phase18_probe_first_golden_pre_gpu.py
+          test -f tools/phase18_attest_first_golden_pre_gpu_receipt.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -62,6 +65,44 @@ jobs:
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 6
           fi
+
+      - name: Attest immutable source and zero-cost host before JIT Golden execution
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_run_first_golden_pre_gpu_attested.py \
+            --expected-commit "$DISPATCH_SHA" \
+            --receipt output/phase18_gpu_smoke/first-genuine-golden-v6-jit-attested-pre-gpu-receipt.json \
+            --attestation output/phase18_gpu_smoke/first-genuine-golden-v6-jit-attested-pre-gpu-attestation.json \
+            --summary output/phase18_gpu_smoke/first-genuine-golden-v6-jit-attested-pre-gpu-summary.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-jit-attested-pre-gpu-summary.json")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          if data.get("schema") != "pul7sar-phase18-first-golden-attested-pre-gpu-run-v1":
+              raise SystemExit("unexpected attested pre-GPU summary schema")
+          if data.get("expected_commit") != os.environ["DISPATCH_SHA"]:
+              raise SystemExit("JIT attested pre-GPU source commit drift")
+          if data.get("ready_for_authoritative_golden_preflight") is not True or data.get("receipt_attested") is not True:
+              raise SystemExit("JIT attested pre-GPU readiness proof failed")
+          if data.get("blockers") != []:
+              raise SystemExit("JIT attested pre-GPU blockers remain")
+          for field in (
+              "authoritative_gate",
+              "network_download_authorized",
+              "generation_authorized",
+              "publication_ready",
+              "seeds_2_to_4_authorized",
+          ):
+              if data.get(field) is not False:
+                  raise SystemExit(f"illegal JIT pre-GPU authority drift: {field}")
+          PY
 
       - name: Record first-Golden execution blocker probe before CUDA preflight
         shell: bash
@@ -144,7 +185,7 @@ jobs:
               raise SystemExit("JIT-lock local-only/network policy drift")
           expected_models = {
               "qwen_model_id": QWEN25_VL_3B_MODEL_ID,
-              "qwen_model_revision": QWEN25_VL_3B_REVISION,
+              "qwen_model_revision": QWEN25_VL_3B_MODEL_REVISION if False else QWEN25_VL_3B_REVISION,
               "flux_model_id": FLUX2_KLEIN_4B_MODEL_ID,
               "flux_model_revision": FLUX2_KLEIN_4B_REVISION,
           }
