@@ -64,6 +64,7 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_attest_first_genuine_golden_v6_uploaded_artifact.py
           test -f tools/phase18_probe_first_golden_execution_blocker.py
+          test -f tools/phase18_run_first_genuine_golden_v6_canonical_attested.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -102,12 +103,18 @@ jobs:
           print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count(), "native_bf16": True, "model_cache_mode": "offline-local-only"})
           PY
 
-      - name: Run model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1
+      - name: Run attested canonical model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1
         shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          python tools/phase18_colab_first_genuine_resources_locked.py \
-            --output output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json
+          python tools/phase18_run_first_genuine_golden_v6_canonical_attested.py \
+            --expected-commit "$DISPATCH_SHA" \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json \
+            --receipt output/phase18_gpu_smoke/first-genuine-golden-v6-canonical-attested-pre-gpu-receipt.json \
+            --attestation output/phase18_gpu_smoke/first-genuine-golden-v6-canonical-attested-pre-gpu-attestation.json \
+            --summary output/phase18_gpu_smoke/first-genuine-golden-v6-canonical-attested-pre-gpu-summary.json
 
       - name: Verify Qwen and FLUX receipts are immutable local-only before Golden replay
         shell: bash
