@@ -115,6 +115,18 @@ READY_GENERATION_RUNTIME = {
     "publication_ready": False,
 }
 
+READY_SEMANTIC_RUNTIME = {
+    "ready": True,
+    "model_id": QWEN25_VL_3B_MODEL_ID,
+    "transformers_version": "4.56.2",
+    "torch_version": "2.8.0+cu128",
+    "cuda_available": True,
+    "failures": [],
+    "cost_mode": "$0-local",
+    "generation_authorized": False,
+    "publication_ready": False,
+}
+
 
 def _snapshot(root: Path, model_id: str, revision: str) -> Path:
     owner, repo = model_id.split("/", 1)
@@ -137,6 +149,7 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
         memory=None,
         headroom=None,
         runtime=None,
+        semantic=None,
     ):
         return inspect(
             env={
@@ -151,9 +164,10 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             host_memory_report=READY_HOST_MEMORY if memory is None else memory,
             cache_headroom_report=READY_CACHE_HEADROOM if headroom is None else headroom,
             generation_runtime_report=READY_GENERATION_RUNTIME if runtime is None else runtime,
+            semantic_runtime_report=READY_SEMANTIC_RUNTIME if semantic is None else semantic,
         )
 
-    def test_ready_requires_offline_zero_cost_cuda_bf16_runtime_live_resources_headroom_and_both_exact_snapshots(self):
+    def test_ready_requires_offline_zero_cost_cuda_bf16_runtime_semantic_live_resources_headroom_and_both_exact_snapshots(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache = Path(tmp) / "hub"
             _snapshot(cache, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION).mkdir(parents=True)
@@ -161,12 +175,14 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             payload = self._inspect(cache=cache, torch_module=_TorchReady())
         self.assertTrue(payload["ready_for_authoritative_golden_preflight"])
         self.assertEqual(payload["blockers"], [])
-        self.assertEqual(payload["schema"], "pul7sar-phase18-first-golden-execution-blocker-probe-v5")
+        self.assertEqual(payload["schema"], "pul7sar-phase18-first-golden-execution-blocker-probe-v6")
         self.assertEqual(payload["cache"]["resolution_mode"], "huggingface-local-files-only")
         self.assertTrue(payload["cache"]["qwen_cached"])
         self.assertTrue(payload["cache"]["flux_cached"])
         self.assertTrue(payload["generation_runtime"]["ready"])
         self.assertEqual(payload["generation_runtime"]["schema"], "pul7sar-generation-runtime-fingerprint-v1")
+        self.assertTrue(payload["semantic_runtime"]["ready"])
+        self.assertEqual(payload["semantic_runtime"]["model_id"], QWEN25_VL_3B_MODEL_ID)
         self.assertTrue(payload["gpu_qualification"]["eligible"])
         self.assertTrue(payload["host_memory"]["ready"])
         self.assertTrue(payload["cache_headroom"]["eligible"])
@@ -177,7 +193,7 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
         self.assertFalse(payload["publication_ready"])
         self.assertFalse(payload["seeds_2_to_4_authorized"])
 
-    def test_blocked_host_reports_runtime_offline_cost_cache_gpu_memory_headroom_and_software_gaps(self):
+    def test_blocked_host_reports_runtime_offline_cost_cache_gpu_memory_headroom_software_and_semantic_gaps(self):
         with tempfile.TemporaryDirectory() as tmp:
             payload = inspect(
                 env={"HF_HUB_CACHE": str(Path(tmp) / "hub")},
@@ -207,6 +223,14 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
                     "generation_authorized": False,
                     "publication_ready": False,
                 },
+                semantic_runtime_report={
+                    "ready": False,
+                    "model_id": QWEN25_VL_3B_MODEL_ID,
+                    "failures": ["transformers_qwen2_5_vl_public_api_unavailable"],
+                    "cost_mode": "$0-local",
+                    "generation_authorized": False,
+                    "publication_ready": False,
+                },
             )
         blockers = set(payload["blockers"])
         expected = {
@@ -218,6 +242,7 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             "CUDA_DEVICE_MISSING",
             "NATIVE_BF16_UNAVAILABLE",
             "GENERATION_RUNTIME_NOT_READY",
+            "SEMANTIC_RUNTIME_NOT_READY",
             "GPU_HOST_NOT_GOLDEN_QUALIFIED",
             "HOST_MEMORY_NOT_READY",
             "CACHE_WORKING_HEADROOM_NOT_READY",
@@ -245,6 +270,44 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             )
         self.assertIn("GENERATION_RUNTIME_NOT_READY", payload["blockers"])
         self.assertFalse(payload["generation_runtime"]["ready"])
+        self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
+
+    def test_semantic_public_api_or_runtime_incoherence_blocks_before_authoritative_preflight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "hub"
+            _snapshot(cache, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION).mkdir(parents=True)
+            _snapshot(cache, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION).mkdir(parents=True)
+            payload = self._inspect(
+                cache=cache,
+                torch_module=_TorchReady(),
+                semantic={
+                    **READY_SEMANTIC_RUNTIME,
+                    "ready": False,
+                    "failures": ["transformers_qwen2_5_vl_public_api_unavailable"],
+                },
+            )
+        self.assertIn("SEMANTIC_RUNTIME_NOT_READY", payload["blockers"])
+        self.assertEqual(payload["semantic_runtime"]["failures"], ["transformers_qwen2_5_vl_public_api_unavailable"])
+        self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
+
+    def test_semantic_identity_authority_or_cost_drift_blocks_readiness(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "hub"
+            _snapshot(cache, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION).mkdir(parents=True)
+            _snapshot(cache, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION).mkdir(parents=True)
+            payload = self._inspect(
+                cache=cache,
+                torch_module=_TorchReady(),
+                semantic={
+                    **READY_SEMANTIC_RUNTIME,
+                    "model_id": "drifted/model",
+                    "cost_mode": "paid",
+                    "generation_authorized": True,
+                },
+            )
+        self.assertIn("SEMANTIC_RUNTIME_MODEL_ID_DRIFT", payload["blockers"])
+        self.assertIn("SEMANTIC_RUNTIME_ZERO_COST_DRIFT", payload["blockers"])
+        self.assertIn("SEMANTIC_RUNTIME_AUTHORITY_DRIFT", payload["blockers"])
         self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
 
     def test_runtime_authority_or_cost_drift_blocks_readiness(self):
