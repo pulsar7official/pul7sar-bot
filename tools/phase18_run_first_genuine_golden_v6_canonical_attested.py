@@ -2,10 +2,12 @@
 """Fail-closed canonical Golden v6 launcher with attested pre-GPU proof.
 
 This wrapper is intentionally narrow. It runs the existing attested first-Golden
-pre-GPU contract against an immutable source commit and only if that contract is
-ready does it delegate to the existing canonical Golden v6 resource-locked entry
-point. It does not weaken or replace any downstream factual, identity, sentiment,
-semantic-publication, visual-quality, BF16, local-cache, or human-review gate.
+pre-GPU contract against an immutable source commit, builds and validates the
+machine-readable GPU handoff from that exact attested summary, and only if both
+contracts are ready does it delegate to the existing canonical Golden v6
+resource-locked entry point. It does not weaken or replace any downstream factual,
+identity, sentiment, semantic-publication, visual-quality, BF16, local-cache, or
+human-review gate.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.phase18_build_first_golden_gpu_handoff import build as build_gpu_handoff
 from tools.phase18_run_first_golden_pre_gpu_attested import run as run_attested_pre_gpu
 
 _SHA40 = re.compile(r"^[0-9a-f]{40}$")
@@ -56,10 +59,11 @@ def run(
     receipt_path: Path,
     attestation_path: Path,
     summary_path: Path,
+    handoff_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-canonical-gpu-handoff.json"),
 ) -> dict[str, object]:
     if _SHA40.fullmatch(expected_commit) is None:
         return {
-            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v1",
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v2",
             "expected_commit": expected_commit,
             "canonical_generation_started": False,
             "ready": False,
@@ -71,7 +75,8 @@ def run(
     receipt_target = _inside_repository(receipt_path)
     attestation_target = _inside_repository(attestation_path)
     summary_target = _inside_repository(summary_path)
-    if len({output_target, receipt_target, attestation_target, summary_target}) != 4:
+    handoff_target = _inside_repository(handoff_path)
+    if len({output_target, receipt_target, attestation_target, summary_target, handoff_target}) != 5:
         raise RuntimeError("FIRST_GENUINE_GOLDEN_V6_CANONICAL_OUTPUT_PATH_COLLISION")
 
     pre_gpu = run_attested_pre_gpu(
@@ -102,12 +107,53 @@ def run(
 
     if blockers:
         return {
-            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v1",
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v2",
             "expected_commit": expected_commit,
             "pre_gpu_summary": str(summary_target),
             "canonical_generation_started": False,
             "ready": False,
             "blockers": blockers,
+            **_closed_authorities(),
+        }
+
+    handoff = build_gpu_handoff(
+        expected_commit=expected_commit,
+        attested_summary_path=summary_target,
+    )
+    _write_json(handoff_target, handoff)
+
+    handoff_blockers: list[str] = []
+    if handoff.get("expected_commit") != expected_commit:
+        handoff_blockers.append("GPU_HANDOFF_COMMIT_DRIFT")
+    if handoff.get("branch_required") != "phase18/story-intelligence":
+        handoff_blockers.append("GPU_HANDOFF_BRANCH_DRIFT")
+    if handoff.get("cost_mode_required") != "$0-local":
+        handoff_blockers.append("GPU_HANDOFF_COST_MODE_DRIFT")
+    if handoff.get("offline_required") is not True:
+        handoff_blockers.append("GPU_HANDOFF_OFFLINE_POLICY_DRIFT")
+    if handoff.get("eligible_for_authoritative_golden_preflight") is not True:
+        handoff_blockers.append("GPU_HANDOFF_NOT_ELIGIBLE")
+    if handoff.get("blockers") != []:
+        handoff_blockers.append("GPU_HANDOFF_BLOCKERS_REMAIN")
+    for field in (
+        "authoritative_gate",
+        "network_download_authorized",
+        "generation_authorized",
+        "publication_ready",
+        "seeds_2_to_4_authorized",
+    ):
+        if handoff.get(field) is not False:
+            handoff_blockers.append(f"GPU_HANDOFF_AUTHORITY_DRIFT_{field.upper()}")
+
+    if handoff_blockers:
+        return {
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v2",
+            "expected_commit": expected_commit,
+            "pre_gpu_summary": str(summary_target),
+            "gpu_handoff": str(handoff_target),
+            "canonical_generation_started": False,
+            "ready": False,
+            "blockers": handoff_blockers,
             **_closed_authorities(),
         }
 
@@ -120,9 +166,10 @@ def run(
     subprocess.run(command, cwd=ROOT, check=True)
 
     return {
-        "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v1",
+        "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v2",
         "expected_commit": expected_commit,
         "pre_gpu_summary": str(summary_target),
+        "gpu_handoff": str(handoff_target),
         "canonical_output": str(output_target),
         "canonical_generation_started": True,
         "ready": output_target.is_file(),
@@ -132,7 +179,7 @@ def run(
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run canonical Golden v6 only after attested pre-GPU readiness")
+    parser = argparse.ArgumentParser(description="Run canonical Golden v6 only after attested pre-GPU readiness and immutable GPU handoff")
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
@@ -150,6 +197,11 @@ def main() -> int:
         type=Path,
         default=Path("output/phase18_gpu_smoke/first-genuine-golden-v6-canonical-attested-pre-gpu-summary.json"),
     )
+    parser.add_argument(
+        "--handoff",
+        type=Path,
+        default=Path("output/phase18_gpu_smoke/first-genuine-golden-v6-canonical-gpu-handoff.json"),
+    )
     args = parser.parse_args()
 
     payload = run(
@@ -158,6 +210,7 @@ def main() -> int:
         receipt_path=args.receipt,
         attestation_path=args.attestation,
         summary_path=args.summary,
+        handoff_path=args.handoff,
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if payload.get("ready") is True else 2
