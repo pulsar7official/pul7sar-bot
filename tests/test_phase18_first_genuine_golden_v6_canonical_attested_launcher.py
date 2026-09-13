@@ -7,6 +7,13 @@ from tools.phase18_run_first_genuine_golden_v6_canonical_attested import run
 
 
 GOOD_SHA = "a" * 40
+CLOSED_AUTHORITIES = {
+    "authoritative_gate": False,
+    "network_download_authorized": False,
+    "generation_authorized": False,
+    "publication_ready": False,
+    "seeds_2_to_4_authorized": False,
+}
 
 
 class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
@@ -17,6 +24,10 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
             root / "pre-gpu-attestation.json",
             root / "pre-gpu-summary.json",
         )
+
+    def assert_authorities_closed(self, result: dict[str, object]) -> None:
+        for field, expected in CLOSED_AUTHORITIES.items():
+            self.assertIs(result.get(field), expected, field)
 
     def test_invalid_commit_fails_before_pre_gpu_or_generation(self) -> None:
         with tempfile.TemporaryDirectory(dir=".") as temp_dir:
@@ -36,6 +47,7 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
             self.assertFalse(result["ready"])
             self.assertFalse(result["canonical_generation_started"])
             self.assertIn("EXPECTED_COMMIT_INVALID", result["blockers"])
+            self.assert_authorities_closed(result)
             pre_gpu.assert_not_called()
             generation.assert_not_called()
 
@@ -68,6 +80,7 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                 )
             self.assertFalse(result["ready"])
             self.assertFalse(result["canonical_generation_started"])
+            self.assert_authorities_closed(result)
             generation.assert_not_called()
             self.assertTrue(summary.is_file())
 
@@ -100,6 +113,7 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                 )
             self.assertFalse(result["ready"])
             self.assertIn("ATTESTED_PRE_GPU_AUTHORITY_DRIFT_GENERATION_AUTHORIZED", result["blockers"])
+            self.assert_authorities_closed(result)
             generation.assert_not_called()
 
     def test_ready_pre_gpu_delegates_to_existing_canonical_entrypoint(self) -> None:
@@ -140,6 +154,7 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                 )
             self.assertTrue(result["ready"])
             self.assertTrue(result["canonical_generation_started"])
+            self.assert_authorities_closed(result)
             generation.assert_called_once()
 
     def test_output_paths_must_be_distinct(self) -> None:
