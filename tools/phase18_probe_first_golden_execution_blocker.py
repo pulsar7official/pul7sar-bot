@@ -3,8 +3,8 @@
 
 This command performs no downloads, model loading, generation, queue mutation, or
 publication. It only reports whether the current host exposes the minimum runtime,
-live GPU/host-memory headroom, and exact local-cache prerequisites needed before
-the authoritative Golden gates can be attempted.
+live GPU/host-memory/filesystem headroom, and exact local-cache prerequisites needed
+before the authoritative Golden gates can be attempted.
 """
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ from engine.intelligence.approved_model_revisions import (
 from engine.intelligence.gpu_host_qualification import GpuHostQualificationPolicy
 from engine.intelligence.host_memory_qualification import HostMemoryQualificationProbe
 from engine.intelligence.local_runtime import LocalRuntimeProbe
+from engine.intelligence.model_cache_headroom import ModelCacheHeadroomPolicy
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
@@ -108,6 +109,24 @@ def _host_memory_qualification() -> dict[str, object]:
         }
 
 
+def _cache_headroom_qualification(cache_root: Path) -> dict[str, object]:
+    """Reuse the approved post-cache working-space floor before heavy execution."""
+    try:
+        anchor = cache_root if cache_root.exists() else cache_root.parent
+        while not anchor.exists() and anchor != anchor.parent:
+            anchor = anchor.parent
+        free_bytes = shutil.disk_usage(anchor).free
+        return asdict(ModelCacheHeadroomPolicy().evaluate(free_bytes=free_bytes))
+    except Exception as exc:
+        return {
+            "eligible": False,
+            "reason": f"cache_headroom_probe_failed:{type(exc).__name__}",
+            "free_bytes": None,
+            "free_gib": None,
+            "minimum_working_free_gib": 8.0,
+        }
+
+
 def inspect(
     *,
     env: dict[str, str] | None = None,
@@ -116,6 +135,7 @@ def inspect(
     snapshot_resolver: SnapshotResolver | None = None,
     gpu_qualification_report: dict[str, object] | None = None,
     host_memory_report: dict[str, object] | None = None,
+    cache_headroom_report: dict[str, object] | None = None,
 ) -> dict[str, object]:
     values = dict(os.environ if env is None else env)
     blockers: list[str] = []
@@ -176,17 +196,22 @@ def inspect(
     if not flux_cached:
         blockers.append("FLUX_APPROVED_SNAPSHOT_MISSING")
 
-    disk_free_gib = None
-    try:
-        anchor = cache_root if cache_root.exists() else cache_root.parent
-        while not anchor.exists() and anchor != anchor.parent:
-            anchor = anchor.parent
-        disk_free_gib = round(shutil.disk_usage(anchor).free / (1024 ** 3), 3)
-    except OSError:
-        blockers.append("CACHE_FILESYSTEM_UNREADABLE")
+    cache_headroom = dict(
+        _cache_headroom_qualification(cache_root)
+        if cache_headroom_report is None
+        else cache_headroom_report
+    )
+    if cache_headroom.get("eligible") is not True:
+        blockers.append("CACHE_WORKING_HEADROOM_NOT_READY")
+
+    disk_free_gib = cache_headroom.get("free_gib")
+    if isinstance(disk_free_gib, bool) or not isinstance(disk_free_gib, (int, float)):
+        disk_free_gib = None
+        if "CACHE_WORKING_HEADROOM_NOT_READY" not in blockers:
+            blockers.append("CACHE_FILESYSTEM_UNREADABLE")
 
     return {
-        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v3",
+        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v4",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "branch_required": EXPECTED_BRANCH,
         "cost_mode_required": "$0-local",
@@ -207,6 +232,7 @@ def inspect(
         },
         "gpu_qualification": gpu_qualification,
         "host_memory": host_memory,
+        "cache_headroom": cache_headroom,
         "cache": {
             "root": str(cache_root),
             "disk_free_gib": disk_free_gib,
