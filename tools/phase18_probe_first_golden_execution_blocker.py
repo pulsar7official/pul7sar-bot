@@ -3,8 +3,8 @@
 
 This command performs no downloads, model loading, generation, queue mutation, or
 publication. It only reports whether the current host exposes the minimum runtime,
-live GPU/host-memory/filesystem headroom, and exact local-cache prerequisites needed
-before the authoritative Golden gates can be attempted.
+live GPU/host-memory/filesystem headroom, approved software stack, and exact
+local-cache prerequisites needed before the authoritative Golden gates can be attempted.
 """
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ from engine.intelligence.approved_model_revisions import (
     QWEN25_VL_3B_REVISION,
     assert_snapshot_revision,
 )
+from engine.intelligence.generation_runtime_fingerprint import capture_generation_runtime_fingerprint
 from engine.intelligence.gpu_host_qualification import GpuHostQualificationPolicy
 from engine.intelligence.host_memory_qualification import HostMemoryQualificationProbe
 from engine.intelligence.local_runtime import LocalRuntimeProbe
@@ -55,12 +56,7 @@ def _snapshot_path(cache_root: Path, model_id: str, revision: str) -> Path:
 
 
 def _resolve_local_snapshot(cache_root: Path, model_id: str, revision: str) -> Path | None:
-    """Resolve an exact immutable snapshot using Hugging Face local-only semantics.
-
-    Directory presence alone is intentionally insufficient: ``snapshot_download``
-    must be able to resolve the approved revision without network access, matching
-    the authoritative model-cache preflights used later in the Golden path.
-    """
+    """Resolve an exact immutable snapshot using Hugging Face local-only semantics."""
     try:
         from huggingface_hub import snapshot_download
     except ImportError:
@@ -127,6 +123,36 @@ def _cache_headroom_qualification(cache_root: Path) -> dict[str, object]:
         }
 
 
+def _generation_runtime_qualification() -> dict[str, object]:
+    """Reuse the strict first-Golden software/runtime contract before heavy execution."""
+    try:
+        fingerprint = capture_generation_runtime_fingerprint()
+        contract = fingerprint.get("runtime_contract")
+        if not isinstance(contract, dict):
+            raise RuntimeError("generation_runtime_contract_missing")
+        return {
+            "ready": True,
+            "schema": fingerprint.get("schema"),
+            "runtime_fingerprint_sha256": fingerprint.get("runtime_fingerprint_sha256"),
+            "python_version": contract.get("python_version"),
+            "python_implementation": contract.get("python_implementation"),
+            "machine": contract.get("machine"),
+            "packages": contract.get("packages"),
+            "torch": contract.get("torch"),
+            "cost_mode": fingerprint.get("cost_mode"),
+            "generation_authorized": fingerprint.get("generation_authorized"),
+            "publication_ready": fingerprint.get("publication_ready"),
+        }
+    except Exception as exc:
+        return {
+            "ready": False,
+            "reason": f"generation_runtime_probe_failed:{type(exc).__name__}",
+            "cost_mode": "$0-local",
+            "generation_authorized": False,
+            "publication_ready": False,
+        }
+
+
 def inspect(
     *,
     env: dict[str, str] | None = None,
@@ -136,6 +162,7 @@ def inspect(
     gpu_qualification_report: dict[str, object] | None = None,
     host_memory_report: dict[str, object] | None = None,
     cache_headroom_report: dict[str, object] | None = None,
+    generation_runtime_report: dict[str, object] | None = None,
 ) -> dict[str, object]:
     values = dict(os.environ if env is None else env)
     blockers: list[str] = []
@@ -166,6 +193,18 @@ def inspect(
         blockers.append("CUDA_DEVICE_MISSING")
     if not bf16_supported:
         blockers.append("NATIVE_BF16_UNAVAILABLE")
+
+    generation_runtime = dict(
+        _generation_runtime_qualification()
+        if generation_runtime_report is None
+        else generation_runtime_report
+    )
+    if generation_runtime.get("ready") is not True:
+        blockers.append("GENERATION_RUNTIME_NOT_READY")
+    if generation_runtime.get("cost_mode") != "$0-local":
+        blockers.append("GENERATION_RUNTIME_ZERO_COST_DRIFT")
+    if generation_runtime.get("generation_authorized") is not False or generation_runtime.get("publication_ready") is not False:
+        blockers.append("GENERATION_RUNTIME_AUTHORITY_DRIFT")
 
     gpu_qualification = dict(
         _gpu_qualification() if gpu_qualification_report is None else gpu_qualification_report
@@ -211,7 +250,7 @@ def inspect(
             blockers.append("CACHE_FILESYSTEM_UNREADABLE")
 
     return {
-        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v4",
+        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v5",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "branch_required": EXPECTED_BRANCH,
         "cost_mode_required": "$0-local",
@@ -230,6 +269,7 @@ def inspect(
             "cuda_device_count": device_count,
             "native_bf16": bf16_supported,
         },
+        "generation_runtime": generation_runtime,
         "gpu_qualification": gpu_qualification,
         "host_memory": host_memory,
         "cache_headroom": cache_headroom,
