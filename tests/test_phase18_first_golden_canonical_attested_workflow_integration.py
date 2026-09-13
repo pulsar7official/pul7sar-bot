@@ -24,11 +24,10 @@ class CanonicalAttestedWorkflowIntegrationTests(unittest.TestCase):
         self.assertIn("DISPATCH_SHA: ${{ github.sha }}", self.text)
 
     def test_attested_launcher_owns_canonical_generation_entrypoint(self) -> None:
-        direct = (
-            "python tools/phase18_colab_first_genuine_resources_locked.py \\\n"
-            "            --output output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json"
+        self.assertNotIn(
+            "python tools/phase18_colab_first_genuine_resources_locked.py",
+            self.text,
         )
-        self.assertNotIn(direct, self.text)
         self.assertIn(
             "--output output/phase18_gpu_smoke/first-genuine-golden-v6-resource-lock.json",
             self.text,
