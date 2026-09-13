@@ -9,6 +9,7 @@ invocation plus evidence paths needed for a genuine Candidate 1 attempt.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import re
@@ -54,6 +55,14 @@ def _load_json(path: Path) -> dict[str, object] | None:
     return loaded if isinstance(loaded, dict) else None
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def build(*, expected_commit: str, handoff_path: Path) -> dict[str, object]:
     blockers: list[str] = []
     if _SHA40.fullmatch(expected_commit) is None:
@@ -61,9 +70,11 @@ def build(*, expected_commit: str, handoff_path: Path) -> dict[str, object]:
 
     handoff_target = _inside_repository(handoff_path)
     handoff: dict[str, object] | None = None
+    handoff_sha256: str | None = None
     if not handoff_target.is_file():
         blockers.append("GPU_HANDOFF_MISSING")
     else:
+        handoff_sha256 = _sha256(handoff_target)
         handoff = _load_json(handoff_target)
         if handoff is None:
             blockers.append("GPU_HANDOFF_INVALID_JSON")
@@ -91,10 +102,18 @@ def build(*, expected_commit: str, handoff_path: Path) -> dict[str, object]:
             if handoff.get(field) is not False:
                 blockers.append(f"GPU_HANDOFF_AUTHORITY_DRIFT_{field.upper()}")
 
-    if not (ROOT / CANONICAL_WORKFLOW).is_file():
+    workflow_target = ROOT / CANONICAL_WORKFLOW
+    launcher_target = ROOT / CANONICAL_LAUNCHER
+    workflow_sha256: str | None = None
+    launcher_sha256: str | None = None
+    if not workflow_target.is_file():
         blockers.append("CANONICAL_WORKFLOW_MISSING")
-    if not (ROOT / CANONICAL_LAUNCHER).is_file():
+    else:
+        workflow_sha256 = _sha256(workflow_target)
+    if not launcher_target.is_file():
         blockers.append("CANONICAL_LAUNCHER_MISSING")
+    else:
+        launcher_sha256 = _sha256(launcher_target)
 
     command = [
         "python",
@@ -124,6 +143,9 @@ def build(*, expected_commit: str, handoff_path: Path) -> dict[str, object]:
         "cost_mode_required": "$0-local",
         "offline_required": True,
         "source_handoff": str(handoff_target),
+        "source_handoff_sha256": handoff_sha256,
+        "canonical_workflow_sha256": workflow_sha256,
+        "canonical_launcher_sha256": launcher_sha256,
         "evidence_paths": dict(DEFAULT_PATHS),
         "canonical_command": command,
         "attempt_contract_ready": ready,
