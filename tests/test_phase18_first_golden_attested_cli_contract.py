@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import ast
 from pathlib import Path
-import re
 import unittest
 
 
@@ -23,12 +23,24 @@ def read(path: Path) -> str:
 
 
 def argparse_flags(source: str) -> set[str]:
-    """Return long-form flags declared by parser.add_argument(...).
+    """Return literal long-form flags declared through ``*.add_argument`` calls.
 
-    The expression intentionally tolerates whitespace/newlines between the call
-    and the first string argument without over-escaping regex metacharacters.
+    AST inspection makes the contract independent of whitespace, line wrapping,
+    quote style, and formatter choices while remaining standard-library only.
     """
-    return set(re.findall(r'parser\.add_argument\(\s*"(--[^"]+)"', source))
+    flags: set[str] = set()
+    tree = ast.parse(source)
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        function = node.func
+        if not isinstance(function, ast.Attribute) or function.attr != "add_argument":
+            continue
+        for argument in node.args:
+            if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+                if argument.value.startswith("--"):
+                    flags.add(argument.value)
+    return flags
 
 
 class FirstGoldenAttestedCliContractTests(unittest.TestCase):
