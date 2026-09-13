@@ -79,6 +79,14 @@ READY_HOST_MEMORY = {
     "cost_mode": "$0-local",
 }
 
+READY_CACHE_HEADROOM = {
+    "minimum_working_free_gib": 8.0,
+    "free_bytes": 16 * 1024 ** 3,
+    "free_gib": 16.0,
+    "eligible": True,
+    "reason": "post_cache_working_headroom_ready",
+}
+
 
 def _snapshot(root: Path, model_id: str, revision: str) -> Path:
     owner, repo = model_id.split("/", 1)
@@ -91,7 +99,16 @@ def _filesystem_local_resolver(cache_root: Path, model_id: str, revision: str) -
 
 
 class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
-    def _inspect(self, *, cache: Path, torch_module, resolver=_filesystem_local_resolver, gpu=None, memory=None):
+    def _inspect(
+        self,
+        *,
+        cache: Path,
+        torch_module,
+        resolver=_filesystem_local_resolver,
+        gpu=None,
+        memory=None,
+        headroom=None,
+    ):
         return inspect(
             env={
                 "HF_HUB_CACHE": str(cache),
@@ -103,9 +120,10 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             snapshot_resolver=resolver,
             gpu_qualification_report=READY_GPU_QUALIFICATION if gpu is None else gpu,
             host_memory_report=READY_HOST_MEMORY if memory is None else memory,
+            cache_headroom_report=READY_CACHE_HEADROOM if headroom is None else headroom,
         )
 
-    def test_ready_requires_offline_zero_cost_cuda_bf16_live_resources_and_both_exact_snapshots(self):
+    def test_ready_requires_offline_zero_cost_cuda_bf16_live_resources_headroom_and_both_exact_snapshots(self):
         with tempfile.TemporaryDirectory() as tmp:
             cache = Path(tmp) / "hub"
             _snapshot(cache, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION).mkdir(parents=True)
@@ -113,19 +131,21 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             payload = self._inspect(cache=cache, torch_module=_TorchReady())
         self.assertTrue(payload["ready_for_authoritative_golden_preflight"])
         self.assertEqual(payload["blockers"], [])
-        self.assertEqual(payload["schema"], "pul7sar-phase18-first-golden-execution-blocker-probe-v3")
+        self.assertEqual(payload["schema"], "pul7sar-phase18-first-golden-execution-blocker-probe-v4")
         self.assertEqual(payload["cache"]["resolution_mode"], "huggingface-local-files-only")
         self.assertTrue(payload["cache"]["qwen_cached"])
         self.assertTrue(payload["cache"]["flux_cached"])
         self.assertTrue(payload["gpu_qualification"]["eligible"])
         self.assertTrue(payload["host_memory"]["ready"])
+        self.assertTrue(payload["cache_headroom"]["eligible"])
+        self.assertEqual(payload["cache_headroom"]["minimum_working_free_gib"], 8.0)
         self.assertFalse(payload["authoritative_gate"])
         self.assertFalse(payload["network_download_authorized"])
         self.assertFalse(payload["generation_authorized"])
         self.assertFalse(payload["publication_ready"])
         self.assertFalse(payload["seeds_2_to_4_authorized"])
 
-    def test_blocked_host_reports_runtime_offline_cost_cache_gpu_and_memory_gaps(self):
+    def test_blocked_host_reports_runtime_offline_cost_cache_gpu_memory_and_headroom_gaps(self):
         with tempfile.TemporaryDirectory() as tmp:
             payload = inspect(
                 env={"HF_HUB_CACHE": str(Path(tmp) / "hub")},
@@ -141,6 +161,13 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
                     "reasons": ["available_system_ram_unproven"],
                     "cost_mode": "$0-local",
                 },
+                cache_headroom_report={
+                    "eligible": False,
+                    "reason": "post_cache_working_headroom_below_floor",
+                    "free_bytes": 2 * 1024 ** 3,
+                    "free_gib": 2.0,
+                    "minimum_working_free_gib": 8.0,
+                },
             )
         blockers = set(payload["blockers"])
         expected = {
@@ -153,6 +180,7 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             "NATIVE_BF16_UNAVAILABLE",
             "GPU_HOST_NOT_GOLDEN_QUALIFIED",
             "HOST_MEMORY_NOT_READY",
+            "CACHE_WORKING_HEADROOM_NOT_READY",
             "QWEN_APPROVED_SNAPSHOT_MISSING",
             "FLUX_APPROVED_SNAPSHOT_MISSING",
         }
@@ -198,6 +226,27 @@ class FirstGoldenExecutionBlockerProbeTests(unittest.TestCase):
             )
         self.assertIn("HOST_MEMORY_NOT_READY", payload["blockers"])
         self.assertEqual(payload["host_memory"]["available_ram_gb"], 6.0)
+        self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
+
+    def test_low_post_cache_working_headroom_blocks_before_authoritative_preflight(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            cache = Path(tmp) / "hub"
+            _snapshot(cache, QWEN25_VL_3B_MODEL_ID, QWEN25_VL_3B_REVISION).mkdir(parents=True)
+            _snapshot(cache, FLUX2_KLEIN_4B_MODEL_ID, FLUX2_KLEIN_4B_REVISION).mkdir(parents=True)
+            payload = self._inspect(
+                cache=cache,
+                torch_module=_TorchReady(),
+                headroom={
+                    "minimum_working_free_gib": 8.0,
+                    "free_bytes": 7 * 1024 ** 3,
+                    "free_gib": 7.0,
+                    "eligible": False,
+                    "reason": "post_cache_working_headroom_below_floor",
+                },
+            )
+        self.assertIn("CACHE_WORKING_HEADROOM_NOT_READY", payload["blockers"])
+        self.assertEqual(payload["cache_headroom"]["minimum_working_free_gib"], 8.0)
+        self.assertEqual(payload["cache_headroom"]["free_gib"], 7.0)
         self.assertFalse(payload["ready_for_authoritative_golden_preflight"])
 
     def test_mutable_or_wrong_revision_directory_does_not_satisfy_cache_requirement(self):
