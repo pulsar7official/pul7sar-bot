@@ -17,24 +17,41 @@ CLOSED_AUTHORITIES = {
 
 
 class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
-    def _paths(self, root: Path) -> tuple[Path, Path, Path, Path]:
+    def _paths(self, root: Path) -> tuple[Path, Path, Path, Path, Path]:
         return (
             root / "canonical-output.json",
             root / "pre-gpu-receipt.json",
             root / "pre-gpu-attestation.json",
             root / "pre-gpu-summary.json",
+            root / "gpu-handoff.json",
         )
 
     def assert_authorities_closed(self, result: dict[str, object]) -> None:
         for field, expected in CLOSED_AUTHORITIES.items():
             self.assertIs(result.get(field), expected, field)
 
-    def test_invalid_commit_fails_before_pre_gpu_or_generation(self) -> None:
+    def _ready_pre_gpu(self) -> dict[str, object]:
+        return {
+            "schema": "pul7sar-phase18-first-golden-attested-pre-gpu-run-v1",
+            "expected_commit": GOOD_SHA,
+            "ready_for_authoritative_golden_preflight": True,
+            "receipt_attested": True,
+            "blockers": [],
+            "authoritative_gate": False,
+            "network_download_authorized": False,
+            "generation_authorized": False,
+            "publication_ready": False,
+            "seeds_2_to_4_authorized": False,
+        }
+
+    def test_invalid_commit_fails_before_pre_gpu_handoff_or_generation(self) -> None:
         with tempfile.TemporaryDirectory(dir=".") as temp_dir:
-            output, receipt, attestation, summary = self._paths(Path(temp_dir))
+            output, receipt, attestation, summary, handoff = self._paths(Path(temp_dir))
             with patch(
                 "tools.phase18_run_first_genuine_golden_v6_canonical_attested.run_attested_pre_gpu"
             ) as pre_gpu, patch(
+                "tools.phase18_run_first_genuine_golden_v6_canonical_attested.build_gpu_handoff"
+            ) as gpu_handoff, patch(
                 "tools.phase18_run_first_genuine_golden_v6_canonical_attested.subprocess.run"
             ) as generation:
                 result = run(
@@ -43,16 +60,19 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                     receipt_path=receipt,
                     attestation_path=attestation,
                     summary_path=summary,
+                    handoff_path=handoff,
                 )
             self.assertFalse(result["ready"])
             self.assertFalse(result["canonical_generation_started"])
             self.assertIn("EXPECTED_COMMIT_INVALID", result["blockers"])
             self.assert_authorities_closed(result)
             pre_gpu.assert_not_called()
+            gpu_handoff.assert_not_called()
             generation.assert_not_called()
 
-    def test_pre_gpu_failure_blocks_canonical_generation(self) -> None:
+    def test_pre_gpu_failure_blocks_handoff_and_canonical_generation(self) -> None:
         failed = {
+            "schema": "pul7sar-phase18-first-golden-attested-pre-gpu-run-v1",
             "expected_commit": GOOD_SHA,
             "ready_for_authoritative_golden_preflight": False,
             "receipt_attested": False,
@@ -64,11 +84,13 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
             "seeds_2_to_4_authorized": False,
         }
         with tempfile.TemporaryDirectory(dir=".") as temp_dir:
-            output, receipt, attestation, summary = self._paths(Path(temp_dir))
+            output, receipt, attestation, summary, handoff = self._paths(Path(temp_dir))
             with patch(
                 "tools.phase18_run_first_genuine_golden_v6_canonical_attested.run_attested_pre_gpu",
                 return_value=failed,
             ), patch(
+                "tools.phase18_run_first_genuine_golden_v6_canonical_attested.build_gpu_handoff"
+            ) as gpu_handoff, patch(
                 "tools.phase18_run_first_genuine_golden_v6_canonical_attested.subprocess.run"
             ) as generation:
                 result = run(
@@ -77,30 +99,63 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                     receipt_path=receipt,
                     attestation_path=attestation,
                     summary_path=summary,
+                    handoff_path=handoff,
                 )
             self.assertFalse(result["ready"])
             self.assertFalse(result["canonical_generation_started"])
             self.assert_authorities_closed(result)
+            gpu_handoff.assert_not_called()
             generation.assert_not_called()
             self.assertTrue(summary.is_file())
+            self.assertFalse(handoff.exists())
 
-    def test_authority_drift_blocks_canonical_generation(self) -> None:
-        drifted = {
-            "expected_commit": GOOD_SHA,
-            "ready_for_authoritative_golden_preflight": True,
-            "receipt_attested": True,
-            "blockers": [],
-            "authoritative_gate": False,
-            "network_download_authorized": False,
-            "generation_authorized": True,
-            "publication_ready": False,
-            "seeds_2_to_4_authorized": False,
-        }
+    def test_authority_drift_blocks_handoff_and_canonical_generation(self) -> None:
+        drifted = self._ready_pre_gpu()
+        drifted["generation_authorized"] = True
         with tempfile.TemporaryDirectory(dir=".") as temp_dir:
-            output, receipt, attestation, summary = self._paths(Path(temp_dir))
+            output, receipt, attestation, summary, handoff = self._paths(Path(temp_dir))
             with patch(
                 "tools.phase18_run_first_genuine_golden_v6_canonical_attested.run_attested_pre_gpu",
                 return_value=drifted,
+            ), patch(
+                "tools.phase18_run_first_genuine_golden_v6_canonical_attested.build_gpu_handoff"
+            ) as gpu_handoff, patch(
+                "tools.phase18_run_first_genuine_golden_v6_canonical_attested.subprocess.run"
+            ) as generation:
+                result = run(
+                    expected_commit=GOOD_SHA,
+                    output_path=output,
+                    receipt_path=receipt,
+                    attestation_path=attestation,
+                    summary_path=summary,
+                    handoff_path=handoff,
+                )
+            self.assertFalse(result["ready"])
+            self.assertIn("ATTESTED_PRE_GPU_AUTHORITY_DRIFT_GENERATION_AUTHORIZED", result["blockers"])
+            self.assert_authorities_closed(result)
+            gpu_handoff.assert_not_called()
+            generation.assert_not_called()
+
+    def test_handoff_failure_blocks_canonical_generation(self) -> None:
+        ready = self._ready_pre_gpu()
+        blocked_handoff = {
+            "schema": "pul7sar-phase18-first-golden-gpu-handoff-v1",
+            "expected_commit": GOOD_SHA,
+            "branch_required": "phase18/story-intelligence",
+            "cost_mode_required": "$0-local",
+            "offline_required": True,
+            "eligible_for_authoritative_golden_preflight": False,
+            "blockers": ["HOST_READINESS_WORKFLOW_MISSING"],
+            **CLOSED_AUTHORITIES,
+        }
+        with tempfile.TemporaryDirectory(dir=".") as temp_dir:
+            output, receipt, attestation, summary, handoff = self._paths(Path(temp_dir))
+            with patch(
+                "tools.phase18_run_first_genuine_golden_v6_canonical_attested.run_attested_pre_gpu",
+                return_value=ready,
+            ), patch(
+                "tools.phase18_run_first_genuine_golden_v6_canonical_attested.build_gpu_handoff",
+                return_value=blocked_handoff,
             ), patch(
                 "tools.phase18_run_first_genuine_golden_v6_canonical_attested.subprocess.run"
             ) as generation:
@@ -110,30 +165,25 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                     receipt_path=receipt,
                     attestation_path=attestation,
                     summary_path=summary,
+                    handoff_path=handoff,
                 )
             self.assertFalse(result["ready"])
-            self.assertIn("ATTESTED_PRE_GPU_AUTHORITY_DRIFT_GENERATION_AUTHORIZED", result["blockers"])
+            self.assertFalse(result["canonical_generation_started"])
+            self.assertIn("GPU_HANDOFF_NOT_ELIGIBLE", result["blockers"])
+            self.assertIn("GPU_HANDOFF_BLOCKERS_REMAIN", result["blockers"])
             self.assert_authorities_closed(result)
+            self.assertTrue(handoff.is_file())
             generation.assert_not_called()
 
-    def test_ready_pre_gpu_delegates_to_existing_canonical_entrypoint(self) -> None:
-        ready = {
-            "expected_commit": GOOD_SHA,
-            "ready_for_authoritative_golden_preflight": True,
-            "receipt_attested": True,
-            "blockers": [],
-            "authoritative_gate": False,
-            "network_download_authorized": False,
-            "generation_authorized": False,
-            "publication_ready": False,
-            "seeds_2_to_4_authorized": False,
-        }
+    def test_ready_pre_gpu_builds_handoff_before_existing_canonical_entrypoint(self) -> None:
+        ready = self._ready_pre_gpu()
         with tempfile.TemporaryDirectory(dir=".") as temp_dir:
-            output, receipt, attestation, summary = self._paths(Path(temp_dir))
+            output, receipt, attestation, summary, handoff = self._paths(Path(temp_dir))
 
             def fake_generation(command, cwd, check):
                 self.assertTrue(check)
                 self.assertEqual(cwd, Path(__file__).resolve().parents[1])
+                self.assertTrue(handoff.is_file(), "GPU handoff must exist before generation starts")
                 self.assertIn("phase18_colab_first_genuine_resources_locked.py", command[1])
                 self.assertEqual(command[-2], "--output")
                 Path(command[-1]).write_text("{}\n", encoding="utf-8")
@@ -151,10 +201,13 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                     receipt_path=receipt,
                     attestation_path=attestation,
                     summary_path=summary,
+                    handoff_path=handoff,
                 )
             self.assertTrue(result["ready"])
             self.assertTrue(result["canonical_generation_started"])
+            self.assertEqual(Path(str(result["gpu_handoff"])), handoff.resolve())
             self.assert_authorities_closed(result)
+            self.assertTrue(handoff.is_file())
             generation.assert_called_once()
 
     def test_output_paths_must_be_distinct(self) -> None:
@@ -168,6 +221,7 @@ class FirstGenuineGoldenV6CanonicalAttestedLauncherTests(unittest.TestCase):
                     receipt_path=same,
                     attestation_path=root / "attestation.json",
                     summary_path=root / "summary.json",
+                    handoff_path=root / "handoff.json",
                 )
 
 
