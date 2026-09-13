@@ -3,8 +3,9 @@
 
 This command performs no downloads, model loading, generation, queue mutation, or
 publication. It only reports whether the current host exposes the minimum runtime,
-live GPU/host-memory/filesystem headroom, approved software stack, and exact
-local-cache prerequisites needed before the authoritative Golden gates can be attempted.
+live GPU/host-memory/filesystem headroom, approved generation and semantic software
+stacks, and exact local-cache prerequisites needed before the authoritative Golden
+gates can be attempted.
 """
 from __future__ import annotations
 
@@ -34,6 +35,7 @@ from engine.intelligence.gpu_host_qualification import GpuHostQualificationPolic
 from engine.intelligence.host_memory_qualification import HostMemoryQualificationProbe
 from engine.intelligence.local_runtime import LocalRuntimeProbe
 from engine.intelligence.model_cache_headroom import ModelCacheHeadroomPolicy
+from engine.intelligence.semantic_inspector_readiness import Qwen25VLReadinessProbe
 from engine.intelligence.zero_cost_models import FLUX2_KLEIN_4B_LOCAL
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
@@ -153,6 +155,32 @@ def _generation_runtime_qualification() -> dict[str, object]:
         }
 
 
+def _semantic_runtime_qualification() -> dict[str, object]:
+    """Reuse the Qwen semantic-inspector public-API readiness probe without model loading."""
+    try:
+        readiness = Qwen25VLReadinessProbe().inspect()
+        return {
+            "ready": readiness.ready,
+            "model_id": readiness.model_id,
+            "transformers_version": readiness.transformers_version,
+            "torch_version": readiness.torch_version,
+            "cuda_available": readiness.cuda_available,
+            "failures": list(readiness.failures),
+            "cost_mode": "$0-local",
+            "generation_authorized": False,
+            "publication_ready": False,
+        }
+    except Exception as exc:
+        return {
+            "ready": False,
+            "model_id": QWEN25_VL_3B_MODEL_ID,
+            "failures": [f"semantic_runtime_probe_failed:{type(exc).__name__}"],
+            "cost_mode": "$0-local",
+            "generation_authorized": False,
+            "publication_ready": False,
+        }
+
+
 def inspect(
     *,
     env: dict[str, str] | None = None,
@@ -163,6 +191,7 @@ def inspect(
     host_memory_report: dict[str, object] | None = None,
     cache_headroom_report: dict[str, object] | None = None,
     generation_runtime_report: dict[str, object] | None = None,
+    semantic_runtime_report: dict[str, object] | None = None,
 ) -> dict[str, object]:
     values = dict(os.environ if env is None else env)
     blockers: list[str] = []
@@ -205,6 +234,20 @@ def inspect(
         blockers.append("GENERATION_RUNTIME_ZERO_COST_DRIFT")
     if generation_runtime.get("generation_authorized") is not False or generation_runtime.get("publication_ready") is not False:
         blockers.append("GENERATION_RUNTIME_AUTHORITY_DRIFT")
+
+    semantic_runtime = dict(
+        _semantic_runtime_qualification()
+        if semantic_runtime_report is None
+        else semantic_runtime_report
+    )
+    if semantic_runtime.get("ready") is not True:
+        blockers.append("SEMANTIC_RUNTIME_NOT_READY")
+    if semantic_runtime.get("model_id") != QWEN25_VL_3B_MODEL_ID:
+        blockers.append("SEMANTIC_RUNTIME_MODEL_ID_DRIFT")
+    if semantic_runtime.get("cost_mode") != "$0-local":
+        blockers.append("SEMANTIC_RUNTIME_ZERO_COST_DRIFT")
+    if semantic_runtime.get("generation_authorized") is not False or semantic_runtime.get("publication_ready") is not False:
+        blockers.append("SEMANTIC_RUNTIME_AUTHORITY_DRIFT")
 
     gpu_qualification = dict(
         _gpu_qualification() if gpu_qualification_report is None else gpu_qualification_report
@@ -250,7 +293,7 @@ def inspect(
             blockers.append("CACHE_FILESYSTEM_UNREADABLE")
 
     return {
-        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v5",
+        "schema": "pul7sar-phase18-first-golden-execution-blocker-probe-v6",
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
         "branch_required": EXPECTED_BRANCH,
         "cost_mode_required": "$0-local",
@@ -270,6 +313,7 @@ def inspect(
             "native_bf16": bf16_supported,
         },
         "generation_runtime": generation_runtime,
+        "semantic_runtime": semantic_runtime,
         "gpu_qualification": gpu_qualification,
         "host_memory": host_memory,
         "cache_headroom": cache_headroom,
