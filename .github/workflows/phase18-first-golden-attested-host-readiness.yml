@@ -57,6 +57,7 @@ jobs:
           test -f tools/phase18_run_first_golden_pre_gpu_attested.py
           test -f tools/phase18_probe_first_golden_pre_gpu.py
           test -f tools/phase18_attest_first_golden_pre_gpu_receipt.py
+          test -f tools/phase18_build_first_golden_gpu_handoff.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -123,6 +124,62 @@ jobs:
           }, indent=2, sort_keys=True))
           PY
 
+      - name: Build immutable first-Golden GPU handoff
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_build_first_golden_gpu_handoff.py \
+            --expected-commit "$DISPATCH_SHA" \
+            --attested-summary output/phase18_gpu_smoke/first-golden-attested-pre-gpu-summary.json \
+            --output output/phase18_gpu_smoke/first-golden-gpu-handoff.json
+
+      - name: Replay GPU handoff and keep generation authority closed
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("output/phase18_gpu_smoke/first-golden-gpu-handoff.json")
+          if not path.is_file():
+              raise SystemExit("first-Golden GPU handoff missing")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          if data.get("schema") != "pul7sar-phase18-first-golden-gpu-handoff-v1":
+              raise SystemExit("unexpected first-Golden GPU handoff schema")
+          if data.get("expected_commit") != os.environ["DISPATCH_SHA"]:
+              raise SystemExit("first-Golden GPU handoff commit drift")
+          if data.get("branch_required") != "phase18/story-intelligence":
+              raise SystemExit("first-Golden GPU handoff branch drift")
+          if data.get("eligible_for_authoritative_golden_preflight") is not True:
+              raise SystemExit("first-Golden GPU handoff is not preflight eligible")
+          if data.get("blockers") != []:
+              raise SystemExit("first-Golden GPU handoff blockers remain")
+          if data.get("cost_mode_required") != "$0-local" or data.get("offline_required") is not True:
+              raise SystemExit("first-Golden GPU handoff cost/offline drift")
+          for field in (
+              "authoritative_gate",
+              "network_download_authorized",
+              "generation_authorized",
+              "publication_ready",
+              "seeds_2_to_4_authorized",
+          ):
+              if data.get(field) is not False:
+                  raise SystemExit(f"illegal first-Golden GPU handoff authority drift: {field}")
+          print(json.dumps({
+              "status": "FIRST_GOLDEN_GPU_HANDOFF_READY",
+              "expected_commit": data.get("expected_commit"),
+              "eligible_for_authoritative_golden_preflight": True,
+              "generation_authorized": False,
+              "publication_ready": False,
+          }, indent=2, sort_keys=True))
+          PY
+
       - name: Upload attested host-readiness evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -134,3 +191,4 @@ jobs:
             output/phase18_gpu_smoke/first-golden-attested-pre-gpu-receipt.json
             output/phase18_gpu_smoke/first-golden-attested-pre-gpu-attestation.json
             output/phase18_gpu_smoke/first-golden-attested-pre-gpu-summary.json
+            output/phase18_gpu_smoke/first-golden-gpu-handoff.json
