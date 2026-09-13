@@ -1,3 +1,4 @@
+import hashlib
 import json
 from pathlib import Path
 import tempfile
@@ -49,6 +50,10 @@ class FirstGoldenGpuAttemptContractTests(unittest.TestCase):
     def write(self, payload: dict[str, object]) -> None:
         self.path.write_text(json.dumps(payload), encoding="utf-8")
 
+    @staticmethod
+    def sha256(path: Path) -> str:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+
     def test_valid_handoff_prepares_exact_no_dispatch_canonical_contract(self) -> None:
         self.write(self.valid_handoff())
         payload = attempt.build(expected_commit=self.expected_commit, handoff_path=self.path)
@@ -69,6 +74,34 @@ class FirstGoldenGpuAttemptContractTests(unittest.TestCase):
         self.assertEqual(payload["required_runner_labels"], attempt.REQUIRED_RUNNER_LABELS)
         self.assertEqual(payload["cost_mode_required"], "$0-local")
         self.assertTrue(payload["offline_required"])
+
+        self.assertEqual(payload["source_handoff_sha256"], self.sha256(self.path))
+        self.assertEqual(
+            payload["canonical_workflow_sha256"],
+            self.sha256(ROOT / attempt.CANONICAL_WORKFLOW),
+        )
+        self.assertEqual(
+            payload["canonical_launcher_sha256"],
+            self.sha256(ROOT / attempt.CANONICAL_LAUNCHER),
+        )
+        for field in (
+            "source_handoff_sha256",
+            "canonical_workflow_sha256",
+            "canonical_launcher_sha256",
+        ):
+            value = payload[field]
+            self.assertIsInstance(value, str)
+            self.assertEqual(len(value), 64)
+
+    def test_handoff_content_hash_changes_when_handoff_changes(self) -> None:
+        self.write(self.valid_handoff())
+        before = attempt.build(expected_commit=self.expected_commit, handoff_path=self.path)
+        mutated = self.valid_handoff()
+        mutated["extra_non_authority_field"] = "changed"
+        self.write(mutated)
+        after = attempt.build(expected_commit=self.expected_commit, handoff_path=self.path)
+        self.assertNotEqual(before["source_handoff_sha256"], after["source_handoff_sha256"])
+        self.assertTrue(after["attempt_contract_ready"])
 
     def test_commit_drift_fails_closed(self) -> None:
         handoff = self.valid_handoff()
@@ -105,6 +138,8 @@ class FirstGoldenGpuAttemptContractTests(unittest.TestCase):
         self.assertIn("GPU_HANDOFF_INVALID_JSON", payload["blockers"])
         self.assertFalse(payload["workflow_dispatch_performed"])
         self.assertFalse(payload["png_created"])
+        self.assertIsInstance(payload["source_handoff_sha256"], str)
+        self.assertEqual(len(payload["source_handoff_sha256"]), 64)
 
 
 if __name__ == "__main__":
