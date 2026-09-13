@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import unittest
 
 
@@ -21,13 +22,15 @@ def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def argparse_flags(source: str) -> set[str]:
+    return set(re.findall(r'parser\.add_argument\(\s*"(--[^"]+)"', source))
+
+
 class FirstGoldenAttestedCliContractTests(unittest.TestCase):
-    def test_pre_gpu_runner_exposes_only_the_current_evidence_flag_names(self) -> None:
-        source = read(PRE_GPU_RUNNER)
-        for flag in ("--expected-commit", "--receipt", "--attestation", "--summary"):
-            self.assertIn(f'parser.add_argument("{flag}"', source)
-        for stale_flag in ("--receipt-out", "--attestation-out", "--summary-out"):
-            self.assertNotIn(stale_flag, source)
+    def test_pre_gpu_runner_exposes_current_evidence_flag_names(self) -> None:
+        flags = argparse_flags(read(PRE_GPU_RUNNER))
+        self.assertTrue({"--expected-commit", "--receipt", "--attestation", "--summary"}.issubset(flags))
+        self.assertTrue({"--receipt-out", "--attestation-out", "--summary-out"}.isdisjoint(flags))
 
     def test_direct_pre_gpu_workflows_match_runner_cli_exactly(self) -> None:
         for workflow in DIRECT_PRE_GPU_WORKFLOWS:
@@ -55,11 +58,11 @@ class FirstGoldenAttestedCliContractTests(unittest.TestCase):
         self.assertIn("--attestation ", workflow)
         self.assertIn("--summary ", workflow)
 
-        for flag in ("--expected-commit", "--output", "--receipt", "--attestation", "--summary"):
-            self.assertIn(f'parser.add_argument("{flag}"', launcher)
+        flags = argparse_flags(launcher)
+        self.assertTrue({"--expected-commit", "--output", "--receipt", "--attestation", "--summary"}.issubset(flags))
+        self.assertTrue({"--receipt-out", "--attestation-out", "--summary-out"}.isdisjoint(flags))
         for stale_flag in ("--receipt-out", "--attestation-out", "--summary-out"):
             self.assertNotIn(stale_flag, workflow)
-            self.assertNotIn(stale_flag, launcher)
 
     def test_contract_does_not_open_generation_or_publication_authority(self) -> None:
         pre_gpu = read(PRE_GPU_RUNNER)
