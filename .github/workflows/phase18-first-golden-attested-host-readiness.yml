@@ -1,0 +1,136 @@
+name: Phase 18 First Golden Attested Host Readiness
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type CHECK_PHASE18_FIRST_GOLDEN_HOST to attest the immutable Phase 18 source and zero-cost GPU host readiness"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-first-golden-attested-host-readiness
+  cancel-in-progress: false
+
+jobs:
+  attest-first-golden-host-readiness:
+    # Diagnostic only: self-hosted GPU, no paid hosted GPU fallback.
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 20
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+
+    steps:
+      - name: Require explicit confirmation and immutable Phase 18 dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "CHECK_PHASE18_FIRST_GOLDEN_HOST"
+          test "$DISPATCH_REF" = "refs/heads/phase18/story-intelligence"
+          printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout immutable Phase 18 commit with complete ancestry
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Reattach exact Phase 18 branch and prove main isolation
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          test -f tools/phase18_run_first_golden_pre_gpu_attested.py
+          test -f tools/phase18_probe_first_golden_pre_gpu.py
+          test -f tools/phase18_attest_first_golden_pre_gpu_receipt.py
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          test -n "$base"
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 6
+          fi
+
+      - name: Run immutable attested pre-GPU readiness proof
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p output/phase18_gpu_smoke
+          python tools/phase18_run_first_golden_pre_gpu_attested.py \
+            --expected-commit "$DISPATCH_SHA" \
+            --receipt output/phase18_gpu_smoke/first-golden-attested-pre-gpu-receipt.json \
+            --attestation output/phase18_gpu_smoke/first-golden-attested-pre-gpu-attestation.json \
+            --summary output/phase18_gpu_smoke/first-golden-attested-pre-gpu-summary.json
+
+      - name: Replay readiness summary and keep all authorities closed
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("output/phase18_gpu_smoke/first-golden-attested-pre-gpu-summary.json")
+          if not path.is_file():
+              raise SystemExit("attested pre-GPU summary missing")
+          data = json.loads(path.read_text(encoding="utf-8"))
+          if data.get("schema") != "pul7sar-phase18-first-golden-attested-pre-gpu-run-v1":
+              raise SystemExit("unexpected attested pre-GPU summary schema")
+          if data.get("expected_commit") != os.environ["DISPATCH_SHA"]:
+              raise SystemExit("attested pre-GPU source commit drift")
+          if data.get("ready_for_authoritative_golden_preflight") is not True:
+              raise SystemExit("attested pre-GPU host is not ready")
+          if data.get("receipt_attested") is not True:
+              raise SystemExit("pre-GPU receipt attestation missing")
+          if data.get("blockers") != []:
+              raise SystemExit("pre-GPU blockers remain")
+          for field in (
+              "authoritative_gate",
+              "network_download_authorized",
+              "generation_authorized",
+              "publication_ready",
+              "seeds_2_to_4_authorized",
+          ):
+              if data.get(field) is not False:
+                  raise SystemExit(f"illegal authority drift: {field}")
+          print(json.dumps({
+              "status": "FIRST_GOLDEN_ATTESTED_HOST_READY",
+              "expected_commit": data.get("expected_commit"),
+              "receipt_attested": True,
+              "network_download_authorized": False,
+              "generation_authorized": False,
+              "publication_ready": False,
+              "seeds_2_to_4_authorized": False,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload attested host-readiness evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-golden-attested-host-readiness-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/first-golden-attested-pre-gpu-receipt.json
+            output/phase18_gpu_smoke/first-golden-attested-pre-gpu-attestation.json
+            output/phase18_gpu_smoke/first-golden-attested-pre-gpu-summary.json

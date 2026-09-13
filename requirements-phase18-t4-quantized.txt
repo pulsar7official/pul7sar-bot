@@ -1,0 +1,7 @@
+# Optional dependency layer for low-VRAM Phase 18 engineering previews.
+#
+# Keep the verified GPU stack, then add bitsandbytes only for the quantized T4
+# preview path. This file is intentionally separate from the Golden-reference
+# dependency lock so quantization can never silently redefine Golden evidence.
+-r requirements-phase18-gpu.txt
+bitsandbytes>=0.47.0,<0.50.0

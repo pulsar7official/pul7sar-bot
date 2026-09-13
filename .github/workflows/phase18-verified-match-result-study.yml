@@ -1,0 +1,98 @@
+name: Phase 18 Verified Match Result Visual Study
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/verified_story_moment.py'
+      - 'engine/intelligence/moment_led_result_renderer.py'
+      - 'engine/intelligence/visual_concept_director.py'
+      - 'engine/intelligence/concept_renderer_registry.py'
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'tools/phase18_build_verified_match_result_study.py'
+      - '.github/workflows/phase18-verified-match-result-study.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/verified_story_moment.py'
+      - 'engine/intelligence/moment_led_result_renderer.py'
+      - 'engine/intelligence/visual_concept_director.py'
+      - 'engine/intelligence/concept_renderer_registry.py'
+      - 'tools/phase18_build_verified_match_result_study.py'
+      - '.github/workflows/phase18-verified-match-result-study.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-verified-match-result:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      SOURCE_FILE: output/source/ocsc-10-atlas-7.jpg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run moment-led and provenance regressions
+        run: |
+          python -m unittest -v tests.test_phase18_verified_story_moment
+          python -m unittest -v tests.test_phase18_moment_led_result_renderer
+          python -m unittest -v tests.test_phase18_visual_concept_director
+      - name: Fetch CC0 verified match photograph
+        run: |
+          mkdir -p output/source
+          curl -L --fail --retry 3 --retry-delay 2 \
+            'https://commons.wikimedia.org/wiki/Special:Redirect/file/OCSC%2010%20Atlas%207.jpg' \
+            -o "$SOURCE_FILE"
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+          import hashlib, os
+          p=Path(os.environ['SOURCE_FILE'])
+          assert p.is_file() and p.stat().st_size > 100_000
+          with Image.open(p) as im:
+              assert im.width >= 1000 and im.height >= 1000
+              im.verify()
+          print('source_sha256',hashlib.sha256(p.read_bytes()).hexdigest())
+          PY
+      - name: Build verified match-moment Result PNG
+        run: |
+          python tools/phase18_build_verified_match_result_study.py \
+            --output-dir output/phase18_verified_match_result_study \
+            --source-image "$SOURCE_FILE"
+      - name: Verify real-match visual contract
+        run: |
+          python - <<'PY'
+          import hashlib,json
+          from pathlib import Path
+          root=Path('output/phase18_verified_match_result_study')
+          m=json.loads((root/'manifest.json').read_text(encoding='utf-8'))
+          png=root/m['png']
+          assert m['manifest_version']=='pul7sar-verified-match-result-study-v1'
+          assert m['renderer_contract']=='pul7sar-moment-led-result-renderer-v1'
+          assert m['visual_concept']=='verified_match_moment'
+          assert m['score_text']=='3  –  1' and m['score_is_exact'] is True
+          assert m['photo_claim']=='actual match moment, not claimed as decisive goal'
+          assert m['photograph_is_primary'] is True and m['score_is_secondary'] is True
+          assert m['source_rights'].startswith('CC0')
+          assert set(m['verified_identity_ids'])=={'player:martin-ojeda','player:matias-coccaro'}
+          assert m['loser_treatment']=='neutral_no_humiliation'
+          assert m['generator_used'] is False and m['network_used_by_renderer'] is False
+          assert m['study_only'] is True and m['publication_ready'] is False
+          assert png.is_file() and png.read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
+          assert hashlib.sha256(png.read_bytes()).hexdigest()==m['png_sha256']
+          print('Verified match Result visual study PASS')
+          PY
+      - name: Remove source photo from artifact payload
+        run: rm -rf output/source
+      - name: Upload verified match Result study
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-verified-match-result-study-${{ github.sha }}'
+          path: output/phase18_verified_match_result_study/
+          if-no-files-found: error
+          retention-days: 14
