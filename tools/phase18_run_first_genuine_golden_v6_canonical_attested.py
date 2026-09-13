@@ -39,6 +39,16 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _closed_authorities() -> dict[str, bool]:
+    return {
+        "authoritative_gate": False,
+        "network_download_authorized": False,
+        "generation_authorized": False,
+        "publication_ready": False,
+        "seeds_2_to_4_authorized": False,
+    }
+
+
 def run(
     *,
     expected_commit: str,
@@ -54,9 +64,7 @@ def run(
             "canonical_generation_started": False,
             "ready": False,
             "blockers": ["EXPECTED_COMMIT_INVALID"],
-            "network_download_authorized": False,
-            "publication_ready": False,
-            "seeds_2_to_4_authorized": False,
+            **_closed_authorities(),
         }
 
     output_target = _inside_repository(output_path)
@@ -100,9 +108,7 @@ def run(
             "canonical_generation_started": False,
             "ready": False,
             "blockers": blockers,
-            "network_download_authorized": False,
-            "publication_ready": False,
-            "seeds_2_to_4_authorized": False,
+            **_closed_authorities(),
         }
 
     command = [
@@ -121,9 +127,7 @@ def run(
         "canonical_generation_started": True,
         "ready": output_target.is_file(),
         "blockers": [] if output_target.is_file() else ["CANONICAL_OUTPUT_MISSING"],
-        "network_download_authorized": False,
-        "publication_ready": False,
-        "seeds_2_to_4_authorized": False,
+        **_closed_authorities(),
     }
 
 
