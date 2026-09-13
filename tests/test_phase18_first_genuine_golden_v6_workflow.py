@@ -152,11 +152,13 @@ class FirstGenuineGoldenV6WorkflowTests(unittest.TestCase):
 
     def test_workflow_replays_bound_model_cache_runtime_staging_and_keeps_authority_closed(self):
         text = Path(".github/workflows/phase18-first-genuine-golden-v6.yml").read_text(encoding="utf-8")
-        execute = text.index("Run model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1")
+        execute = text.index("Run attested canonical model-cache resource runtime semantic locked strict Golden Editorial v6 Candidate 1")
         replay = text.index("Replay exact model-cache semantic resource runtime and staging evidence")
         upload = text.index("Upload genuine Golden v6 Candidate 1 evidence")
         self.assertLess(execute, replay)
         self.assertLess(replay, upload)
+        self.assertIn("phase18_run_first_genuine_golden_v6_canonical_attested.py", text)
+        self.assertIn("--expected-commit \"$DISPATCH_SHA\"", text)
         self.assertIn("pul7sar-first-genuine-golden-v6-resource-lock-v4", text)
         self.assertIn("FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED", text)
         self.assertIn('"cache_budget"', text)
