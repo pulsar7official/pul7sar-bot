@@ -1,0 +1,59 @@
+name: Phase 18 CPU Verification Diagnostics
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/**'
+      - 'tools/phase18_*.py'
+      - 'tests/test_phase18_*.py'
+      - '.github/workflows/phase18-cpu-diagnostics.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/**'
+      - 'tools/phase18_*.py'
+      - 'tests/test_phase18_*.py'
+      - '.github/workflows/phase18-cpu-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-diagnostics:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install CPU dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run fail-closed Phase 18 CPU validator
+        id: cpu_validate
+        continue-on-error: true
+        run: python tools/phase18_cpu_validate.py
+
+      - name: Upload deterministic CPU validation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-phase18-cpu-validation-${{ github.sha }}'
+          path: output/phase18_cpu_validation/report.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Preserve validator failure semantics
+        if: steps.cpu_validate.outcome != 'success'
+        run: |
+          echo 'Phase 18 CPU validation failed; diagnostic artifact was retained.' >&2
+          exit 1
