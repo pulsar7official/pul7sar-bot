@@ -23,6 +23,11 @@ def read(path: Path) -> str:
 
 
 def argparse_flags(source: str) -> set[str]:
+    """Return long-form flags declared by parser.add_argument(...).
+
+    The expression intentionally tolerates whitespace/newlines between the call
+    and the first string argument without over-escaping regex metacharacters.
+    """
     return set(re.findall(r'parser\.add_argument\(\s*"(--[^"]+)"', source))
 
 
@@ -43,7 +48,7 @@ class FirstGoldenAttestedCliContractTests(unittest.TestCase):
                 self.assertIn("--summary ", text)
                 for stale_flag in ("--receipt-out", "--attestation-out", "--summary-out"):
                     self.assertNotIn(stale_flag, text)
-                self.assertIn('PUL7SAR_PHASE18_COST_MODE: $0-local', text)
+                self.assertIn("PUL7SAR_PHASE18_COST_MODE: $0-local", text)
                 self.assertIn('HF_HUB_OFFLINE: "1"', text)
                 self.assertIn('TRANSFORMERS_OFFLINE: "1"', text)
 
