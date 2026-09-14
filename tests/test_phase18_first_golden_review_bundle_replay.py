@@ -47,6 +47,8 @@ class FirstGoldenReviewBundleReplayTests(unittest.TestCase):
             "offline_only": True,
             "source_commit_sha": "a" * 40,
             "png_sha256": sha(files["candidate_png"]),
+            "generation_runtime_fingerprint_verified_after_generation": True,
+            "generation_runtime_fingerprint_sha256": "c" * 64,
             "exact_evidence_only": True,
             "eligible_for_human_visual_review": True,
             "entries": entries,
@@ -68,6 +70,8 @@ class FirstGoldenReviewBundleReplayTests(unittest.TestCase):
             bundle = self._bundle(Path(tmp))
             result = verify_bundle(bundle_dir=bundle)
             self.assertTrue(result["exact_closed_file_set"])
+            self.assertTrue(result["generation_runtime_fingerprint_verified_after_generation"])
+            self.assertEqual(result["generation_runtime_fingerprint_sha256"], "c" * 64)
             self.assertTrue(result["eligible_for_human_visual_review"])
             self.assertFalse(result["human_visual_review_approved"])
             self.assertFalse(result["publication_ready"])
@@ -86,6 +90,16 @@ class FirstGoldenReviewBundleReplayTests(unittest.TestCase):
             bundle = self._bundle(Path(tmp))
             (bundle / "evidence/resource_lock.json").write_text("drift\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "ENTRY_(SIZE|SHA)_DRIFT"):
+                verify_bundle(bundle_dir=bundle)
+
+    def test_rejects_runtime_replay_drift(self) -> None:
+        with TemporaryDirectory() as tmp:
+            bundle = self._bundle(Path(tmp))
+            manifest_path = bundle / "review-bundle-manifest.json"
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+            payload["generation_runtime_fingerprint_verified_after_generation"] = False
+            manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "RUNTIME_REPLAY_NOT_VERIFIED"):
                 verify_bundle(bundle_dir=bundle)
 
     def test_rejects_authority_drift(self) -> None:
