@@ -25,7 +25,7 @@ class FirstGoldenTrackedSourceIntegrityTests(unittest.TestCase):
         subprocess.run(["git", "add", "tracked.txt"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-m", "baseline"], cwd=self.root, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         self.sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=self.root, text=True).strip()
-        self.baseline = self.root / "baseline.json"
+        self.baseline = self.root / "output/phase18_gpu_smoke/baseline.json"
         self.verification = self.root / "output/phase18_gpu_smoke/verification.json"
         self.old_env = {key: os.environ.get(key) for key in ("PUL7SAR_PHASE18_COST_MODE", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE")}
         os.environ["PUL7SAR_PHASE18_COST_MODE"] = "$0-local"
