@@ -5,10 +5,10 @@ This wrapper is intentionally narrow. It runs the existing attested first-Golden
 pre-GPU contract against an immutable source commit, builds and validates the
 machine-readable GPU handoff from that exact attested summary, binds the exact
 handoff/workflow/launcher bytes into a first-Golden GPU attempt contract, replays
-those SHA-256 bindings immediately before generation, and only then delegates to
-the existing canonical Golden v6 resource-locked entry point. It does not weaken
-or replace any downstream factual, identity, sentiment, semantic-publication,
-visual-quality, BF16, local-cache, or human-review gate.
+those SHA-256 bindings immediately before generation, then independently replays
+the produced resource-lock receipt and PNG before reporting readiness. It does
+not weaken or replace any downstream factual, identity, sentiment,
+semantic-publication, visual-quality, BF16, local-cache, or human-review gate.
 """
 from __future__ import annotations
 
@@ -32,6 +32,9 @@ _SHA40 = re.compile(r"^[0-9a-f]{40}$")
 CANONICAL_WORKFLOW = ".github/workflows/phase18-first-genuine-golden-v6.yml"
 CANONICAL_LAUNCHER = "tools/phase18_run_first_genuine_golden_v6_canonical_attested.py"
 ATTEMPT_SCHEMA = "pul7sar-phase18-first-golden-gpu-attempt-contract-v1"
+RESOURCE_LOCK_SCHEMA = "pul7sar-first-genuine-golden-v6-resource-lock-v4"
+RESOURCE_LOCK_STATUS = "FIRST_GENUINE_GOLDEN_V6_MODEL_CACHE_RESOURCE_RUNTIME_SEMANTIC_LOCK_VERIFIED"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
 def _inside_repository(path: Path) -> Path:
@@ -112,6 +115,75 @@ def _attempt_contract_blockers(
     return blockers
 
 
+def _canonical_output_blockers(*, output_target: Path) -> tuple[list[str], dict[str, object] | None]:
+    blockers: list[str] = []
+    if not output_target.is_file():
+        return ["CANONICAL_OUTPUT_MISSING"], None
+    try:
+        payload = json.loads(output_target.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return ["CANONICAL_OUTPUT_INVALID_JSON"], None
+    if not isinstance(payload, dict):
+        return ["CANONICAL_OUTPUT_INVALID_PAYLOAD"], None
+
+    if payload.get("schema") != RESOURCE_LOCK_SCHEMA:
+        blockers.append("CANONICAL_OUTPUT_SCHEMA_DRIFT")
+    if payload.get("status") != RESOURCE_LOCK_STATUS:
+        blockers.append("CANONICAL_OUTPUT_STATUS_DRIFT")
+    if payload.get("branch") != "phase18/story-intelligence":
+        blockers.append("CANONICAL_OUTPUT_BRANCH_DRIFT")
+    if payload.get("candidate") != 1:
+        blockers.append("CANONICAL_OUTPUT_CANDIDATE_DRIFT")
+    if payload.get("cost_mode") != "$0-local":
+        blockers.append("CANONICAL_OUTPUT_COST_MODE_DRIFT")
+    if payload.get("gpu_eligible") is not True or payload.get("native_bf16_proven") is not True:
+        blockers.append("CANONICAL_OUTPUT_GPU_BF16_UNPROVEN")
+    if payload.get("network_download_authorized") is not False or payload.get("local_files_only") is not True:
+        blockers.append("CANONICAL_OUTPUT_LOCAL_ONLY_DRIFT")
+    if payload.get("semantic_preflight_bound") is not True or payload.get("runtime_stable_across_generation") is not True:
+        blockers.append("CANONICAL_OUTPUT_SEMANTIC_RUNTIME_UNBOUND")
+    if payload.get("human_visual_review_required") is not True or payload.get("human_visual_review_approved") is not False:
+        blockers.append("CANONICAL_OUTPUT_HUMAN_REVIEW_STATE_DRIFT")
+    if payload.get("golden_quality_approved") is not False:
+        blockers.append("CANONICAL_OUTPUT_GOLDEN_QUALITY_AUTHORITY_DRIFT")
+    if payload.get("publication_ready") is not False:
+        blockers.append("CANONICAL_OUTPUT_PUBLICATION_AUTHORITY_DRIFT")
+    if payload.get("seeds_2_to_4_authorized") is not False:
+        blockers.append("CANONICAL_OUTPUT_SEEDS_AUTHORITY_DRIFT")
+
+    png_value = payload.get("png")
+    if not isinstance(png_value, str) or not png_value.strip():
+        blockers.append("CANONICAL_OUTPUT_PNG_PATH_MISSING")
+        return blockers, payload
+    try:
+        png_target = _inside_repository(Path(png_value))
+    except RuntimeError:
+        blockers.append("CANONICAL_OUTPUT_PNG_PATH_INVALID")
+        return blockers, payload
+    if not png_target.is_file():
+        blockers.append("CANONICAL_OUTPUT_PNG_MISSING")
+        return blockers, payload
+    try:
+        with png_target.open("rb") as handle:
+            signature = handle.read(8)
+    except OSError:
+        blockers.append("CANONICAL_OUTPUT_PNG_UNREADABLE")
+        return blockers, payload
+    if signature != PNG_SIGNATURE:
+        blockers.append("CANONICAL_OUTPUT_PNG_SIGNATURE_INVALID")
+        return blockers, payload
+
+    png_sha = _sha256(png_target)
+    if payload.get("png_sha256") != png_sha:
+        blockers.append("CANONICAL_OUTPUT_PNG_SHA_DRIFT")
+    png_bytes = payload.get("png_bytes")
+    if isinstance(png_bytes, bool) or not isinstance(png_bytes, int) or png_bytes <= 8:
+        blockers.append("CANONICAL_OUTPUT_PNG_BYTES_INVALID")
+    elif png_bytes != png_target.stat().st_size:
+        blockers.append("CANONICAL_OUTPUT_PNG_SIZE_DRIFT")
+    return blockers, payload
+
+
 def run(
     *,
     expected_commit: str,
@@ -124,7 +196,7 @@ def run(
 ) -> dict[str, object]:
     if _SHA40.fullmatch(expected_commit) is None:
         return {
-            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v3",
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v4",
             "expected_commit": expected_commit,
             "canonical_generation_started": False,
             "ready": False,
@@ -169,7 +241,7 @@ def run(
 
     if blockers:
         return {
-            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v3",
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v4",
             "expected_commit": expected_commit,
             "pre_gpu_summary": str(summary_target),
             "canonical_generation_started": False,
@@ -209,7 +281,7 @@ def run(
 
     if handoff_blockers:
         return {
-            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v3",
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v4",
             "expected_commit": expected_commit,
             "pre_gpu_summary": str(summary_target),
             "gpu_handoff": str(handoff_target),
@@ -228,7 +300,7 @@ def run(
     )
     if attempt_blockers:
         return {
-            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v3",
+            "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v4",
             "expected_commit": expected_commit,
             "pre_gpu_summary": str(summary_target),
             "gpu_handoff": str(handoff_target),
@@ -247,22 +319,26 @@ def run(
     ]
     subprocess.run(command, cwd=ROOT, check=True)
 
+    output_blockers, output_payload = _canonical_output_blockers(output_target=output_target)
     return {
-        "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v3",
+        "schema": "pul7sar-phase18-first-genuine-golden-v6-canonical-attested-launch-v4",
         "expected_commit": expected_commit,
         "pre_gpu_summary": str(summary_target),
         "gpu_handoff": str(handoff_target),
         "gpu_attempt_contract": str(attempt_target),
         "canonical_output": str(output_target),
+        "canonical_output_sha256": _sha256(output_target) if output_target.is_file() else None,
+        "canonical_png": output_payload.get("png") if output_payload is not None else None,
+        "canonical_png_sha256": output_payload.get("png_sha256") if output_payload is not None else None,
         "canonical_generation_started": True,
-        "ready": output_target.is_file(),
-        "blockers": [] if output_target.is_file() else ["CANONICAL_OUTPUT_MISSING"],
+        "ready": not output_blockers,
+        "blockers": output_blockers,
         **_closed_authorities(),
     }
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Run canonical Golden v6 only after attested pre-GPU readiness, immutable GPU handoff, and content-bound GPU attempt replay")
+    parser = argparse.ArgumentParser(description="Run canonical Golden v6 only after attested pre-GPU readiness, immutable GPU handoff, content-bound GPU attempt replay, and canonical output replay")
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument(
