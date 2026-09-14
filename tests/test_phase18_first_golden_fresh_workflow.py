@@ -30,6 +30,23 @@ class FirstGoldenFreshWorkflowTests(unittest.TestCase):
         self.assertIn("--attempt-contract", self.text)
         self.assertIn("--handoff", self.text)
 
+    def test_tracked_source_integrity_wraps_the_entire_attempt(self) -> None:
+        baseline = self.text.index("Capture immutable tracked source baseline before preflight")
+        probe = self.text.index("Record first-Golden execution blocker probe before CUDA preflight")
+        generation = self.text.index("Run freshness-bound canonical Candidate 1")
+        bundle_replay = self.text.index("Replay exact Golden v6 review bundle before upload")
+        source_replay = self.text.index("Replay immutable tracked source immediately before upload")
+        upload = self.text.index("Upload exact Golden v6 Candidate 1 review bundle")
+        self.assertIn("python tools/phase18_verify_first_golden_tracked_source_integrity.py capture", self.text)
+        self.assertIn("python tools/phase18_verify_first_golden_tracked_source_integrity.py verify", self.text)
+        self.assertIn("first-genuine-golden-v6-tracked-source-baseline.json", self.text)
+        self.assertIn("first-genuine-golden-v6-tracked-source-verification.json", self.text)
+        self.assertLess(baseline, probe)
+        self.assertLess(probe, generation)
+        self.assertLess(generation, bundle_replay)
+        self.assertLess(bundle_replay, source_replay)
+        self.assertLess(source_replay, upload)
+
     def test_snapshot_inventory_is_required_before_candidate_generation(self) -> None:
         probe = self.text.index("Record first-Golden execution blocker probe before CUDA preflight")
         inventory = self.text.index("Capture approved local model snapshot inventory")
