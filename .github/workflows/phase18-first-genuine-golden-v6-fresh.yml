@@ -63,6 +63,7 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
           test -f tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py
           test -f tools/phase18_package_first_genuine_golden_v6_review_bundle.py
+          test -f tools/phase18_verify_first_genuine_golden_v6_review_bundle.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -208,6 +209,17 @@ jobs:
             --snapshot-manifest output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-manifest.json \
             --repo-root . \
             --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+
+      - name: Replay exact Golden v6 review bundle before upload
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_genuine_golden_v6_review_bundle.py \
+            --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-review-bundle-replay.json
 
       - name: Upload exact Golden v6 Candidate 1 review bundle
         if: success()
