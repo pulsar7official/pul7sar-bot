@@ -61,6 +61,7 @@ jobs:
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
+          test -f tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -183,6 +184,16 @@ jobs:
             --expected-source-sha "$DISPATCH_SHA" \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-manifest.json \
             > output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-replay.json
+
+      - name: Replay and bind approved model snapshots after generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py \
+            --upstream-manifest output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-manifest.json \
+            --snapshot-inventory output/phase18_gpu_smoke/first-genuine-golden-v6-approved-snapshot-inventory.json \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-manifest.json \
+            > output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-replay.json
 
       - name: Upload freshness-bound Golden v6 Candidate 1 evidence
         if: always()
