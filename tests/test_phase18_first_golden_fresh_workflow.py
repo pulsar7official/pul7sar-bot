@@ -44,6 +44,7 @@ class FirstGoldenFreshWorkflowTests(unittest.TestCase):
         final_binding = self.text.index("Bind execution, runner, fresh attempt, source provenance, and PNG bytes")
         snapshot_replay = self.text.index("Replay and bind approved model snapshots after generation")
         package = self.text.index("Package exact Golden v6 Candidate 1 review bundle")
+        bundle_replay = self.text.index("Replay exact Golden v6 review bundle before upload")
         upload = self.text.index("Upload exact Golden v6 Candidate 1 review bundle")
         self.assertIn("python tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py", self.text)
         self.assertIn("--snapshot-inventory output/phase18_gpu_smoke/first-genuine-golden-v6-approved-snapshot-inventory.json", self.text)
@@ -51,7 +52,8 @@ class FirstGoldenFreshWorkflowTests(unittest.TestCase):
         self.assertLess(generation, final_binding)
         self.assertLess(final_binding, snapshot_replay)
         self.assertLess(snapshot_replay, package)
-        self.assertLess(package, upload)
+        self.assertLess(package, bundle_replay)
+        self.assertLess(bundle_replay, upload)
 
     def test_freshness_replay_precedes_source_binding_and_upload(self) -> None:
         run_fresh = self.text.index("Run freshness-bound canonical Candidate 1")
@@ -62,19 +64,23 @@ class FirstGoldenFreshWorkflowTests(unittest.TestCase):
         self.assertLess(replay, source)
         self.assertLess(source, upload)
 
-    def test_success_upload_is_exact_review_bundle_and_failures_are_diagnostics_only(self) -> None:
+    def test_success_upload_replays_exact_review_bundle_and_failures_are_diagnostics_only(self) -> None:
         package = self.text.index("Package exact Golden v6 Candidate 1 review bundle")
+        bundle_replay = self.text.index("Replay exact Golden v6 review bundle before upload")
         success_upload = self.text.index("Upload exact Golden v6 Candidate 1 review bundle")
         failure_upload = self.text.index("Upload failed-attempt diagnostics only")
         self.assertIn("python tools/phase18_package_first_genuine_golden_v6_review_bundle.py", self.text)
+        self.assertIn("python tools/phase18_verify_first_genuine_golden_v6_review_bundle.py", self.text)
         self.assertIn("--bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}", self.text)
+        self.assertIn("first-genuine-golden-v6-review-bundle-replay.json", self.text)
         self.assertIn("if: success()", self.text)
         self.assertIn("if-no-files-found: error", self.text)
         self.assertIn("output/phase18_golden_review/${{ github.run_id }}-${{ github.run_attempt }}/**", self.text)
         self.assertIn("if: failure()", self.text)
         self.assertNotIn("output/phase18_generated/**", self.text)
         self.assertNotIn("output/phase18_handoffs/golden-batch/**", self.text)
-        self.assertLess(package, success_upload)
+        self.assertLess(package, bundle_replay)
+        self.assertLess(bundle_replay, success_upload)
         self.assertLess(success_upload, failure_upload)
 
     def test_authorities_remain_closed_and_native_bf16_is_required(self) -> None:
