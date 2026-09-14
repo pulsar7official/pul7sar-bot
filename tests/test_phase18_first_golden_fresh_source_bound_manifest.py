@@ -28,6 +28,58 @@ class FreshSourceBoundManifestTests(unittest.TestCase):
         png.parent.mkdir(parents=True, exist_ok=True)
         png.write_bytes(b"\x89PNG\r\n\x1a\ncandidate-1")
 
+        execution_probe = root / "execution-probe.json"
+        execution_probe.write_text(json.dumps({
+            "schema": module.EXECUTION_PROBE_SCHEMA,
+            "branch_required": module.EXPECTED_BRANCH,
+            "cost_mode_required": module.EXPECTED_COST_MODE,
+            "authoritative_gate": False,
+            "network_download_authorized": False,
+            "generation_authorized": False,
+            "publication_ready": False,
+            "seeds_2_to_4_authorized": False,
+            "ready_for_authoritative_golden_preflight": True,
+            "blockers": [],
+            "offline": {
+                "hf_hub_offline": True,
+                "transformers_offline": True,
+            },
+            "runtime": {
+                "cuda_available": True,
+                "cuda_runtime": "12.8",
+                "cuda_device_count": 1,
+                "native_bf16": True,
+            },
+            "generation_runtime": {
+                "ready": True,
+                "cost_mode": module.EXPECTED_COST_MODE,
+                "generation_authorized": False,
+                "publication_ready": False,
+            },
+            "semantic_runtime": {
+                "ready": True,
+                "cost_mode": module.EXPECTED_COST_MODE,
+                "generation_authorized": False,
+                "publication_ready": False,
+            },
+            "gpu_qualification": {
+                "eligible": True,
+                "cost_mode": module.EXPECTED_COST_MODE,
+            },
+            "host_memory": {
+                "ready": True,
+                "cost_mode": module.EXPECTED_COST_MODE,
+            },
+            "cache_headroom": {
+                "eligible": True,
+            },
+            "cache": {
+                "resolution_mode": "huggingface-local-files-only",
+                "qwen_cached": True,
+                "flux_cached": True,
+            },
+        }), encoding="utf-8")
+
         resource = root / "output" / "phase18_gpu_smoke" / "first-genuine-golden-v6-resource-lock.json"
         resource.parent.mkdir(parents=True, exist_ok=True)
         resource_payload = {
@@ -96,6 +148,7 @@ class FreshSourceBoundManifestTests(unittest.TestCase):
         }), encoding="utf-8")
         return {
             "png": png,
+            "execution_probe": execution_probe,
             "resource": resource,
             "fresh_wrapper": fresh_wrapper,
             "freshness": freshness,
@@ -103,26 +156,63 @@ class FreshSourceBoundManifestTests(unittest.TestCase):
             "sha": "a" * 40,
         }
 
+    def build_manifest(self, root: Path, fixture: dict[str, Path | str]) -> dict[str, object]:
+        return module.build_manifest(
+            execution_probe_path=fixture["execution_probe"],
+            fresh_wrapper_path=fixture["fresh_wrapper"],
+            freshness_path=fixture["freshness"],
+            source_replay_path=fixture["source"],
+            resource_lock_path=fixture["resource"],
+            repo_root=root,
+            expected_source_sha=fixture["sha"],
+            workflow_run_id="123",
+            workflow_run_attempt="1",
+        )
+
     def test_valid_evidence_builds_content_addressed_manifest(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             f = self.build_fixture(root)
-            result = module.build_manifest(
-                fresh_wrapper_path=f["fresh_wrapper"],
-                freshness_path=f["freshness"],
-                source_replay_path=f["source"],
-                resource_lock_path=f["resource"],
-                repo_root=root,
-                expected_source_sha=f["sha"],
-                workflow_run_id="123",
-                workflow_run_attempt="1",
-            )
+            result = self.build_manifest(root, f)
             self.assertEqual(result["schema"], module.MANIFEST_SCHEMA)
+            self.assertTrue(result["execution_environment_verified"])
             self.assertTrue(result["fresh_attempt_evidence"])
             self.assertTrue(result["source_bound_artifact_verified"])
             self.assertEqual(result["png_sha256"], sha256(f["png"]))
+            self.assertEqual(result["evidence"]["execution_blocker_probe"]["sha256"], sha256(f["execution_probe"]))
             self.assertFalse(result["publication_ready"])
             self.assertFalse(result["seeds_2_to_4_authorized"])
+
+    def test_execution_probe_blocker_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            f = self.build_fixture(root)
+            payload = json.loads(Path(f["execution_probe"]).read_text(encoding="utf-8"))
+            payload["ready_for_authoritative_golden_preflight"] = False
+            payload["blockers"] = ["FLUX_APPROVED_SNAPSHOT_MISSING"]
+            Path(f["execution_probe"]).write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "EXECUTION_PROBE_NOT_READY"):
+                self.build_manifest(root, f)
+
+    def test_execution_probe_offline_or_bf16_drift_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            f = self.build_fixture(root)
+            payload = json.loads(Path(f["execution_probe"]).read_text(encoding="utf-8"))
+            payload["runtime"]["native_bf16"] = False
+            Path(f["execution_probe"]).write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "EXECUTION_PROBE_CUDA_DRIFT"):
+                self.build_manifest(root, f)
+
+    def test_execution_probe_model_cache_drift_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            f = self.build_fixture(root)
+            payload = json.loads(Path(f["execution_probe"]).read_text(encoding="utf-8"))
+            payload["cache"]["qwen_cached"] = False
+            Path(f["execution_probe"]).write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "EXECUTION_PROBE_MODEL_CACHE_DRIFT"):
+                self.build_manifest(root, f)
 
     def test_stale_mutable_evidence_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -132,16 +222,7 @@ class FreshSourceBoundManifestTests(unittest.TestCase):
             payload["artifacts_changed"]["resource_lock"] = False
             Path(f["freshness"]).write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "MUTABLE_EVIDENCE_NOT_FRESH"):
-                module.build_manifest(
-                    fresh_wrapper_path=f["fresh_wrapper"],
-                    freshness_path=f["freshness"],
-                    source_replay_path=f["source"],
-                    resource_lock_path=f["resource"],
-                    repo_root=root,
-                    expected_source_sha=f["sha"],
-                    workflow_run_id="123",
-                    workflow_run_attempt="1",
-                )
+                self.build_manifest(root, f)
 
     def test_png_byte_drift_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -149,23 +230,17 @@ class FreshSourceBoundManifestTests(unittest.TestCase):
             f = self.build_fixture(root)
             Path(f["png"]).write_bytes(b"\x89PNG\r\n\x1a\ndrifted")
             with self.assertRaisesRegex(RuntimeError, "PNG_SHA_DRIFT"):
-                module.build_manifest(
-                    fresh_wrapper_path=f["fresh_wrapper"],
-                    freshness_path=f["freshness"],
-                    source_replay_path=f["source"],
-                    resource_lock_path=f["resource"],
-                    repo_root=root,
-                    expected_source_sha=f["sha"],
-                    workflow_run_id="123",
-                    workflow_run_attempt="1",
-                )
+                self.build_manifest(root, f)
 
-    def test_workflow_binds_freshness_and_source_before_upload(self) -> None:
+    def test_workflow_binds_execution_probe_freshness_and_source_before_upload(self) -> None:
         text = WORKFLOW.read_text(encoding="utf-8")
         verifier = "phase18_verify_first_genuine_golden_v6_fresh_source_bound.py"
+        probe_arg = "--execution-probe output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json"
         output = "first-genuine-golden-v6-fresh-source-bound-manifest.json"
         self.assertIn(verifier, text)
+        self.assertIn(probe_arg, text)
         self.assertIn(output, text)
+        self.assertLess(text.index("Record first-Golden execution blocker probe"), text.index("Run freshness-bound canonical Candidate 1"))
         self.assertLess(text.index(verifier), text.index("Upload freshness-bound Golden v6 Candidate 1 evidence"))
 
 
