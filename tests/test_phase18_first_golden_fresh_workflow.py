@@ -30,6 +30,15 @@ class FirstGoldenFreshWorkflowTests(unittest.TestCase):
         self.assertIn("--attempt-contract", self.text)
         self.assertIn("--handoff", self.text)
 
+    def test_snapshot_inventory_is_required_before_candidate_generation(self) -> None:
+        probe = self.text.index("Record first-Golden execution blocker probe before CUDA preflight")
+        inventory = self.text.index("Capture approved local model snapshot inventory")
+        generation = self.text.index("Run freshness-bound canonical Candidate 1")
+        self.assertIn("python tools/phase18_capture_approved_snapshot_inventory.py", self.text)
+        self.assertIn("first-genuine-golden-v6-approved-snapshot-inventory.json", self.text)
+        self.assertLess(probe, inventory)
+        self.assertLess(inventory, generation)
+
     def test_freshness_replay_precedes_source_binding_and_upload(self) -> None:
         run_fresh = self.text.index("Run freshness-bound canonical Candidate 1")
         replay = self.text.index("Replay freshness result before source binding")
