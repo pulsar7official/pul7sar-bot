@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Bind the approved local-model snapshot inventory to the first-Golden evidence chain.
+"""Bind approved local-model snapshots and software runtime to first-Golden evidence.
 
 CPU-safe, zero-cost and fail-closed. This verifier performs no generation, no
 network access, no model loading, no Human Review, no Golden approval and no
-publication. It replays the approved snapshot inventory at the end of the
-Candidate 1 workflow so cache drift between preflight and final evidence binding
-cannot silently survive.
+publication. It replays the approved snapshot inventory and the strict software
+runtime fingerprint after Candidate 1 generation so cache or dependency drift
+cannot silently survive into the review bundle.
 """
 from __future__ import annotations
 
@@ -22,13 +22,15 @@ from engine.intelligence.approved_model_revisions import (
     QWEN25_VL_3B_MODEL_ID,
     QWEN25_VL_3B_REVISION,
 )
+from engine.intelligence.generation_runtime_fingerprint import capture_generation_runtime_fingerprint
 from tools.phase18_capture_approved_snapshot_inventory import inspect as capture_inventory
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
 INVENTORY_SCHEMA = "pul7sar-phase18-approved-snapshot-inventory-v1"
+EXECUTION_PROBE_SCHEMA = "pul7sar-phase18-first-golden-execution-blocker-probe-v6"
 UPSTREAM_MANIFEST_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-fresh-source-bound-manifest-v3"
-MANIFEST_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-snapshot-bound-manifest-v1"
+MANIFEST_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-snapshot-bound-manifest-v2"
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -122,15 +124,42 @@ def _verify_inventory(payload: dict[str, Any]) -> tuple[str, str, str]:
     return qwen_sha, flux_sha, combined
 
 
-def build_manifest(*, upstream_manifest_path: Path, recorded_inventory_path: Path,
-                   current_inventory: dict[str, Any] | None = None) -> dict[str, Any]:
+def _verify_runtime_replay(execution_probe: dict[str, Any], current_runtime: dict[str, Any]) -> str:
+    if execution_probe.get("schema") != EXECUTION_PROBE_SCHEMA:
+        raise RuntimeError("SNAPSHOT_BOUND_EXECUTION_PROBE_SCHEMA_DRIFT")
+    if execution_probe.get("ready_for_authoritative_golden_preflight") is not True or execution_probe.get("blockers") != []:
+        raise RuntimeError("SNAPSHOT_BOUND_EXECUTION_PROBE_NOT_READY")
+    if execution_probe.get("cost_mode_required") != EXPECTED_COST_MODE:
+        raise RuntimeError("SNAPSHOT_BOUND_EXECUTION_PROBE_COST_DRIFT")
+    _require_false(execution_probe, ("authoritative_gate", "network_download_authorized", "generation_authorized", "publication_ready", "seeds_2_to_4_authorized"), label="execution_probe")
+    recorded = execution_probe.get("generation_runtime")
+    if not isinstance(recorded, dict) or recorded.get("ready") is not True or recorded.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("SNAPSHOT_BOUND_RECORDED_RUNTIME_INVALID")
+    _require_false(recorded, ("generation_authorized", "publication_ready"), label="recorded_runtime")
+    before_sha = recorded.get("runtime_fingerprint_sha256")
+    after_sha = current_runtime.get("runtime_fingerprint_sha256")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(before_sha or "")):
+        raise RuntimeError("SNAPSHOT_BOUND_RECORDED_RUNTIME_SHA_INVALID")
+    if current_runtime.get("cost_mode") != EXPECTED_COST_MODE:
+        raise RuntimeError("SNAPSHOT_BOUND_CURRENT_RUNTIME_COST_DRIFT")
+    _require_false(current_runtime, ("generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"), label="current_runtime")
+    if after_sha != before_sha:
+        raise RuntimeError("SNAPSHOT_BOUND_GENERATION_RUNTIME_DRIFT_AFTER_PREFLIGHT")
+    return str(before_sha)
+
+
+def build_manifest(*, upstream_manifest_path: Path, recorded_inventory_path: Path, execution_probe_path: Path,
+                   current_inventory: dict[str, Any] | None = None, current_runtime: dict[str, Any] | None = None) -> dict[str, Any]:
     upstream = _load(upstream_manifest_path)
     recorded = _load(recorded_inventory_path)
+    execution_probe = _load(execution_probe_path)
     qwen_sha, flux_sha, combined = _verify_inventory(recorded)
     replay = capture_inventory() if current_inventory is None else current_inventory
     replay_qwen, replay_flux, replay_combined = _verify_inventory(replay)
     if (replay_qwen, replay_flux, replay_combined) != (qwen_sha, flux_sha, combined):
         raise RuntimeError("SNAPSHOT_BOUND_CACHE_DRIFT_AFTER_PREFLIGHT")
+    runtime_replay = capture_generation_runtime_fingerprint() if current_runtime is None else current_runtime
+    runtime_sha = _verify_runtime_replay(execution_probe, runtime_replay)
 
     if upstream.get("schema") != UPSTREAM_MANIFEST_SCHEMA:
         raise RuntimeError("SNAPSHOT_BOUND_UPSTREAM_SCHEMA_DRIFT")
@@ -150,9 +179,16 @@ def build_manifest(*, upstream_manifest_path: Path, recorded_inventory_path: Pat
         raise RuntimeError("SNAPSHOT_BOUND_UPSTREAM_DIGEST_DRIFT")
     _require_false(upstream, ("authoritative_gate", "network_download_authorized", "generation_authorized", "human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"), label="upstream")
 
+    evidence = upstream.get("evidence")
+    if not isinstance(evidence, dict):
+        raise RuntimeError("SNAPSHOT_BOUND_UPSTREAM_EVIDENCE_INVALID")
+    execution_ref = evidence.get("execution_blocker_probe")
+    if not isinstance(execution_ref, dict) or execution_ref.get("sha256") != _sha256(execution_probe_path):
+        raise RuntimeError("SNAPSHOT_BOUND_EXECUTION_PROBE_LINK_DRIFT")
+
     return {
         "schema": MANIFEST_SCHEMA,
-        "status": "FIRST_GENUINE_GOLDEN_V6_APPROVED_MODEL_SNAPSHOTS_REPLAY_BOUND",
+        "status": "FIRST_GENUINE_GOLDEN_V6_APPROVED_MODEL_SNAPSHOTS_AND_RUNTIME_REPLAY_BOUND",
         "branch": EXPECTED_BRANCH,
         "candidate": 1,
         "cost_mode": EXPECTED_COST_MODE,
@@ -161,11 +197,14 @@ def build_manifest(*, upstream_manifest_path: Path, recorded_inventory_path: Pat
         "png_sha256": png_sha,
         "approved_snapshot_inventory_verified": True,
         "approved_snapshot_inventory_replayed_after_generation": True,
+        "generation_runtime_fingerprint_verified_after_generation": True,
+        "generation_runtime_fingerprint_sha256": runtime_sha,
         "qwen_inventory_sha256": qwen_sha,
         "flux_inventory_sha256": flux_sha,
         "combined_inventory_sha256": combined,
         "upstream_manifest": {"path": str(upstream_manifest_path), "sha256": _sha256(upstream_manifest_path)},
         "recorded_snapshot_inventory": {"path": str(recorded_inventory_path), "sha256": _sha256(recorded_inventory_path)},
+        "execution_blocker_probe": {"path": str(execution_probe_path), "sha256": _sha256(execution_probe_path)},
         "eligible_for_human_visual_review": True,
         "authoritative_gate": False,
         "network_download_authorized": False,
@@ -181,9 +220,14 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--upstream-manifest", type=Path, required=True)
     parser.add_argument("--snapshot-inventory", type=Path, required=True)
+    parser.add_argument("--execution-probe", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    manifest = build_manifest(upstream_manifest_path=args.upstream_manifest, recorded_inventory_path=args.snapshot_inventory)
+    manifest = build_manifest(
+        upstream_manifest_path=args.upstream_manifest,
+        recorded_inventory_path=args.snapshot_inventory,
+        execution_probe_path=args.execution_probe,
+    )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_name(args.output.name + ".tmp")
     temporary.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
