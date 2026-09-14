@@ -3,10 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import struct
+import tempfile
+import unittest
 import zlib
 from pathlib import Path
-
-import pytest
 
 from tools.phase18_verify_first_genuine_golden_png_structure import verify
 
@@ -61,77 +61,94 @@ def _manifest(root: Path, png: Path) -> Path:
     return path
 
 
-def test_valid_png_structure_is_verified(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png())
-    result = verify(manifest_path=_manifest(tmp_path, png), repo_root=tmp_path)
-    assert result["png_structure_verified"] is True
-    assert result["width"] == 1 and result["height"] == 1
-    assert result["crc_verified_for_all_chunks"] is True
-    assert result["idat_zlib_stream_verified"] is True
-    assert result["zlib_stream_terminated_exactly"] is True
-    assert result["decoded_scanline_layout_verified"] is True
-    assert result["scanline_filter_bytes_verified"] is True
-    assert result["expected_decoded_scanline_bytes"] == 4
-    assert result["scanline_filter_types_seen"] == [0]
-    assert result["no_trailing_bytes"] is True
-    assert result["human_visual_review_approved"] is False
-    assert result["publication_ready"] is False
+class FirstGoldenPngStructureTests(unittest.TestCase):
+    def _with_root(self):
+        return tempfile.TemporaryDirectory()
+
+    def test_valid_png_structure_is_verified(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png())
+            result = verify(manifest_path=_manifest(root, png), repo_root=root)
+            self.assertTrue(result["png_structure_verified"])
+            self.assertEqual((result["width"], result["height"]), (1, 1))
+            self.assertTrue(result["crc_verified_for_all_chunks"])
+            self.assertTrue(result["idat_zlib_stream_verified"])
+            self.assertTrue(result["zlib_stream_terminated_exactly"])
+            self.assertTrue(result["decoded_scanline_layout_verified"])
+            self.assertTrue(result["scanline_filter_bytes_verified"])
+            self.assertEqual(result["expected_decoded_scanline_bytes"], 4)
+            self.assertEqual(result["scanline_filter_types_seen"], [0])
+            self.assertTrue(result["no_trailing_bytes"])
+            self.assertFalse(result["human_visual_review_approved"])
+            self.assertFalse(result["publication_ready"])
+
+    def test_trailing_bytes_are_rejected(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png(trailing=b"unexpected"))
+            with self.assertRaisesRegex(RuntimeError, "TRAILING_BYTES"):
+                verify(manifest_path=_manifest(root, png), repo_root=root)
+
+    def test_crc_drift_is_rejected(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png(corrupt_crc=True))
+            with self.assertRaisesRegex(RuntimeError, "CRC_INVALID"):
+                verify(manifest_path=_manifest(root, png), repo_root=root)
+
+    def test_short_decoded_scanline_is_rejected(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png(decoded=b"\x00\x00\x00"))
+            with self.assertRaisesRegex(RuntimeError, "SCANLINE_SIZE_INVALID"):
+                verify(manifest_path=_manifest(root, png), repo_root=root)
+
+    def test_invalid_scanline_filter_byte_is_rejected(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png(decoded=b"\x05\x00\x00\x00"))
+            with self.assertRaisesRegex(RuntimeError, "FILTER_BYTE_INVALID"):
+                verify(manifest_path=_manifest(root, png), repo_root=root)
+
+    def test_interlaced_candidate_is_fail_closed_until_adam7_is_fully_verified(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png(interlace=1))
+            with self.assertRaisesRegex(RuntimeError, "INTERLACE_UNSUPPORTED_FOR_GOLDEN"):
+                verify(manifest_path=_manifest(root, png), repo_root=root)
+
+    def test_manifest_authority_drift_is_rejected(self) -> None:
+        with self._with_root() as tmp:
+            root = Path(tmp)
+            png = root / "candidate.png"
+            png.write_bytes(_png())
+            path = _manifest(root, png)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            payload["publication_ready"] = True
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(RuntimeError, "AUTHORITY_DRIFT:publication_ready"):
+                verify(manifest_path=path, repo_root=root)
+
+    def test_workflow_runs_png_structure_gate_before_snapshot_replay_and_packaging(self) -> None:
+        workflow = (ROOT / ".github/workflows/phase18-first-genuine-golden-v6-fresh.yml").read_text(encoding="utf-8")
+        tool = "tools/phase18_verify_first_genuine_golden_png_structure.py"
+        self.assertIn(f"test -f {tool}", workflow)
+        gate = workflow.index("Prove complete Candidate 1 PNG structure before review packaging")
+        snapshot = workflow.index("Replay and bind approved model snapshots and runtime after generation")
+        package = workflow.index("Package exact Golden v6 Candidate 1 review bundle")
+        upload = workflow.index("Upload exact Golden v6 Candidate 1 review bundle")
+        self.assertLess(gate, snapshot)
+        self.assertLess(snapshot, package)
+        self.assertLess(package, upload)
+        self.assertIn("first-genuine-golden-v6-png-structure.json", workflow)
 
 
-def test_trailing_bytes_are_rejected(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png(trailing=b"unexpected"))
-    with pytest.raises(RuntimeError, match="TRAILING_BYTES"):
-        verify(manifest_path=_manifest(tmp_path, png), repo_root=tmp_path)
-
-
-def test_crc_drift_is_rejected(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png(corrupt_crc=True))
-    with pytest.raises(RuntimeError, match="CRC_INVALID"):
-        verify(manifest_path=_manifest(tmp_path, png), repo_root=tmp_path)
-
-
-def test_short_decoded_scanline_is_rejected(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png(decoded=b"\x00\x00\x00"))
-    with pytest.raises(RuntimeError, match="SCANLINE_SIZE_INVALID"):
-        verify(manifest_path=_manifest(tmp_path, png), repo_root=tmp_path)
-
-
-def test_invalid_scanline_filter_byte_is_rejected(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png(decoded=b"\x05\x00\x00\x00"))
-    with pytest.raises(RuntimeError, match="FILTER_BYTE_INVALID"):
-        verify(manifest_path=_manifest(tmp_path, png), repo_root=tmp_path)
-
-
-def test_interlaced_candidate_is_fail_closed_until_adam7_is_fully_verified(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png(interlace=1))
-    with pytest.raises(RuntimeError, match="INTERLACE_UNSUPPORTED_FOR_GOLDEN"):
-        verify(manifest_path=_manifest(tmp_path, png), repo_root=tmp_path)
-
-
-def test_manifest_authority_drift_is_rejected(tmp_path: Path) -> None:
-    png = tmp_path / "candidate.png"
-    png.write_bytes(_png())
-    path = _manifest(tmp_path, png)
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    payload["publication_ready"] = True
-    path.write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(RuntimeError, match="AUTHORITY_DRIFT:publication_ready"):
-        verify(manifest_path=path, repo_root=tmp_path)
-
-
-def test_workflow_runs_png_structure_gate_before_snapshot_replay_and_packaging() -> None:
-    workflow = (ROOT / ".github/workflows/phase18-first-genuine-golden-v6-fresh.yml").read_text(encoding="utf-8")
-    tool = "tools/phase18_verify_first_genuine_golden_png_structure.py"
-    assert f"test -f {tool}" in workflow
-    gate = workflow.index("Prove complete Candidate 1 PNG structure before review packaging")
-    snapshot = workflow.index("Replay and bind approved model snapshots and runtime after generation")
-    package = workflow.index("Package exact Golden v6 Candidate 1 review bundle")
-    upload = workflow.index("Upload exact Golden v6 Candidate 1 review bundle")
-    assert gate < snapshot < package < upload
-    assert "first-genuine-golden-v6-png-structure.json" in workflow
+if __name__ == "__main__":
+    unittest.main()
