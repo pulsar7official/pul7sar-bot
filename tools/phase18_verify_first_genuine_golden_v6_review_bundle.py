@@ -6,7 +6,8 @@ model loading, generation, Human Review, Golden approval or publication. It
 verifies the already-packaged review bundle as an exact closed set: every
 manifest-declared file must exist with matching bytes/SHA-256, no undeclared
 files may be present, Candidate 1 must be the exact PNG recorded by the
-manifest, and every authority remains closed.
+manifest, the post-generation runtime replay must be present, and every
+authority remains closed.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from typing import Any
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
 BUNDLE_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-review-bundle-v1"
-REPLAY_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-review-bundle-replay-v1"
+REPLAY_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-review-bundle-replay-v2"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 AUTHORITY_FIELDS = (
     "authoritative_gate",
@@ -79,6 +80,11 @@ def verify_bundle(*, bundle_dir: Path) -> dict[str, Any]:
         raise RuntimeError("GOLDEN_REVIEW_BUNDLE_REPLAY_POLICY_DRIFT")
     if manifest.get("exact_evidence_only") is not True or manifest.get("eligible_for_human_visual_review") is not True:
         raise RuntimeError("GOLDEN_REVIEW_BUNDLE_REPLAY_ELIGIBILITY_DRIFT")
+    if manifest.get("generation_runtime_fingerprint_verified_after_generation") is not True:
+        raise RuntimeError("GOLDEN_REVIEW_BUNDLE_REPLAY_RUNTIME_REPLAY_NOT_VERIFIED")
+    runtime_sha = manifest.get("generation_runtime_fingerprint_sha256")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(runtime_sha or "")):
+        raise RuntimeError("GOLDEN_REVIEW_BUNDLE_REPLAY_RUNTIME_FINGERPRINT_INVALID")
     for field in AUTHORITY_FIELDS:
         if manifest.get(field) is not False:
             raise RuntimeError(f"GOLDEN_REVIEW_BUNDLE_REPLAY_AUTHORITY_DRIFT:{field}")
@@ -165,6 +171,8 @@ def verify_bundle(*, bundle_dir: Path) -> dict[str, Any]:
         "offline_only": True,
         "source_commit_sha": source_sha,
         "png_sha256": png_sha,
+        "generation_runtime_fingerprint_verified_after_generation": True,
+        "generation_runtime_fingerprint_sha256": runtime_sha,
         "bundle_manifest_sha256": _sha256(manifest_path),
         "verified_entry_count": len(verified_entries),
         "exact_closed_file_set": True,
