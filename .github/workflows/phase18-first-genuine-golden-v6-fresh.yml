@@ -58,6 +58,7 @@ jobs:
           test -f tools/phase18_first_golden_freshness_guard.py
           test -f tools/phase18_capture_first_golden_runner_identity.py
           test -f tools/phase18_capture_approved_snapshot_inventory.py
+          test -f tools/phase18_capture_zero_cost_network_guard_evidence.py
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
@@ -83,6 +84,13 @@ jobs:
             --repo-root . \
             --expected-source-sha "$DISPATCH_SHA" \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-tracked-source-baseline.json
+
+      - name: Prove zero-cost network guard is active before any model preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_capture_zero_cost_network_guard_evidence.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-zero-cost-network-guard.json
 
       - name: Record first-Golden execution blocker probe before CUDA preflight
         shell: bash
