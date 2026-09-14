@@ -57,6 +57,7 @@ jobs:
           test -f tools/phase18_run_first_genuine_golden_v6_canonical_fresh.py
           test -f tools/phase18_first_golden_freshness_guard.py
           test -f tools/phase18_capture_first_golden_runner_identity.py
+          test -f tools/phase18_capture_approved_snapshot_inventory.py
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
@@ -75,6 +76,13 @@ jobs:
           mkdir -p output/phase18_gpu_smoke
           python tools/phase18_probe_first_golden_execution_blocker.py \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json
+
+      - name: Capture approved local model snapshot inventory
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_capture_approved_snapshot_inventory.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-approved-snapshot-inventory.json
 
       - name: Capture immutable runner and CUDA identity evidence
         shell: bash
