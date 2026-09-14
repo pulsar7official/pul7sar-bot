@@ -74,6 +74,17 @@ else:
         self.assertIn('TRANSFORMERS_OFFLINE: "1"', text)
         self.assertIn("python tools/phase18_run_first_genuine_golden_v6_canonical_fresh.py", text)
 
+    def test_golden_workflow_captures_guard_evidence_before_model_preflight(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        evidence_tool = "python tools/phase18_capture_zero_cost_network_guard_evidence.py"
+        blocker_probe = "python tools/phase18_probe_first_golden_execution_blocker.py"
+        candidate = "python tools/phase18_run_first_genuine_golden_v6_canonical_fresh.py"
+        self.assertIn("test -f tools/phase18_capture_zero_cost_network_guard_evidence.py", text)
+        self.assertIn(evidence_tool, text)
+        self.assertIn("first-genuine-golden-v6-zero-cost-network-guard.json", text)
+        self.assertLess(text.index(evidence_tool), text.index(blocker_probe))
+        self.assertLess(text.index(evidence_tool), text.index(candidate))
+
 
 if __name__ == "__main__":
     unittest.main()
