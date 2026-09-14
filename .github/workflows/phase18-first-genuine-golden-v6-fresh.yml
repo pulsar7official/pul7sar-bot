@@ -56,6 +56,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
           test -f tools/phase18_run_first_genuine_golden_v6_canonical_fresh.py
           test -f tools/phase18_first_golden_freshness_guard.py
+          test -f tools/phase18_capture_first_golden_runner_identity.py
           test -f tools/phase18_bind_first_genuine_golden_source_commit.py
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
@@ -74,6 +75,13 @@ jobs:
           mkdir -p output/phase18_gpu_smoke
           python tools/phase18_probe_first_golden_execution_blocker.py \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json
+
+      - name: Capture immutable runner and CUDA identity evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_capture_first_golden_runner_identity.py \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-runner-identity.json
 
       - name: Prove CUDA native BF16 and offline-only execution without replacement
         shell: bash
@@ -150,7 +158,7 @@ jobs:
             --expected-source-sha "$DISPATCH_SHA" \
             > output/phase18_gpu_smoke/first-genuine-golden-v6-source-bound-replay.json
 
-      - name: Bind execution readiness, fresh attempt, source provenance, and PNG bytes
+      - name: Bind execution, runner, fresh attempt, source provenance, and PNG bytes
         shell: bash
         env:
           DISPATCH_SHA: ${{ github.sha }}
@@ -158,6 +166,7 @@ jobs:
           set -euo pipefail
           python tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py \
             --execution-probe output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json \
+            --runner-identity output/phase18_gpu_smoke/first-genuine-golden-v6-runner-identity.json \
             --fresh-wrapper output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-wrapper-result.json \
             --freshness-verification output/phase18_gpu_smoke/first-genuine-golden-v6-freshness-verification.json \
             --source-bound-replay output/phase18_gpu_smoke/first-genuine-golden-v6-source-bound-replay.json \
