@@ -62,6 +62,7 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
           test -f tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py
+          test -f tools/phase18_package_first_genuine_golden_v6_review_bundle.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -195,17 +196,33 @@ jobs:
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-manifest.json \
             > output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-replay.json
 
-      - name: Upload freshness-bound Golden v6 Candidate 1 evidence
-        if: always()
+      - name: Package exact Golden v6 Candidate 1 review bundle
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_package_first_genuine_golden_v6_review_bundle.py \
+            --fresh-manifest output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-manifest.json \
+            --snapshot-manifest output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-manifest.json \
+            --repo-root . \
+            --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}
+
+      - name: Upload exact Golden v6 Candidate 1 review bundle
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: phase18-first-genuine-golden-v6-fresh-${{ github.run_id }}
-          if-no-files-found: warn
+          name: phase18-first-genuine-golden-v6-review-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
           retention-days: 7
-          path: |
-            output/phase18_gpu_smoke/**
-            output/phase18_gpu_host/**
-            output/phase18_colab/**
-            output/phase18_visual_proof/**
-            output/phase18_generated/**
-            output/phase18_handoffs/golden-batch/**
+          path: output/phase18_golden_review/${{ github.run_id }}-${{ github.run_attempt }}/**
+
+      - name: Upload failed-attempt diagnostics only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-genuine-golden-v6-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          retention-days: 3
+          path: output/phase18_gpu_smoke/**
