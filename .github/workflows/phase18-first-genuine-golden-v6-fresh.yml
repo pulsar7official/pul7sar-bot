@@ -199,13 +199,14 @@ jobs:
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-manifest.json \
             > output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-replay.json
 
-      - name: Replay and bind approved model snapshots after generation
+      - name: Replay and bind approved model snapshots and runtime after generation
         shell: bash
         run: |
           set -euo pipefail
           python tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py \
             --upstream-manifest output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-manifest.json \
             --snapshot-inventory output/phase18_gpu_smoke/first-genuine-golden-v6-approved-snapshot-inventory.json \
+            --execution-probe output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-manifest.json \
             > output/phase18_gpu_smoke/first-genuine-golden-v6-snapshot-bound-replay.json
 
