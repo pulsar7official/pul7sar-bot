@@ -172,9 +172,10 @@ class FreshSourceBoundManifestTests(unittest.TestCase):
         verifier = "phase18_verify_first_genuine_golden_v6_fresh_source_bound.py"
         runner_tool = "phase18_capture_first_golden_runner_identity.py"
         runner_arg = "--runner-identity output/phase18_gpu_smoke/first-genuine-golden-v6-runner-identity.json"
+        success_upload = "Upload exact Golden v6 Candidate 1 review bundle"
         self.assertIn(runner_tool, text); self.assertIn(runner_arg, text)
         self.assertLess(text.index("Capture immutable runner and CUDA identity evidence"), text.index("Run freshness-bound canonical Candidate 1"))
-        self.assertLess(text.index(verifier), text.index("Upload freshness-bound Golden v6 Candidate 1 evidence"))
+        self.assertLess(text.index(verifier), text.index(success_upload))
 
 
 if __name__ == "__main__":
