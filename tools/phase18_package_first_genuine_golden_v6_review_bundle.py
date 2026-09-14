@@ -4,8 +4,8 @@
 CPU-safe, zero-cost and fail-closed. This tool performs no generation, no model
 loading, no network access, no Human Review, no Golden approval and no
 publication. It accepts only the already-verified fresh/source-bound and
-snapshot-bound manifests, replays every referenced evidence digest plus the PNG
-bytes, and copies that exact evidence set into a new empty run-scoped bundle.
+snapshot/runtime-bound manifests, replays every referenced evidence digest plus
+the PNG bytes, and copies that exact evidence set into a new empty run-scoped bundle.
 """
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ from typing import Any
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
 FRESH_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-fresh-source-bound-manifest-v3"
-SNAPSHOT_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-snapshot-bound-manifest-v1"
+SNAPSHOT_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-snapshot-bound-manifest-v2"
 BUNDLE_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-review-bundle-v1"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -115,6 +115,11 @@ def build_bundle(*, fresh_manifest_path: Path, snapshot_manifest_path: Path, rep
             "seeds_2_to_4_authorized",
         ), label=label)
 
+    if snapshot.get("generation_runtime_fingerprint_verified_after_generation") is not True:
+        raise RuntimeError("GOLDEN_REVIEW_BUNDLE_RUNTIME_REPLAY_NOT_VERIFIED")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(snapshot.get("generation_runtime_fingerprint_sha256") or "")):
+        raise RuntimeError("GOLDEN_REVIEW_BUNDLE_RUNTIME_FINGERPRINT_INVALID")
+
     source_sha = fresh.get("source_commit_sha")
     png_sha = fresh.get("png_sha256")
     if snapshot.get("source_commit_sha") != source_sha or snapshot.get("png_sha256") != png_sha:
@@ -127,10 +132,14 @@ def build_bundle(*, fresh_manifest_path: Path, snapshot_manifest_path: Path, rep
     if upstream_path != fresh_path or upstream_ref.get("sha256") != _sha256(fresh_path):
         raise RuntimeError("GOLDEN_REVIEW_BUNDLE_FRESH_MANIFEST_LINK_DRIFT")
     inventory_path = _verify_ref(snapshot.get("recorded_snapshot_inventory"), repo_root=root, label="snapshot-inventory")
+    execution_probe_path = _verify_ref(snapshot.get("execution_blocker_probe"), repo_root=root, label="execution-probe")
 
     evidence = fresh.get("evidence")
     if not isinstance(evidence, dict) or not evidence:
         raise RuntimeError("GOLDEN_REVIEW_BUNDLE_EVIDENCE_INVALID")
+    execution_evidence = evidence.get("execution_blocker_probe")
+    if not isinstance(execution_evidence, dict) or execution_evidence.get("sha256") != _sha256(execution_probe_path):
+        raise RuntimeError("GOLDEN_REVIEW_BUNDLE_EXECUTION_PROBE_LINK_DRIFT")
     png_record = evidence.get("png")
     png_path = _verify_ref(png_record, repo_root=root, label="png")
     if png_record.get("sha256") != png_sha or png_record.get("bytes") != png_path.stat().st_size:
@@ -189,6 +198,8 @@ def build_bundle(*, fresh_manifest_path: Path, snapshot_manifest_path: Path, rep
             "offline_only": True,
             "source_commit_sha": source_sha,
             "png_sha256": png_sha,
+            "generation_runtime_fingerprint_verified_after_generation": True,
+            "generation_runtime_fingerprint_sha256": snapshot["generation_runtime_fingerprint_sha256"],
             "exact_evidence_only": True,
             "eligible_for_human_visual_review": True,
             "entries": entries,
