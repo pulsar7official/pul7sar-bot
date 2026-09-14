@@ -11,6 +11,9 @@ import pytest
 from tools.phase18_verify_first_genuine_golden_png_structure import verify
 
 
+ROOT = Path(__file__).resolve().parents[1]
+
+
 def _chunk(kind: bytes, payload: bytes) -> bytes:
     body = kind + payload
     return struct.pack(">I", len(payload)) + body + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF)
@@ -87,3 +90,15 @@ def test_manifest_authority_drift_is_rejected(tmp_path: Path) -> None:
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(RuntimeError, match="AUTHORITY_DRIFT:publication_ready"):
         verify(manifest_path=path, repo_root=tmp_path)
+
+
+def test_workflow_runs_png_structure_gate_before_snapshot_replay_and_packaging() -> None:
+    workflow = (ROOT / ".github/workflows/phase18-first-genuine-golden-v6-fresh.yml").read_text(encoding="utf-8")
+    tool = "tools/phase18_verify_first_genuine_golden_png_structure.py"
+    assert f"test -f {tool}" in workflow
+    gate = workflow.index("Prove complete Candidate 1 PNG structure before review packaging")
+    snapshot = workflow.index("Replay and bind approved model snapshots and runtime after generation")
+    package = workflow.index("Package exact Golden v6 Candidate 1 review bundle")
+    upload = workflow.index("Upload exact Golden v6 Candidate 1 review bundle")
+    assert gate < snapshot < package < upload
+    assert "first-genuine-golden-v6-png-structure.json" in workflow
