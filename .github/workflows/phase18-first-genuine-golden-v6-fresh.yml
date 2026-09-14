@@ -150,13 +150,14 @@ jobs:
             --expected-source-sha "$DISPATCH_SHA" \
             > output/phase18_gpu_smoke/first-genuine-golden-v6-source-bound-replay.json
 
-      - name: Bind fresh attempt, source provenance, and PNG bytes
+      - name: Bind execution readiness, fresh attempt, source provenance, and PNG bytes
         shell: bash
         env:
           DISPATCH_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           python tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py \
+            --execution-probe output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json \
             --fresh-wrapper output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-wrapper-result.json \
             --freshness-verification output/phase18_gpu_smoke/first-genuine-golden-v6-freshness-verification.json \
             --source-bound-replay output/phase18_gpu_smoke/first-genuine-golden-v6-source-bound-replay.json \
