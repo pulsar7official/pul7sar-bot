@@ -64,6 +64,7 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py
           test -f tools/phase18_package_first_genuine_golden_v6_review_bundle.py
           test -f tools/phase18_verify_first_genuine_golden_v6_review_bundle.py
+          test -f tools/phase18_verify_first_golden_tracked_source_integrity.py
           git fetch --no-tags origin main:refs/remotes/origin/main
           base="$(git merge-base origin/main HEAD)"
           test -n "$base"
@@ -71,6 +72,17 @@ jobs:
             echo "Unexpected main.py modification detected in Phase 18 diff." >&2
             exit 6
           fi
+
+      - name: Capture immutable tracked source baseline before preflight
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_golden_tracked_source_integrity.py capture \
+            --repo-root . \
+            --expected-source-sha "$DISPATCH_SHA" \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-tracked-source-baseline.json
 
       - name: Record first-Golden execution blocker probe before CUDA preflight
         shell: bash
@@ -220,6 +232,18 @@ jobs:
           python tools/phase18_verify_first_genuine_golden_v6_review_bundle.py \
             --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-review-bundle-replay.json
+
+      - name: Replay immutable tracked source immediately before upload
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_golden_tracked_source_integrity.py verify \
+            --repo-root . \
+            --expected-source-sha "$DISPATCH_SHA" \
+            --baseline output/phase18_gpu_smoke/first-genuine-golden-v6-tracked-source-baseline.json \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-tracked-source-verification.json
 
       - name: Upload exact Golden v6 Candidate 1 review bundle
         if: success()
