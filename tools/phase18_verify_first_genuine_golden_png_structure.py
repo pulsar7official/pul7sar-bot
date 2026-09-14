@@ -4,7 +4,8 @@
 CPU-safe, stdlib-only and fail-closed. This verifier performs no generation,
 network access, Human Review, Golden approval, publication, or queue mutation.
 It proves that the already-bound PNG is a complete PNG byte stream with valid
-chunk framing/CRC, a valid IHDR, at least one IDAT whose zlib stream decodes,
+chunk framing/CRC, a valid IHDR, at least one IDAT whose zlib stream terminates
+exactly, a non-interlaced scanline layout with valid per-row filter bytes,
 exactly one terminal IEND, and no trailing bytes.
 """
 from __future__ import annotations
@@ -21,7 +22,7 @@ from typing import Any
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
 MANIFEST_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-fresh-source-bound-manifest-v3"
-OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v1"
+OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v2"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 
@@ -58,6 +59,67 @@ def _require_closed_authority(payload: dict[str, Any]) -> None:
     ):
         if payload.get(field) is not False:
             raise RuntimeError(f"GOLDEN_PNG_STRUCTURE_AUTHORITY_DRIFT:{field}")
+
+
+def _decode_idat_exactly(idat: bytes) -> bytes:
+    try:
+        decoder = zlib.decompressobj()
+        decoded = decoder.decompress(idat)
+        decoded += decoder.flush()
+    except zlib.error as exc:
+        raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_ZLIB_INVALID") from exc
+    if not decoder.eof:
+        raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_ZLIB_TRUNCATED")
+    if decoder.unused_data or decoder.unconsumed_tail:
+        raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_ZLIB_TRAILING_DATA")
+    if not decoded:
+        raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_DECODE_EMPTY")
+    return decoded
+
+
+def _validate_scanlines(
+    decoded: bytes,
+    *,
+    width: int,
+    height: int,
+    bit_depth: int,
+    color_type: int,
+    interlace: int,
+) -> dict[str, Any]:
+    # The canonical Golden generation path is required to produce a conventional
+    # non-interlaced PNG. Adam7 has seven pass-specific row geometries; accepting
+    # it without validating every pass would weaken this fail-closed gate.
+    if interlace != 0:
+        raise RuntimeError("GOLDEN_PNG_STRUCTURE_INTERLACE_UNSUPPORTED_FOR_GOLDEN")
+
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
+    bits_per_pixel = channels * bit_depth
+    row_bytes = (width * bits_per_pixel + 7) // 8
+    stride = row_bytes + 1  # one PNG filter byte precedes each scanline
+    expected = stride * height
+    if len(decoded) != expected:
+        raise RuntimeError(
+            f"GOLDEN_PNG_STRUCTURE_SCANLINE_SIZE_INVALID:expected={expected}:actual={len(decoded)}"
+        )
+
+    filters: list[int] = []
+    for row in range(height):
+        filter_byte = decoded[row * stride]
+        if filter_byte not in (0, 1, 2, 3, 4):
+            raise RuntimeError(
+                f"GOLDEN_PNG_STRUCTURE_FILTER_BYTE_INVALID:row={row}:value={filter_byte}"
+            )
+        filters.append(filter_byte)
+
+    return {
+        "channels": channels,
+        "bits_per_pixel": bits_per_pixel,
+        "scanline_payload_bytes": row_bytes,
+        "expected_decoded_scanline_bytes": expected,
+        "decoded_scanline_layout_verified": True,
+        "scanline_filter_bytes_verified": True,
+        "scanline_filter_types_seen": sorted(set(filters)),
+    }
 
 
 def _validate_png(data: bytes) -> dict[str, Any]:
@@ -126,12 +188,16 @@ def _validate_png(data: bytes) -> dict[str, Any]:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_PIXEL_FORMAT_INVALID")
     if compression != 0 or filter_method != 0 or interlace not in (0, 1):
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_IHDR_METHOD_INVALID")
-    try:
-        decoded = zlib.decompress(bytes(idat))
-    except zlib.error as exc:
-        raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_ZLIB_INVALID") from exc
-    if not decoded:
-        raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_DECODE_EMPTY")
+
+    decoded = _decode_idat_exactly(bytes(idat))
+    scanlines = _validate_scanlines(
+        decoded,
+        width=width,
+        height=height,
+        bit_depth=bit_depth,
+        color_type=color_type,
+        interlace=interlace,
+    )
 
     return {
         "width": width,
@@ -145,7 +211,9 @@ def _validate_png(data: bytes) -> dict[str, Any]:
         "iend_terminal": True,
         "crc_verified_for_all_chunks": True,
         "idat_zlib_stream_verified": True,
+        "zlib_stream_terminated_exactly": True,
         "no_trailing_bytes": True,
+        **scanlines,
     }
 
 
