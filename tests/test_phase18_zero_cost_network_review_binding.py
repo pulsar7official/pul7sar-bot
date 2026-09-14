@@ -9,6 +9,8 @@ import unittest
 from tools.phase18_bind_zero_cost_network_guard_to_review_bundle import bind, verify
 
 
+ROOT = Path(__file__).resolve().parents[1]
+WORKFLOW = ROOT / ".github/workflows/phase18-first-genuine-golden-v6-fresh.yml"
 BLOCK_MARKER = "PUL7SAR_PHASE18_ZERO_COST_NETWORK_BLOCKED"
 
 
@@ -121,6 +123,23 @@ class ZeroCostNetworkReviewBindingTests(unittest.TestCase):
             manifest.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
             with self.assertRaisesRegex(RuntimeError, "BUNDLE_AUTHORITY_DRIFT:publication_ready"):
                 bind(bundle_dir=bundle, network_evidence_path=evidence, run_id="123", run_attempt="1")
+
+    def test_workflow_binds_and_replays_network_proof_before_success_upload(self) -> None:
+        text = WORKFLOW.read_text(encoding="utf-8")
+        tool = "phase18_bind_zero_cost_network_guard_to_review_bundle.py"
+        package = "Package exact Golden v6 Candidate 1 review bundle"
+        bind_step = "Bind zero-cost network guard evidence into exact review bundle"
+        closed_replay = "Replay exact Golden v6 review bundle before upload"
+        network_replay = "Replay zero-cost network guard binding before upload"
+        source_replay = "Replay immutable tracked source immediately before upload"
+        upload = "Upload exact Golden v6 Candidate 1 review bundle"
+        self.assertIn(f"test -f tools/{tool}", text)
+        self.assertIn("first-genuine-golden-v6-zero-cost-network-guard.json", text)
+        self.assertLess(text.index(package), text.index(bind_step))
+        self.assertLess(text.index(bind_step), text.index(closed_replay))
+        self.assertLess(text.index(closed_replay), text.index(network_replay))
+        self.assertLess(text.index(network_replay), text.index(source_replay))
+        self.assertLess(text.index(source_replay), text.index(upload))
 
 
 if __name__ == "__main__":
