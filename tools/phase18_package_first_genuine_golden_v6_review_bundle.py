@@ -76,7 +76,7 @@ def _verify_ref(record: object, *, repo_root: Path, label: str) -> Path:
     return path
 
 
-def _copy_entry(src: Path, dst: Path, *, expected_sha: str | None = None) -> dict[str, Any]:
+def _copy_entry(src: Path, dst: Path, *, bundle_path: str, expected_sha: str | None = None) -> dict[str, Any]:
     if expected_sha is not None and _sha256(src) != expected_sha:
         raise RuntimeError(f"GOLDEN_REVIEW_BUNDLE_COPY_SOURCE_SHA_DRIFT:{src}")
     dst.parent.mkdir(parents=True, exist_ok=True)
@@ -84,7 +84,7 @@ def _copy_entry(src: Path, dst: Path, *, expected_sha: str | None = None) -> dic
     actual_sha = _sha256(dst)
     if expected_sha is not None and actual_sha != expected_sha:
         raise RuntimeError(f"GOLDEN_REVIEW_BUNDLE_COPY_SHA_DRIFT:{dst}")
-    return {"path": dst.as_posix(), "sha256": actual_sha, "bytes": dst.stat().st_size}
+    return {"path": bundle_path, "sha256": actual_sha, "bytes": dst.stat().st_size}
 
 
 def build_bundle(*, fresh_manifest_path: Path, snapshot_manifest_path: Path, repo_root: Path,
@@ -161,12 +161,24 @@ def build_bundle(*, fresh_manifest_path: Path, snapshot_manifest_path: Path, rep
     entries: dict[str, dict[str, Any]] = {}
     try:
         temporary.mkdir(parents=True, exist_ok=False)
-        entries["candidate_png"] = _copy_entry(png_path, temporary / "candidate-1.png", expected_sha=png_sha)
-        entries["fresh_source_bound_manifest"] = _copy_entry(fresh_path, temporary / "fresh-source-bound-manifest.json")
-        entries["snapshot_bound_manifest"] = _copy_entry(snapshot_path, temporary / "snapshot-bound-manifest.json")
-        entries["approved_snapshot_inventory"] = _copy_entry(inventory_path, temporary / "approved-snapshot-inventory.json")
+        entries["candidate_png"] = _copy_entry(
+            png_path, temporary / "candidate-1.png", bundle_path="candidate-1.png", expected_sha=png_sha
+        )
+        entries["fresh_source_bound_manifest"] = _copy_entry(
+            fresh_path, temporary / "fresh-source-bound-manifest.json", bundle_path="fresh-source-bound-manifest.json"
+        )
+        entries["snapshot_bound_manifest"] = _copy_entry(
+            snapshot_path, temporary / "snapshot-bound-manifest.json", bundle_path="snapshot-bound-manifest.json"
+        )
+        entries["approved_snapshot_inventory"] = _copy_entry(
+            inventory_path, temporary / "approved-snapshot-inventory.json", bundle_path="approved-snapshot-inventory.json"
+        )
         for key, src in sorted(exact_evidence.items()):
-            entries[f"evidence_{key}"] = _copy_entry(src, temporary / "evidence" / f"{key}{src.suffix or '.bin'}")
+            suffix = src.suffix or ".bin"
+            relative = f"evidence/{key}{suffix}"
+            entries[f"evidence_{key}"] = _copy_entry(
+                src, temporary / relative, bundle_path=relative
+            )
 
         manifest = {
             "schema": BUNDLE_SCHEMA,
