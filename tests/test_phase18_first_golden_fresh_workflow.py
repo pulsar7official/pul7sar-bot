@@ -56,15 +56,16 @@ class FirstGoldenFreshWorkflowTests(unittest.TestCase):
         self.assertLess(probe, inventory)
         self.assertLess(inventory, generation)
 
-    def test_snapshot_inventory_is_replayed_after_generation_before_upload(self) -> None:
+    def test_snapshot_and_runtime_are_replayed_after_generation_before_upload(self) -> None:
         generation = self.text.index("Run freshness-bound canonical Candidate 1")
         final_binding = self.text.index("Bind execution, runner, fresh attempt, source provenance, and PNG bytes")
-        snapshot_replay = self.text.index("Replay and bind approved model snapshots after generation")
+        snapshot_replay = self.text.index("Replay and bind approved model snapshots and runtime after generation")
         package = self.text.index("Package exact Golden v6 Candidate 1 review bundle")
         bundle_replay = self.text.index("Replay exact Golden v6 review bundle before upload")
         upload = self.text.index("Upload exact Golden v6 Candidate 1 review bundle")
         self.assertIn("python tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py", self.text)
         self.assertIn("--snapshot-inventory output/phase18_gpu_smoke/first-genuine-golden-v6-approved-snapshot-inventory.json", self.text)
+        self.assertIn("--execution-probe output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json", self.text)
         self.assertIn("first-genuine-golden-v6-snapshot-bound-manifest.json", self.text)
         self.assertLess(generation, final_binding)
         self.assertLess(final_binding, snapshot_replay)
