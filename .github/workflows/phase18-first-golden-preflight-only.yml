@@ -92,8 +92,14 @@ jobs:
 
       - name: Assert preflight readiness and preserve fail-closed authority
         shell: bash
+        env:
+          BLOCKER_PROBE_OUTCOME: ${{ steps.blocker_probe.outcome }}
         run: |
           set -euo pipefail
+          test "$BLOCKER_PROBE_OUTCOME" = "success" || {
+            echo "execution-blocker probe did not complete successfully: $BLOCKER_PROBE_OUTCOME" >&2
+            exit 1
+          }
           python - <<'PY'
           import json
           from pathlib import Path
