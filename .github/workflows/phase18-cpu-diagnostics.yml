@@ -43,6 +43,55 @@ jobs:
         continue-on-error: true
         run: python tools/phase18_cpu_validate.py
 
+      - name: Surface deterministic CPU failure fingerprint
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          report_path = Path('output/phase18_cpu_validation/report.json')
+          if not report_path.is_file():
+              raise SystemExit('Phase 18 CPU validator did not produce its deterministic report')
+
+          report = json.loads(report_path.read_text(encoding='utf-8'))
+          status = str(report.get('status', 'UNKNOWN'))
+          failed_index = report.get('failed_command_index')
+          commands = report.get('commands') or []
+          failed = commands[failed_index] if isinstance(failed_index, int) and failed_index < len(commands) else None
+
+          summary_lines = [
+              '## Phase 18 CPU validation fingerprint',
+              '',
+              f'- status: `{status}`',
+              f'- failed_command_index: `{failed_index}`',
+          ]
+          if isinstance(failed, dict):
+              summary_lines.extend([
+                  f"- returncode: `{failed.get('returncode')}`",
+                  f"- command: `{' '.join(str(x) for x in failed.get('command', []))}`",
+                  '',
+                  '### stderr tail',
+                  '```text',
+                  '\n'.join(str(failed.get('stderr', '')).splitlines()[-80:]),
+                  '```',
+                  '',
+                  '### stdout tail',
+                  '```text',
+                  '\n'.join(str(failed.get('stdout', '')).splitlines()[-80:]),
+                  '```',
+              ])
+
+          summary = '\n'.join(summary_lines) + '\n'
+          summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
+          if summary_path:
+              with open(summary_path, 'a', encoding='utf-8') as handle:
+                  handle.write(summary)
+
+          print(summary)
+          PY
+
       - name: Upload deterministic CPU validation report
         if: always()
         uses: actions/upload-artifact@v7
