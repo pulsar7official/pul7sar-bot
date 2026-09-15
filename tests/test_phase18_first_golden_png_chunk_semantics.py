@@ -67,7 +67,9 @@ class GoldenPngChunkSemanticsTests(unittest.TestCase):
         self.run_case(png(extra_before_idat=chunk(b"ABCD")), "UNKNOWN_CRITICAL")
 
     def test_rejects_reserved_bit_violation(self) -> None:
-        self.run_case(png(extra_before_idat=chunk(b"teXt")), "RESERVED_BIT_INVALID")
+        # PNG's reserved bit is encoded by the case of the THIRD chunk-type byte.
+        # A lowercase third byte is invalid; texT deliberately violates that rule.
+        self.run_case(png(extra_before_idat=chunk(b"texT")), "RESERVED_BIT_INVALID")
 
     def test_rejects_non_consecutive_idat(self) -> None:
         self.run_case(png(extra_between_idat=chunk(b"tEXt", b"k\x00v")), "IDAT_NOT_CONSECUTIVE")
