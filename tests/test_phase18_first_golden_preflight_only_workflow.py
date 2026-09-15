@@ -51,3 +51,13 @@ def test_preflight_preserves_diagnostics_when_probe_reports_blockers() -> None:
     assert "ready_for_authoritative_golden_preflight" in text
     assert 'p.get(field) is not False' in text
     assert "candidate host is not ready for authoritative Golden preflight" in text
+
+
+def test_preflight_probe_execution_failure_cannot_be_masked_by_continue_on_error() -> None:
+    text = _workflow()
+    assert "BLOCKER_PROBE_OUTCOME: ${{ steps.blocker_probe.outcome }}" in text
+    assert 'test "$BLOCKER_PROBE_OUTCOME" = "success"' in text
+    assert "execution-blocker probe did not complete successfully" in text
+    outcome_check = text.index('test "$BLOCKER_PROBE_OUTCOME" = "success"')
+    json_read = text.index('json.loads(Path("output/phase18_gpu_smoke/preflight-execution-blocker.json")')
+    assert outcome_check < json_read
