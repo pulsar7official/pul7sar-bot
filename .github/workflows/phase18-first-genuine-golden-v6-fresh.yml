@@ -65,6 +65,8 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
           test -f tools/phase18_verify_first_genuine_golden_png_structure.py
           test -f tools/phase18_bind_png_structure_to_review_bundle.py
+          test -f tools/phase18_verify_first_genuine_golden_png_canonical_encoding.py
+          test -f tools/phase18_bind_png_canonical_encoding_to_review_bundle.py
           test -f tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py
           test -f tools/phase18_package_first_genuine_golden_v6_review_bundle.py
           test -f tools/phase18_verify_first_genuine_golden_v6_review_bundle.py
@@ -219,6 +221,14 @@ jobs:
             --repo-root . \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure.json
 
+      - name: Prove canonical RGB8 Candidate 1 PNG encoding before review packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_genuine_golden_png_canonical_encoding.py \
+            --structure output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure.json \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-canonical-encoding.json
+
       - name: Replay and bind approved model snapshots and runtime after generation
         shell: bash
         run: |
@@ -267,6 +277,17 @@ jobs:
             --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
             --structure-evidence output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure.json
 
+      - name: Bind canonical RGB8 PNG evidence into exact review bundle
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_bind_png_canonical_encoding_to_review_bundle.py bind \
+            --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            --canonical-evidence output/phase18_gpu_smoke/first-genuine-golden-v6-png-canonical-encoding.json
+
       - name: Replay exact Golden v6 review bundle before upload
         shell: bash
         env:
@@ -301,6 +322,17 @@ jobs:
           python tools/phase18_bind_png_structure_to_review_bundle.py verify \
             --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure-review-binding.json
+
+      - name: Replay canonical RGB8 PNG binding before upload
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_bind_png_canonical_encoding_to_review_bundle.py verify \
+            --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-canonical-review-binding.json
 
       - name: Replay immutable tracked source immediately before upload
         shell: bash
