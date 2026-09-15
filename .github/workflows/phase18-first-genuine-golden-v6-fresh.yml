@@ -64,6 +64,7 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_v6_source_bound_artifact.py
           test -f tools/phase18_verify_first_genuine_golden_v6_fresh_source_bound.py
           test -f tools/phase18_verify_first_genuine_golden_png_structure.py
+          test -f tools/phase18_verify_first_genuine_golden_png_chunk_semantics.py
           test -f tools/phase18_bind_png_structure_to_review_bundle.py
           test -f tools/phase18_verify_first_genuine_golden_png_canonical_encoding.py
           test -f tools/phase18_bind_png_canonical_encoding_to_review_bundle.py
@@ -220,6 +221,15 @@ jobs:
             --manifest output/phase18_gpu_smoke/first-genuine-golden-v6-fresh-source-bound-manifest.json \
             --repo-root . \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure.json
+
+      - name: Prove Candidate 1 PNG chunk semantics before review packaging
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_verify_first_genuine_golden_png_chunk_semantics.py \
+            --structure output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure.json \
+            --repo-root . \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-chunk-semantics.json
 
       - name: Prove canonical RGB8 Candidate 1 PNG encoding before review packaging
         shell: bash
