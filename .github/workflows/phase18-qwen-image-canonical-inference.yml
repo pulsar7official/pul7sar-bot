@@ -1,0 +1,389 @@
+name: Phase 18 Qwen Image Canonical Inference
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_PHASE18_QWEN_CANONICAL_INFERENCE to execute one manifest-bound canonical candidate"
+        required: true
+        type: string
+      authorization_path:
+        description: "Repository-relative CS authorization receipt path"
+        required: true
+        type: string
+      cs257_run_dir:
+        description: "Repository-relative verified CS257 run directory"
+        required: true
+        type: string
+      snapshot_path:
+        description: "Existing local pinned Qwen/Qwen-Image-2512 snapshot path; no download is performed"
+        required: true
+        type: string
+      seed:
+        description: "Canonical seed bound into the launch manifest"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-qwen-image-canonical-inference
+  cancel-in-progress: false
+
+jobs:
+  canonical-inference:
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
+      HF_DATASETS_OFFLINE: "1"
+      HF_HUB_DISABLE_TELEMETRY: "1"
+
+    steps:
+      - name: Require explicit branch-bound dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "RUN_PHASE18_QWEN_CANONICAL_INFERENCE"
+          test "$DISPATCH_REF" = "refs/heads/phase18/story-intelligence"
+          printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout immutable Phase 18 commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Reattach exact Phase 18 branch and prove main isolation
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          test -n "$base"
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 6
+          fi
+          test -f tools/phase18_qwen_image_gpu_readiness.py
+          test -f tools/phase18_qwen_image_gpu_host_launch_manifest.py
+          test -f tools/phase18_run_manifest_bound_canonical_inference.py
+          test -f tools/phase18_qwen_image_launch_to_output_attestation.py
+          test -f tools/phase18_qwen_image_canonical_candidate_handoff.py
+          test -f tools/phase18_admit_canonical_candidate_bytes.py
+          test -f tools/phase18_run_admitted_candidate_semantic_checkpoint.py
+          test -f tools/phase18_route_semantic_checkpoint_after_identity_requirement.py
+
+      - name: Prove CUDA BF16 host without replacing PyTorch
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
+          if not torch.cuda.is_bf16_supported():
+              raise SystemExit("Native CUDA BF16 support is required for the canonical Qwen path")
+          if torch.cuda.device_count() < 1:
+              raise SystemExit("At least one CUDA device is required")
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count(), "bf16": True})
+          PY
+
+      - name: Resolve operator inputs without network or authority mutation
+        shell: bash
+        env:
+          AUTHORIZATION_INPUT: ${{ inputs.authorization_path }}
+          CS257_INPUT: ${{ inputs.cs257_run_dir }}
+          SNAPSHOT_INPUT: ${{ inputs.snapshot_path }}
+          SEED_INPUT: ${{ inputs.seed }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd().resolve()
+          auth = (root / os.environ["AUTHORIZATION_INPUT"]).resolve()
+          cs257 = (root / os.environ["CS257_INPUT"]).resolve()
+          try:
+              auth.relative_to(root)
+              cs257.relative_to(root)
+          except ValueError as exc:
+              raise SystemExit("authorization/CS257 inputs must stay inside the repository") from exc
+          if not auth.is_file() or auth.is_symlink():
+              raise SystemExit("authorization receipt missing or invalid")
+          if not cs257.is_dir() or cs257.is_symlink():
+              raise SystemExit("CS257 run directory missing or invalid")
+          snapshot = Path(os.environ["SNAPSHOT_INPUT"]).expanduser().resolve()
+          if not snapshot.is_dir() or snapshot.is_symlink():
+              raise SystemExit("local Qwen snapshot missing or invalid")
+          try:
+              seed = int(os.environ["SEED_INPUT"])
+          except ValueError as exc:
+              raise SystemExit("seed must be an integer") from exc
+          if seed < 0:
+              raise SystemExit("seed must be non-negative")
+          out = root / "output/phase18_qwen_image"
+          out.mkdir(parents=True, exist_ok=True)
+          payload = {
+              "authorization": str(auth.relative_to(root)),
+              "cs257_run_dir": str(cs257.relative_to(root)),
+              "snapshot_path": str(snapshot),
+              "seed": seed,
+          }
+          (out / "workflow-inputs.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Require current local-only Qwen static readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          snapshot="$(python -c 'import json; print(json.load(open("output/phase18_qwen_image/workflow-inputs.json"))["snapshot_path"])')"
+          python tools/phase18_qwen_image_gpu_readiness.py \
+            --snapshot-path "$snapshot" \
+            --require-static-ready \
+            > output/phase18_qwen_image/static-readiness.json
+
+      - name: Build and replay exact GPU-host launch manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(python - <<'PY'
+          import json, shlex
+          p = json.load(open('output/phase18_qwen_image/workflow-inputs.json'))
+          for key in ('authorization', 'cs257_run_dir', 'snapshot_path', 'seed'):
+              print(f"{key.upper()}={shlex.quote(str(p[key]))}")
+          PY
+          )"
+          manifest="output/phase18_qwen_image/canonical-launch-${GITHUB_RUN_ID}.json"
+          python tools/phase18_qwen_image_gpu_host_launch_manifest.py build \
+            --authorization "$AUTHORIZATION" \
+            --cs257-run-dir "$CS257_RUN_DIR" \
+            --snapshot-path "$SNAPSHOT_PATH" \
+            --output "$manifest" \
+            --seed "$SEED" \
+            > output/phase18_qwen_image/launch-build-result.json
+          python tools/phase18_qwen_image_gpu_host_launch_manifest.py verify \
+            --manifest "$manifest" \
+            > output/phase18_qwen_image/launch-verify-result.json
+
+      - name: Execute one manifest-bound canonical Qwen inference
+        shell: bash
+        run: |
+          set -euo pipefail
+          manifest="output/phase18_qwen_image/canonical-launch-${GITHUB_RUN_ID}.json"
+          output_dir="output/phase18_qwen_image/canonical-inference-${GITHUB_RUN_ID}"
+          test ! -e "$output_dir"
+          python tools/phase18_run_manifest_bound_canonical_inference.py \
+            --launch-manifest "$manifest" \
+            --output-dir "$output_dir"
+
+      - name: Independently replay launch-to-output attestation and keep authorities closed
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_dir="output/phase18_qwen_image/canonical-inference-${GITHUB_RUN_ID}"
+          python tools/phase18_qwen_image_launch_to_output_attestation.py verify \
+            --attestation "$output_dir/launch_to_output_attestation.json" \
+            > output/phase18_qwen_image/postflight-attestation.json
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          root = Path.cwd().resolve()
+          run_id = os.environ["GITHUB_RUN_ID"]
+          output_dir = root / "output/phase18_qwen_image" / f"canonical-inference-{run_id}"
+          png = output_dir / "canonical_candidate.png"
+          if not png.is_file() or png.is_symlink() or png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+              raise SystemExit("canonical candidate PNG missing or invalid")
+          verified = json.loads((root / "output/phase18_qwen_image/postflight-attestation.json").read_text(encoding="utf-8"))
+          if verified.get("genuine_canonical_inference_executed") is not True:
+              raise SystemExit("genuine canonical inference was not proven")
+          for field in (
+              "semantic_approved",
+              "human_visual_review_approved",
+              "golden_quality_approved",
+              "genuine_golden_png_created",
+              "publication_ready",
+          ):
+              if verified.get(field) is not False:
+                  raise SystemExit(f"illegal authority drift: {field}")
+          print(json.dumps({
+              "status": "QWEN_CANONICAL_CANDIDATE_ATTESTED",
+              "png": str(png.relative_to(root)),
+              "genuine_canonical_inference_executed": True,
+              "semantic_approved": False,
+              "human_visual_review_approved": False,
+              "golden_quality_approved": False,
+              "genuine_golden_png_created": False,
+              "publication_ready": False,
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Seal exact canonical candidate handoff and replay it
+        shell: bash
+        run: |
+          set -euo pipefail
+          output_dir="output/phase18_qwen_image/canonical-inference-${GITHUB_RUN_ID}"
+          handoff="output/phase18_qwen_image/canonical-candidate-handoff-${GITHUB_RUN_ID}.json"
+          test ! -e "$handoff"
+          python tools/phase18_qwen_image_canonical_candidate_handoff.py build \
+            --output-dir "$output_dir" \
+            --handoff "$handoff" \
+            > output/phase18_qwen_image/candidate-handoff-build-result.json
+          python tools/phase18_qwen_image_canonical_candidate_handoff.py verify \
+            --handoff "$handoff" \
+            > output/phase18_qwen_image/candidate-handoff-verify-result.json
+
+      - name: Admit exact sealed candidate bytes for downstream QA only
+        shell: bash
+        run: |
+          set -euo pipefail
+          handoff="output/phase18_qwen_image/canonical-candidate-handoff-${GITHUB_RUN_ID}.json"
+          admission_dir="output/phase18_qwen_image/canonical-candidate-admission-${GITHUB_RUN_ID}"
+          test ! -e "$admission_dir"
+          python tools/phase18_admit_canonical_candidate_bytes.py \
+            --candidate-handoff "$handoff" \
+            --output-dir "$admission_dir" \
+            > output/phase18_qwen_image/candidate-admission-result.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("output/phase18_qwen_image/candidate-admission-result.json").read_text(encoding="utf-8"))
+          if result.get("handoff_sealed") is not True:
+              raise SystemExit("sealed canonical candidate handoff was not proven")
+          if result.get("candidate_bytes_admitted_for_post_generation_qa") is not True:
+              raise SystemExit("exact candidate bytes were not admitted for downstream QA")
+          if result.get("genuine_golden_png_created") is not False:
+              raise SystemExit("candidate admission must not create Genuine Golden authority")
+          if result.get("publication_ready") is not False:
+              raise SystemExit("candidate admission must not create publication authority")
+          PY
+
+      - name: Continue exact admitted candidate through fail-closed semantic checkpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          admission_receipt="$(python -c 'import json; print(json.load(open("output/phase18_qwen_image/candidate-admission-result.json"))["receipt_path"])')"
+          checkpoint_dir="output/phase18_qwen_image/admitted-candidate-semantic-checkpoint-${GITHUB_RUN_ID}"
+          test ! -e "$checkpoint_dir"
+          set +e
+          python tools/phase18_run_admitted_candidate_semantic_checkpoint.py \
+            --candidate-admission "$admission_receipt" \
+            --output-root "$checkpoint_dir" \
+            > output/phase18_qwen_image/semantic-checkpoint-result.json
+          checkpoint_rc=$?
+          set -e
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("output/phase18_qwen_image/semantic-checkpoint-result.json").read_text(encoding="utf-8"))
+          if result.get("semantic_inspection_executed") is not True:
+              raise SystemExit("CS304 semantic inspection was not proven")
+          if result.get("semantic_base_scene_approved") is not True:
+              raise SystemExit("candidate rejected at CS304 semantic Base QA")
+          if result.get("identity_requirement_classified") is not True:
+              raise SystemExit("CS305 identity requirement was not classified")
+          if not isinstance(result.get("pixel_identity_review_required"), bool):
+              raise SystemExit("CS305 pixel-identity-review requirement must be an explicit boolean")
+          for field in (
+              "identity_approved",
+              "semantic_approved",
+              "human_visual_review_approved",
+              "golden_quality_approved",
+              "genuine_golden_png_created",
+              "publication_ready",
+          ):
+              if result.get(field) is not False:
+                  raise SystemExit(f"semantic checkpoint created premature authority: {field}")
+          PY
+          test "$checkpoint_rc" -eq 0
+
+      - name: Route exact semantic checkpoint without bypassing identity review
+        shell: bash
+        run: |
+          set -euo pipefail
+          eval "$(python - <<'PY'
+          import json, shlex
+          p = json.load(open('output/phase18_qwen_image/semantic-checkpoint-result.json'))
+          for key in ('cs304_receipt', 'cs305_receipt'):
+              value = p.get(key)
+              if not isinstance(value, str) or not value:
+                  raise SystemExit(f'missing exact semantic checkpoint lineage: {key}')
+              print(f"{key.upper()}={shlex.quote(value)}")
+          PY
+          )"
+          route_dir="output/phase18_qwen_image/post-semantic-identity-route-${GITHUB_RUN_ID}"
+          test ! -e "$route_dir"
+          set +e
+          python tools/phase18_route_semantic_checkpoint_after_identity_requirement.py \
+            --cs304-receipt "$CS304_RECEIPT" \
+            --cs305-receipt "$CS305_RECEIPT" \
+            --output-root "$route_dir" \
+            > output/phase18_qwen_image/post-semantic-identity-route-result.json
+          route_rc=$?
+          set -e
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          result = json.loads(Path("output/phase18_qwen_image/post-semantic-identity-route-result.json").read_text(encoding="utf-8"))
+          required = result.get("pixel_identity_review_required")
+          if not isinstance(required, bool):
+              raise SystemExit("identity router did not preserve an explicit review requirement")
+          if required:
+              if result.get("route") != "CS266_PIXEL_IDENTITY_REVIEW_REQUIRED":
+                  raise SystemExit("human identity route did not stop at CS266")
+              if result.get("pixel_identity_review_request_created") is not True:
+                  raise SystemExit("CS266 pixel-identity review request was not created")
+              if result.get("generated_layer_qa_executed") is not False:
+                  raise SystemExit("CS268 must not run before required human identity review")
+          else:
+              if result.get("route") != "CS268_GENERATED_LAYER_QA_NO_PIXEL_IDENTITY_REVIEW_REQUIRED":
+                  raise SystemExit("no-review route did not continue to CS268")
+              if result.get("generated_layer_qa_executed") is not True:
+                  raise SystemExit("CS268 Generated-Layer QA was not executed")
+              if result.get("generated_layer_qa_approved") is not True:
+                  raise SystemExit("candidate rejected at CS268 Generated-Layer QA")
+          for field in (
+              "identity_approved",
+              "semantic_approved",
+              "human_visual_review_approved",
+              "golden_quality_approved",
+              "genuine_golden_png_created",
+              "publication_ready",
+          ):
+              if result.get(field) is not False:
+                  raise SystemExit(f"identity-aware routing created premature authority: {field}")
+          PY
+          test "$route_rc" -eq 0
+
+      - name: Upload canonical candidate and exact evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-qwen-image-canonical-inference-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_qwen_image/**
