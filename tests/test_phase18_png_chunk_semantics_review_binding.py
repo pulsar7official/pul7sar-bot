@@ -10,30 +10,39 @@ def bundle(root):
     b=root/"bundle"; b.mkdir(); c=b/"candidate-1.png"; c.write_bytes(b"fixture")
     s=b/"evidence/png_structure.json"; sp={"schema":"pul7sar-phase18-first-genuine-golden-png-structure-v3","branch":"phase18/story-intelligence","candidate":1,"source_commit_sha":SOURCE_SHA,"png_sha256":PNG_SHA,"png_structure_verified":True,"canonical_encoding_verified":True,**closed()}; write(s,sp)
     write(b/"review-bundle-manifest.json",{"schema":"pul7sar-phase18-first-genuine-golden-v6-review-bundle-v1","branch":"phase18/story-intelligence","candidate":1,"cost_mode":"$0-local","offline_only":True,"source_commit_sha":SOURCE_SHA,"png_sha256":PNG_SHA,"exact_evidence_only":True,"eligible_for_human_visual_review":True,"entries":{"candidate_png":{"path":"candidate-1.png","sha256":hashlib.sha256(c.read_bytes()).hexdigest(),"bytes":c.stat().st_size},"evidence_png_structure":{"path":"evidence/png_structure.json","sha256":hashlib.sha256(s.read_bytes()).hexdigest(),"bytes":s.stat().st_size}},**closed()}); return b
-def evidence(root,**overrides):
-    p={"schema":"pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v1","status":"FIRST_GENUINE_GOLDEN_PNG_CHUNK_SEMANTICS_VERIFIED","branch":"phase18/story-intelligence","candidate":1,"cost_mode":"$0-local","offline_only":True,"source_commit_sha":SOURCE_SHA,"png_sha256":PNG_SHA,"png_bytes":123,"chunk_sequence":["IHDR","IDAT","IEND"],"known_critical_chunks_only":True,"reserved_bit_valid_for_all_chunks":True,"idat_consecutive":True,"plte_order_valid":True,"eligible_for_human_visual_review":True,**closed()}; p.update(overrides); f=root/"semantics.json"; write(f,p); return f
+def evidence(root,b,**overrides):
+    s=b/"evidence/png_structure.json"
+    p={"schema":"pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v2","status":"FIRST_GENUINE_GOLDEN_PNG_CHUNK_SEMANTICS_VERIFIED","branch":"phase18/story-intelligence","candidate":1,"cost_mode":"$0-local","offline_only":True,"source_commit_sha":SOURCE_SHA,"upstream_structure_schema":"pul7sar-phase18-first-genuine-golden-png-structure-v3","upstream_structure_evidence_sha256":hashlib.sha256(s.read_bytes()).hexdigest(),"png_sha256":PNG_SHA,"png_bytes":123,"chunk_sequence":["IHDR","IDAT","IEND"],"known_critical_chunks_only":True,"reserved_bit_valid_for_all_chunks":True,"idat_consecutive":True,"plte_order_valid":True,"eligible_for_human_visual_review":True,**closed()}; p.update(overrides); f=root/"semantics.json"; write(f,p); return f
 class Tests(unittest.TestCase):
     def test_binds_and_replays_with_structure_hash_chain(self):
         with tempfile.TemporaryDirectory() as t:
-            r=Path(t); b=bundle(r); out=bind(b,evidence(r)); self.assertTrue(out["png_chunk_semantics_verified"]); self.assertEqual(out["upstream_structure_evidence_sha256"],hashlib.sha256((b/"evidence/png_structure.json").read_bytes()).hexdigest()); self.assertEqual(verify(b)["png_sha256"],PNG_SHA)
+            r=Path(t); b=bundle(r); out=bind(b,evidence(r,b)); self.assertTrue(out["png_chunk_semantics_verified"]); self.assertEqual(out["upstream_structure_evidence_sha256"],hashlib.sha256((b/"evidence/png_structure.json").read_bytes()).hexdigest()); self.assertEqual(verify(b)["png_sha256"],PNG_SHA)
+    def test_rejects_forged_upstream_structure_hash(self):
+        with tempfile.TemporaryDirectory() as t:
+            r=Path(t); b=bundle(r)
+            with self.assertRaisesRegex(RuntimeError,"UPSTREAM_STRUCTURE_HASH_DRIFT"): bind(b,evidence(r,b,upstream_structure_evidence_sha256="0"*64))
+    def test_rejects_legacy_v1_semantics(self):
+        with tempfile.TemporaryDirectory() as t:
+            r=Path(t); b=bundle(r)
+            with self.assertRaisesRegex(RuntimeError,"SCHEMA_DRIFT"): bind(b,evidence(r,b,schema="pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v1"))
     def test_rejects_missing_structure_entry(self):
         with tempfile.TemporaryDirectory() as t:
             r=Path(t); b=bundle(r); m=json.loads((b/"review-bundle-manifest.json").read_text()); del m["entries"]["evidence_png_structure"]; write(b/"review-bundle-manifest.json",m)
-            with self.assertRaisesRegex(RuntimeError,"STRUCTURE_ENTRY_MISSING"): bind(b,evidence(r))
+            with self.assertRaisesRegex(RuntimeError,"STRUCTURE_ENTRY_MISSING"): bind(b,evidence(r,b))
     def test_rejects_structure_byte_drift_on_replay(self):
         with tempfile.TemporaryDirectory() as t:
-            r=Path(t); b=bundle(r); bind(b,evidence(r)); p=b/"evidence/png_structure.json"; p.write_text(p.read_text()+" ")
+            r=Path(t); b=bundle(r); bind(b,evidence(r,b)); p=b/"evidence/png_structure.json"; p.write_text(p.read_text()+" ")
             with self.assertRaisesRegex(RuntimeError,"STRUCTURE_EVIDENCE_DRIFT"): verify(b)
     def test_rejects_semantics_byte_drift(self):
         with tempfile.TemporaryDirectory() as t:
-            r=Path(t); b=bundle(r); bind(b,evidence(r)); p=b/"evidence/png_chunk_semantics.json"; p.write_text(p.read_text()+" ")
+            r=Path(t); b=bundle(r); bind(b,evidence(r,b)); p=b/"evidence/png_chunk_semantics.json"; p.write_text(p.read_text()+" ")
             with self.assertRaisesRegex(RuntimeError,"EVIDENCE_DRIFT"): verify(b)
     def test_rejects_false_semantic_gate(self):
         with tempfile.TemporaryDirectory() as t:
-            r=Path(t)
-            with self.assertRaisesRegex(RuntimeError,"FLAG_DRIFT:idat_consecutive"): bind(bundle(r),evidence(r,idat_consecutive=False))
+            r=Path(t); b=bundle(r)
+            with self.assertRaisesRegex(RuntimeError,"FLAG_DRIFT:idat_consecutive"): bind(b,evidence(r,b,idat_consecutive=False))
     def test_rejects_authority_drift(self):
         with tempfile.TemporaryDirectory() as t:
-            r=Path(t)
-            with self.assertRaisesRegex(RuntimeError,"AUTHORITY_DRIFT:semantics:publication_ready"): bind(bundle(r),evidence(r,publication_ready=True))
+            r=Path(t); b=bundle(r)
+            with self.assertRaisesRegex(RuntimeError,"AUTHORITY_DRIFT:semantics:publication_ready"): bind(b,evidence(r,b,publication_ready=True))
 if __name__=="__main__": unittest.main()
