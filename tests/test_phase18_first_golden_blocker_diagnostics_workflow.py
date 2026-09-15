@@ -12,11 +12,12 @@ def test_first_golden_blocker_probe_precedes_cuda_and_generation_and_is_failure_
     cuda_step = "- name: Prove CUDA native BF16 and offline-only execution without replacement"
     generation_step = "- name: Run freshness-bound canonical Candidate 1"
     failure_upload_step = "- name: Upload failed-attempt diagnostics only"
+    probe_command = "python tools/phase18_probe_first_golden_execution_blocker.py"
     probe_path = "output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json"
 
     for required in (
-        "test -f tools/phase18_probe_first_golden_execution_blocker.py",
         probe_step,
+        probe_command,
         cuda_step,
         generation_step,
         failure_upload_step,
