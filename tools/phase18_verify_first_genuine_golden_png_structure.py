@@ -6,7 +6,9 @@ network access, Human Review, Golden approval, publication, or queue mutation.
 It proves that the already-bound PNG is a complete PNG byte stream with valid
 chunk framing/CRC, a valid IHDR, at least one IDAT whose zlib stream terminates
 exactly, a non-interlaced scanline layout with valid per-row filter bytes,
-exactly one terminal IEND, and no trailing bytes.
+exactly one terminal IEND, and no trailing bytes. The same critical-path gate
+also enforces PUL7SAR's canonical final PNG encoding: RGB8 truecolour,
+24 bits per pixel, non-interlaced.
 """
 from __future__ import annotations
 
@@ -22,8 +24,13 @@ from typing import Any
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
 MANIFEST_SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-fresh-source-bound-manifest-v3"
-OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v2"
+OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v3"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+CANONICAL_BIT_DEPTH = 8
+CANONICAL_COLOR_TYPE = 2
+CANONICAL_CHANNELS = 3
+CANONICAL_BITS_PER_PIXEL = 24
+CANONICAL_INTERLACE = 0
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -77,40 +84,22 @@ def _decode_idat_exactly(idat: bytes) -> bytes:
     return decoded
 
 
-def _validate_scanlines(
-    decoded: bytes,
-    *,
-    width: int,
-    height: int,
-    bit_depth: int,
-    color_type: int,
-    interlace: int,
-) -> dict[str, Any]:
-    # The canonical Golden generation path is required to produce a conventional
-    # non-interlaced PNG. Adam7 has seven pass-specific row geometries; accepting
-    # it without validating every pass would weaken this fail-closed gate.
+def _validate_scanlines(decoded: bytes, *, width: int, height: int, bit_depth: int, color_type: int, interlace: int) -> dict[str, Any]:
     if interlace != 0:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_INTERLACE_UNSUPPORTED_FOR_GOLDEN")
-
     channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}[color_type]
     bits_per_pixel = channels * bit_depth
     row_bytes = (width * bits_per_pixel + 7) // 8
-    stride = row_bytes + 1  # one PNG filter byte precedes each scanline
+    stride = row_bytes + 1
     expected = stride * height
     if len(decoded) != expected:
-        raise RuntimeError(
-            f"GOLDEN_PNG_STRUCTURE_SCANLINE_SIZE_INVALID:expected={expected}:actual={len(decoded)}"
-        )
-
+        raise RuntimeError(f"GOLDEN_PNG_STRUCTURE_SCANLINE_SIZE_INVALID:expected={expected}:actual={len(decoded)}")
     filters: list[int] = []
     for row in range(height):
         filter_byte = decoded[row * stride]
         if filter_byte not in (0, 1, 2, 3, 4):
-            raise RuntimeError(
-                f"GOLDEN_PNG_STRUCTURE_FILTER_BYTE_INVALID:row={row}:value={filter_byte}"
-            )
+            raise RuntimeError(f"GOLDEN_PNG_STRUCTURE_FILTER_BYTE_INVALID:row={row}:value={filter_byte}")
         filters.append(filter_byte)
-
     return {
         "channels": channels,
         "bits_per_pixel": bits_per_pixel,
@@ -122,6 +111,16 @@ def _validate_scanlines(
     }
 
 
+def _require_canonical_encoding(*, bit_depth: int, color_type: int, interlace: int, scanlines: dict[str, Any]) -> None:
+    actual = (bit_depth, color_type, scanlines.get("channels"), scanlines.get("bits_per_pixel"), interlace)
+    expected = (CANONICAL_BIT_DEPTH, CANONICAL_COLOR_TYPE, CANONICAL_CHANNELS, CANONICAL_BITS_PER_PIXEL, CANONICAL_INTERLACE)
+    if actual != expected:
+        raise RuntimeError(
+            "GOLDEN_PNG_STRUCTURE_CANONICAL_ENCODING_DRIFT:"
+            f"expected={expected}:actual={actual}"
+        )
+
+
 def _validate_png(data: bytes) -> dict[str, Any]:
     if not data.startswith(PNG_SIGNATURE):
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_SIGNATURE_INVALID")
@@ -130,7 +129,6 @@ def _validate_png(data: bytes) -> dict[str, Any]:
     idat = bytearray()
     ihdr: tuple[int, int, int, int, int, int, int] | None = None
     seen_iend = False
-
     while offset < len(data):
         if len(data) - offset < 12:
             raise RuntimeError("GOLDEN_PNG_STRUCTURE_TRUNCATED_CHUNK_HEADER")
@@ -149,7 +147,6 @@ def _validate_png(data: bytes) -> dict[str, Any]:
             raise RuntimeError(f"GOLDEN_PNG_STRUCTURE_CRC_INVALID:{chunk_type.decode('ascii')}")
         name = chunk_type.decode("ascii")
         chunks.append(name)
-
         if not chunks[:-1] and name != "IHDR":
             raise RuntimeError("GOLDEN_PNG_STRUCTURE_IHDR_NOT_FIRST")
         if name == "IHDR":
@@ -169,51 +166,32 @@ def _validate_png(data: bytes) -> dict[str, Any]:
                 raise RuntimeError("GOLDEN_PNG_STRUCTURE_TRAILING_BYTES")
             break
         offset = end
-
     if ihdr is None:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_IHDR_MISSING")
     if not seen_iend:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_IEND_MISSING")
     if not idat:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_IDAT_MISSING")
-
     width, height, bit_depth, color_type, compression, filter_method, interlace = ihdr
     if width <= 0 or height <= 0:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_DIMENSIONS_INVALID")
-    valid_depths = {
-        0: {1, 2, 4, 8, 16}, 2: {8, 16}, 3: {1, 2, 4, 8},
-        4: {8, 16}, 6: {8, 16},
-    }
+    valid_depths = {0: {1, 2, 4, 8, 16}, 2: {8, 16}, 3: {1, 2, 4, 8}, 4: {8, 16}, 6: {8, 16}}
     if color_type not in valid_depths or bit_depth not in valid_depths[color_type]:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_PIXEL_FORMAT_INVALID")
     if compression != 0 or filter_method != 0 or interlace not in (0, 1):
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_IHDR_METHOD_INVALID")
-
     decoded = _decode_idat_exactly(bytes(idat))
-    scanlines = _validate_scanlines(
-        decoded,
-        width=width,
-        height=height,
-        bit_depth=bit_depth,
-        color_type=color_type,
-        interlace=interlace,
-    )
-
+    scanlines = _validate_scanlines(decoded, width=width, height=height, bit_depth=bit_depth, color_type=color_type, interlace=interlace)
+    _require_canonical_encoding(bit_depth=bit_depth, color_type=color_type, interlace=interlace, scanlines=scanlines)
     return {
-        "width": width,
-        "height": height,
-        "bit_depth": bit_depth,
-        "color_type": color_type,
-        "interlace_method": interlace,
-        "chunk_count": len(chunks),
-        "idat_bytes": len(idat),
-        "decoded_scanline_bytes": len(decoded),
-        "iend_terminal": True,
-        "crc_verified_for_all_chunks": True,
-        "idat_zlib_stream_verified": True,
-        "zlib_stream_terminated_exactly": True,
-        "no_trailing_bytes": True,
+        "width": width, "height": height, "bit_depth": bit_depth, "color_type": color_type,
+        "interlace_method": interlace, "chunk_count": len(chunks), "idat_bytes": len(idat),
+        "decoded_scanline_bytes": len(decoded), "iend_terminal": True,
+        "crc_verified_for_all_chunks": True, "idat_zlib_stream_verified": True,
+        "zlib_stream_terminated_exactly": True, "no_trailing_bytes": True,
         **scanlines,
+        "canonical_encoding_verified": True,
+        "canonical_encoding": "RGB8_TRUECOLOUR_NON_INTERLACED",
     }
 
 
@@ -228,7 +206,6 @@ def verify(*, manifest_path: Path, repo_root: Path) -> dict[str, Any]:
     if manifest.get("eligible_for_human_visual_review") is not True:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_NOT_REVIEW_ELIGIBLE")
     _require_closed_authority(manifest)
-
     evidence = manifest.get("evidence")
     if not isinstance(evidence, dict) or not isinstance(evidence.get("png"), dict):
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_PNG_EVIDENCE_MISSING")
@@ -241,7 +218,6 @@ def verify(*, manifest_path: Path, repo_root: Path) -> dict[str, Any]:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_SHA_INVALID")
     if record.get("sha256") != expected_sha:
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_EVIDENCE_SHA_DRIFT")
-
     png = _inside_repo(repo_root, path_value)
     if not png.is_file() or png.is_symlink():
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_FILE_INVALID")
@@ -251,27 +227,15 @@ def verify(*, manifest_path: Path, repo_root: Path) -> dict[str, Any]:
     if record.get("bytes") != len(data):
         raise RuntimeError("GOLDEN_PNG_STRUCTURE_FILE_SIZE_DRIFT")
     structure = _validate_png(data)
-
     return {
-        "schema": OUTPUT_SCHEMA,
-        "status": "FIRST_GENUINE_GOLDEN_PNG_STRUCTURE_VERIFIED",
-        "branch": EXPECTED_BRANCH,
-        "candidate": 1,
-        "cost_mode": EXPECTED_COST_MODE,
-        "offline_only": True,
-        "source_commit_sha": manifest.get("source_commit_sha"),
-        "png_path": str(png),
-        "png_sha256": expected_sha,
-        "png_bytes": len(data),
-        "png_structure_verified": True,
-        **structure,
-        "eligible_for_human_visual_review": True,
-        "authoritative_gate": False,
-        "network_download_authorized": False,
-        "generation_authorized": False,
-        "human_visual_review_approved": False,
-        "golden_quality_approved": False,
-        "publication_ready": False,
+        "schema": OUTPUT_SCHEMA, "status": "FIRST_GENUINE_GOLDEN_PNG_STRUCTURE_VERIFIED",
+        "branch": EXPECTED_BRANCH, "candidate": 1, "cost_mode": EXPECTED_COST_MODE,
+        "offline_only": True, "source_commit_sha": manifest.get("source_commit_sha"),
+        "png_path": str(png), "png_sha256": expected_sha, "png_bytes": len(data),
+        "png_structure_verified": True, **structure, "eligible_for_human_visual_review": True,
+        "authoritative_gate": False, "network_download_authorized": False,
+        "generation_authorized": False, "human_visual_review_approved": False,
+        "golden_quality_approved": False, "publication_ready": False,
         "seeds_2_to_4_authorized": False,
     }
 
