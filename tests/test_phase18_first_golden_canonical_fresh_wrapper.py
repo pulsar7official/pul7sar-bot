@@ -37,6 +37,17 @@ class CanonicalFreshWrapperTests(unittest.TestCase):
         payload.update(overrides)
         return payload
 
+    def _binding(self) -> dict[str, object]:
+        return {
+            "schema": "pul7sar-phase18-authoritative-first-golden-pre-generation-evidence-binding-v2",
+            "authoritative_gate": False,
+            "generation_authorized": False,
+            "human_review_authorized": False,
+            "golden_approved": False,
+            "publication_ready": False,
+            "seeds_2_to_4_authorized": False,
+        }
+
     def test_baseline_precedes_canonical_and_fresh_replay_controls_ready(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             paths = self._paths(Path(tmp))
@@ -56,6 +67,8 @@ class CanonicalFreshWrapperTests(unittest.TestCase):
 
             with (
                 patch.object(fresh, "_inside_repository", side_effect=lambda path: Path(path)),
+                patch.object(fresh, "_prove_binding_implementation_is_immutable"),
+                patch.object(fresh, "bind_pre_generation_evidence", return_value=self._binding()),
                 patch.object(fresh, "_write_json", side_effect=write_json),
                 patch.object(fresh, "capture_freshness", return_value={"schema": "baseline"}),
                 patch.object(fresh, "run_canonical", side_effect=canonical),
@@ -75,6 +88,8 @@ class CanonicalFreshWrapperTests(unittest.TestCase):
             paths = self._paths(Path(tmp))
             with (
                 patch.object(fresh, "_inside_repository", side_effect=lambda path: Path(path)),
+                patch.object(fresh, "_prove_binding_implementation_is_immutable"),
+                patch.object(fresh, "bind_pre_generation_evidence", return_value=self._binding()),
                 patch.object(fresh, "_write_json"),
                 patch.object(fresh, "capture_freshness", return_value={"schema": "baseline"}),
                 patch.object(fresh, "run_canonical", return_value=self._canonical()),
@@ -101,6 +116,8 @@ class CanonicalFreshWrapperTests(unittest.TestCase):
             paths = self._paths(Path(tmp))
             with (
                 patch.object(fresh, "_inside_repository", side_effect=lambda path: Path(path)),
+                patch.object(fresh, "_prove_binding_implementation_is_immutable"),
+                patch.object(fresh, "bind_pre_generation_evidence", return_value=self._binding()),
                 patch.object(fresh, "_write_json"),
                 patch.object(fresh, "capture_freshness", return_value={"schema": "baseline"}),
                 patch.object(
@@ -126,6 +143,8 @@ class CanonicalFreshWrapperTests(unittest.TestCase):
             canonical = self._canonical(generation_authorized=True)
             with (
                 patch.object(fresh, "_inside_repository", side_effect=lambda path: Path(path)),
+                patch.object(fresh, "_prove_binding_implementation_is_immutable"),
+                patch.object(fresh, "bind_pre_generation_evidence", return_value=self._binding()),
                 patch.object(fresh, "_write_json"),
                 patch.object(fresh, "capture_freshness", return_value={"schema": "baseline"}),
                 patch.object(fresh, "run_canonical", return_value=canonical),
