@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Fail-closed PNG chunk-semantics verifier for Phase 18 Candidate 1.
 
-CPU-safe, stdlib-only, offline-only. This is preparatory and grants no authority.
-It closes PNG semantic gaps not covered by byte framing alone: unknown critical
-chunks, reserved-bit violations, non-consecutive IDAT, and PLTE ordering/duplication.
+CPU-safe, stdlib-only, offline-only. This grants no authority. It closes PNG
+semantic gaps not covered by byte framing alone and cryptographically binds the
+result to the exact structure-v3 evidence bytes from which it was derived.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 
 EXPECTED_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v3"
-OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v1"
+OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v2"
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 KNOWN_CRITICAL = {"IHDR", "PLTE", "IDAT", "IEND"}
 
@@ -38,6 +38,8 @@ def _closed(payload: dict[str, Any]) -> None:
 
 
 def verify(*, structure_path: Path, repo_root: Path) -> dict[str, Any]:
+    structure_bytes = structure_path.read_bytes()
+    structure_sha256 = hashlib.sha256(structure_bytes).hexdigest()
     evidence = _load(structure_path)
     if evidence.get("schema") != EXPECTED_SCHEMA:
         raise RuntimeError("GOLDEN_PNG_CHUNK_SEMANTICS_SCHEMA_DRIFT")
@@ -116,6 +118,8 @@ def verify(*, structure_path: Path, repo_root: Path) -> dict[str, Any]:
         "branch": "phase18/story-intelligence", "candidate": 1,
         "cost_mode": "$0-local", "offline_only": True,
         "source_commit_sha": evidence.get("source_commit_sha"),
+        "upstream_structure_schema": EXPECTED_SCHEMA,
+        "upstream_structure_evidence_sha256": structure_sha256,
         "png_sha256": sha, "png_bytes": len(data), "chunk_sequence": names,
         "known_critical_chunks_only": True, "reserved_bit_valid_for_all_chunks": True,
         "idat_consecutive": True, "plte_order_valid": True,
