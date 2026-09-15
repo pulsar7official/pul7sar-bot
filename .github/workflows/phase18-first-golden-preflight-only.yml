@@ -58,6 +58,7 @@ jobs:
           test -f tools/phase18_capture_zero_cost_network_guard_evidence.py
           test -f tools/phase18_capture_first_golden_runner_identity.py
           test -f tools/phase18_capture_approved_snapshot_inventory.py
+          test -f tools/phase18_bind_first_golden_preflight_evidence.py
 
       - name: Capture zero-cost network guard evidence
         shell: bash
@@ -114,6 +115,18 @@ jobs:
           if p.get("blockers") != []:
               raise SystemExit("ready preflight unexpectedly contains blockers")
           PY
+
+      - name: Bind successful preflight evidence to immutable source SHA
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_bind_first_golden_preflight_evidence.py \
+            --evidence-dir output/phase18_gpu_smoke \
+            --source-sha "$DISPATCH_SHA" \
+            --branch phase18/story-intelligence \
+            --output output/phase18_gpu_smoke/preflight-evidence-binding.json
 
       - name: Upload preflight diagnostics only
         if: always()
