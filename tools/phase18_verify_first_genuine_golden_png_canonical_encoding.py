@@ -21,10 +21,13 @@ from typing import Any
 
 EXPECTED_BRANCH = "phase18/story-intelligence"
 EXPECTED_COST_MODE = "$0-local"
-STRUCTURE_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v2"
+# CS481 promoted the structural evidence contract to v3 when canonical RGB8
+# enforcement moved into the critical structural gate. Keep this verifier
+# pinned to that exact schema so stale v2 evidence fails closed.
+STRUCTURE_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-structure-v3"
 OUTPUT_SCHEMA = "pul7sar-phase18-first-genuine-golden-png-canonical-encoding-v1"
 EXPECTED_BIT_DEPTH = 8
-EXPECTED_COLOR_TYPE = 2  # PNG truecolour, matching Pillow image.convert("RGB")
+EXPECTED_COLOR_TYPE = 2
 EXPECTED_CHANNELS = 3
 EXPECTED_BITS_PER_PIXEL = 24
 EXPECTED_INTERLACE = 0
@@ -48,6 +51,7 @@ STRUCTURE_FLAGS = (
     "scanline_filter_bytes_verified",
     "iend_terminal",
     "no_trailing_bytes",
+    "canonical_encoding_verified",
 )
 
 
@@ -92,6 +96,8 @@ def verify(*, structure_path: Path) -> dict[str, Any]:
     for field in STRUCTURE_FLAGS:
         if structure.get(field) is not True:
             raise RuntimeError(f"GOLDEN_PNG_CANONICAL_ENCODING_STRUCTURE_FLAG_DRIFT:{field}")
+    if structure.get("canonical_encoding") != "RGB8_TRUECOLOUR_NON_INTERLACED":
+        raise RuntimeError("GOLDEN_PNG_CANONICAL_ENCODING_CONTRACT_DRIFT")
 
     expected = {
         "bit_depth": EXPECTED_BIT_DEPTH,
