@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +27,7 @@ from tools.phase18_run_first_genuine_golden_v6_canonical_attested import run as 
 
 SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-canonical-fresh-launch-v1"
 EXPECTED_BRANCH = "phase18/story-intelligence"
+PRE_GENERATION_BINDER = "tools/phase18_bind_authoritative_first_golden_pre_generation_evidence.py"
 
 
 def _inside_repository(path: Path) -> Path:
@@ -51,6 +53,35 @@ def _closed_authorities() -> dict[str, bool]:
         "publication_ready": False,
         "seeds_2_to_4_authorized": False,
     }
+
+
+def _prove_binding_implementation_is_immutable(expected_commit: str) -> None:
+    """Fail closed unless the binder executed now is exactly the tracked source."""
+    if len(expected_commit) != 40 or any(ch not in "0123456789abcdef" for ch in expected_commit):
+        raise RuntimeError("FIRST_GOLDEN_PRE_GENERATION_BINDER_SOURCE_SHA_INVALID")
+    binder_path = _inside_repository(Path(PRE_GENERATION_BINDER))
+    if not binder_path.is_file():
+        raise RuntimeError("FIRST_GOLDEN_PRE_GENERATION_BINDER_MISSING")
+    try:
+        tracked = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", expected_commit, "--", PRE_GENERATION_BINDER],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        if tracked != PRE_GENERATION_BINDER:
+            raise RuntimeError("FIRST_GOLDEN_PRE_GENERATION_BINDER_NOT_TRACKED_AT_SOURCE_SHA")
+        committed = subprocess.run(
+            ["git", "show", f"{expected_commit}:{PRE_GENERATION_BINDER}"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError("FIRST_GOLDEN_PRE_GENERATION_BINDER_GIT_PROOF_FAILED") from exc
+    if binder_path.read_bytes() != committed:
+        raise RuntimeError("FIRST_GOLDEN_PRE_GENERATION_BINDER_WORKTREE_DRIFT")
 
 
 def run(
@@ -83,6 +114,10 @@ def run(
     }
     if len(paths) != 9:
         raise RuntimeError("FIRST_GOLDEN_FRESH_WRAPPER_OUTPUT_PATH_COLLISION")
+
+    # Prove the binder implementation itself is the immutable source-tree copy
+    # before trusting it to validate any pre-generation evidence.
+    _prove_binding_implementation_is_immutable(expected_commit)
 
     # This is the last fail-closed evidence gate immediately before any
     # canonical Candidate-1 attempt can begin. The binder validates the exact
@@ -144,6 +179,7 @@ def run(
     return {
         "schema": SCHEMA,
         "expected_commit": expected_commit,
+        "pre_generation_binding_implementation_immutable": True,
         "pre_generation_evidence_binding": str(_inside_repository(pre_generation_binding_path)),
         "pre_generation_evidence_binding_schema": pre_generation_binding.get("schema"),
         "pre_generation_evidence_bound": True,
