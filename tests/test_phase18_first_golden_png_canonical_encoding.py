@@ -15,7 +15,7 @@ PNG_SHA = "b" * 64
 
 def _structure(root: Path, **overrides) -> Path:
     payload = {
-        "schema": "pul7sar-phase18-first-genuine-golden-png-structure-v2",
+        "schema": "pul7sar-phase18-first-genuine-golden-png-structure-v3",
         "status": "FIRST_GENUINE_GOLDEN_PNG_STRUCTURE_VERIFIED",
         "branch": "phase18/story-intelligence",
         "candidate": 1,
@@ -40,6 +40,8 @@ def _structure(root: Path, **overrides) -> Path:
         "scanline_filter_bytes_verified": True,
         "iend_terminal": True,
         "no_trailing_bytes": True,
+        "canonical_encoding_verified": True,
+        "canonical_encoding": "RGB8_TRUECOLOUR_NON_INTERLACED",
         "eligible_for_human_visual_review": True,
         "authoritative_gate": False,
         "network_download_authorized": False,
@@ -56,7 +58,7 @@ def _structure(root: Path, **overrides) -> Path:
 
 
 class FirstGoldenPngCanonicalEncodingTests(unittest.TestCase):
-    def test_rgb8_non_interlaced_structure_is_verified(self) -> None:
+    def test_rgb8_non_interlaced_structure_v3_is_verified(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = verify(structure_path=_structure(Path(tmp)))
             self.assertTrue(result["canonical_platform_encoding_verified"])
@@ -67,6 +69,21 @@ class FirstGoldenPngCanonicalEncodingTests(unittest.TestCase):
             self.assertEqual(result["bits_per_pixel"], 24)
             self.assertFalse(result["human_visual_review_approved"])
             self.assertFalse(result["publication_ready"])
+
+    def test_stale_structure_v2_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "STRUCTURE_SCHEMA_DRIFT"):
+                verify(structure_path=_structure(Path(tmp), schema="pul7sar-phase18-first-genuine-golden-png-structure-v2"))
+
+    def test_missing_cs481_canonical_proof_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "STRUCTURE_FLAG_DRIFT:canonical_encoding_verified"):
+                verify(structure_path=_structure(Path(tmp), canonical_encoding_verified=False))
+
+    def test_canonical_contract_label_drift_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaisesRegex(RuntimeError, "CONTRACT_DRIFT"):
+                verify(structure_path=_structure(Path(tmp), canonical_encoding="RGB8"))
 
     def test_rgba_structure_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
