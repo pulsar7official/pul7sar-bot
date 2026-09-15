@@ -54,7 +54,11 @@ class GoldenPngChunkSemanticsTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, expected_error):
                     verify(structure_path=proof, repo_root=root)
                 return None
-            return verify(structure_path=proof, repo_root=root)
+            result = verify(structure_path=proof, repo_root=root)
+            self.assertEqual(result["schema"], "pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v2")
+            self.assertEqual(result["upstream_structure_schema"], "pul7sar-phase18-first-genuine-golden-png-structure-v3")
+            self.assertEqual(result["upstream_structure_evidence_sha256"], hashlib.sha256(proof.read_bytes()).hexdigest())
+            return result
 
     def test_accepts_consecutive_idat_and_ancillary_before_idat(self) -> None:
         result = self.run_case(png(extra_before_idat=chunk(b"tEXt", b"k\x00v")))
@@ -67,8 +71,6 @@ class GoldenPngChunkSemanticsTests(unittest.TestCase):
         self.run_case(png(extra_before_idat=chunk(b"ABCD")), "UNKNOWN_CRITICAL")
 
     def test_rejects_reserved_bit_violation(self) -> None:
-        # PNG's reserved bit is encoded by the case of the THIRD chunk-type byte.
-        # A lowercase third byte is invalid; texT deliberately violates that rule.
         self.run_case(png(extra_before_idat=chunk(b"texT")), "RESERVED_BIT_INVALID")
 
     def test_rejects_non_consecutive_idat(self) -> None:
@@ -76,6 +78,16 @@ class GoldenPngChunkSemanticsTests(unittest.TestCase):
 
     def test_rejects_plte_after_idat(self) -> None:
         self.run_case(png(extra_between_idat=chunk(b"PLTE", b"\x00\x00\x00")), "PLTE_ORDER_INVALID")
+
+    def test_structure_byte_change_changes_upstream_hash(self) -> None:
+        data = png()
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td); target = root / "candidate.png"; target.write_bytes(data); proof = root / "structure.json"
+            proof.write_text(json.dumps(evidence(target, data)), encoding="utf-8")
+            first = verify(structure_path=proof, repo_root=root)["upstream_structure_evidence_sha256"]
+            proof.write_text(json.dumps(evidence(target, data), indent=2), encoding="utf-8")
+            second = verify(structure_path=proof, repo_root=root)["upstream_structure_evidence_sha256"]
+            self.assertNotEqual(first, second)
 
     def test_rejects_authority_drift(self) -> None:
         data = png()
