@@ -66,6 +66,7 @@ jobs:
           test -f tools/phase18_verify_first_genuine_golden_png_structure.py
           test -f tools/phase18_verify_first_genuine_golden_png_chunk_semantics.py
           test -f tools/phase18_bind_png_structure_to_review_bundle.py
+          test -f tools/phase18_bind_png_chunk_semantics_to_review_bundle.py
           test -f tools/phase18_verify_first_genuine_golden_png_canonical_encoding.py
           test -f tools/phase18_bind_png_canonical_encoding_to_review_bundle.py
           test -f tools/phase18_verify_first_genuine_golden_v6_snapshot_bound.py
@@ -287,6 +288,17 @@ jobs:
             --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
             --structure-evidence output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure.json
 
+      - name: Bind verified PNG chunk-semantics evidence into exact review bundle
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_bind_png_chunk_semantics_to_review_bundle.py bind \
+            --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            --semantic-evidence output/phase18_gpu_smoke/first-genuine-golden-v6-png-chunk-semantics.json
+
       - name: Bind canonical RGB8 PNG evidence into exact review bundle
         shell: bash
         env:
@@ -332,6 +344,17 @@ jobs:
           python tools/phase18_bind_png_structure_to_review_bundle.py verify \
             --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
             --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-structure-review-binding.json
+
+      - name: Replay PNG chunk-semantics binding before upload
+        shell: bash
+        env:
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          python tools/phase18_bind_png_chunk_semantics_to_review_bundle.py verify \
+            --bundle-dir output/phase18_golden_review/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT} \
+            --output output/phase18_gpu_smoke/first-genuine-golden-v6-png-chunk-semantics-review-binding.json
 
       - name: Replay canonical RGB8 PNG binding before upload
         shell: bash
