@@ -2,15 +2,15 @@
 """Bind/replay Candidate 1 PNG chunk-semantics evidence into the Golden review bundle.
 
 Fail-closed, CPU-safe, stdlib-only. This grants no review, Golden, publication,
-or Seeds 2-4 authority. The semantic evidence is cryptographically chained to
-the exact structure-v3 evidence already present in the same review bundle.
+or Seeds 2-4 authority. Semantic evidence must itself name the SHA-256 of the
+exact structure-v3 evidence bytes already present in the same review bundle.
 """
 from __future__ import annotations
 import argparse, hashlib, json, re, shutil
 from pathlib import Path
 
 BRANCH="phase18/story-intelligence"
-SEMANTICS_SCHEMA="pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v1"
+SEMANTICS_SCHEMA="pul7sar-phase18-first-genuine-golden-png-chunk-semantics-v2"
 STRUCTURE_SCHEMA="pul7sar-phase18-first-genuine-golden-png-structure-v3"
 BUNDLE_SCHEMA="pul7sar-phase18-first-genuine-golden-v6-review-bundle-v1"
 ENTRY="evidence_png_chunk_semantics"; ENTRY_PATH="evidence/png_chunk_semantics.json"
@@ -38,9 +38,10 @@ def manifest(v):
     if not isinstance(entries,dict) or not entries: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_ENTRIES_INVALID")
     return source,png,entries
 
-def semantics(v,source,png):
+def semantics(v,source,png,upstream):
     if v.get("schema")!=SEMANTICS_SCHEMA or v.get("status")!="FIRST_GENUINE_GOLDEN_PNG_CHUNK_SEMANTICS_VERIFIED": raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_SCHEMA_DRIFT")
     if v.get("branch")!=BRANCH or v.get("candidate")!=1 or v.get("source_commit_sha")!=source or v.get("png_sha256")!=png: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_UPSTREAM_IDENTITY_DRIFT")
+    if v.get("upstream_structure_schema")!=STRUCTURE_SCHEMA or v.get("upstream_structure_evidence_sha256")!=upstream: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_UPSTREAM_STRUCTURE_HASH_DRIFT")
     if v.get("cost_mode")!="$0-local" or v.get("offline_only") is not True or v.get("eligible_for_human_visual_review") is not True: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_POLICY_DRIFT")
     for f in ("known_critical_chunks_only","reserved_bit_valid_for_all_chunks","idat_consecutive","plte_order_valid"):
         if v.get(f) is not True: raise RuntimeError(f"PNG_CHUNK_SEMANTICS_REVIEW_BIND_FLAG_DRIFT:{f}")
@@ -71,11 +72,11 @@ def verify(bundle_dir:Path):
     except ValueError as exc: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_ENTRY_OUTSIDE_BUNDLE") from exc
     if not p.is_file() or p.stat().st_size!=r.get("bytes") or sha(p)!=r.get("sha256"): raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_EVIDENCE_DRIFT")
     if m.get("png_chunk_semantics_evidence_sha256")!=r.get("sha256") or m.get("png_chunk_semantics_upstream_structure_evidence_sha256")!=upstream: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_MANIFEST_SHA_DRIFT")
-    semantics(load(p),source,png)
-    return {"schema":"pul7sar-phase18-png-chunk-semantics-review-binding-v1","status":"FIRST_GENUINE_GOLDEN_PNG_CHUNK_SEMANTICS_EVIDENCE_BOUND_AND_VERIFIED","branch":BRANCH,"candidate":1,"cost_mode":"$0-local","offline_only":True,"source_commit_sha":source,"png_sha256":png,"png_chunk_semantics_verified":True,"png_chunk_semantics_evidence_sha256":r["sha256"],"upstream_structure_evidence_sha256":upstream,"publication_ready":False,"seeds_2_to_4_authorized":False}
+    semantics(load(p),source,png,upstream)
+    return {"schema":"pul7sar-phase18-png-chunk-semantics-review-binding-v2","status":"FIRST_GENUINE_GOLDEN_PNG_CHUNK_SEMANTICS_EVIDENCE_BOUND_AND_VERIFIED","branch":BRANCH,"candidate":1,"cost_mode":"$0-local","offline_only":True,"source_commit_sha":source,"png_sha256":png,"png_chunk_semantics_verified":True,"png_chunk_semantics_evidence_sha256":r["sha256"],"upstream_structure_evidence_sha256":upstream,"publication_ready":False,"seeds_2_to_4_authorized":False}
 
 def bind(bundle_dir:Path,semantics_path:Path):
-    bundle=bundle_dir.resolve(); mp=bundle/"review-bundle-manifest.json"; m=load(mp); source,png,entries=manifest(m); upstream=upstream_structure(bundle,entries,source,png); semantics(load(semantics_path),source,png)
+    bundle=bundle_dir.resolve(); mp=bundle/"review-bundle-manifest.json"; m=load(mp); source,png,entries=manifest(m); upstream=upstream_structure(bundle,entries,source,png); semantics(load(semantics_path),source,png,upstream)
     if ENTRY in entries: raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_ENTRY_ALREADY_PRESENT")
     dst=bundle/ENTRY_PATH
     if dst.exists(): raise RuntimeError("PNG_CHUNK_SEMANTICS_REVIEW_BIND_DESTINATION_ALREADY_PRESENT")
