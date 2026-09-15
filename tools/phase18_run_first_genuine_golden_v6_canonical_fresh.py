@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Freshness-bound wrapper for the canonical first-Golden v6 launcher.
 
-This wrapper captures mutable Candidate 1 evidence before the canonical attempt,
-runs the existing attested/content-bound/output-replayed canonical launcher, then
-replays freshness after the attempt. It never grants generation, network,
-publication, Golden-quality, or Seeds 2-4 authority; it only refuses readiness
-when evidence could be stale.
+This wrapper cryptographically and semantically binds the authoritative
+pre-generation evidence, captures mutable Candidate 1 evidence before the
+canonical attempt, runs the existing attested/content-bound/output-replayed
+canonical launcher, then replays freshness after the attempt. It never grants
+generation, network, publication, Golden-quality, or Seeds 2-4 authority; it
+only refuses readiness when evidence is stale, incomplete, or contract-drifted.
 """
 from __future__ import annotations
 
@@ -18,11 +19,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from tools.phase18_bind_authoritative_first_golden_pre_generation_evidence import bind as bind_pre_generation_evidence
 from tools.phase18_first_golden_freshness_guard import capture as capture_freshness
 from tools.phase18_first_golden_freshness_guard import verify as verify_freshness
 from tools.phase18_run_first_genuine_golden_v6_canonical_attested import run as run_canonical
 
 SCHEMA = "pul7sar-phase18-first-genuine-golden-v6-canonical-fresh-launch-v1"
+EXPECTED_BRANCH = "phase18/story-intelligence"
 
 
 def _inside_repository(path: Path) -> Path:
@@ -61,6 +64,11 @@ def run(
     attempt_contract_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-gpu-attempt-contract.json"),
     freshness_baseline_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-freshness-baseline.json"),
     freshness_verification_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-freshness-verification.json"),
+    pre_generation_binding_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-authoritative-pre-generation-binding.json"),
+    network_evidence_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-zero-cost-network-guard.json"),
+    runner_identity_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-runner-identity.json"),
+    snapshot_inventory_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-approved-snapshot-inventory.json"),
+    execution_blocker_path: Path = Path("output/phase18_gpu_smoke/first-genuine-golden-v6-execution-blocker-probe.json"),
 ) -> dict[str, object]:
     paths = {
         _inside_repository(output_path),
@@ -71,9 +79,24 @@ def run(
         _inside_repository(attempt_contract_path),
         _inside_repository(freshness_baseline_path),
         _inside_repository(freshness_verification_path),
+        _inside_repository(pre_generation_binding_path),
     }
-    if len(paths) != 8:
+    if len(paths) != 9:
         raise RuntimeError("FIRST_GOLDEN_FRESH_WRAPPER_OUTPUT_PATH_COLLISION")
+
+    # This is the last fail-closed evidence gate immediately before any
+    # canonical Candidate-1 attempt can begin. The binder validates the exact
+    # source SHA, zero-cost/network isolation, CUDA/native-BF16 runner identity,
+    # approved local model snapshots, and execution-blocker readiness.
+    pre_generation_binding = bind_pre_generation_evidence(
+        source_sha=expected_commit,
+        branch=EXPECTED_BRANCH,
+        network=_inside_repository(network_evidence_path),
+        runner=_inside_repository(runner_identity_path),
+        snapshots=_inside_repository(snapshot_inventory_path),
+        blocker=_inside_repository(execution_blocker_path),
+    )
+    _write_json(pre_generation_binding_path, pre_generation_binding)
 
     baseline = capture_freshness()
     _write_json(freshness_baseline_path, baseline)
@@ -121,6 +144,9 @@ def run(
     return {
         "schema": SCHEMA,
         "expected_commit": expected_commit,
+        "pre_generation_evidence_binding": str(_inside_repository(pre_generation_binding_path)),
+        "pre_generation_evidence_binding_schema": pre_generation_binding.get("schema"),
+        "pre_generation_evidence_bound": True,
         "canonical_result": canonical,
         "freshness_baseline": str(_inside_repository(freshness_baseline_path)),
         "freshness_verification": str(_inside_repository(freshness_verification_path)),
@@ -136,7 +162,7 @@ def run(
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Run the canonical first-Golden v6 attempt with pre/post stale-artifact freshness replay"
+        description="Run the canonical first-Golden v6 attempt with authoritative pre-generation evidence binding and pre/post stale-artifact freshness replay"
     )
     parser.add_argument("--expected-commit", required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -175,6 +201,11 @@ def main() -> int:
         type=Path,
         default=Path("output/phase18_gpu_smoke/first-genuine-golden-v6-freshness-verification.json"),
     )
+    parser.add_argument(
+        "--pre-generation-binding",
+        type=Path,
+        default=Path("output/phase18_gpu_smoke/first-genuine-golden-v6-authoritative-pre-generation-binding.json"),
+    )
     args = parser.parse_args()
 
     payload = run(
@@ -187,6 +218,7 @@ def main() -> int:
         attempt_contract_path=args.attempt_contract,
         freshness_baseline_path=args.freshness_baseline,
         freshness_verification_path=args.freshness_verification,
+        pre_generation_binding_path=args.pre_generation_binding,
     )
     print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if payload.get("ready") is True else 2
