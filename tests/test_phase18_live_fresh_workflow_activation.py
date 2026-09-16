@@ -40,7 +40,7 @@ class LiveFreshWorkflowActivationTests(unittest.TestCase):
         )
         self.assertIn("phase18_first_golden_freshness_guard.py", self.text)
 
-    def test_source_png_review_and_publication_gates_remain_present(self):
+    def test_source_png_and_review_bundle_gates_remain_present(self):
         for token in (
             "phase18_verify_first_genuine_golden_v6_source_bound_artifact.py",
             "phase18_verify_first_genuine_golden_png_structure.py",
@@ -48,12 +48,22 @@ class LiveFreshWorkflowActivationTests(unittest.TestCase):
             "phase18_verify_first_genuine_golden_png_canonical_encoding.py",
             "phase18_package_first_genuine_golden_v6_review_bundle.py",
             "phase18_verify_first_genuine_golden_v6_review_bundle.py",
-            "human_visual_review_approved",
-            "golden_quality_approved",
-            "publication_ready",
-            "seeds_2_to_4_authorized",
         ):
             self.assertIn(token, self.text)
+
+    def test_live_workflow_stops_at_review_bundle_and_does_not_self_approve_or_publish(self):
+        # Human visual approval, Golden-quality approval, publication, and Seeds 2-4
+        # authorization are deliberately downstream authorities.  The live Candidate 1
+        # workflow may package/upload evidence for review, but must not grant them.
+        for forbidden in (
+            "human_visual_review_approved: true",
+            "golden_quality_approved: true",
+            "publication_ready: true",
+            "seeds_2_to_4_authorized: true",
+        ):
+            self.assertNotIn(forbidden, self.text)
+        self.assertIn("Upload exact Golden v6 Candidate 1 review bundle", self.text)
+        self.assertIn("if: success()", self.text)
 
 
 if __name__ == "__main__":
