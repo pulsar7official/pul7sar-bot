@@ -1,0 +1,85 @@
+name: Phase 18 Adaptive Brand Pixel Verification
+
+on:
+  push:
+    branches: ['phase18/**']
+    paths:
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/editorial_reference_scene_study_renderer.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'engine/intelligence/sports_editorial_scene.py'
+      - 'tools/phase18_build_adaptive_brand_pixel_matrix.py'
+      - 'tests/test_phase18_adaptive_brand_*.py'
+      - '.github/workflows/phase18-adaptive-brand-pixels.yml'
+  pull_request:
+    paths:
+      - 'engine/intelligence/adaptive_brand_overlay.py'
+      - 'engine/intelligence/adaptive_brand_placement.py'
+      - 'engine/intelligence/brand_embedded_master.py'
+      - 'engine/intelligence/brand_reference_renderer.py'
+      - 'engine/intelligence/editorial_reference_scene_study_renderer.py'
+      - 'engine/intelligence/platform_profiles.py'
+      - 'engine/intelligence/sports_editorial_scene.py'
+      - 'tools/phase18_build_adaptive_brand_pixel_matrix.py'
+      - 'tests/test_phase18_adaptive_brand_*.py'
+      - '.github/workflows/phase18-adaptive-brand-pixels.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-adaptive-brand-pixels:
+    runs-on: ubuntu-latest
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.10'}
+      - name: Install CPU dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Run adaptive brand regressions
+        run: |
+          python -m unittest -v tests.test_phase18_adaptive_brand_placement
+          python -m unittest -v tests.test_phase18_adaptive_brand_overlay
+          python -m unittest -v tests.test_phase18_adaptive_reference_brand_renderer
+      - name: Build 42-decision pixel matrix
+        run: python tools/phase18_build_adaptive_brand_pixel_matrix.py --output output/phase18_adaptive_brand_pixel_matrix/manifest.json
+      - name: Verify adaptive brand pixel matrix
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('output/phase18_adaptive_brand_pixel_matrix/manifest.json')
+          m=json.loads(p.read_text(encoding='utf-8'))
+          assert m['manifest_version']=='pul7sar-adaptive-brand-pixel-matrix-v1'
+          assert m['overlay_contract']=='pul7sar-adaptive-brand-overlay-v1'
+          assert m['placement_contract']=='pul7sar-adaptive-brand-placement-v1'
+          assert m['family_count']==6 and m['platform_count']==7 and m['decision_count']==42
+          assert len(m['embedded_bundle_sha256'])==64
+          assert m['historic_fixed_brand_width_px']==870
+          assert m['all_inside_safe_area'] is True
+          assert m['all_within_family_scale_contract'] is True
+          assert m['historic_fixed_width_removed_everywhere'] is True
+          assert m['image_created'] is False and m['generator_used'] is False and m['network_used'] is False
+          assert m['publication_ready'] is False
+          assert len(m['placements'])==42
+          for row in m['placements']:
+              assert row['inside_safe_area'] is True
+              assert row['width_within_contract'] is True
+              assert row['height_within_contract'] is True
+              assert row['historic_fixed_width_removed'] is True
+              assert row['pixel_box']['width'] != 870
+          print('Adaptive brand pixel matrix PASS')
+          PY
+      - name: Upload adaptive brand pixel matrix
+        uses: actions/upload-artifact@v7
+        with:
+          name: 'PUL7SAR-adaptive-brand-pixel-matrix-${{ github.sha }}'
+          path: output/phase18_adaptive_brand_pixel_matrix/manifest.json
+          if-no-files-found: error
+          retention-days: 14

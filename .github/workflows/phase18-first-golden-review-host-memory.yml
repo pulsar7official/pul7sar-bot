@@ -1,0 +1,214 @@
+name: Phase 18 First Golden Review Host Memory Locked
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type RUN_PHASE18_FIRST_GOLDEN_REVIEW to execute Candidate 1 through the host-memory/runtime-locked sealed review path"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase18-first-golden-review-host-memory
+  cancel-in-progress: false
+
+jobs:
+  candidate-1-host-memory-locked-review:
+    # Self-hosted only. Never fall back to a paid hosted GPU runner.
+    runs-on: [self-hosted, linux, x64, gpu, cuda, bf16, pul7sar-phase18]
+    timeout-minutes: 120
+    env:
+      PYTHONPATH: .
+      PUL7SAR_PHASE18_COST_MODE: $0-local
+
+    steps:
+      - name: Require explicit confirmation and immutable Phase 18 dispatch
+        shell: bash
+        env:
+          DISPATCH_REF: ${{ github.ref }}
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "${{ inputs.confirmation }}" = "RUN_PHASE18_FIRST_GOLDEN_REVIEW"
+          test "$DISPATCH_REF" = "refs/heads/phase18/story-intelligence"
+          printf '%s' "$DISPATCH_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+      - name: Checkout immutable dispatched Phase 18 commit with complete ancestry
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      - name: Reattach exact Phase 18 branch and prove main isolation
+        shell: bash
+        env:
+          DISPATCH_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          git checkout -B phase18/story-intelligence "$DISPATCH_SHA"
+          test "$(git branch --show-current)" = "phase18/story-intelligence"
+          test "$(git rev-parse HEAD)" = "$DISPATCH_SHA"
+          test -f tools/phase18_colab_first_golden_host_memory_locked.py
+          test -f tools/phase18_preflight_host_memory.py
+          test -f engine/intelligence/host_memory_qualification.py
+          test -f tools/phase18_colab_first_golden_runtime_locked.py
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          base="$(git merge-base origin/main HEAD)"
+          test -n "$base"
+          if git diff --name-only "$base"...HEAD | grep -qx 'main.py'; then
+            echo "Unexpected main.py modification detected in Phase 18 diff." >&2
+            exit 6
+          fi
+
+      - name: Prove CUDA-enabled PyTorch exists without replacing it
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import torch
+          if not torch.cuda.is_available():
+              raise SystemExit("CUDA-enabled PyTorch is required; refusing to install or replace PyTorch automatically")
+          print({"torch": torch.__version__, "cuda": torch.version.cuda, "devices": torch.cuda.device_count()})
+          PY
+
+      - name: Run host-memory and runtime-locked Candidate 1 sealed-review staging
+        shell: bash
+        run: |
+          set -euo pipefail
+          python tools/phase18_colab_first_golden_host_memory_locked.py \
+            --worker-id github-self-hosted-first-golden-host-memory-01 \
+            --timeout-seconds 1800 \
+            --output output/phase18_gpu_smoke/first-golden-host-memory-locked.json
+
+      - name: Replay host-memory, runtime-lock, and exact review PNG evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          root = Path.cwd().resolve()
+          final_path = root / "output/phase18_gpu_smoke/first-golden-host-memory-locked.json"
+          if not final_path.is_file():
+              raise SystemExit("host-memory-locked first-Golden receipt missing")
+          final = json.loads(final_path.read_text(encoding="utf-8"))
+          if final.get("schema") != "pul7sar-first-golden-host-memory-lock-v1":
+              raise SystemExit("unexpected host-memory-lock schema")
+          if final.get("status") != "FIRST_GOLDEN_HOST_MEMORY_AND_RUNTIME_LOCK_VERIFIED":
+              raise SystemExit("host-memory/runtime lock not verified")
+          if final.get("branch") != "phase18/story-intelligence" or final.get("candidate") != 1:
+              raise SystemExit("host-memory-lock identity drift")
+          if final.get("cost_mode") != "$0-local":
+              raise SystemExit("host-memory-lock escaped zero-cost mode")
+          if final.get("host_memory_ready") is not True or final.get("runtime_stable_across_generation") is not True:
+              raise SystemExit("host-memory/runtime readiness not proven")
+          available = final.get("available_ram_gb_before_model_work")
+          required = final.get("minimum_available_ram_gb")
+          if not isinstance(available, (int, float)) or isinstance(available, bool):
+              raise SystemExit("available host RAM missing")
+          if not isinstance(required, (int, float)) or isinstance(required, bool) or float(available) < float(required):
+              raise SystemExit("available host RAM below first-Golden floor")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if final.get(field) is not False:
+                  raise SystemExit(f"host-memory-lock illegally changed gate: {field}")
+
+          def inside_repo(value: str) -> Path:
+              path = Path(value)
+              if not path.is_absolute():
+                  path = root / path
+              path = path.resolve()
+              if path != root and root not in path.parents:
+                  raise SystemExit(f"evidence path escaped repository: {path}")
+              return path
+
+          def sha256(path: Path) -> str:
+              digest = hashlib.sha256()
+              with path.open("rb") as handle:
+                  for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                      digest.update(chunk)
+              return digest.hexdigest()
+
+          evidence = final.get("evidence")
+          if not isinstance(evidence, dict) or set(evidence) != {"host_memory_preflight", "runtime_lock"}:
+              raise SystemExit("host-memory-lock evidence set incomplete")
+          for label, record in evidence.items():
+              if not isinstance(record, dict):
+                  raise SystemExit(f"invalid evidence record: {label}")
+              path = inside_repo(str(record.get("path", "")))
+              if not path.is_file():
+                  raise SystemExit(f"evidence missing: {label}")
+              if sha256(path) != record.get("sha256") or path.stat().st_size != record.get("bytes"):
+                  raise SystemExit(f"evidence replay mismatch: {label}")
+
+          memory_path = inside_repo(str(evidence["host_memory_preflight"]["path"]))
+          memory = json.loads(memory_path.read_text(encoding="utf-8"))
+          if memory.get("schema") != "pul7sar-first-golden-host-memory-preflight-v1" or memory.get("ready") is not True:
+              raise SystemExit("host-memory preflight is not ready")
+          if memory.get("cost_mode") != "$0-local":
+              raise SystemExit("host-memory preflight cost-mode drift")
+          if memory.get("available_ram_gb") != final.get("available_ram_gb_before_model_work"):
+              raise SystemExit("host-memory availability binding drift")
+          if memory.get("minimum_available_ram_gb") != final.get("minimum_available_ram_gb"):
+              raise SystemExit("host-memory floor binding drift")
+          for field in ("model_downloads_performed", "model_loaded", "generation_authorized", "queue_mutated", "png_created", "semantic_approved", "golden_quality_approved", "publication_ready"):
+              if memory.get(field) is not False:
+                  raise SystemExit(f"host-memory preflight authority drift: {field}")
+
+          runtime_path = inside_repo(str(evidence["runtime_lock"]["path"]))
+          runtime = json.loads(runtime_path.read_text(encoding="utf-8"))
+          if runtime.get("schema") != "pul7sar-first-golden-runtime-lock-v1":
+              raise SystemExit("unexpected runtime-lock schema")
+          if runtime.get("status") != "FIRST_GOLDEN_RUNTIME_LOCK_VERIFIED":
+              raise SystemExit("runtime lock not verified")
+          if runtime.get("branch") != "phase18/story-intelligence" or runtime.get("candidate") != 1:
+              raise SystemExit("runtime-lock identity drift")
+          if runtime.get("cost_mode") != "$0-local" or runtime.get("runtime_stable_across_generation") is not True:
+              raise SystemExit("runtime-lock zero-cost/stability drift")
+          for field in ("human_visual_review_approved", "golden_quality_approved", "publication_ready", "seeds_2_to_4_authorized"):
+              if runtime.get(field) is not False:
+                  raise SystemExit(f"runtime lock illegally changed gate: {field}")
+
+          for path_field, sha_field in (
+              ("review_base_png", "review_base_png_sha256"),
+              ("review_hybrid_png", "review_hybrid_png_sha256"),
+          ):
+              if str(final.get(path_field)) != str(runtime.get(path_field)) or final.get(sha_field) != runtime.get(sha_field):
+                  raise SystemExit(f"host-memory/runtime review binding drift: {path_field}")
+              png = inside_repo(str(final.get(path_field, "")))
+              if not png.is_file() or png.read_bytes()[:8] != b"\x89PNG\r\n\x1a\n":
+                  raise SystemExit(f"review PNG missing or invalid: {path_field}")
+              if sha256(png) != final.get(sha_field):
+                  raise SystemExit(f"review PNG SHA mismatch: {path_field}")
+
+          print(json.dumps({
+              "status": "FIRST_GOLDEN_HOST_MEMORY_RUNTIME_AND_REVIEW_REPLAY_VERIFIED",
+              "candidate": 1,
+              "publication_ready": False,
+              "seeds_2_to_4_authorized": False,
+              "review_base_png": final["review_base_png"],
+              "review_hybrid_png": final["review_hybrid_png"],
+          }, indent=2, sort_keys=True))
+          PY
+
+      - name: Upload host-memory/runtime-locked sealed Candidate 1 review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase18-first-golden-host-memory-review-${{ github.run_id }}
+          if-no-files-found: warn
+          retention-days: 7
+          path: |
+            output/phase18_gpu_smoke/**
+            output/phase18_gpu_host/**
+            output/phase18_colab/**
+            output/phase18_visual_proof/**
+            output/phase18_generated/**
+            output/phase18_worker_telemetry/**
+            output/phase18_generation_queue/**
+            output/phase18_handoffs/golden-batch/**
